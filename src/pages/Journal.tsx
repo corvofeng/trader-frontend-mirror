@@ -1,0 +1,156 @@
+import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { TradeForm, TradeList, StockSearch } from './journal/features/trading';
+import { Portfolio } from './journal/features/portfolio';
+import { OperationsView } from './journal/features/operations/OperationsView';
+import { Settings, LayoutGrid, History, BookOpen, Briefcase, Activity } from 'lucide-react';
+import { Theme, themes } from '../lib/theme';
+import { portfolioService } from '../lib/services';
+import { StockChart } from './journal/features/trading/components/StockChart';
+import type { Stock, Holding, Trade } from '../lib/services/types';
+
+interface JournalProps {
+  selectedStock: Stock | null;
+  theme: Theme;
+  onStockSelect: (stock: Stock) => void;
+}
+
+type Tab = 'portfolio' | 'trades' | 'history' | 'analysis' | 'settings' | 'operations';
+
+const DEMO_USER_ID = 'mock-user-id';
+
+export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<Tab>(() => {
+    const params = new URLSearchParams(location.search);
+    const tab = params.get('tab') as Tab;
+    return tab && ['portfolio', 'trades', 'history', 'analysis', 'settings', 'operations'].includes(tab)
+      ? tab
+      : 'portfolio';
+  });
+  const [holdings, setHoldings] = useState<Holding[]>([]);
+  const [recentTrades, setRecentTrades] = useState<Trade[]>([]);
+  const [dateRange, setDateRange] = useState({
+    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    endDate: new Date().toISOString().split('T')[0]
+  });
+
+  const handleTabChange = (newTab: Tab) => {
+    setActiveTab(newTab);
+    navigate(`/journal?tab=${newTab}`, { replace: true });
+  };
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (activeTab === 'portfolio') {
+        const [holdingsResponse, tradesResponse] = await Promise.all([
+          portfolioService.getHoldings(DEMO_USER_ID),
+          portfolioService.getRecentTrades(DEMO_USER_ID, dateRange.startDate, dateRange.endDate)
+        ]);
+        
+        if (holdingsResponse.data) setHoldings(holdingsResponse.data);
+        if (tradesResponse.data) setRecentTrades(tradesResponse.data);
+      }
+    };
+
+    fetchData();
+  }, [activeTab, dateRange]);
+
+  const tabs = [
+    { id: 'portfolio' as Tab, name: 'Portfolio', icon: Briefcase },
+    { id: 'trades' as Tab, name: 'Trade Plans', icon: LayoutGrid },
+    { id: 'history' as Tab, name: 'Trade History', icon: History },
+    { id: 'operations' as Tab, name: 'Operations', icon: Activity },
+    { id: 'analysis' as Tab, name: 'Analysis', icon: BookOpen },
+    { id: 'settings' as Tab, name: 'Settings', icon: Settings },
+  ];
+
+  return (
+    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
+      <div className="mb-6">
+        <div className="flex flex-col gap-4">
+          <div className="w-full">
+            <StockSearch
+              onSelect={onStockSelect}
+              selectedStockCode={selectedStock?.stock_code}
+            />
+          </div>
+          
+          <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+            <div className="flex space-x-2 min-w-max sm:min-w-0">
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => handleTabChange(tab.id)}
+                    className={`inline-flex items-center px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 whitespace-nowrap ${
+                      activeTab === tab.id
+                        ? themes[theme].primary
+                        : themes[theme].secondary
+                    }`}
+                  >
+                    <Icon className="w-4 h-4 sm:mr-2" />
+                    <span className="hidden sm:inline">{tab.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {activeTab === 'portfolio' && (
+        <Portfolio 
+          holdings={holdings} 
+          theme={theme} 
+          recentTrades={recentTrades}
+          dateRange={dateRange}
+          onDateRangeChange={setDateRange}
+        />
+      )}
+
+      {activeTab === 'trades' && (
+        <div className="flex flex-col gap-6">
+          <TradeForm selectedStock={selectedStock} theme={theme} />
+          <TradeList selectedStockCode={selectedStock?.stock_code} theme={theme} />
+        </div>
+      )}
+
+      {activeTab === 'history' && (
+        <div className="space-y-6">
+          {selectedStock?.stock_code && (
+            <StockChart stockCode={selectedStock.stock_code} theme={theme} />
+          )}
+          <div className={`${themes[theme].card} rounded-lg p-4 sm:p-6`}>
+            <h2 className={`text-xl sm:text-2xl font-bold mb-4 ${themes[theme].text}`}>Completed Trades</h2>
+            <TradeList selectedStockCode={selectedStock?.stock_code} theme={theme} showCompleted={true} />
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'operations' && (
+        <OperationsView theme={theme} />
+      )}
+
+      {activeTab === 'analysis' && (
+        <div className={`${themes[theme].card} rounded-lg p-4 sm:p-6`}>
+          <h2 className={`text-xl sm:text-2xl font-bold mb-4 ${themes[theme].text}`}>Performance Analysis</h2>
+          <p className={`${themes[theme].text} opacity-70`}>
+            Trading performance analysis features coming soon...
+          </p>
+        </div>
+      )}
+
+      {activeTab === 'settings' && (
+        <div className={`${themes[theme].card} rounded-lg p-4 sm:p-6`}>
+          <h2 className={`text-xl sm:text-2xl font-bold mb-4 ${themes[theme].text}`}>Account Settings</h2>
+          <p className={`${themes[theme].text} opacity-70`}>
+            Account and preferences settings coming soon...
+          </p>
+        </div>
+      )}
+    </main>
+  );
+}

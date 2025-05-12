@@ -1,0 +1,224 @@
+import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, OperationService } from '../types';
+import type { Trade } from '../types';
+
+export const authService: AuthService = {
+  getUser: async () => {
+    const checker = await (await fetch('/api/check')).json();
+    if (checker['status']) {
+      const user = await (await fetch('/api/user')).json();
+      return { data: { user: user } };
+    } else {
+      return null;
+    }
+  },
+
+  signIn: async () => {
+    window.location.href = '/api/user';
+  },
+
+  signOut: async () => {
+    window.location.href = '/api/logout';
+  }
+};
+
+export const tradeService: TradeService = {
+  getTrades: async (userId: string, stock_code?: string, status?: string) => {
+    let filteredTrades = await (await fetch('/api/actions')).json();
+    console.log(userId, stock_code, status, filteredTrades);
+
+    if (stock_code) {
+      filteredTrades = filteredTrades.filter(trade => trade.stock_code === stock_code);
+    }
+
+    if (status && status !== 'all') {
+      filteredTrades = filteredTrades.filter(trade => trade.status === status);
+    }
+
+    return { data: filteredTrades, error: null };
+  },
+
+  createTrade: async (trade: Omit<Trade, 'id' | 'created_at'>) => {
+    const response = await fetch('/api/actions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(trade)
+    });
+
+    if (!response.ok) {
+      return { data: null, error: 'Failed to create trade' };
+    }
+
+    const newTrade = await response.json();
+    return { data: newTrade, error: null };
+  },
+
+  updateTrade: async (trade: Trade) => {
+    const response = await fetch('/api/actions', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(trade)
+    });
+
+    if (!response.ok) {
+      return { data: null, error: 'Failed to update trade' };
+    }
+
+    return { data: trade, error: null };
+  }
+};
+
+export const stockService: StockService = {
+  getStockName: (stockCode: string) => {
+    throw new Error('Not implemented');
+  },
+  
+  getStocks: async () => {
+    try {
+      const response = await fetch(`/api/stocks`);
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error fetching stocks:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+  
+  searchStocks: async (query: string) => {
+    try {
+      const response = await fetch(`/api/stocks/search?q=${encodeURIComponent(query)}`);
+      if (!response.ok) {
+        throw new Error('Failed to search stocks');
+      }
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error searching stocks:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  getStockData: async (symbol: string) => {
+    try {
+      const response = await fetch(`/api/stocks/${encodeURIComponent(symbol)}/history`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch stock data');
+      }
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error fetching stock data:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  getCurrentPrice: async (symbol: string) => {
+    try {
+      const response = await fetch(`/api/stocks/${symbol}/price`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch current price');
+      }
+      const data = await response.json();
+      return { 
+        data: {
+          stock_code: symbol,
+          stock_name: data.stock_name || symbol,
+          price: data.latest_value.lastPrice
+        }, 
+        error: null 
+      };
+    } catch (error) {
+      console.error('Error fetching current price:', error);
+      return { data: null, error: error as Error };
+    }
+  }
+};
+
+export const portfolioService: PortfolioService = {
+  getHoldings: async (userId: string) => {
+    try {
+      const response = await fetch(`/api/portfolio/${userId}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch portfolio data');
+      }
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error fetching portfolio:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+  
+  getRecentTrades: async (userId: string, startDate: string, endDate: string) => {
+    try {
+      const response = await fetch(
+        `/api/portfolio/${userId}/recent-trades?startDate=${startDate}&endDate=${endDate}`
+      );
+      if (!response.ok) {
+        throw new Error('Failed to fetch recent trades');
+      }
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error fetching recent trades:', error);
+      return { data: null, error: error as Error };
+    }
+  }
+};
+
+export const currencyService: CurrencyService = {
+  getCurrency: async () => {
+    try {
+      const response = await fetch('/api/settings/currency');
+      if (!response.ok) {
+        throw new Error('Failed to fetch currency');
+      }
+      const data = await response.json();
+      return { data: data.currency, error: null };
+    } catch (error) {
+      console.error('Error fetching currency:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+  setCurrency: async (currency: string) => {
+    try {
+      const response = await fetch('/api/settings/currency', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ currency })
+      });
+      if (!response.ok) {
+        throw new Error('Failed to update currency');
+      }
+      return { error: null };
+    } catch (error) {
+      console.error('Error updating currency:', error);
+      return { error: error as Error };
+    }
+  }
+};
+
+export const operationService: OperationService = {
+  getOperations: async (startDate: string, endDate: string) => {
+    try {
+      const response = await fetch(
+        `/api/operations?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`
+      );
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch operations');
+      }
+      
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error fetching operations:', error);
+      return { data: null, error: error as Error };
+    }
+  }
+};

@@ -1,0 +1,1 @@
+export { AnimatedChart } from './AnimatedChart';
