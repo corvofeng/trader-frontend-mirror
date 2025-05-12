@@ -47,6 +47,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
   const { currencyConfig } = useCurrency();
   const [stockInfo, setStockInfo] = useState<Stock | null>(null);
   const isDisposed = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const [chartType, setChartType] = useState<ChartType>('candlestick');
   const [isLocked, setIsLocked] = useState(false);
@@ -64,6 +65,8 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
 
   useEffect(() => {
     const fetchStockInfo = async () => {
+      if (isDisposed.current) return;
+
       if (!stockCode) {
         setStockInfo({ stock_code: '^SSEC', stock_name: 'Shanghai Composite Index' });
         return;
@@ -149,7 +152,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
   };
 
   const handleZoom = (direction: 'in' | 'out') => {
-    if (!chartRef.current) return;
+    if (!chartRef.current || isDisposed.current) return;
     
     const timeScale = chartRef.current.timeScale();
     const newZoom = direction === 'in' ? zoomLevel * 1.2 : zoomLevel / 1.2;
@@ -202,7 +205,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
     candlestickSeriesRef.current = newSeries;
     setChartType(type);
 
-    if (chartData.trades.length > 0) {
+    if (chartData.trades.length > 0 && !isDisposed.current) {
       addTradeMarkers(newSeries, chartData.trades, themes[theme].chart, markerStyle);
     }
   };
@@ -281,6 +284,12 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
 
     // Reset the disposed flag when creating a new chart
     isDisposed.current = false;
+
+    // Cancel any ongoing fetch requests
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
 
     const isDark = theme === 'dark';
     const chartColors = themes[theme].chart;
@@ -439,7 +448,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
               addTradeMarkers(candlestickSeries, trades, chartColors, markerStyle);
               costBasisPoints = calculateCostBasis(trades);
               
-              if (costBasisPoints.length > 0 && showCostBasis) {
+              if (costBasisPoints.length > 0 && showCostBasis && !isDisposed.current) {
                 costBasisSeries.setData(costBasisPoints.map(point => ({
                   time: point.time,
                   value: point.value,
@@ -556,7 +565,9 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
           }
         };
 
-        chart.subscribeCrosshairMove(handleCrosshairMove);
+        if (!isDisposed.current) {
+          chart.subscribeCrosshairMove(handleCrosshairMove);
+        }
 
       } catch (error) {
         console.error('Failed to load chart data:', error);
@@ -581,8 +592,16 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
     return () => {
       isDisposed.current = true;
       window.removeEventListener('resize', handleResize);
-      chart.unsubscribeCrosshairMove();
-      chart.remove();
+      
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+
+      if (chartRef.current) {
+        chartRef.current.unsubscribeCrosshairMove();
+        chartRef.current.remove();
+      }
+
       chartRef.current = null;
       candlestickSeriesRef.current = null;
       volumeSeriesRef.current = null;
