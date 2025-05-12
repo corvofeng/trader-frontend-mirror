@@ -1,4 +1,4 @@
-import { mockUser, mockHoldings, tradeIdCounter, MOCK_STOCKS, generateMockTrades, DEMO_STOCK_DATA } from './mockData';
+import { mockUser, mockHoldings, tradeIdCounter, MOCK_STOCKS, generateMockTrades, generateMockOperations, DEMO_STOCK_DATA } from './mockData';
 import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, StockData, StockPrice, Operation, OperationService, TrendData } from '../types';
 import { format, subDays, addMinutes, startOfDay, endOfDay, parseISO } from 'date-fns';
 
