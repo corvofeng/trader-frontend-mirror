@@ -1,3 +1,5 @@
+import type { CurrencyConfig } from '../types';
+
 export interface User {
   id: string;
   email: string;
@@ -46,6 +48,11 @@ export interface StockData {
   volume: number;
 }
 
+export interface TrendData {
+  date: string;
+  value: number;
+}
+
 export interface CurrencyConfig {
   symbol: string;
   position: 'before' | 'after';
@@ -86,6 +93,7 @@ export interface TradeService {
 export interface PortfolioService {
   getHoldings: (userId: string) => Promise<ServiceResponse<Holding[]>>;
   getRecentTrades: (userId: string, startDate: string, endDate: string) => Promise<ServiceResponse<Trade[]>>;
+  getTrendData: (userId: string, startDate: string, endDate: string) => Promise<ServiceResponse<TrendData[]>>;
 }
 
 export interface CurrencyService {

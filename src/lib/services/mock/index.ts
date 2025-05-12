@@ -1,5 +1,5 @@
-import { mockUser, mockHoldings, tradeIdCounter, MOCK_STOCKS, generateMockTrades } from './mockData';
-import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, StockData, StockPrice, Operation, OperationService } from '../types';
+import { mockUser, mockHoldings, tradeIdCounter, MOCK_STOCKS, generateMockTrades, DEMO_STOCK_DATA } from './mockData';
+import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, StockData, StockPrice, Operation, OperationService, TrendData } from '../types';
 import { format, subDays, addMinutes, startOfDay, endOfDay, parseISO } from 'date-fns';
 
 function generateDemoStockData(): StockData[] {
@@ -166,6 +166,7 @@ export const portfolioService: PortfolioService = {
     await new Promise(resolve => setTimeout(resolve, 700));
     return { data: mockHoldings, error: null };
   },
+  
   getRecentTrades: async (userId: string, startDate: string, endDate: string) => {
     await new Promise(resolve => setTimeout(resolve, 500));
     const filteredTrades = mockTrades
@@ -176,6 +177,52 @@ export const portfolioService: PortfolioService = {
       })
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     return { data: filteredTrades, error: null };
+  },
+
+  getTrendData: async (userId: string, startDate: string, endDate: string) => {
+    await new Promise(resolve => setTimeout(resolve, 600));
+    
+    const trades = await tradeService.getTrades(userId);
+    if (!trades.data) return { data: [], error: new Error('Failed to fetch trades') };
+
+    const sortedTrades = trades.data
+      .filter(trade => trade.status === 'completed')
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+    if (sortedTrades.length === 0) {
+      return { data: [], error: null };
+    }
+
+    let currentValue = mockHoldings.reduce((sum, holding) => sum + holding.total_value, 0);
+    const profitLoss = mockHoldings.reduce((sum, holding) => sum + holding.profit_loss, 0);
+    const initialValue = currentValue - profitLoss;
+
+    const trendData: TrendData[] = [{
+      date: startDate,
+      value: initialValue
+    }];
+
+    sortedTrades.forEach(trade => {
+      const tradeValue = trade.target_price * trade.quantity;
+      if (trade.operation === 'buy') {
+        currentValue += tradeValue;
+      } else {
+        currentValue -= tradeValue;
+      }
+      
+      trendData.push({
+        date: trade.created_at,
+        value: currentValue
+      });
+    });
+
+    // Add current value
+    trendData.push({
+      date: new Date().toISOString(),
+      value: currentValue
+    });
+
+    return { data: trendData, error: null };
   }
 };
 
@@ -189,81 +236,6 @@ export const currencyService: CurrencyService = {
     return { error: null };
   }
 };
-
-function generateMockOperations(startDate: string, endDate: string): Operation[] {
-  const operations: Operation[] = [];
-  const functionNames = [
-    'user_auth',
-    'data_sync',
-    'cache_refresh',
-    'backup_create',
-    'log_cleanup',
-    'index_rebuild',
-    'metrics_collect',
-    'email_send',
-    'report_generate',
-    'security_scan'
-  ];
-
-  // Function patterns - some functions run more frequently during certain hours
-  const functionPatterns = {
-    user_auth: { peakHours: [9, 10, 11, 14, 15, 16], baseCount: 3, peakCount: 8 },
-    data_sync: { peakHours: [0, 1, 2], baseCount: 1, peakCount: 4 },
-    cache_refresh: { peakHours: [4, 5], baseCount: 2, peakCount: 5 },
-    backup_create: { peakHours: [1], baseCount: 0, peakCount: 2 },
-    log_cleanup: { peakHours: [3], baseCount: 0, peakCount: 1 },
-    index_rebuild: { peakHours: [2], baseCount: 0, peakCount: 1 },
-    metrics_collect: { peakHours: [], baseCount: 1, peakCount: 1 },
-    email_send: { peakHours: [9, 10, 14, 15], baseCount: 2, peakCount: 6 },
-    report_generate: { peakHours: [6, 7], baseCount: 1, peakCount: 3 },
-    security_scan: { peakHours: [4, 12, 20], baseCount: 1, peakCount: 2 }
-  };
-
-  const start = startOfDay(parseISO(startDate));
-  const end = endOfDay(parseISO(endDate));
-  let current = start;
-
-  while (current <= end) {
-    const hour = current.getHours();
-    const isWeekend = current.getDay() === 0 || current.getDay() === 6;
-
-    functionNames.forEach(funcName => {
-      const pattern = functionPatterns[funcName as keyof typeof functionPatterns];
-      let baseCount = isWeekend ? Math.floor(pattern.baseCount / 2) : pattern.baseCount;
-      let peakCount = isWeekend ? Math.floor(pattern.peakCount / 2) : pattern.peakCount;
-      
-      const isPeakHour = pattern.peakHours.includes(hour);
-      const count = isPeakHour ? peakCount : baseCount;
-      
-      // Generate operations for this function for this hour
-      for (let i = 0; i < count; i++) {
-        // Add some randomness to the minutes and seconds
-        const randomMinutes = Math.floor(Math.random() * 60);
-        const randomSeconds = Math.floor(Math.random() * 60);
-        const operationTime = new Date(current);
-        operationTime.setMinutes(randomMinutes);
-        operationTime.setSeconds(randomSeconds);
-        
-        // 90% success rate for most operations, adjust as needed
-        const successRate = funcName === 'security_scan' ? 0.95 : 0.9;
-        
-        operations.push({
-          func_name: funcName,
-          call_time: format(operationTime, "yyyy-MM-dd'T'HH:mm:ss'Z'"),
-          result: Math.random() < successRate ? 'success' : 'failed'
-        });
-      }
-    });
-
-    // Move to next hour
-    current = addMinutes(current, 60);
-  }
-
-  // Sort operations by call_time in descending order (newest first)
-  return operations.sort((a, b) => 
-    new Date(b.call_time).getTime() - new Date(a.call_time).getTime()
-  );
-}
 
 export const operationService: OperationService = {
   getOperations: async (startDate: string, endDate: string) => {
