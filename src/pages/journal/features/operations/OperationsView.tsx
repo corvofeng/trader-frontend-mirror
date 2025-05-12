@@ -37,6 +37,7 @@ export function OperationsView({ theme }: OperationsViewProps) {
           setCurrentPage(1);
         }
       } catch (error) {
+        console.error("Failed to get operations", error)
         // Fallback to mock data
         const mockData = generateMockOperations(dateRange.startDate, dateRange.endDate);
         setOperations(mockData);
