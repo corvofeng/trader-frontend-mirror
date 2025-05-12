@@ -111,3 +111,47 @@ export function generateMockTrades(stockData: any[]) {
 
   return trades.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }
+
+// Generate mock option data
+export const MOCK_OPTION_DATA = {
+  quotes: [
+    // Current date plus 30, 60, 90 days for expiries
+    ...[30, 60, 90].flatMap(days => {
+      const expiry = new Date();
+      expiry.setDate(expiry.getDate() + days);
+      return [100, 150, 200, 250, 300].map(strike => ({
+        expiry: expiry.toISOString(),
+        strike,
+        callPrice: Math.random() * 10 + 5,
+        putPrice: Math.random() * 10 + 5,
+        callVolume: Math.floor(Math.random() * 1000),
+        putVolume: Math.floor(Math.random() * 1000),
+        callOpenInterest: Math.floor(Math.random() * 5000),
+        putOpenInterest: Math.floor(Math.random() * 5000),
+        callImpliedVol: Math.random() * 0.3 + 0.2,
+        putImpliedVol: Math.random() * 0.3 + 0.2
+      }));
+    })
+  ],
+  surface: [
+    // Generate surface data for visualization
+    ...[30, 60, 90].flatMap(days => {
+      const expiry = new Date();
+      expiry.setDate(expiry.getDate() + days);
+      return [100, 150, 200, 250, 300].flatMap(strike => [
+        {
+          expiry: expiry.toISOString(),
+          strike,
+          type: 'call',
+          value: Math.random() * 10 + 5
+        },
+        {
+          expiry: expiry.toISOString(),
+          strike,
+          type: 'put',
+          value: Math.random() * 10 + 5
+        }
+      ]);
+    })
+  ]
+};
