@@ -5,7 +5,7 @@ import * as echarts from 'echarts';
 import { Calendar, ListFilter, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Theme, themes } from '../../../../lib/theme';
 import { operationService } from '../../../../lib/services';
-import { generateMockOperations } from '../../../../lib/services/mock';
+// import { generateMockOperations } from '../../../../lib/services/mock';
 import type { Operation } from '../../../../lib/services/types';
 
 interface OperationsViewProps {
