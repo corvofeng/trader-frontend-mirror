@@ -1,14 +1,22 @@
 import React, { useState } from 'react';
 import { format, subDays } from 'date-fns';
-import { ArrowUpCircle, ArrowDownCircle, Calendar, Filter, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, BarChart2 } from 'lucide-react';
+import { ArrowUpCircle, ArrowDownCircle, Calendar, Filter, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, BarChart2, TrendingUp } from 'lucide-react';
 import { Theme, themes } from '../../../../lib/theme';
 import { formatCurrency } from '../../../../lib/types';
 import type { Holding, Trade } from '../../../../lib/services/types';
-import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
-import { Pie } from 'react-chartjs-2';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement } from 'chart.js';
+import { Pie, Line } from 'react-chartjs-2';
 import { useCurrency } from '../../../../lib/context/CurrencyContext';
 
-ChartJS.register(ArcElement, Tooltip, Legend);
+ChartJS.register(
+  ArcElement, 
+  Tooltip, 
+  Legend,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement
+);
 
 interface PortfolioProps {
   holdings: Holding[];
@@ -45,6 +53,97 @@ export function Portfolio({ holdings, theme, recentTrades = [], dateRange, onDat
   const totalProfitLoss = holdings.reduce((sum, holding) => sum + holding.profit_loss, 0);
   const totalProfitLossPercentage = (totalProfitLoss / (totalValue - totalProfitLoss)) * 100;
 
+  const generateTrendData = () => {
+    const sortedTrades = [...recentTrades].sort((a, b) => 
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+
+    let currentValue = totalValue - totalProfitLoss;
+    const dataPoints: { date: Date; value: number }[] = [];
+    
+    if (sortedTrades.length > 0) {
+      dataPoints.push({
+        date: new Date(sortedTrades[0].created_at),
+        value: currentValue
+      });
+    }
+
+    sortedTrades.forEach(trade => {
+      const tradeValue = trade.target_price * trade.quantity;
+      if (trade.operation === 'buy') {
+        currentValue += tradeValue;
+      } else {
+        currentValue -= tradeValue;
+      }
+      
+      dataPoints.push({
+        date: new Date(trade.created_at),
+        value: currentValue
+      });
+    });
+
+    dataPoints.push({
+      date: new Date(),
+      value: totalValue
+    });
+
+    return dataPoints;
+  };
+
+  const trendData = generateTrendData();
+
+  const lineChartData = {
+    labels: trendData.map(point => format(point.date, 'MMM d, yyyy')),
+    datasets: [
+      {
+        label: 'Portfolio Value',
+        data: trendData.map(point => point.value),
+        borderColor: theme === 'dark' ? '#60a5fa' : '#3b82f6',
+        backgroundColor: theme === 'dark' ? '#60a5fa33' : '#3b82f633',
+        fill: true,
+        tension: 0.4,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+      }
+    ]
+  };
+
+  const lineChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false
+      },
+      tooltip: {
+        callbacks: {
+          label: (context: any) => {
+            return `Value: ${formatCurrency(context.raw, currencyConfig)}`;
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        grid: {
+          color: theme === 'dark' ? '#374151' : '#e5e7eb'
+        },
+        ticks: {
+          color: theme === 'dark' ? '#e5e7eb' : '#374151'
+        }
+      },
+      y: {
+        grid: {
+          color: theme === 'dark' ? '#374151' : '#e5e7eb'
+        },
+        ticks: {
+          color: theme === 'dark' ? '#e5e7eb' : '#374151',
+          callback: (value: number) => formatCurrency(value, currencyConfig)
+        }
+      }
+    }
+  };
+
   const setQuickDateRange = (days: number) => {
     const endDate = new Date();
     const startDate = subDays(endDate, days);
@@ -54,7 +153,6 @@ export function Portfolio({ holdings, theme, recentTrades = [], dateRange, onDat
     });
   };
 
-  // Sorting functions
   const sortHoldings = (holdings: Holding[]) => {
     return [...holdings].sort((a, b) => {
       const multiplier = holdingsSort.direction === 'asc' ? 1 : -1;
@@ -94,7 +192,6 @@ export function Portfolio({ holdings, theme, recentTrades = [], dateRange, onDat
   const sortedHoldings = sortHoldings(holdings);
   const sortedTrades = sortTrades(recentTrades);
 
-  // Pagination
   const paginatedHoldings = sortedHoldings.slice(
     (holdingsPage - 1) * holdingsPerPage,
     holdingsPage * holdingsPerPage
@@ -108,7 +205,6 @@ export function Portfolio({ holdings, theme, recentTrades = [], dateRange, onDat
   const totalHoldingsPages = Math.ceil(holdings.length / holdingsPerPage);
   const totalTradesPages = Math.ceil(recentTrades.length / tradesPerPage);
 
-  // Sort holdings by value for pie chart
   const sortedHoldingsForPie = [...holdings].sort((a, b) => b.total_value - a.total_value);
 
   const pieChartData = {
@@ -201,6 +297,18 @@ export function Portfolio({ holdings, theme, recentTrades = [], dateRange, onDat
                 {totalProfitLossPercentage >= 0 ? '+' : ''}{totalProfitLossPercentage.toFixed(2)}%
               </p>
             </div>
+          </div>
+        </div>
+
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className={`text-lg font-semibold ${themes[theme].text}`}>Portfolio Trend</h3>
+            <div className="flex items-center gap-2">
+              <TrendingUp className={`w-5 h-5 ${themes[theme].text} opacity-75`} />
+            </div>
+          </div>
+          <div className="h-[300px]">
+            <Line data={lineChartData} options={lineChartOptions} />
           </div>
         </div>
 
