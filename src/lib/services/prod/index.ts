@@ -166,6 +166,24 @@ export const portfolioService: PortfolioService = {
       console.error('Error fetching recent trades:', error);
       return { data: null, error: error as Error };
     }
+  },
+
+  getTrendData: async (userId: string, startDate: string, endDate: string) => {
+    try {
+      const response = await fetch(
+        `/api/portfolio/${userId}/trend?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`
+      );
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch trend data');
+      }
+      
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error fetching trend data:', error);
+      return { data: null, error: error as Error };
+    }
   }
 };
 
