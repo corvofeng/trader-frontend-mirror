@@ -182,45 +182,30 @@ export const portfolioService: PortfolioService = {
   getTrendData: async (userId: string, startDate: string, endDate: string) => {
     await new Promise(resolve => setTimeout(resolve, 600));
     
-    const trades = await tradeService.getTrades(userId);
-    if (!trades.data) return { data: [], error: new Error('Failed to fetch trades') };
-
-    const sortedTrades = trades.data
-      .filter(trade => trade.status === 'completed')
-      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-
-    if (sortedTrades.length === 0) {
-      return { data: [], error: null };
-    }
-
-    let currentValue = mockHoldings.reduce((sum, holding) => sum + holding.total_value, 0);
-    const profitLoss = mockHoldings.reduce((sum, holding) => sum + holding.profit_loss, 0);
-    const initialValue = currentValue - profitLoss;
-
-    const trendData: TrendData[] = [{
-      date: startDate,
-      value: initialValue
-    }];
-
-    sortedTrades.forEach(trade => {
-      const tradeValue = trade.target_price * trade.quantity;
-      if (trade.operation === 'buy') {
-        currentValue += tradeValue;
-      } else {
-        currentValue -= tradeValue;
-      }
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    
+    const trendData: TrendData[] = [];
+    let currentValue = 100000; // Starting value
+    
+    for (let i = 0; i <= days; i++) {
+      const currentDate = new Date(start);
+      currentDate.setDate(start.getDate() + i);
+      
+      // Generate random growth with some volatility
+      const dailyChange = (Math.random() * 0.02) - 0.005; // Random change between -0.5% and 1.5%
+      currentValue = currentValue * (1 + dailyChange);
+      
+      // Add some trend patterns
+      const trendFactor = Math.sin(i / 30) * 0.01; // Cyclical trend
+      currentValue = currentValue * (1 + trendFactor);
       
       trendData.push({
-        date: trade.created_at,
+        date: currentDate.toISOString(),
         value: currentValue
       });
-    });
-
-    // Add current value
-    trendData.push({
-      date: new Date().toISOString(),
-      value: currentValue
-    });
+    }
 
     return { data: trendData, error: null };
   }
