@@ -197,6 +197,55 @@ export function Portfolio({ holdings, theme, recentTrades = [], dateRange, onDat
     <div className="space-y-6">
       <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
         <div className="p-6 border-b border-gray-200">
+          <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center mb-6">
+            <h2 className={`text-xl font-bold ${themes[theme].text}`}>
+              Portfolio Overview
+            </h2>
+            <div className="flex flex-wrap gap-4 items-center">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setQuickDateRange(7)}
+                  className={`px-3 py-1 rounded-md text-sm ${themes[theme].secondary}`}
+                >
+                  1W
+                </button>
+                <button
+                  onClick={() => setQuickDateRange(30)}
+                  className={`px-3 py-1 rounded-md text-sm ${themes[theme].secondary}`}
+                >
+                  1M
+                </button>
+                <button
+                  onClick={() => setQuickDateRange(90)}
+                  className={`px-3 py-1 rounded-md text-sm ${themes[theme].secondary}`}
+                >
+                  3M
+                </button>
+                <button
+                  onClick={() => setQuickDateRange(180)}
+                  className={`px-3 py-1 rounded-md text-sm ${themes[theme].secondary}`}
+                >
+                  6M
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={dateRange.startDate}
+                  onChange={(e) => onDateRangeChange({ ...dateRange, startDate: e.target.value })}
+                  className={`px-2 py-1 rounded-md text-sm ${themes[theme].input} ${themes[theme].text}`}
+                />
+                <span className={`text-sm ${themes[theme].text}`}>to</span>
+                <input
+                  type="date"
+                  value={dateRange.endDate}
+                  onChange={(e) => onDateRangeChange({ ...dateRange, endDate: e.target.value })}
+                  className={`px-2 py-1 rounded-md text-sm ${themes[theme].input} ${themes[theme].text}`}
+                />
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className={`${themes[theme].background} rounded-lg p-4`}>
               <h3 className={`text-sm font-medium ${themes[theme].text} opacity-75`}>Total Portfolio Value</h3>
@@ -335,55 +384,12 @@ export function Portfolio({ holdings, theme, recentTrades = [], dateRange, onDat
         <div className="p-6 border-b border-gray-200">
           <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
             <h2 className={`text-lg font-semibold ${themes[theme].text}`}>Recent Trades</h2>
-            <div className="flex flex-wrap gap-4 items-center">
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setQuickDateRange(7)}
-                  className={`px-3 py-1 rounded-md text-sm ${themes[theme].secondary}`}
-                >
-                  1W
-                </button>
-                <button
-                  onClick={() => setQuickDateRange(30)}
-                  className={`px-3 py-1 rounded-md text-sm ${themes[theme].secondary}`}
-                >
-                  1M
-                </button>
-                <button
-                  onClick={() => setQuickDateRange(90)}
-                  className={`px-3 py-1 rounded-md text-sm ${themes[theme].secondary}`}
-                >
-                  3M
-                </button>
-                <button
-                  onClick={() => setQuickDateRange(180)}
-                  className={`px-3 py-1 rounded-md text-sm ${themes[theme].secondary}`}
-                >
-                  6M
-                </button>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="date"
-                  value={dateRange.startDate}
-                  onChange={(e) => onDateRangeChange({ ...dateRange, startDate: e.target.value })}
-                  className={`px-2 py-1 rounded-md text-sm ${themes[theme].input} ${themes[theme].text}`}
-                />
-                <span className={`text-sm ${themes[theme].text}`}>to</span>
-                <input
-                  type="date"
-                  value={dateRange.endDate}
-                  onChange={(e) => onDateRangeChange({ ...dateRange, endDate: e.target.value })}
-                  className={`px-2 py-1 rounded-md text-sm ${themes[theme].input} ${themes[theme].text}`}
-                />
-              </div>
-              <button
-                onClick={() => setShowRecentTrades(!showRecentTrades)}
-                className={`p-2 rounded-md ${themes[theme].secondary}`}
-              >
-                <Filter className="w-4 h-4" />
-              </button>
-            </div>
+            <button
+              onClick={() => setShowRecentTrades(!showRecentTrades)}
+              className={`p-2 rounded-md ${themes[theme].secondary}`}
+            >
+              <Filter className="w-4 h-4" />
+            </button>
           </div>
         </div>
         
