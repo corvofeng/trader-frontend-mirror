@@ -132,7 +132,6 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
   
   return [
     `${groupingDimension === 'category' ? 'SECTOR' : 'GROUP'}: ${params.name}`,
-    `${holdingsCount} holding${holdingsCount > 1 ? 's' : ''}`,
     `${stats.profitLossPercentage >= 0 ? '▲' : '▼'} ${Math.abs(stats.profitLossPercentage).toFixed(2)}%`,
     formattedValue
   ].join('\n');
