@@ -8,7 +8,6 @@ import { useCurrency } from '../../../../../lib/context/CurrencyContext';
 import { ChevronDown, ChevronUp, ZoomIn, ZoomOut, RefreshCw, Lock, Unlock, Maximize2, Minimize2, Grid, LineChart, CandlestickChart, BarChart } from 'lucide-react';
 import type { StockData, Trade, Stock } from '../../../../../lib/services/types';
 
-type MarkerStyle = 'arrow' | 'circle' | 'square';
 type ChartType = 'candlestick' | 'line' | 'bar';
 
 interface StockChartProps {
@@ -42,7 +41,6 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const costBasisSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [markerStyle, setMarkerStyle] = useState<MarkerStyle>('arrow');
   const [showCostBasis, setShowCostBasis] = useState(true);
   const { currencyConfig } = useCurrency();
   const [stockInfo, setStockInfo] = useState<Stock | null>(null);
@@ -175,15 +173,14 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
     setChartType(type);
 
     if (chartData.trades.length > 0) {
-      addTradeMarkers(newSeries, chartData.trades, themes[theme].chart, markerStyle);
+      addTradeMarkers(newSeries, chartData.trades, themes[theme].chart);
     }
   };
 
   const addTradeMarkers = (
     candlestickSeries: ISeriesApi<any>,
     trades: Trade[],
-    chartColors: { upColor: string; downColor: string },
-    style: MarkerStyle
+    chartColors: { upColor: string; downColor: string }
   ) => {
     if (isDisposed.current) return;
 
@@ -192,27 +189,16 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
       const tradeColor = isBuy ? chartColors.upColor : chartColors.downColor;
       const time = Math.floor(new Date(trade.created_at).getTime() / 1000);
       const formattedPrice = formatCurrency(trade.target_price, currencyConfig);
-
-      let shape: string;
-      switch (style) {
-        case 'arrow':
-          shape = isBuy ? 'arrowUp' : 'arrowDown';
-          break;
-        case 'circle':
-          shape = 'circle';
-          break;
-        case 'square':
-          shape = 'square';
-          break;
-      }
+      const formattedDate = format(new Date(trade.created_at), 'MMM d, yyyy HH:mm');
 
       return {
         time,
         position: isBuy ? 'belowBar' : 'aboveBar',
         color: tradeColor,
-        shape,
-        text: `${trade.quantity} @ ${formattedPrice}`,
-        size: 2
+        shape: 'circle',
+        text: `${isBuy ? '↑' : '↓'} ${trade.quantity}`,
+        size: 1.5,
+        tooltip: `${isBuy ? 'Buy' : 'Sell'} ${trade.quantity} @ ${formattedPrice}\n${formattedDate}${trade.notes ? '\n' + trade.notes : ''}`
       };
     });
 
@@ -407,7 +393,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
             trades = tradesResponse.data.filter(trade => trade.stock_code === stockCode);
             
             if (trades.length > 0) {
-              addTradeMarkers(candlestickSeries, trades, chartColors, markerStyle);
+              addTradeMarkers(candlestickSeries, trades, chartColors);
               costBasisPoints = calculateCostBasis(trades);
               
               if (costBasisPoints.length > 0 && showCostBasis) {
@@ -435,100 +421,6 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
           setIsLoading(false);
         }
 
-        const handleCrosshairMove = (param: any) => {
-          if (isDisposed.current) return;
-
-          if (!param.time || param.point === undefined) {
-            const existingTooltip = chartContainerRef.current?.querySelector('.chart-tooltip');
-            if (existingTooltip) {
-              existingTooltip.remove();
-            }
-            return;
-          }
-
-          const trade = trades.find(t => 
-            Math.floor(new Date(t.created_at).getTime() / 1000) === param.time
-          );
-
-          const costBasis = costBasisPoints?.find(p => p.time === param.time);
-
-          if (trade || costBasis) {
-            const existingTooltip = chartContainerRef.current?.querySelector('.chart-tooltip');
-            if (existingTooltip) {
-              existingTooltip.remove();
-            }
-
-            const tooltip = document.createElement('div');
-            tooltip.className = 'chart-tooltip';
-            tooltip.style.position = 'absolute';
-            tooltip.style.left = `${param.point.x + 15}px`;
-            tooltip.style.top = `${param.point.y - 10}px`;
-            tooltip.style.padding = '8px 12px';
-            tooltip.style.backgroundColor = isDark ? '#1f2937dd' : '#ffffffdd';
-            tooltip.style.border = `1px solid ${isDark ? '#ffffff33' : '#00000033'}`;
-            tooltip.style.borderRadius = '4px';
-            tooltip.style.zIndex = '1000';
-            tooltip.style.pointerEvents = 'none';
-            tooltip.style.fontSize = '12px';
-            tooltip.style.color = isDark ? '#e5e7eb' : '#111827';
-            tooltip.style.whiteSpace = 'nowrap';
-
-            let tooltipContent = '';
-
-            if (trade) {
-              const isBuy = trade.operation === 'buy';
-              const tradeColor = isBuy ? chartColors.upColor : chartColors.downColor;
-              const totalValue = trade.target_price * trade.quantity;
-              const tradeDate = format(new Date(trade.created_at), 'MMM d, yyyy HH:mm');
-
-              tooltipContent += `
-                <div style="font-weight: 500">
-                  <span style="color: ${tradeColor}">${isBuy ? '↑ Buy' : '↓ Sell'}</span> at ${formatCurrency(trade.target_price, currencyConfig)}
-                </div>
-                <div style="margin-top: 4px; opacity: 0.9">
-                  Quantity: ${trade.quantity.toLocaleString()}
-                </div>
-                <div style="margin-top: 2px; opacity: 0.9">
-                  Total: ${formatCurrency(totalValue, currencyConfig)}
-                </div>
-                <div style="margin-top: 4px; font-size: 11px; opacity: 0.7">
-                  ${tradeDate}
-                </div>
-              `;
-
-              if (trade.notes) {
-                tooltipContent += `
-                  <div style="margin-top: 8px; padding-top: 6px; border-top: 1px solid ${isDark ? '#ffffff33' : '#00000033'}; opacity: 0.8; max-width: 300px; white-space: normal">
-                    ${trade.notes}
-                  </div>
-                `;
-              }
-            }
-
-            if (costBasis) {
-              if (tooltipContent) {
-                tooltipContent += `<div style="margin-top: 8px; border-top: 1px solid ${isDark ? '#ffffff33' : '#00000033'}"></div>`;
-              }
-              tooltipContent += `
-                <div style="color: ${isDark ? '#60a5fa' : '#3b82f6'}; font-weight: 500">
-                  Cost Basis: ${formatCurrency(costBasis.value, currencyConfig)}
-                </div>
-                <div style="margin-top: 2px; opacity: 0.9">
-                  Position: ${costBasis.quantity.toLocaleString()} shares
-                </div>
-                <div style="margin-top: 2px; opacity: 0.9">
-                  Total Cost: ${formatCurrency(costBasis.totalCost, currencyConfig)}
-                </div>
-              `;
-            }
-
-            tooltip.innerHTML = tooltipContent;
-            chartContainerRef.current?.appendChild(tooltip);
-          }
-        };
-
-        chart.subscribeCrosshairMove(handleCrosshairMove);
-
       } catch (error) {
         console.error('Failed to load chart data:', error);
         if (!isDisposed.current) {
@@ -552,14 +444,13 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
     return () => {
       isDisposed.current = true;
       window.removeEventListener('resize', handleResize);
-      chart.unsubscribeCrosshairMove();
       chart.remove();
       chartRef.current = null;
       candlestickSeriesRef.current = null;
       volumeSeriesRef.current = null;
       costBasisSeriesRef.current = null;
     };
-  }, [stockCode, theme, currencyConfig, markerStyle, showCostBasis, showGrid, showVolume, isLocked, autoScale]);
+  }, [stockCode, theme, currencyConfig, showCostBasis, showGrid, showVolume, isLocked, autoScale]);
 
   useEffect(() => {
     if (volumeSeriesRef.current && !isDisposed.current) {
@@ -673,33 +564,6 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
               {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
           </div>
-        </div>
-
-        <div className="flex gap-2">
-          <button
-            onClick={() => setMarkerStyle('arrow')}
-            className={`px-3 py-1 rounded text-sm ${
-              markerStyle === 'arrow' ? themes[theme].primary : themes[theme].secondary
-            }`}
-          >
-            Arrow
-          </button>
-          <button
-            onClick={() => setMarkerStyle('circle')}
-            className={`px-3 py-1 rounded text-sm ${
-              markerStyle === 'circle' ? themes[theme].primary : themes[theme].secondary
-            }`}
-          >
-            Circle
-          </button>
-          <button
-            onClick={() => setMarkerStyle('square')}
-            className={`px-3 py-1 rounded text-sm ${
-              markerStyle === 'square' ? themes[theme].primary : themes[theme].secondary
-            }`}
-          >
-            Square
-          </button>
         </div>
       </div>
 
