@@ -108,40 +108,38 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
           borderColor: isDark ? '#374151' : '#e5e7eb',
           borderWidth: 1
         },
-        label: {
+        upperLabel: {
           show: true,
-          position: 'inside',
+          height: 40,
+          backgroundColor: groupColor,
+          position: 'top',
           formatter: (params: any) => {
             const stats = params.data.groupStats;
             return [
-              `{title|${groupName}}`,
-              `{value|${stats.profitLossPercentage >= 0 ? '+' : ''}${stats.profitLossPercentage.toFixed(2)}%}`,
-              `{total|${formatCurrency(stats.totalValue, currencyConfig)}}`
+              `${groupName}`,
+              `${stats.profitLossPercentage >= 0 ? '+' : ''}${stats.profitLossPercentage.toFixed(2)}%`
             ].join('\n');
           },
-          rich: {
-            title: {
-              fontSize: 16,
-              fontWeight: 'bold',
-              color: '#ffffff',
-              padding: [8, 8, 0, 8],
-              align: 'center',
-              width: '100%'
-            },
-            value: {
-              fontSize: 14,
-              color: '#ffffff',
-              padding: [4, 8],
-              align: 'center',
-              width: '100%'
-            },
-            total: {
-              fontSize: 12,
-              color: '#ffffff',
-              padding: [0, 8, 8, 8],
-              align: 'center',
-              width: '100%'
-            }
+          textStyle: {
+            color: '#ffffff',
+            fontWeight: 'bold',
+            fontSize: 14,
+            lineHeight: 20,
+            align: 'center',
+            backgroundColor: 'transparent'
+          }
+        },
+        label: {
+          show: true,
+          position: 'insideTopLeft',
+          formatter: (params: any) => {
+            const stats = params.data.groupStats;
+            return formatCurrency(stats.totalValue, currencyConfig);
+          },
+          textStyle: {
+            color: '#ffffff',
+            fontSize: 12,
+            padding: [4, 8]
           }
         },
         emphasis: {
@@ -243,9 +241,23 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         width: '100%',
         height: '100%',
         roam: false,
-        nodeClick: false,
+        nodeClick: 'zoomToNode',
         breadcrumb: {
-          show: false
+          show: true,
+          height: 30,
+          top: 'bottom',
+          itemStyle: {
+            color: isDark ? '#374151' : '#f3f4f6',
+            borderColor: isDark ? '#4b5563' : '#e5e7eb',
+            textStyle: {
+              color: isDark ? '#e5e7eb' : '#111827'
+            }
+          },
+          emphasis: {
+            itemStyle: {
+              color: isDark ? '#4b5563' : '#e5e7eb'
+            }
+          }
         },
         levels: [{
           itemStyle: {
@@ -258,9 +270,15 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               borderColor: isDark ? '#60a5fa' : '#3b82f6',
               borderWidth: 2
             }
+          },
+          upperLabel: {
+            show: true
           }
         }],
-        animation: true,
+        animation: {
+          duration: 500,
+          easing: 'cubicOut'
+        },
         animationDuration: 500,
         animationEasing: 'cubicOut',
         animationDelay: 0
