@@ -8,7 +8,7 @@ import { useCurrency } from '../../../../../lib/context/CurrencyContext';
 import { ChevronDown, ChevronUp, ZoomIn, ZoomOut, RefreshCw, Lock, Unlock, Maximize2, Minimize2, Grid, LineChart, CandlestickChart, BarChart } from 'lucide-react';
 import type { StockData, Trade, Stock } from '../../../../../lib/services/types';
 
-type MarkerStyle = 'point' | 'bubble' | 'grid';
+type MarkerStyle = 'text' | 'bubble' | 'grid';
 type ChartType = 'candlestick' | 'line' | 'bar';
 
 interface StockChartProps {
@@ -42,7 +42,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const costBasisSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [markerStyle, setMarkerStyle] = useState<MarkerStyle>('point');
+  const [markerStyle, setMarkerStyle] = useState<MarkerStyle>('text');
   const [showCostBasis, setShowCostBasis] = useState(true);
   const { currencyConfig } = useCurrency();
   const [stockInfo, setStockInfo] = useState<Stock | null>(null);
@@ -191,16 +191,17 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
       const isBuy = trade.operation === 'buy';
       const tradeColor = isBuy ? chartColors.upColor : chartColors.downColor;
       const time = Math.floor(new Date(trade.created_at).getTime() / 1000);
+      const formattedPrice = formatCurrency(trade.target_price, currencyConfig);
 
       switch (style) {
-        case 'point':
+        case 'text':
           return {
             time,
             position: isBuy ? 'belowBar' : 'aboveBar',
             color: tradeColor,
-            shape: isBuy ? 'circle' : 'square',
-            text: `${isBuy ? '↑' : '↓'} ${trade.quantity}`,
-            size: 2
+            shape: 'circle',
+            size: 0,
+            text: `${isBuy ? '↑' : '↓'} ${trade.quantity} @ ${formattedPrice}`
           };
 
         case 'bubble':
@@ -211,7 +212,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
             color: tradeColor,
             shape: 'circle',
             size: bubbleSize,
-            text: `${isBuy ? '↑' : '↓'} ${trade.quantity}`
+            text: `${isBuy ? '↑' : '↓'} ${trade.quantity} @ ${formattedPrice}`
           };
 
         case 'grid':
@@ -220,7 +221,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
             position: isBuy ? 'belowBar' : 'aboveBar',
             color: tradeColor,
             shape: isBuy ? 'arrowUp' : 'arrowDown',
-            text: `${trade.quantity}`,
+            text: `${trade.quantity} @ ${formattedPrice}`,
             size: 2
           };
       }
@@ -687,12 +688,12 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
 
         <div className="flex gap-2">
           <button
-            onClick={() => setMarkerStyle('point')}
+            onClick={() => setMarkerStyle('text')}
             className={`px-3 py-1 rounded text-sm ${
-              markerStyle === 'point' ? themes[theme].primary : themes[theme].secondary
+              markerStyle === 'text' ? themes[theme].primary : themes[theme].secondary
             }`}
           >
-            Point
+            Text
           </button>
           <button
             onClick={() => setMarkerStyle('bubble')}
