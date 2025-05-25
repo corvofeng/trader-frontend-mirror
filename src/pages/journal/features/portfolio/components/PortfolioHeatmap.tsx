@@ -143,7 +143,6 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
             percentStyle: {
               fontSize: 20,
               fontWeight: 'bold',
-              // color: stats.profitLossPercentage >= 0 ? '#34d399' : '#f87171',
                   color: (params: any) => {
       const stats = groups.get(params.name)!;
       return stats.profitLossPercentage >= 0 ? '#34d399' : '#f87171';
