@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { format, subDays } from 'date-fns';
-import { ArrowUpCircle, ArrowDownCircle, Calendar, Filter, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, BarChart2 } from 'lucide-react';
+import { ArrowUpCircle, ArrowDownCircle, Calendar, Filter, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, BarChart2, Briefcase } from 'lucide-react';
 import { Theme, themes } from '../../../../lib/theme';
 import { formatCurrency } from '../../../../lib/types';
 import type { Holding, Trade, TrendData } from '../../../../lib/services/types';
@@ -9,6 +9,7 @@ import { Pie } from 'react-chartjs-2';
 import { useCurrency } from '../../../../lib/context/CurrencyContext';
 import { portfolioService } from '../../../../lib/services';
 import { PortfolioTrend } from './components/PortfolioTrend';
+import { PortfolioHeatmap } from './components/PortfolioHeatmap';
 
 ChartJS.register(
   ArcElement, 
@@ -270,6 +271,12 @@ export function Portfolio({ holdings, theme, recentTrades = [], dateRange, onDat
 
         <PortfolioTrend 
           trendData={trendData}
+          theme={theme}
+          currencyConfig={currencyConfig}
+        />
+
+        <PortfolioHeatmap 
+          holdings={holdings}
           theme={theme}
           currencyConfig={currencyConfig}
         />
