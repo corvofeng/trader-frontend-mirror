@@ -8,7 +8,7 @@ import { useCurrency } from '../../../../../lib/context/CurrencyContext';
 import { ChevronDown, ChevronUp, ZoomIn, ZoomOut, RefreshCw, Lock, Unlock, Maximize2, Minimize2, Grid, LineChart, CandlestickChart, BarChart } from 'lucide-react';
 import type { StockData, Trade, Stock } from '../../../../../lib/services/types';
 
-type MarkerStyle = 'text' | 'bubble' | 'grid';
+type MarkerStyle = 'arrow' | 'circle' | 'square';
 type ChartType = 'candlestick' | 'line' | 'bar';
 
 interface StockChartProps {
@@ -42,7 +42,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const costBasisSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [markerStyle, setMarkerStyle] = useState<MarkerStyle>('text');
+  const [markerStyle, setMarkerStyle] = useState<MarkerStyle>('arrow');
   const [showCostBasis, setShowCostBasis] = useState(true);
   const { currencyConfig } = useCurrency();
   const [stockInfo, setStockInfo] = useState<Stock | null>(null);
@@ -193,38 +193,27 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
       const time = Math.floor(new Date(trade.created_at).getTime() / 1000);
       const formattedPrice = formatCurrency(trade.target_price, currencyConfig);
 
+      let shape: string;
       switch (style) {
-        case 'text':
-          return {
-            time,
-            position: isBuy ? 'belowBar' : 'aboveBar',
-            color: tradeColor,
-            shape: 'circle',
-            size: 0,
-            text: `${isBuy ? '↑' : '↓'} ${trade.quantity} @ ${formattedPrice}`
-          };
-
-        case 'bubble':
-          const bubbleSize = Math.max(2, Math.min(4, trade.quantity / 100));
-          return {
-            time,
-            position: isBuy ? 'belowBar' : 'aboveBar',
-            color: tradeColor,
-            shape: 'circle',
-            size: bubbleSize,
-            text: `${isBuy ? '↑' : '↓'} ${trade.quantity} @ ${formattedPrice}`
-          };
-
-        case 'grid':
-          return {
-            time,
-            position: isBuy ? 'belowBar' : 'aboveBar',
-            color: tradeColor,
-            shape: isBuy ? 'arrowUp' : 'arrowDown',
-            text: `${trade.quantity} @ ${formattedPrice}`,
-            size: 2
-          };
+        case 'arrow':
+          shape = isBuy ? 'arrowUp' : 'arrowDown';
+          break;
+        case 'circle':
+          shape = 'circle';
+          break;
+        case 'square':
+          shape = 'square';
+          break;
       }
+
+      return {
+        time,
+        position: isBuy ? 'belowBar' : 'aboveBar',
+        color: tradeColor,
+        shape,
+        text: `${trade.quantity} @ ${formattedPrice}`,
+        size: 2
+      };
     });
 
     candlestickSeries.setMarkers(markers);
@@ -688,28 +677,28 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
 
         <div className="flex gap-2">
           <button
-            onClick={() => setMarkerStyle('text')}
+            onClick={() => setMarkerStyle('arrow')}
             className={`px-3 py-1 rounded text-sm ${
-              markerStyle === 'text' ? themes[theme].primary : themes[theme].secondary
+              markerStyle === 'arrow' ? themes[theme].primary : themes[theme].secondary
             }`}
           >
-            Text
+            Arrow
           </button>
           <button
-            onClick={() => setMarkerStyle('bubble')}
+            onClick={() => setMarkerStyle('circle')}
             className={`px-3 py-1 rounded text-sm ${
-              markerStyle === 'bubble' ? themes[theme].primary : themes[theme].secondary
+              markerStyle === 'circle' ? themes[theme].primary : themes[theme].secondary
             }`}
           >
-            Bubble
+            Circle
           </button>
           <button
-            onClick={() => setMarkerStyle('grid')}
+            onClick={() => setMarkerStyle('square')}
             className={`px-3 py-1 rounded text-sm ${
-              markerStyle === 'grid' ? themes[theme].primary : themes[theme].secondary
+              markerStyle === 'square' ? themes[theme].primary : themes[theme].secondary
             }`}
           >
-            Grid
+            Square
           </button>
         </div>
       </div>
