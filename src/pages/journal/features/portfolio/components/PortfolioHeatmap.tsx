@@ -83,137 +83,127 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
       stats.profitLossPercentage = (stats.profitLoss / costBasis) * 100;
     });
 
+    // Sort groups by total value
+    const sortedGroups = Array.from(groups.entries()).sort((a, b) => b[1].totalValue - a[1].totalValue);
+
     // Calculate max value for color scaling
     const maxValue = Math.max(...holdings.map(h => Math.abs(h.profit_loss_percentage)));
 
-    // Prepare treemap data with separate levels for headers and content
-    const data = Array.from(groups.entries()).map(([groupName, stats]) => {
+    // Prepare treemap data
+    const data = sortedGroups.map(([groupName, stats]) => {
       const intensity = Math.min(0.9, Math.abs(stats.profitLossPercentage) / maxValue) + 0.1;
-      const groupColor = stats.profitLossPercentage >= 0 
+      const headerColor = stats.profitLossPercentage >= 0 
         ? `rgba(38, 166, 154, ${intensity})`
         : `rgba(239, 83, 80, ${intensity})`;
 
       return {
         name: groupName,
         value: stats.totalValue,
-        path: groupName,
-        children: [
-          // Header node
-          {
-            name: `${groupName}_header`,
-            value: stats.totalValue * 0.15, // Allocate 15% for header
+        label: {
+          show: true,
+          formatter: groupName,
+          fontSize: 16,
+          fontWeight: 'bold',
+          color: '#ffffff',
+          position: 'insideTopLeft',
+          padding: 8
+        },
+        itemStyle: {
+          color: headerColor
+        },
+        emphasis: {
+          itemStyle: {
+            color: headerColor
+          }
+        },
+        children: stats.holdings.map(holding => {
+          const holdingIntensity = Math.min(0.9, Math.abs(holding.profit_loss_percentage) / maxValue) + 0.1;
+          const holdingColor = holding.profit_loss_percentage >= 0 
+            ? `rgba(38, 166, 154, ${holdingIntensity})`
+            : `rgba(239, 83, 80, ${holdingIntensity})`;
+
+          return {
+            name: holding.stock_code,
+            value: holding.total_value,
             itemStyle: {
-              color: groupColor,
-              borderWidth: 0
+              color: holdingColor,
+              borderColor: isDark ? '#374151' : '#e5e7eb',
+              borderWidth: 1
             },
             label: {
               show: true,
               position: 'inside',
               formatter: [
-                `{name|${groupName}}`,
-                `{value|${stats.profitLossPercentage >= 0 ? '+' : ''}${stats.profitLossPercentage.toFixed(2)}%}`,
-                `{price|${formatCurrency(stats.totalValue, currencyConfig)}}`
+                `{name|${holding.stock_code}}`,
+                `{value|${holding.profit_loss_percentage >= 0 ? '+' : ''}${holding.profit_loss_percentage.toFixed(2)}%}`,
+                `{price|${formatCurrency(holding.total_value, currencyConfig)}}`
               ].join('\n'),
               rich: {
                 name: {
-                  fontSize: 16,
+                  fontSize: 14,
                   fontWeight: 'bold',
                   color: '#ffffff',
-                  padding: [4, 8, 0, 8],
-                  align: 'left'
+                  padding: [2, 4]
                 },
                 value: {
-                  fontSize: 14,
+                  fontSize: 12,
                   color: '#ffffff',
-                  padding: [0, 8, 0, 8],
-                  align: 'left'
+                  padding: [2, 4]
                 },
                 price: {
-                  fontSize: 14,
+                  fontSize: 12,
                   color: '#ffffff',
-                  padding: [0, 8, 4, 8],
-                  align: 'left'
+                  padding: [2, 4]
                 }
               }
-            }
-          },
-          // Content node containing holdings
-          {
-            name: `${groupName}_content`,
-            value: stats.totalValue * 0.85, // Allocate 85% for content
-            children: stats.holdings.map(holding => {
-              const holdingIntensity = Math.min(0.9, Math.abs(holding.profit_loss_percentage) / maxValue) + 0.1;
-              const holdingColor = holding.profit_loss_percentage >= 0 
-                ? `rgba(38, 166, 154, ${holdingIntensity})`
-                : `rgba(239, 83, 80, ${holdingIntensity})`;
+            },
+            tooltip: {
+              formatter: () => {
+                const groupInfo = groupingDimension === 'category'
+                  ? `Category: ${holding.category || 'Other'}`
+                  : `Tags: ${holding.tags?.join(', ') || 'Untagged'}`;
 
-              return {
-                name: holding.stock_code,
-                value: holding.total_value,
-                itemStyle: {
-                  color: holdingColor,
-                  borderColor: isDark ? '#374151' : '#e5e7eb',
-                  borderWidth: 1
-                },
-                label: {
-                  show: true,
-                  position: 'inside',
-                  formatter: [
-                    `{name|${holding.stock_code}}`,
-                    `{value|${holding.profit_loss_percentage >= 0 ? '+' : ''}${holding.profit_loss_percentage.toFixed(2)}%}`,
-                    `{price|${formatCurrency(holding.total_value, currencyConfig)}}`
-                  ].join('\n'),
-                  rich: {
-                    name: {
-                      fontSize: 14,
-                      fontWeight: 'bold',
-                      color: '#ffffff',
-                      padding: [2, 4]
-                    },
-                    value: {
-                      fontSize: 12,
-                      color: '#ffffff',
-                      padding: [2, 4]
-                    },
-                    price: {
-                      fontSize: 12,
-                      color: '#ffffff',
-                      padding: [2, 4]
-                    }
-                  }
-                }
-              };
-            })
-          }
-        ]
+                return `
+                  <div style="font-weight: 500">${holding.stock_code} - ${holding.stock_name}</div>
+                  <div style="margin-top: 4px">
+                    <div>${groupInfo}</div>
+                    <div>Current Price: ${formatCurrency(holding.current_price, currencyConfig)}</div>
+                    <div>Total Value: ${formatCurrency(holding.total_value, currencyConfig)}</div>
+                    <div>Quantity: ${holding.quantity}</div>
+                  </div>
+                  <div style="margin-top: 4px; color: ${holding.profit_loss_percentage >= 0 ? '#34d399' : '#f87171'}">
+                    ${holding.profit_loss_percentage >= 0 ? '+' : ''}${holding.profit_loss_percentage.toFixed(2)}%
+                    (${formatCurrency(holding.profit_loss, currencyConfig)})
+                  </div>
+                `;
+              }
+            }
+          };
+        })
       };
     });
 
     const option = {
       tooltip: {
         formatter: (params: any) => {
-          if (!params.data) return '';
+          if (params.data.children) {
+            // Group tooltip
+            const stats = groups.get(params.name);
+            if (!stats) return '';
 
-          const holding = holdings.find(h => h.stock_code === params.name);
-          if (!holding) return '';
-
-          const groupInfo = groupingDimension === 'category'
-            ? `Category: ${holding.category || 'Other'}`
-            : `Tags: ${holding.tags?.join(', ') || 'Untagged'}`;
-
-          return `
-            <div style="font-weight: 500">${holding.stock_code} - ${holding.stock_name}</div>
-            <div style="margin-top: 4px">
-              <div>${groupInfo}</div>
-              <div>Current Price: ${formatCurrency(holding.current_price, currencyConfig)}</div>
-              <div>Total Value: ${formatCurrency(holding.total_value, currencyConfig)}</div>
-              <div>Quantity: ${holding.quantity}</div>
-            </div>
-            <div style="margin-top: 4px; color: ${holding.profit_loss_percentage >= 0 ? '#34d399' : '#f87171'}">
-              ${holding.profit_loss_percentage >= 0 ? '+' : ''}${holding.profit_loss_percentage.toFixed(2)}%
-              (${formatCurrency(holding.profit_loss, currencyConfig)})
-            </div>
-          `;
+            return `
+              <div style="font-weight: 500">${params.name}</div>
+              <div style="margin-top: 4px">
+                <div>Total Value: ${formatCurrency(stats.totalValue, currencyConfig)}</div>
+                <div>Holdings: ${stats.holdings.length}</div>
+              </div>
+              <div style="margin-top: 4px; color: ${stats.profitLossPercentage >= 0 ? '#34d399' : '#f87171'}">
+                ${stats.profitLossPercentage >= 0 ? '+' : ''}${stats.profitLossPercentage.toFixed(2)}%
+                (${formatCurrency(stats.profitLoss, currencyConfig)})
+              </div>
+            `;
+          }
+          return params.data.tooltip?.formatter() || '';
         }
       },
       series: [{
@@ -228,24 +218,25 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
           {
             itemStyle: {
               borderColor: isDark ? '#374151' : '#e5e7eb',
-              borderWidth: 1,
-              gapWidth: 2
-            }
-          },
-          {
-            itemStyle: {
-              borderColor: 'transparent',
-              gapWidth: 2
+              borderWidth: 2,
+              gapWidth: 4
             }
           },
           {
             itemStyle: {
               borderColor: isDark ? '#374151' : '#e5e7eb',
               borderWidth: 1,
-              gapWidth: 1
+              gapWidth: 2
             }
           }
-        ]
+        ],
+        label: {
+          show: true
+        },
+        upperLabel: {
+          show: true,
+          height: 30
+        }
       }]
     };
 
