@@ -46,6 +46,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
   const [stockInfo, setStockInfo] = useState<Stock | null>(null);
   const isDisposed = useRef(false);
   const isInitializing = useRef(false);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
   const [chartType, setChartType] = useState<ChartType>('candlestick');
   const [isLocked, setIsLocked] = useState(false);
@@ -60,6 +61,50 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
     trades: Trade[];
     costBasis: CostBasisPoint[];
   }>({ candlestick: [], volume: [], trades: [], costBasis: [] });
+
+  const disposeChart = () => {
+    isDisposed.current = true;
+
+    if (resizeObserverRef.current) {
+      resizeObserverRef.current.disconnect();
+      resizeObserverRef.current = null;
+    }
+
+    if (chartRef.current) {
+      // Clear all series references before removing the chart
+      if (candlestickSeriesRef.current) {
+        try {
+          chartRef.current.removeSeries(candlestickSeriesRef.current);
+        } catch (e) {
+          // Ignore errors during cleanup
+        }
+        candlestickSeriesRef.current = null;
+      }
+      if (volumeSeriesRef.current) {
+        try {
+          chartRef.current.removeSeries(volumeSeriesRef.current);
+        } catch (e) {
+          // Ignore errors during cleanup
+        }
+        volumeSeriesRef.current = null;
+      }
+      if (costBasisSeriesRef.current) {
+        try {
+          chartRef.current.removeSeries(costBasisSeriesRef.current);
+        } catch (e) {
+          // Ignore errors during cleanup
+        }
+        costBasisSeriesRef.current = null;
+      }
+      
+      try {
+        chartRef.current.remove();
+      } catch (e) {
+        // Ignore errors during cleanup
+      }
+      chartRef.current = null;
+    }
+  };
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -135,55 +180,64 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
     const chart = chartRef.current;
     
     if (candlestickSeriesRef.current) {
-      chart.removeSeries(candlestickSeriesRef.current);
+      try {
+        chart.removeSeries(candlestickSeriesRef.current);
+      } catch (e) {
+        // Ignore errors during series removal
+        return;
+      }
       candlestickSeriesRef.current = null;
     }
     
     let newSeries;
-    switch (type) {
-      case 'line':
-        newSeries = chart.addLineSeries({
-          color: themes[theme].chart.upColor,
-          lineWidth: 2,
-        });
-        const sortedLineData = [...chartData.candlestick]
-          .sort((a, b) => a.time - b.time)
-          .map(item => ({
-            time: item.time,
-            value: item.close,
-          }));
-        newSeries.setData(sortedLineData);
-        break;
+    try {
+      switch (type) {
+        case 'line':
+          newSeries = chart.addLineSeries({
+            color: themes[theme].chart.upColor,
+            lineWidth: 2,
+          });
+          const sortedLineData = [...chartData.candlestick]
+            .sort((a, b) => a.time - b.time)
+            .map(item => ({
+              time: item.time,
+              value: item.close,
+            }));
+          newSeries.setData(sortedLineData);
+          break;
+        
+        case 'bar':
+          newSeries = chart.addBarSeries({
+            upColor: themes[theme].chart.upColor,
+            downColor: themes[theme].chart.downColor,
+          });
+          const sortedBarData = [...chartData.candlestick].sort((a, b) => a.time - b.time);
+          newSeries.setData(sortedBarData);
+          break;
+        
+        default:
+          newSeries = chart.addCandlestickSeries({
+            upColor: themes[theme].chart.upColor,
+            downColor: themes[theme].chart.downColor,
+            borderVisible: false,
+            wickUpColor: themes[theme].chart.upColor,
+            wickDownColor: themes[theme].chart.downColor,
+          });
+          const sortedCandlestickData = [...chartData.candlestick].sort((a, b) => a.time - b.time);
+          newSeries.setData(sortedCandlestickData);
+      }
       
-      case 'bar':
-        newSeries = chart.addBarSeries({
-          upColor: themes[theme].chart.upColor,
-          downColor: themes[theme].chart.downColor,
-        });
-        const sortedBarData = [...chartData.candlestick].sort((a, b) => a.time - b.time);
-        newSeries.setData(sortedBarData);
-        break;
-      
-      default:
-        newSeries = chart.addCandlestickSeries({
-          upColor: themes[theme].chart.upColor,
-          downColor: themes[theme].chart.downColor,
-          borderVisible: false,
-          wickUpColor: themes[theme].chart.upColor,
-          wickDownColor: themes[theme].chart.downColor,
-        });
-        const sortedCandlestickData = [...chartData.candlestick].sort((a, b) => a.time - b.time);
-        newSeries.setData(sortedCandlestickData);
-    }
-    
-    candlestickSeriesRef.current = newSeries;
-    setChartType(type);
+      candlestickSeriesRef.current = newSeries;
+      setChartType(type);
 
-    if (chartData.trades.length > 0 && !isDisposed.current) {
-      const sortedTrades = [...chartData.trades].sort((a, b) => 
-        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-      );
-      addTradeMarkers(newSeries, sortedTrades, themes[theme].chart);
+      if (chartData.trades.length > 0 && !isDisposed.current) {
+        const sortedTrades = [...chartData.trades].sort((a, b) => 
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        );
+        addTradeMarkers(newSeries, sortedTrades, themes[theme].chart);
+      }
+    } catch (e) {
+      console.error('Error updating chart type:', e);
     }
   };
 
@@ -212,8 +266,12 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
       };
     });
 
-    if (!isDisposed.current) {
-      candlestickSeries.setMarkers(markers);
+    try {
+      if (!isDisposed.current) {
+        candlestickSeries.setMarkers(markers);
+      }
+    } catch (e) {
+      console.error('Error setting markers:', e);
     }
   };
 
@@ -248,9 +306,12 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
   useEffect(() => {
     if (!chartContainerRef.current || isInitializing.current) return;
 
-    // Prevent multiple chart initializations
-    isInitializing.current = true;
+    // Clean up any existing chart
+    disposeChart();
+    
+    // Reset disposed flag as we're creating a new chart
     isDisposed.current = false;
+    isInitializing.current = true;
 
     const isDark = theme === 'dark';
     const chartColors = themes[theme].chart;
@@ -417,10 +478,14 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
               costBasisPoints = calculateCostBasis(trades);
               
               if (costBasisPoints.length > 0 && showCostBasis && !isDisposed.current) {
-                costBasisSeries.setData(costBasisPoints.map(point => ({
-                  time: point.time,
-                  value: point.value,
-                })));
+                try {
+                  costBasisSeries.setData(costBasisPoints.map(point => ({
+                    time: point.time,
+                    value: point.value,
+                  })));
+                } catch (e) {
+                  console.error('Error setting cost basis data:', e);
+                }
               }
             }
           }
@@ -434,10 +499,14 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
             costBasis: costBasisPoints,
           });
 
-          candlestickSeries.setData(candlestickData);
-          volumeSeries.setData(volumeData);
-
-          chart.timeScale().fitContent();
+          try {
+            candlestickSeries.setData(candlestickData);
+            volumeSeries.setData(volumeData);
+            chart.timeScale().fitContent();
+          } catch (e) {
+            console.error('Error setting chart data:', e);
+          }
+          
           setIsLoading(false);
         }
 
@@ -451,45 +520,38 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
 
     loadChartData();
 
-    const handleResize = () => {
-      if (!isDisposed.current && chartRef.current) {
-        chartRef.current.applyOptions({
-          width: chartContainerRef.current?.clientWidth ?? 800,
-        });
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
+    // Use ResizeObserver instead of window resize event
+    if (chartContainerRef.current) {
+      resizeObserverRef.current = new ResizeObserver(entries => {
+        if (!isDisposed.current && chartRef.current) {
+          try {
+            chartRef.current.applyOptions({
+              width: entries[0].contentRect.width,
+            });
+          } catch (e) {
+            console.error('Error resizing chart:', e);
+          }
+        }
+      });
+      
+      resizeObserverRef.current.observe(chartContainerRef.current);
+    }
 
     return () => {
-      isDisposed.current = true;
-      window.removeEventListener('resize', handleResize);
-      
-      // Clear all series references before removing the chart
-      if (candlestickSeriesRef.current) {
-        chart.removeSeries(candlestickSeriesRef.current);
-        candlestickSeriesRef.current = null;
-      }
-      if (volumeSeriesRef.current) {
-        chart.removeSeries(volumeSeriesRef.current);
-        volumeSeriesRef.current = null;
-      }
-      if (costBasisSeriesRef.current) {
-        chart.removeSeries(costBasisSeriesRef.current);
-        costBasisSeriesRef.current = null;
-      }
-      
-      chart.remove();
-      chartRef.current = null;
+      disposeChart();
       isInitializing.current = false;
     };
   }, [stockCode, theme, currencyConfig, showCostBasis, showGrid, showVolume, isLocked, autoScale]);
 
   useEffect(() => {
     if (volumeSeriesRef.current && !isDisposed.current) {
-      volumeSeriesRef.current.applyOptions({
-        visible: showVolume
-      });
+      try {
+        volumeSeriesRef.current.applyOptions({
+          visible: showVolume
+        });
+      } catch (e) {
+        console.error('Error updating volume visibility:', e);
+      }
     }
   }, [showVolume]);
 
