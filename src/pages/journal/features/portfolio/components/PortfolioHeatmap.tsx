@@ -150,7 +150,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
     },
               padding: [0, 0, 8, 0],
               align: 'center',
-              width: '10%'
+              width: '100%'
             },
             valueStyle: {
               fontSize: 16,
