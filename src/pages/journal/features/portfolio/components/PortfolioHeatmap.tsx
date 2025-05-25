@@ -58,56 +58,71 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
     // Calculate max value for color scaling
     const maxValue = Math.max(...holdings.map(h => Math.abs(h.profit_loss_percentage)));
 
-    // Prepare treemap data
-    const data = Array.from(groups.entries()).map(([groupName, groupHoldings]) => ({
-      name: groupName,
-      value: groupHoldings.reduce((sum, h) => sum + h.total_value, 0),
-      children: groupHoldings.map(holding => {
-        const intensity = Math.min(0.9, Math.abs(holding.profit_loss_percentage) / maxValue) + 0.1;
-        const color = holding.profit_loss_percentage >= 0 
-          ? `rgba(38, 166, 154, ${intensity})`
-          : `rgba(239, 83, 80, ${intensity})`;
+    // Prepare treemap data with a root node
+    const data = [{
+      name: 'All',
+      value: holdings.reduce((sum, h) => sum + h.total_value, 0),
+      children: Array.from(groups.entries()).map(([groupName, groupHoldings]) => ({
+        name: groupName,
+        value: groupHoldings.reduce((sum, h) => sum + h.total_value, 0),
+        children: groupHoldings.map(holding => {
+          const intensity = Math.min(0.9, Math.abs(holding.profit_loss_percentage) / maxValue) + 0.1;
+          const color = holding.profit_loss_percentage >= 0 
+            ? `rgba(38, 166, 154, ${intensity})`
+            : `rgba(239, 83, 80, ${intensity})`;
 
-        return {
-          name: holding.stock_code,
-          value: holding.total_value,
-          itemStyle: {
-            color,
-          },
-          label: {
-            show: true,
-            formatter: [
-              `{name|${holding.stock_code}}`,
-              `{value|${holding.profit_loss_percentage >= 0 ? '+' : ''}${holding.profit_loss_percentage.toFixed(2)}%}`,
-              `{price|${formatCurrency(holding.total_value, currencyConfig)}}`
-            ].join('\n'),
-            rich: {
-              name: {
-                fontSize: 14,
-                fontWeight: 'bold',
-                color: isDark ? '#e5e7eb' : '#111827'
-              },
-              value: {
-                fontSize: 12,
-                color: holding.profit_loss_percentage >= 0 
-                  ? '#34d399' 
-                  : '#f87171'
-              },
-              price: {
-                fontSize: 12,
-                color: isDark ? '#9ca3af' : '#6b7280'
+          return {
+            name: holding.stock_code,
+            value: holding.total_value,
+            itemStyle: {
+              color,
+            },
+            label: {
+              show: true,
+              formatter: [
+                `{name|${holding.stock_code}}`,
+                `{value|${holding.profit_loss_percentage >= 0 ? '+' : ''}${holding.profit_loss_percentage.toFixed(2)}%}`,
+                `{price|${formatCurrency(holding.total_value, currencyConfig)}}`
+              ].join('\n'),
+              rich: {
+                name: {
+                  fontSize: 14,
+                  fontWeight: 'bold',
+                  color: isDark ? '#e5e7eb' : '#111827'
+                },
+                value: {
+                  fontSize: 12,
+                  color: holding.profit_loss_percentage >= 0 
+                    ? '#34d399' 
+                    : '#f87171'
+                },
+                price: {
+                  fontSize: 12,
+                  color: isDark ? '#9ca3af' : '#6b7280'
+                }
               }
             }
-          }
-        };
-      })
-    }));
+          };
+        })
+      }))
+    }];
 
     const option = {
       tooltip: {
         formatter: (params: any) => {
           const holding = holdings.find(h => h.stock_code === params.name);
-          if (!holding) return '';
+          if (!holding) {
+            // Show group summary if not a holding
+            const value = params.value;
+            const percentage = (value / data[0].value * 100).toFixed(1);
+            return `
+              <div style="font-weight: 500">${params.name}</div>
+              <div style="margin-top: 4px">
+                <div>Total Value: ${formatCurrency(value, currencyConfig)}</div>
+                <div>Portfolio %: ${percentage}%</div>
+              </div>
+            `;
+          }
 
           const groupInfo = groupingDimension === 'category'
             ? `Category: ${holding.category || 'Other'}`
@@ -139,6 +154,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
           show: true,
           height: 30,
           top: 'bottom',
+          emptyItemWidth: 40,
           itemStyle: {
             color: isDark ? '#374151' : '#f3f4f6',
             borderColor: isDark ? '#4b5563' : '#e5e7eb',
@@ -167,7 +183,16 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         }],
         label: {
           show: true,
-          position: 'inside'
+          position: 'inside',
+          formatter: (params: any) => {
+            // For group nodes, show name and percentage
+            if (params.data.children) {
+              const percentage = (params.value / data[0].value * 100).toFixed(1);
+              return `${params.name}\n${percentage}%`;
+            }
+            // For leaf nodes (holdings), use the default rich text formatter
+            return params.name;
+          }
         },
         upperLabel: {
           show: true,
@@ -220,7 +245,10 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               <Filter className={`w-4 h-4 ${themes[theme].text}`} />
               <select
                 value={groupingDimension}
-                onChange={(e) => setGroupingDimension(e.target.value as GroupingDimension)}
+                onChange={(e) => {
+                  setGroupingDimension(e.target.value as GroupingDimension);
+                  setSelectedPath([]); // Reset path when changing dimension
+                }}
                 className={`px-3 py-1.5 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
               >
                 <option value="category">Group by Category</option>
