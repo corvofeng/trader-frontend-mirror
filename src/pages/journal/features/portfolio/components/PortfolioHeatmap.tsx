@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as echarts from 'echarts';
-import { Filter, X } from 'lucide-react';
+import { Filter } from 'lucide-react';
 import { Theme, themes } from '../../../../../lib/theme';
 import type { Holding } from '../../../../../lib/services/types';
 import { formatCurrency } from '../../../../../lib/types';
@@ -25,7 +25,6 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<echarts.ECharts | null>(null);
   const [groupingDimension, setGroupingDimension] = useState<GroupingDimension>('category');
-  const [selectedPath, setSelectedPath] = useState<string[]>([]);
 
   useEffect(() => {
     if (!chartRef.current || holdings.length === 0) return;
@@ -87,7 +86,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
     // Calculate max value for color scaling
     const maxValue = Math.max(...holdings.map(h => Math.abs(h.profit_loss_percentage)));
 
-    // Prepare treemap data
+    // Prepare treemap data with separate levels for headers and content
     const data = Array.from(groups.entries()).map(([groupName, stats]) => {
       const intensity = Math.min(0.9, Math.abs(stats.profitLossPercentage) / maxValue) + 0.1;
       const groupColor = stats.profitLossPercentage >= 0 
@@ -97,120 +96,105 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
       return {
         name: groupName,
         value: stats.totalValue,
-        profitLoss: stats.profitLoss,
-        profitLossPercentage: stats.profitLossPercentage,
-        itemStyle: {
-          color: groupColor,
-          borderColor: isDark ? '#374151' : '#e5e7eb',
-          borderWidth: 1
-        },
-        upperLabel: {
-          show: true,
-          height: 60,
-          backgroundColor: groupColor,
-          position: 'top',
-          formatter: [
-            `{name|${groupName}}`,
-            `{value|${stats.profitLossPercentage >= 0 ? '+' : ''}${stats.profitLossPercentage.toFixed(2)}%}`,
-            `{price|${formatCurrency(stats.totalValue, currencyConfig)}}`
-          ].join('\n'),
-          rich: {
-            name: {
-              fontSize: 16,
-              fontWeight: 'bold',
-              color: '#ffffff',
-              padding: [8, 12, 0, 12],
-              width: '100%',
-              align: 'left'
-            },
-            value: {
-              fontSize: 14,
-              color: '#ffffff',
-              padding: [0, 12, 0, 12],
-              width: '100%',
-              align: 'left'
-            },
-            price: {
-              fontSize: 14,
-              color: '#ffffff',
-              padding: [0, 12, 8, 12],
-              width: '100%',
-              align: 'left'
-            }
-          }
-        },
-        children: stats.holdings.map(holding => {
-          const intensity = Math.min(0.9, Math.abs(holding.profit_loss_percentage) / maxValue) + 0.1;
-          const color = holding.profit_loss_percentage >= 0 
-            ? `rgba(38, 166, 154, ${intensity})`
-            : `rgba(239, 83, 80, ${intensity})`;
-
-          return {
-            name: holding.stock_code,
-            value: holding.total_value,
-            profitLoss: holding.profit_loss,
-            profitLossPercentage: holding.profit_loss_percentage,
+        path: groupName,
+        children: [
+          // Header node
+          {
+            name: `${groupName}_header`,
+            value: stats.totalValue * 0.15, // Allocate 15% for header
             itemStyle: {
-              color,
-              borderColor: isDark ? '#374151' : '#e5e7eb',
-              borderWidth: 1
+              color: groupColor,
+              borderWidth: 0
             },
             label: {
               show: true,
               position: 'inside',
               formatter: [
-                `{name|${holding.stock_code}}`,
-                `{value|${holding.profit_loss_percentage >= 0 ? '+' : ''}${holding.profit_loss_percentage.toFixed(2)}%}`,
-                `{price|${formatCurrency(holding.total_value, currencyConfig)}}`
+                `{name|${groupName}}`,
+                `{value|${stats.profitLossPercentage >= 0 ? '+' : ''}${stats.profitLossPercentage.toFixed(2)}%}`,
+                `{price|${formatCurrency(stats.totalValue, currencyConfig)}}`
               ].join('\n'),
               rich: {
                 name: {
-                  fontSize: 14,
+                  fontSize: 16,
                   fontWeight: 'bold',
                   color: '#ffffff',
-                  padding: [2, 4]
+                  padding: [4, 8, 0, 8],
+                  align: 'left'
                 },
                 value: {
-                  fontSize: 12,
+                  fontSize: 14,
                   color: '#ffffff',
-                  padding: [2, 4]
+                  padding: [0, 8, 0, 8],
+                  align: 'left'
                 },
                 price: {
-                  fontSize: 12,
+                  fontSize: 14,
                   color: '#ffffff',
-                  padding: [2, 4]
+                  padding: [0, 8, 4, 8],
+                  align: 'left'
                 }
               }
             }
-          };
-        })
+          },
+          // Content node containing holdings
+          {
+            name: `${groupName}_content`,
+            value: stats.totalValue * 0.85, // Allocate 85% for content
+            children: stats.holdings.map(holding => {
+              const holdingIntensity = Math.min(0.9, Math.abs(holding.profit_loss_percentage) / maxValue) + 0.1;
+              const holdingColor = holding.profit_loss_percentage >= 0 
+                ? `rgba(38, 166, 154, ${holdingIntensity})`
+                : `rgba(239, 83, 80, ${holdingIntensity})`;
+
+              return {
+                name: holding.stock_code,
+                value: holding.total_value,
+                itemStyle: {
+                  color: holdingColor,
+                  borderColor: isDark ? '#374151' : '#e5e7eb',
+                  borderWidth: 1
+                },
+                label: {
+                  show: true,
+                  position: 'inside',
+                  formatter: [
+                    `{name|${holding.stock_code}}`,
+                    `{value|${holding.profit_loss_percentage >= 0 ? '+' : ''}${holding.profit_loss_percentage.toFixed(2)}%}`,
+                    `{price|${formatCurrency(holding.total_value, currencyConfig)}}`
+                  ].join('\n'),
+                  rich: {
+                    name: {
+                      fontSize: 14,
+                      fontWeight: 'bold',
+                      color: '#ffffff',
+                      padding: [2, 4]
+                    },
+                    value: {
+                      fontSize: 12,
+                      color: '#ffffff',
+                      padding: [2, 4]
+                    },
+                    price: {
+                      fontSize: 12,
+                      color: '#ffffff',
+                      padding: [2, 4]
+                    }
+                  }
+                }
+              };
+            })
+          }
+        ]
       };
     });
 
     const option = {
       tooltip: {
         formatter: (params: any) => {
-          if (!params || !params.name) return '';
+          if (!params.data) return '';
 
           const holding = holdings.find(h => h.stock_code === params.name);
-          
-          // Group node tooltip
-          if (!holding && params.data) {
-            const { value, profitLoss, profitLossPercentage } = params.data;
-            const profitLossColor = profitLossPercentage >= 0 ? '#34d399' : '#f87171';
-            
-            return `
-              <div style="font-weight: 500">${params.name}</div>
-              <div style="margin-top: 4px">
-                <div>Total Value: ${formatCurrency(value, currencyConfig)}</div>
-                <div>Profit/Loss: ${formatCurrency(profitLoss, currencyConfig)}</div>
-                <div style="color: ${profitLossColor}">
-                  Return: ${profitLossPercentage >= 0 ? '+' : ''}${profitLossPercentage.toFixed(2)}%
-                </div>
-              </div>
-            `;
-          }
-          
           if (!holding) return '';
 
           const groupInfo = groupingDimension === 'category'
@@ -238,62 +222,34 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         width: '100%',
         height: '100%',
         roam: false,
-        nodeClick: 'zoomToNode',
-        breadcrumb: {
-          show: true,
-          height: 40,
-          top: 'bottom',
-          itemStyle: {
-            color: isDark ? '#374151' : '#f3f4f6',
-            borderColor: isDark ? '#4b5563' : '#e5e7eb',
-            textStyle: {
-              color: isDark ? '#e5e7eb' : '#111827',
-              fontSize: 14,
-              fontWeight: 'bold'
+        nodeClick: false,
+        breadcrumb: { show: false },
+        levels: [
+          {
+            itemStyle: {
+              borderColor: isDark ? '#374151' : '#e5e7eb',
+              borderWidth: 1,
+              gapWidth: 2
             }
           },
-          emphasis: {
+          {
             itemStyle: {
-              color: isDark ? '#4b5563' : '#e5e7eb'
+              borderColor: 'transparent',
+              gapWidth: 2
             }
-          }
-        },
-        levels: [{
-          itemStyle: {
-            borderColor: isDark ? '#374151' : '#e5e7eb',
-            borderWidth: 1,
-            gapWidth: 2
           },
-          emphasis: {
+          {
             itemStyle: {
-              borderColor: isDark ? '#60a5fa' : '#3b82f6',
-              borderWidth: 2
+              borderColor: isDark ? '#374151' : '#e5e7eb',
+              borderWidth: 1,
+              gapWidth: 1
             }
           }
-        }],
-        label: {
-          show: true,
-          position: 'inside'
-        }
+        ]
       }]
     };
 
     chart.setOption(option);
-
-    // Handle drill down events
-    chart.on('click', (params: any) => {
-      if (params.data && params.data.children) {
-        setSelectedPath(prev => [...prev, params.name]);
-      }
-    });
-
-    // Handle breadcrumb navigation
-    chart.on('treeMapRootToNode', (params: any) => {
-      if (params.targetNode && params.targetNode.path) {
-        const path = params.targetNode.path.slice(1);
-        setSelectedPath(path);
-      }
-    });
 
     const handleResize = () => {
       if (chartInstance.current) {
