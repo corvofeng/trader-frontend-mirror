@@ -97,3 +97,12 @@ function getColorByPercentage(percentage: number, isDark: boolean, isGroup: bool
 
   return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${opacity})`;
 }
+
+export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioHeatmapProps) {
+  // Component implementation will go here
+  return (
+    <div>
+      {/* Component content */}
+    </div>
+  );
+}
