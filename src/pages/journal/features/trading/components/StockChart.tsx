@@ -125,7 +125,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
     const newZoom = direction === 'in' ? zoomLevel * 1.2 : zoomLevel / 1.2;
     setZoomLevel(newZoom);
     
-    timeScale.zoom(newZoom);
+    timeScale.applyOptions({ barSpacing: 12 * newZoom });
   };
 
   const updateChartType = (type: ChartType) => {
@@ -293,6 +293,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
         borderColor: isDark ? '#374151' : '#e5e7eb',
         timeVisible: true,
         secondsVisible: false,
+        barSpacing: 12,
         tickMarkFormatter: (time: number) => {
           const date = new Date(time * 1000);
           return format(date, window.innerWidth < 768 ? 'MM-dd' : 'yyyy-MM-dd');
