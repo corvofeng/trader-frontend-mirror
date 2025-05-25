@@ -116,39 +116,39 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
             const percentageStr = `${percentage >= 0 ? '+' : ''}${percentage.toFixed(2)}%`;
             
             return [
-              `{titleStyle|${params.name}}`,
               `{sectionStyle|${groupingDimension === 'category' ? 'Category' : 'Tag'}}`,
+              `{titleStyle|${params.name}}`,
               `{percentStyle|${percentageStr}}`,
               `{valueStyle|${value}}`
             ].join('\n');
           },
           rich: {
-            titleStyle: {
-              fontSize: 32,
-              fontWeight: 'bold',
-              color: isDark ? '#e5e7eb' : '#111827',
-              padding: [0, 0, 20, 0],
-              align: 'center',
-              width: '100%',
-              lineHeight: 40
-            },
             sectionStyle: {
-              fontSize: 18,
+              fontSize: 16,
               color: isDark ? '#9ca3af' : '#6b7280',
-              padding: [0, 0, 16, 0],
+              padding: [0, 0, 8, 0],
               align: 'center',
               width: '100%'
             },
+            titleStyle: {
+              fontSize: 24,
+              fontWeight: 'bold',
+              color: isDark ? '#e5e7eb' : '#111827',
+              padding: [0, 0, 12, 0],
+              align: 'center',
+              width: '100%',
+              lineHeight: 32
+            },
             percentStyle: {
-              fontSize: 28,
+              fontSize: 20,
               fontWeight: 'bold',
               color: stats.profitLossPercentage >= 0 ? '#34d399' : '#f87171',
-              padding: [0, 0, 16, 0],
+              padding: [0, 0, 8, 0],
               align: 'center',
               width: '100%'
             },
             valueStyle: {
-              fontSize: 20,
+              fontSize: 16,
               color: isDark ? '#9ca3af' : '#6b7280',
               align: 'center',
               width: '100%'
