@@ -1,1 +1,382 @@
-// Full updated file content provided but omitted for brevity
+import React, { useEffect, useRef, useState } from 'react';
+import * as echarts from 'echarts';
+import { Filter, X } from 'lucide-react';
+import { Theme, themes } from '../../../../../lib/theme';
+import type { Holding } from '../../../../../lib/services/types';
+import { formatCurrency } from '../../../../../lib/types';
+import type { CurrencyConfig } from '../../../../../lib/types';
+
+interface PortfolioHeatmapProps {
+  holdings: Holding[];
+  theme: Theme;
+  currencyConfig: CurrencyConfig;
+}
+
+type GroupingDimension = 'category' | 'tags';
+
+interface GroupStats {
+  totalValue: number;
+  profitLoss: number;
+  profitLossPercentage: number;
+  holdings: Holding[];
+}
+
+export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioHeatmapProps) {
+  const chartRef = useRef<HTMLDivElement>(null);
+  const chartInstance = useRef<echarts.ECharts | null>(null);
+  const [groupingDimension, setGroupingDimension] = useState<GroupingDimension>('category');
+  const [selectedPath, setSelectedPath] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!chartRef.current || holdings.length === 0) return;
+
+    if (chartInstance.current) {
+      chartInstance.current.dispose();
+    }
+
+    const chart = echarts.init(chartRef.current);
+    chartInstance.current = chart;
+
+    const isDark = theme === 'dark';
+
+    // Group holdings and calculate stats
+    const groups = new Map<string, GroupStats>();
+    
+    if (groupingDimension === 'category') {
+      holdings.forEach(holding => {
+        const category = holding.category || 'Other';
+        if (!groups.has(category)) {
+          groups.set(category, {
+            totalValue: 0,
+            profitLoss: 0,
+            profitLossPercentage: 0,
+            holdings: []
+          });
+        }
+        const stats = groups.get(category)!;
+        stats.totalValue += holding.total_value;
+        stats.profitLoss += holding.profit_loss;
+        stats.holdings.push(holding);
+      });
+    } else {
+      holdings.forEach(holding => {
+        const tags = holding.tags || ['Untagged'];
+        tags.forEach(tag => {
+          if (!groups.has(tag)) {
+            groups.set(tag, {
+              totalValue: 0,
+              profitLoss: 0,
+              profitLossPercentage: 0,
+              holdings: []
+            });
+          }
+          const stats = groups.get(tag)!;
+          stats.totalValue += holding.total_value;
+          stats.profitLoss += holding.profit_loss;
+          stats.holdings.push(holding);
+        });
+      });
+    }
+
+    // Calculate profit/loss percentages for groups
+    groups.forEach(stats => {
+      const costBasis = stats.totalValue - stats.profitLoss;
+      stats.profitLossPercentage = (stats.profitLoss / costBasis) * 100;
+    });
+
+    // Calculate max value for color scaling
+    const maxValue = Math.max(...holdings.map(h => Math.abs(h.profit_loss_percentage)));
+
+    // Prepare treemap data
+    const data = Array.from(groups.entries()).map(([groupName, stats]) => {
+      const intensity = Math.min(0.9, Math.abs(stats.profitLossPercentage) / maxValue) + 0.1;
+      const groupColor = stats.profitLossPercentage >= 0 
+        ? `rgba(38, 166, 154, ${intensity * 0.3})`  // Lighter green for groups
+        : `rgba(239, 83, 80, ${intensity * 0.3})`;  // Lighter red for groups
+
+      return {
+        name: groupName,
+        value: stats.totalValue,
+        profitLoss: stats.profitLoss,
+        profitLossPercentage: stats.profitLossPercentage,
+        itemStyle: {
+          color: groupColor,
+          borderWidth: 4,
+          borderRadius: 8,
+          borderColor: isDark ? '#4b5563' : '#e5e7eb',
+          shadowBlur: 10,
+          shadowColor: isDark ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.1)'
+        },
+        label: {
+          show: true,
+          position: 'inside',
+          formatter: (params: any) => {
+            const value = formatCurrency(params.value, currencyConfig);
+            const percentage = stats.profitLossPercentage;
+            const percentageStr = `${percentage >= 0 ? '+' : ''}${percentage.toFixed(2)}%`;
+            
+            return [
+              `{sectionStyle|${groupingDimension === 'category' ? 'Category' : 'Tag'}}`,
+              `{titleStyle|${params.name}}`,
+              `{percentStyle|${percentageStr}}`,
+              `{valueStyle|${value}}`
+            ].join('\n');
+          },
+          rich: {
+            sectionStyle: {
+              fontSize: 16,
+              color: isDark ? '#9ca3af' : '#6b7280',
+              padding: [0, 0, 8, 0],
+              align: 'center',
+              width: '100%'
+            },
+            titleStyle: {
+              fontSize: 24,
+              fontWeight: 'bold',
+              color: isDark ? '#e5e7eb' : '#111827',
+              padding: [0, 0, 12, 0],
+              align: 'center',
+              width: '100%',
+              lineHeight: 32
+            },
+            percentStyle: {
+              fontSize: 20,
+              fontWeight: 'bold',
+              color: stats.profitLossPercentage >= 0 ? '#34d399' : '#f87171',
+              padding: [0, 0, 8, 0],
+              align: 'center',
+              width: '100%'
+            },
+            valueStyle: {
+              fontSize: 16,
+              color: isDark ? '#9ca3af' : '#6b7280',
+              align: 'center',
+              width: '100%'
+            }
+          }
+        },
+        children: stats.holdings.map(holding => {
+          const intensity = Math.min(0.9, Math.abs(holding.profit_loss_percentage) / maxValue) + 0.1;
+          const color = holding.profit_loss_percentage >= 0 
+            ? `rgba(38, 166, 154, ${intensity})`
+            : `rgba(239, 83, 80, ${intensity})`;
+
+          return {
+            name: holding.stock_code,
+            value: holding.total_value,
+            profitLoss: holding.profit_loss,
+            profitLossPercentage: holding.profit_loss_percentage,
+            itemStyle: {
+              color,
+              borderWidth: 1,
+              borderColor: isDark ? '#374151' : '#e5e7eb'
+            },
+            label: {
+              show: true,
+              position: 'inside',
+              formatter: (params: any) => {
+                const value = formatCurrency(params.value, currencyConfig);
+                const percentage = holding.profit_loss_percentage;
+                const percentageStr = `${percentage >= 0 ? '+' : ''}${percentage.toFixed(2)}%`;
+                
+                return [
+                  `{titleStyle|${params.name}}`,
+                  `{nameStyle|${holding.stock_name}}`,
+                  `{percentStyle|${percentageStr}}`,
+                  `{valueStyle|${value}}`
+                ].join('\n');
+              },
+              rich: {
+                titleStyle: {
+                  fontSize: 16,
+                  fontWeight: 'bold',
+                  color: isDark ? '#e5e7eb' : '#111827',
+                  padding: [0, 0, 8, 0],
+                  align: 'center',
+                  width: '100%'
+                },
+                nameStyle: {
+                  fontSize: 14,
+                  color: isDark ? '#9ca3af' : '#6b7280',
+                  padding: [0, 0, 8, 0],
+                  align: 'center',
+                  width: '100%'
+                },
+                percentStyle: {
+                  fontSize: 14,
+                  fontWeight: 'bold',
+                  color: holding.profit_loss_percentage >= 0 ? '#34d399' : '#f87171',
+                  padding: [0, 0, 8, 0],
+                  align: 'center',
+                  width: '100%'
+                },
+                valueStyle: {
+                  fontSize: 14,
+                  color: isDark ? '#9ca3af' : '#6b7280',
+                  align: 'center',
+                  width: '100%'
+                }
+              }
+            }
+          };
+        })
+      };
+    });
+
+    const option = {
+      tooltip: {
+        formatter: (params: any) => {
+          if (!params || !params.name) return '';
+
+          const holding = holdings.find(h => h.stock_code === params.name);
+          
+          // Group node tooltip
+          if (!holding && params.data) {
+            const { value, profitLoss, profitLossPercentage } = params.data;
+            const profitLossColor = profitLossPercentage >= 0 ? '#34d399' : '#f87171';
+            
+            return `
+              <div style="font-weight: 500; font-size: 16px">${groupingDimension === 'category' ? 'Category' : 'Tag'}: ${params.name}</div>
+              <div style="margin-top: 8px">
+                <div>Total Value: ${formatCurrency(value, currencyConfig)}</div>
+                <div>Profit/Loss: ${formatCurrency(profitLoss, currencyConfig)}</div>
+                <div style="color: ${profitLossColor}; font-weight: 500">
+                  Return: ${profitLossPercentage >= 0 ? '+' : ''}${profitLossPercentage.toFixed(2)}%
+                </div>
+              </div>
+            `;
+          }
+          
+          if (!holding) return '';
+
+          const groupInfo = groupingDimension === 'category'
+            ? `Category: ${holding.category || 'Other'}`
+            : `Tags: ${holding.tags?.join(', ') || 'Untagged'}`;
+
+          return `
+            <div style="font-weight: 500">${holding.stock_code} - ${holding.stock_name}</div>
+            <div style="margin-top: 4px">
+              <div>${groupInfo}</div>
+              <div>Current Price: ${formatCurrency(holding.current_price, currencyConfig)}</div>
+              <div>Total Value: ${formatCurrency(holding.total_value, currencyConfig)}</div>
+              <div>Quantity: ${holding.quantity}</div>
+            </div>
+            <div style="margin-top: 4px; color: ${holding.profit_loss_percentage >= 0 ? '#34d399' : '#f87171'}">
+              ${holding.profit_loss_percentage >= 0 ? '+' : ''}${holding.profit_loss_percentage.toFixed(2)}%
+              (${formatCurrency(holding.profit_loss, currencyConfig)})
+            </div>
+          `;
+        }
+      },
+      series: [{
+        type: 'treemap',
+        data: data,
+        width: '100%',
+        height: '100%',
+        roam: false,
+        nodeClick: 'zoomToNode',
+        breadcrumb: {
+          show: true,
+          height: 30,
+          top: 'bottom',
+          itemStyle: {
+            color: isDark ? '#374151' : '#f3f4f6',
+            borderColor: isDark ? '#4b5563' : '#e5e7eb',
+            textStyle: {
+              color: isDark ? '#e5e7eb' : '#111827',
+              fontWeight: 'bold',
+              fontSize: 14
+            }
+          },
+          emphasis: {
+            itemStyle: {
+              color: isDark ? '#4b5563' : '#e5e7eb'
+            }
+          }
+        },
+        levels: [{
+          itemStyle: {
+            borderColor: isDark ? '#374151' : '#e5e7eb',
+            borderWidth: 4,
+            gapWidth: 8,
+            borderRadius: 8
+          },
+          emphasis: {
+            itemStyle: {
+              borderColor: isDark ? '#60a5fa' : '#3b82f6',
+              borderWidth: 4
+            }
+          }
+        }],
+        label: {
+          show: true,
+          position: 'inside'
+        },
+        upperLabel: {
+          show: true,
+          height: 40,
+          color: isDark ? '#e5e7eb' : '#111827'
+        }
+      }]
+    };
+
+    chart.setOption(option);
+
+    // Handle drill down events
+    chart.on('click', (params: any) => {
+      if (params.data && params.data.children) {
+        setSelectedPath(prev => [...prev, params.name]);
+      }
+    });
+
+    // Handle breadcrumb navigation
+    chart.on('treeMapRootToNode', (params: any) => {
+      if (params.targetNode && params.targetNode.path) {
+        const path = params.targetNode.path.slice(1);
+        setSelectedPath(path);
+      }
+    });
+
+    const handleResize = () => {
+      if (chartInstance.current) {
+        chartInstance.current.resize();
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (chartInstance.current) {
+        chartInstance.current.dispose();
+      }
+    };
+  }, [holdings, theme, currencyConfig, groupingDimension]);
+
+  return (
+    <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
+      <div className="p-6">
+        <div className="flex flex-col gap-4">
+          <div className="flex justify-between items-center">
+            <h2 className={`text-lg font-semibold ${themes[theme].text}`}>
+              Portfolio Performance Heatmap
+            </h2>
+            <div className="flex items-center gap-2">
+              <Filter className={`w-4 h-4 ${themes[theme].text}`} />
+              <select
+                value={groupingDimension}
+                onChange={(e) => setGroupingDimension(e.target.value as GroupingDimension)}
+                className={`px-3 py-1.5 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
+              >
+                <option value="category">Group by Category</option>
+                <option value="tags">Group by Tags</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div ref={chartRef} style={{ height: '600px' }} className="mt-4" />
+      </div>
+    </div>
+  );
+}
