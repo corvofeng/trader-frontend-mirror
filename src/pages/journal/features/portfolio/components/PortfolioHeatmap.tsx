@@ -110,7 +110,6 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         label: {
           show: true,
           position: 'inside',
-
           formatter: (params: any) => {
   const stats = groups.get(params.name)!;
   const holdingsCount = stats.holdings.length;
