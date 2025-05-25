@@ -101,16 +101,16 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         profitLossPercentage: stats.profitLossPercentage,
         itemStyle: {
           color: groupColor,
-          borderWidth: 4,  // Increased from 2
-          borderRadius: 4, // Added border radius
+          borderWidth: 4,  // Increased border width
+          borderRadius: 8, // Added border radius
           borderColor: isDark ? '#4b5563' : '#e5e7eb',
-          shadowBlur: 5,   // Added shadow
+          shadowBlur: 10,   // Added shadow
           shadowColor: isDark ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.1)'
         },
         label: {
           show: true,
           position: 'inside',
-          padding: [30, 30],  // Increased padding
+          padding: [40, 40],  // Increased padding
           formatter: (params: any) => {
             const value = formatCurrency(params.value, currencyConfig);
             const percentage = stats.profitLossPercentage;
@@ -125,31 +125,31 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
           },
           rich: {
             titleStyle: {
-              fontSize: 28,  // Increased from 24
+              fontSize: 32,  // Increased font size
               fontWeight: 'bold',
               color: isDark ? '#e5e7eb' : '#111827',
-              padding: [0, 0, 16, 0],  // Increased padding
+              padding: [0, 0, 20, 0],  // Increased padding
               align: 'center',
               width: '100%',
-              lineHeight: 36  // Increased line height
+              lineHeight: 40  // Increased line height
             },
             sectionStyle: {
-              fontSize: 16,  // Increased from 14
+              fontSize: 18,  // Increased font size
               color: isDark ? '#9ca3af' : '#6b7280',
-              padding: [0, 0, 12, 0],
+              padding: [0, 0, 16, 0],
               align: 'center',
               width: '100%'
             },
             percentStyle: {
-              fontSize: 24,  // Increased from 20
+              fontSize: 28,  // Increased font size
               fontWeight: 'bold',
               color: stats.profitLossPercentage >= 0 ? '#34d399' : '#f87171',
-              padding: [0, 0, 12, 0],
+              padding: [0, 0, 16, 0],
               align: 'center',
               width: '100%'
             },
             valueStyle: {
-              fontSize: 18,  // Increased from 16
+              fontSize: 20,  // Increased font size
               color: isDark ? '#9ca3af' : '#6b7280',
               align: 'center',
               width: '100%'
@@ -175,7 +175,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
             label: {
               show: true,
               position: 'inside',
-              padding: [12, 12],
+              padding: [16, 16],
               formatter: (params: any) => {
                 const value = formatCurrency(params.value, currencyConfig);
                 const percentage = holding.profit_loss_percentage;
@@ -193,14 +193,14 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
                   fontSize: 16,
                   fontWeight: 'bold',
                   color: isDark ? '#e5e7eb' : '#111827',
-                  padding: [0, 0, 6, 0],
+                  padding: [0, 0, 8, 0],
                   align: 'center',
                   width: '100%'
                 },
                 nameStyle: {
                   fontSize: 14,
                   color: isDark ? '#9ca3af' : '#6b7280',
-                  padding: [0, 0, 6, 0],
+                  padding: [0, 0, 8, 0],
                   align: 'center',
                   width: '100%'
                 },
@@ -208,7 +208,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
                   fontSize: 14,
                   fontWeight: 'bold',
                   color: holding.profit_loss_percentage >= 0 ? '#34d399' : '#f87171',
-                  padding: [0, 0, 6, 0],
+                  padding: [0, 0, 8, 0],
                   align: 'center',
                   width: '100%'
                 },
@@ -299,14 +299,14 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         levels: [{
           itemStyle: {
             borderColor: isDark ? '#374151' : '#e5e7eb',
-            borderWidth: 4,  // Increased from 2
-            gapWidth: 4,     // Increased from 2
-            borderRadius: 4  // Added border radius
+            borderWidth: 4,
+            gapWidth: 8,  // Increased gap width
+            borderRadius: 8
           },
           emphasis: {
             itemStyle: {
               borderColor: isDark ? '#60a5fa' : '#3b82f6',
-              borderWidth: 4  // Increased from 2
+              borderWidth: 4
             }
           }
         }],
