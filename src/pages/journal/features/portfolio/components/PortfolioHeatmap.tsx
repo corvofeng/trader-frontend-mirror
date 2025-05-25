@@ -107,7 +107,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         label: {
           show: true,
           position: 'inside',
-          padding: [15, 15],
+          padding: [20, 20],
           formatter: (params: any) => {
             const value = formatCurrency(params.value, currencyConfig);
             const percentage = stats.profitLossPercentage;
@@ -122,30 +122,31 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
           },
           rich: {
             sectionStyle: {
-              fontSize: 12,
+              fontSize: 14,
               color: isDark ? '#9ca3af' : '#6b7280',
-              padding: [0, 0, 5, 0],
-              align: 'center',
-              width: '100%'
-            },
-            titleStyle: {
-              fontSize: 18,
-              fontWeight: 'bold',
-              color: isDark ? '#e5e7eb' : '#111827',
               padding: [0, 0, 8, 0],
               align: 'center',
               width: '100%'
             },
+            titleStyle: {
+              fontSize: 24,  // Increased from 18
+              fontWeight: 'bold',
+              color: isDark ? '#e5e7eb' : '#111827',
+              padding: [0, 0, 12, 0],  // Increased padding
+              align: 'center',
+              width: '100%',
+              lineHeight: 32  // Added line height
+            },
             percentStyle: {
-              fontSize: 16,
+              fontSize: 20,  // Increased from 16
               fontWeight: 'bold',
               color: stats.profitLossPercentage >= 0 ? '#34d399' : '#f87171',
-              padding: [0, 0, 5, 0],
+              padding: [0, 0, 8, 0],
               align: 'center',
               width: '100%'
             },
             valueStyle: {
-              fontSize: 14,
+              fontSize: 16,  // Increased from 14
               color: isDark ? '#9ca3af' : '#6b7280',
               align: 'center',
               width: '100%'
@@ -171,7 +172,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
             label: {
               show: true,
               position: 'inside',
-              padding: [10, 10],
+              padding: [12, 12],
               formatter: (params: any) => {
                 const value = formatCurrency(params.value, currencyConfig);
                 const percentage = holding.profit_loss_percentage;
@@ -186,30 +187,30 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               },
               rich: {
                 titleStyle: {
-                  fontSize: 14,
+                  fontSize: 16,  // Increased from 14
                   fontWeight: 'bold',
                   color: isDark ? '#e5e7eb' : '#111827',
-                  padding: [0, 0, 4, 0],
+                  padding: [0, 0, 6, 0],
                   align: 'center',
                   width: '100%'
                 },
                 nameStyle: {
-                  fontSize: 12,
+                  fontSize: 14,  // Increased from 12
                   color: isDark ? '#9ca3af' : '#6b7280',
-                  padding: [0, 0, 4, 0],
+                  padding: [0, 0, 6, 0],
                   align: 'center',
                   width: '100%'
                 },
                 percentStyle: {
-                  fontSize: 12,
+                  fontSize: 14,  // Increased from 12
                   fontWeight: 'bold',
                   color: holding.profit_loss_percentage >= 0 ? '#34d399' : '#f87171',
-                  padding: [0, 0, 4, 0],
+                  padding: [0, 0, 6, 0],
                   align: 'center',
                   width: '100%'
                 },
                 valueStyle: {
-                  fontSize: 12,
+                  fontSize: 14,  // Increased from 12
                   color: isDark ? '#9ca3af' : '#6b7280',
                   align: 'center',
                   width: '100%'
@@ -282,7 +283,8 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
             borderColor: isDark ? '#4b5563' : '#e5e7eb',
             textStyle: {
               color: isDark ? '#e5e7eb' : '#111827',
-              fontWeight: 'bold'
+              fontWeight: 'bold',
+              fontSize: 14  // Increased from default
             }
           },
           emphasis: {
