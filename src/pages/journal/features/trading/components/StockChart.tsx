@@ -144,10 +144,13 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
           color: themes[theme].chart.upColor,
           lineWidth: 2,
         });
-        newSeries.setData(chartData.candlestick.map(item => ({
-          time: item.time,
-          value: item.close,
-        })));
+        const sortedLineData = [...chartData.candlestick]
+          .sort((a, b) => a.time - b.time)
+          .map(item => ({
+            time: item.time,
+            value: item.close,
+          }));
+        newSeries.setData(sortedLineData);
         break;
       
       case 'bar':
@@ -155,7 +158,8 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
           upColor: themes[theme].chart.upColor,
           downColor: themes[theme].chart.downColor,
         });
-        newSeries.setData(chartData.candlestick);
+        const sortedBarData = [...chartData.candlestick].sort((a, b) => a.time - b.time);
+        newSeries.setData(sortedBarData);
         break;
       
       default:
@@ -166,14 +170,18 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
           wickUpColor: themes[theme].chart.upColor,
           wickDownColor: themes[theme].chart.downColor,
         });
-        newSeries.setData(chartData.candlestick);
+        const sortedCandlestickData = [...chartData.candlestick].sort((a, b) => a.time - b.time);
+        newSeries.setData(sortedCandlestickData);
     }
     
     candlestickSeriesRef.current = newSeries;
     setChartType(type);
 
     if (chartData.trades.length > 0) {
-      addTradeMarkers(newSeries, chartData.trades, themes[theme].chart);
+      const sortedTrades = [...chartData.trades].sort((a, b) => 
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      );
+      addTradeMarkers(newSeries, sortedTrades, themes[theme].chart);
     }
   };
 
@@ -366,19 +374,23 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
 
         const validStockData = stockResponse.data.filter(isValidDataPoint);
 
-        const candlestickData = validStockData.map(item => ({
-          time: Math.floor(new Date(item.date).getTime() / 1000),
-          open: item.open,
-          high: item.high,
-          low: item.low,
-          close: item.close,
-        }));
+        const candlestickData = validStockData
+          .map(item => ({
+            time: Math.floor(new Date(item.date).getTime() / 1000),
+            open: item.open,
+            high: item.high,
+            low: item.low,
+            close: item.close,
+          }))
+          .sort((a, b) => a.time - b.time);
 
-        const volumeData = validStockData.map((item) => ({
-          time: Math.floor(new Date(item.date).getTime() / 1000),
-          value: item.volume,
-          color: item.close >= item.open ? chartColors.upColor : chartColors.downColor,
-        }));
+        const volumeData = validStockData
+          .map((item) => ({
+            time: Math.floor(new Date(item.date).getTime() / 1000),
+            value: item.volume,
+            color: item.close >= item.open ? chartColors.upColor : chartColors.downColor,
+          }))
+          .sort((a, b) => a.time - b.time);
 
         let trades: Trade[] = [];
         let costBasisPoints: CostBasisPoint[] = [];
@@ -390,7 +402,9 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
             endDate
           );
           if (tradesResponse.data && !isDisposed.current) {
-            trades = tradesResponse.data.filter(trade => trade.stock_code === stockCode);
+            trades = tradesResponse.data
+              .filter(trade => trade.stock_code === stockCode)
+              .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
             
             if (trades.length > 0) {
               addTradeMarkers(candlestickSeries, trades, chartColors);
