@@ -8,37 +8,172 @@ export const mockUser = {
   created_at: '2023-01-01T00:00:00Z'
 };
 
+// Stock categories/sectors
+export const STOCK_CATEGORIES = {
+  TECH: 'Technology',
+  FINANCE: 'Financial Services',
+  HEALTHCARE: 'Healthcare',
+  CONSUMER: 'Consumer Goods',
+  ENERGY: 'Energy',
+  INDUSTRIAL: 'Industrial',
+  TELECOM: 'Telecommunications',
+  MATERIALS: 'Materials'
+};
+
 export const MOCK_STOCKS = [
-  { stock_code: 'AAPL', stock_name: 'Apple Inc.' },
-  { stock_code: 'GOOGL', stock_name: 'Alphabet Inc.' },
-  { stock_code: 'MSFT', stock_name: 'Microsoft Corporation' },
-  { stock_code: 'AMZN', stock_name: 'Amazon.com Inc.' },
-  { stock_code: 'META', stock_name: 'Meta Platforms Inc.' },
-  { stock_code: 'TSLA', stock_name: 'Tesla Inc.' },
-  { stock_code: 'NVDA', stock_name: 'NVIDIA Corporation' },
-  { stock_code: 'JPM', stock_name: 'JPMorgan Chase & Co.' },
-  { stock_code: 'V', stock_name: 'Visa Inc.' },
-  { stock_code: 'JNJ', stock_name: 'Johnson & Johnson' }
+  { 
+    stock_code: 'AAPL', 
+    stock_name: 'Apple Inc.',
+    category: STOCK_CATEGORIES.TECH,
+    tags: ['Consumer Electronics', 'Software', 'Services']
+  },
+  { 
+    stock_code: 'GOOGL', 
+    stock_name: 'Alphabet Inc.',
+    category: STOCK_CATEGORIES.TECH,
+    tags: ['Internet Services', 'Software', 'AI']
+  },
+  { 
+    stock_code: 'MSFT', 
+    stock_name: 'Microsoft Corporation',
+    category: STOCK_CATEGORIES.TECH,
+    tags: ['Software', 'Cloud Computing', 'Enterprise']
+  },
+  { 
+    stock_code: 'AMZN', 
+    stock_name: 'Amazon.com Inc.',
+    category: STOCK_CATEGORIES.CONSUMER,
+    tags: ['E-commerce', 'Cloud Computing', 'Streaming']
+  },
+  { 
+    stock_code: 'META', 
+    stock_name: 'Meta Platforms Inc.',
+    category: STOCK_CATEGORIES.TECH,
+    tags: ['Social Media', 'VR/AR', 'Advertising']
+  },
+  { 
+    stock_code: 'TSLA', 
+    stock_name: 'Tesla Inc.',
+    category: STOCK_CATEGORIES.CONSUMER,
+    tags: ['Electric Vehicles', 'Energy', 'Technology']
+  },
+  { 
+    stock_code: 'NVDA', 
+    stock_name: 'NVIDIA Corporation',
+    category: STOCK_CATEGORIES.TECH,
+    tags: ['Semiconductors', 'AI', 'Gaming']
+  },
+  { 
+    stock_code: 'JPM', 
+    stock_name: 'JPMorgan Chase & Co.',
+    category: STOCK_CATEGORIES.FINANCE,
+    tags: ['Banking', 'Investment Services', 'Financial Technology']
+  },
+  { 
+    stock_code: 'V', 
+    stock_name: 'Visa Inc.',
+    category: STOCK_CATEGORIES.FINANCE,
+    tags: ['Payment Processing', 'Financial Technology']
+  },
+  { 
+    stock_code: 'JNJ', 
+    stock_name: 'Johnson & Johnson',
+    category: STOCK_CATEGORIES.HEALTHCARE,
+    tags: ['Pharmaceuticals', 'Medical Devices', 'Consumer Health']
+  }
 ];
 
 export const mockHoldings = [
   {
     stock_code: 'AAPL',
-    quantity: 100,
+    stock_name: 'Apple Inc.',
+    category: STOCK_CATEGORIES.TECH,
+    tags: ['Consumer Electronics', 'Software', 'Services'],
+    quantity: 150,
     average_price: 150.00,
     current_price: 175.00,
-    total_value: 17500.00,
-    profit_loss: 2500.00,
-    profit_loss_percentage: 16.67
+    total_value: 26250.00,
+    profit_loss: 3750.00,
+    profit_loss_percentage: 16.67,
+    last_updated: new Date().toISOString()
   },
   {
     stock_code: 'GOOGL',
+    stock_name: 'Alphabet Inc.',
+    category: STOCK_CATEGORIES.TECH,
+    tags: ['Internet Services', 'Software', 'AI'],
     quantity: 50,
     average_price: 2800.00,
     current_price: 2900.00,
     total_value: 145000.00,
     profit_loss: 5000.00,
-    profit_loss_percentage: 3.57
+    profit_loss_percentage: 3.57,
+    last_updated: new Date().toISOString()
+  },
+  {
+    stock_code: 'MSFT',
+    stock_name: 'Microsoft Corporation',
+    category: STOCK_CATEGORIES.TECH,
+    tags: ['Software', 'Cloud Computing', 'Enterprise'],
+    quantity: 100,
+    average_price: 300.00,
+    current_price: 320.00,
+    total_value: 32000.00,
+    profit_loss: 2000.00,
+    profit_loss_percentage: 6.67,
+    last_updated: new Date().toISOString()
+  },
+  {
+    stock_code: 'TSLA',
+    stock_name: 'Tesla Inc.',
+    category: STOCK_CATEGORIES.CONSUMER,
+    tags: ['Electric Vehicles', 'Energy', 'Technology'],
+    quantity: 75,
+    average_price: 250.00,
+    current_price: 240.00,
+    total_value: 18000.00,
+    profit_loss: -750.00,
+    profit_loss_percentage: -4.00,
+    last_updated: new Date().toISOString()
+  },
+  {
+    stock_code: 'NVDA',
+    stock_name: 'NVIDIA Corporation',
+    category: STOCK_CATEGORIES.TECH,
+    tags: ['Semiconductors', 'AI', 'Gaming'],
+    quantity: 80,
+    average_price: 400.00,
+    current_price: 450.00,
+    total_value: 36000.00,
+    profit_loss: 4000.00,
+    profit_loss_percentage: 12.50,
+    last_updated: new Date().toISOString()
+  },
+  {
+    stock_code: 'JPM',
+    stock_name: 'JPMorgan Chase & Co.',
+    category: STOCK_CATEGORIES.FINANCE,
+    tags: ['Banking', 'Investment Services', 'Financial Technology'],
+    quantity: 120,
+    average_price: 140.00,
+    current_price: 135.00,
+    total_value: 16200.00,
+    profit_loss: -600.00,
+    profit_loss_percentage: -3.57,
+    last_updated: new Date().toISOString()
+  },
+  {
+    stock_code: 'JNJ',
+    stock_name: 'Johnson & Johnson',
+    category: STOCK_CATEGORIES.HEALTHCARE,
+    tags: ['Pharmaceuticals', 'Medical Devices', 'Consumer Health'],
+    quantity: 90,
+    average_price: 160.00,
+    current_price: 165.00,
+    total_value: 14850.00,
+    profit_loss: 450.00,
+    profit_loss_percentage: 3.12,
+    last_updated: new Date().toISOString()
   }
 ];
 

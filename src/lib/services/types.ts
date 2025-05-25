@@ -10,6 +10,8 @@ export interface User {
 export interface Stock {
   stock_code: string;
   stock_name: string;
+  category?: string;
+  tags?: string[];
   price?: number;
 }
 
@@ -30,6 +32,8 @@ export interface Trade {
 export interface Holding {
   stock_code: string;
   stock_name: string;
+  category?: string;
+  tags?: string[];
   quantity: number;
   average_price: number;
   current_price: number;
