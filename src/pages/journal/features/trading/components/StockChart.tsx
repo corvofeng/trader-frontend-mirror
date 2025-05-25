@@ -46,7 +46,6 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
   const [stockInfo, setStockInfo] = useState<Stock | null>(null);
   const isDisposed = useRef(false);
   const isInitializing = useRef(false);
-  const isMounted = useRef(true);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
   const [chartType, setChartType] = useState<ChartType>('candlestick');
@@ -63,16 +62,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
     costBasis: CostBasisPoint[];
   }>({ candlestick: [], volume: [], trades: [], costBasis: [] });
 
-  useEffect(() => {
-    isMounted.current = true;
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
-
   const disposeChart = () => {
-    if (!isMounted.current) return;
-    
     isDisposed.current = true;
 
     if (resizeObserverRef.current) {
@@ -81,32 +71,44 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
     }
 
     if (chartRef.current) {
-      try {
-        // Clear all series references before removing the chart
-        if (candlestickSeriesRef.current) {
+      // Clear all series references before removing the chart
+      if (candlestickSeriesRef.current) {
+        try {
           chartRef.current.removeSeries(candlestickSeriesRef.current);
-          candlestickSeriesRef.current = null;
+        } catch (e) {
+          // Ignore errors during cleanup
         }
-        if (volumeSeriesRef.current) {
-          chartRef.current.removeSeries(volumeSeriesRef.current);
-          volumeSeriesRef.current = null;
-        }
-        if (costBasisSeriesRef.current) {
-          chartRef.current.removeSeries(costBasisSeriesRef.current);
-          costBasisSeriesRef.current = null;
-        }
-        
-        chartRef.current.remove();
-        chartRef.current = null;
-      } catch (e) {
-        console.error('Error during chart disposal:', e);
+        candlestickSeriesRef.current = null;
       }
+      if (volumeSeriesRef.current) {
+        try {
+          chartRef.current.removeSeries(volumeSeriesRef.current);
+        } catch (e) {
+          // Ignore errors during cleanup
+        }
+        volumeSeriesRef.current = null;
+      }
+      if (costBasisSeriesRef.current) {
+        try {
+          chartRef.current.removeSeries(costBasisSeriesRef.current);
+        } catch (e) {
+          // Ignore errors during cleanup
+        }
+        costBasisSeriesRef.current = null;
+      }
+      
+      try {
+        chartRef.current.remove();
+      } catch (e) {
+        // Ignore errors during cleanup
+      }
+      chartRef.current = null;
     }
   };
 
   useEffect(() => {
     const handleFullscreenChange = () => {
-      if (!document.fullscreenElement && isMounted.current && !isDisposed.current) {
+      if (!document.fullscreenElement && !isDisposed.current) {
         setIsFullscreen(false);
       }
     };
@@ -119,8 +121,6 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
   }, []);
 
   const calculateCostBasis = (trades: Trade[]): CostBasisPoint[] => {
-    if (isDisposed.current || !isMounted.current) return [];
-
     const sortedTrades = [...trades].sort((a, b) => 
       new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     );
@@ -155,10 +155,8 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
   };
 
   const toggleFullscreen = () => {
-    if (!chartContainerRef.current || isDisposed.current || !isMounted.current) return;
-
     if (!document.fullscreenElement) {
-      chartContainerRef.current.requestFullscreen();
+      chartContainerRef.current?.requestFullscreen();
       setIsFullscreen(true);
     } else {
       document.exitFullscreen();
@@ -167,7 +165,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
   };
 
   const handleZoom = (direction: 'in' | 'out') => {
-    if (!chartRef.current || isDisposed.current || !isMounted.current) return;
+    if (!chartRef.current || isDisposed.current) return;
     
     const timeScale = chartRef.current.timeScale();
     const newZoom = direction === 'in' ? zoomLevel * 1.2 : zoomLevel / 1.2;
@@ -177,22 +175,22 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
   };
 
   const updateChartType = (type: ChartType) => {
-    if (!chartRef.current || !chartData.candlestick.length || isDisposed.current || !isMounted.current) return;
+    if (!chartRef.current || !chartData.candlestick.length || isDisposed.current) return;
     
     const chart = chartRef.current;
     
     if (candlestickSeriesRef.current) {
       try {
         chart.removeSeries(candlestickSeriesRef.current);
-        candlestickSeriesRef.current = null;
       } catch (e) {
-        console.error('Error removing series:', e);
+        // Ignore errors during series removal
         return;
       }
+      candlestickSeriesRef.current = null;
     }
     
+    let newSeries;
     try {
-      let newSeries;
       switch (type) {
         case 'line':
           newSeries = chart.addLineSeries({
@@ -232,7 +230,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
       candlestickSeriesRef.current = newSeries;
       setChartType(type);
 
-      if (chartData.trades.length > 0 && !isDisposed.current && isMounted.current) {
+      if (chartData.trades.length > 0 && !isDisposed.current) {
         const sortedTrades = [...chartData.trades].sort((a, b) => 
           new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
         );
@@ -248,7 +246,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
     trades: Trade[],
     chartColors: { upColor: string; downColor: string }
   ) => {
-    if (isDisposed.current || !isMounted.current) return;
+    if (isDisposed.current) return;
 
     const markers = trades.map(trade => {
       const isBuy = trade.operation === 'buy';
@@ -269,7 +267,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
     });
 
     try {
-      if (!isDisposed.current && isMounted.current) {
+      if (!isDisposed.current) {
         candlestickSeries.setMarkers(markers);
       }
     } catch (e) {
@@ -286,7 +284,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
 
       try {
         const { data: stocks } = await stockService.getStocks();
-        if (stocks && !isDisposed.current && isMounted.current) {
+        if (stocks && !isDisposed.current) {
           const stock = stocks.find(s => s.stock_code === stockCode);
           if (stock) {
             setStockInfo(stock);
@@ -296,7 +294,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
         }
       } catch (error) {
         console.error('Error fetching stock info:', error);
-        if (!isDisposed.current && isMounted.current) {
+        if (!isDisposed.current) {
           setStockInfo({ stock_code: stockCode, stock_name: stockCode });
         }
       }
@@ -317,8 +315,6 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
 
     const isDark = theme === 'dark';
     const chartColors = themes[theme].chart;
-
-    if (!isMounted.current) return;
 
     const chart = createChart(chartContainerRef.current, {
       layout: {
@@ -424,7 +420,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
     costBasisSeriesRef.current = costBasisSeries;
 
     const loadChartData = async () => {
-      if (isDisposed.current || !isMounted.current) return;
+      if (isDisposed.current) return;
 
       try {
         setIsLoading(true);
@@ -437,7 +433,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
           stockCode ? authService.getUser() : Promise.resolve({ data: { user: null }, error: null })
         ]);
 
-        if (isDisposed.current || !isMounted.current) return;
+        if (isDisposed.current) return;
 
         if (!stockResponse.data) {
           throw new Error('Failed to load stock data');
@@ -472,7 +468,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
             startDate,
             endDate
           );
-          if (tradesResponse.data && !isDisposed.current && isMounted.current) {
+          if (tradesResponse.data && !isDisposed.current) {
             trades = tradesResponse.data
               .filter(trade => trade.stock_code === stockCode)
               .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
@@ -481,7 +477,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
               addTradeMarkers(candlestickSeries, trades, chartColors);
               costBasisPoints = calculateCostBasis(trades);
               
-              if (costBasisPoints.length > 0 && showCostBasis && !isDisposed.current && isMounted.current) {
+              if (costBasisPoints.length > 0 && showCostBasis && !isDisposed.current) {
                 try {
                   costBasisSeries.setData(costBasisPoints.map(point => ({
                     time: point.time,
@@ -495,7 +491,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
           }
         }
 
-        if (!isDisposed.current && isMounted.current) {
+        if (!isDisposed.current) {
           setChartData({
             candlestick: candlestickData,
             volume: volumeData,
@@ -516,7 +512,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
 
       } catch (error) {
         console.error('Failed to load chart data:', error);
-        if (!isDisposed.current && isMounted.current) {
+        if (!isDisposed.current) {
           setIsLoading(false);
         }
       }
@@ -527,7 +523,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
     // Use ResizeObserver instead of window resize event
     if (chartContainerRef.current) {
       resizeObserverRef.current = new ResizeObserver(entries => {
-        if (!isDisposed.current && isMounted.current && chartRef.current) {
+        if (!isDisposed.current && chartRef.current) {
           try {
             chartRef.current.applyOptions({
               width: entries[0].contentRect.width,
@@ -548,7 +544,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
   }, [stockCode, theme, currencyConfig, showCostBasis, showGrid, showVolume, isLocked, autoScale]);
 
   useEffect(() => {
-    if (volumeSeriesRef.current && !isDisposed.current && isMounted.current) {
+    if (volumeSeriesRef.current && !isDisposed.current) {
       try {
         volumeSeriesRef.current.applyOptions({
           visible: showVolume
