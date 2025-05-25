@@ -238,7 +238,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
           // Group node tooltip
           if (!holding && params.data) {
             const { value, profitLoss, profitLossPercentage } = params.data;
-            const profitLossColor = profitLossPercentage >= 0 ? '#34d399' : '#f87171';
+            //  const profitLossColor = profitLossPercentage >= 0 ? '#34d399' : '#f87171';
             profitLossColor = '#ffffff';
             return `
               <div style="font-weight: 500; font-size: 16px">${groupingDimension === 'category' ? 'Category' : 'Tag'}: ${params.name}</div>
