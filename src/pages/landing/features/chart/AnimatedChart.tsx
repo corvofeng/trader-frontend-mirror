@@ -15,6 +15,16 @@ export function AnimatedChart({ theme }: AnimatedChartProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [containerReady, setContainerReady] = useState(false);
+  const isDisposed = useRef(false);
+  const isMounted = useRef(true);
+  const animationFrame = useRef<number | null>(null);
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (chartContainerRef.current) {
@@ -22,15 +32,36 @@ export function AnimatedChart({ theme }: AnimatedChartProps) {
     }
   }, []);
 
+  const disposeChart = () => {
+    isDisposed.current = true;
+
+    if (animationFrame.current !== null) {
+      cancelAnimationFrame(animationFrame.current);
+      animationFrame.current = null;
+    }
+
+    if (chartRef.current) {
+      try {
+        if (candlestickSeriesRef.current) {
+          chartRef.current.removeSeries(candlestickSeriesRef.current);
+          candlestickSeriesRef.current = null;
+        }
+        chartRef.current.remove();
+        chartRef.current = null;
+      } catch (e) {
+        console.error('Error during chart disposal:', e);
+      }
+    }
+  };
+
   useEffect(() => {
     if (!containerReady) return;
 
     let chart: IChartApi | null = null;
     let candlestickSeries: ISeriesApi<"Candlestick"> | null = null;
-    let animationFrame: number;
 
     async function initializeChart() {
-      if (!chartContainerRef.current) return;
+      if (!chartContainerRef.current || !isMounted.current) return;
 
       const chartColors = themes[theme].chart;
       const isDark = theme === 'dark';
@@ -104,6 +135,8 @@ export function AnimatedChart({ theme }: AnimatedChartProps) {
           throw new Error('Failed to load stock data');
         }
 
+        if (!isMounted.current || isDisposed.current) return;
+
         const stockData = response.data;
 
         if (stockData.length > 0) {
@@ -118,8 +151,10 @@ export function AnimatedChart({ theme }: AnimatedChartProps) {
           // Progressive loading animation with slower speed
           let currentIndex = 0;
           const animateData = () => {
-            if (currentIndex < candlestickData.length) {
-              if (candlestickSeries) {
+            if (!isMounted.current || isDisposed.current) return;
+
+            if (currentIndex < candlestickData.length && candlestickSeries) {
+              try {
                 // Add data in chunks for smoother animation
                 const chunkSize = Math.max(1, Math.floor(candlestickData.length / 100));
                 const nextIndex = Math.min(currentIndex + chunkSize, candlestickData.length);
@@ -127,14 +162,21 @@ export function AnimatedChart({ theme }: AnimatedChartProps) {
                 candlestickSeries.setData(candlestickData.slice(0, nextIndex));
                 
                 // Auto-scale and fit content for smooth animation
-                chart.timeScale().fitContent();
+                if (chart) {
+                  chart.timeScale().fitContent();
+                }
                 
                 currentIndex = nextIndex;
                 
                 // Slow down the animation
                 setTimeout(() => {
-                  animationFrame = requestAnimationFrame(animateData);
+                  if (!isDisposed.current && isMounted.current) {
+                    animationFrame.current = requestAnimationFrame(animateData);
+                  }
                 }, 50); // Add delay between frames
+              } catch (e) {
+                console.error('Error during animation:', e);
+                setIsLoading(false);
               }
             } else {
               setIsLoading(false);
@@ -142,12 +184,16 @@ export function AnimatedChart({ theme }: AnimatedChartProps) {
           };
 
           // Start animation
-          animateData();
+          if (!isDisposed.current && isMounted.current) {
+            animateData();
+          }
         }
       } catch (err) {
         console.error('Error loading stock data:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load chart data');
-        setIsLoading(false);
+        if (!isDisposed.current && isMounted.current) {
+          setError(err instanceof Error ? err.message : 'Failed to load chart data');
+          setIsLoading(false);
+        }
       }
     }
 
@@ -155,11 +201,15 @@ export function AnimatedChart({ theme }: AnimatedChartProps) {
 
     // Handle window resize
     function handleResize() {
-      if (chartContainerRef.current && chartRef.current) {
-        chartRef.current.applyOptions({ 
-          width: chartContainerRef.current.clientWidth 
-        });
-        chartRef.current.timeScale().fitContent();
+      if (!isDisposed.current && isMounted.current && chartContainerRef.current && chartRef.current) {
+        try {
+          chartRef.current.applyOptions({ 
+            width: chartContainerRef.current.clientWidth 
+          });
+          chartRef.current.timeScale().fitContent();
+        } catch (e) {
+          console.error('Error during resize:', e);
+        }
       }
     }
 
@@ -167,12 +217,7 @@ export function AnimatedChart({ theme }: AnimatedChartProps) {
 
     return () => {
       window.removeEventListener('resize', handleResize);
-      if (chartRef.current) {
-        chartRef.current.remove();
-      }
-      if (animationFrame) {
-        cancelAnimationFrame(animationFrame);
-      }
+      disposeChart();
     };
   }, [theme, containerReady]);
 
