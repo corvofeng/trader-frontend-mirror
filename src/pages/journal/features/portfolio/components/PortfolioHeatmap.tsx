@@ -91,8 +91,8 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
     const data = Array.from(groups.entries()).map(([groupName, stats]) => {
       const intensity = Math.min(0.9, Math.abs(stats.profitLossPercentage) / maxValue) + 0.1;
       const groupColor = stats.profitLossPercentage >= 0 
-        ? `rgba(38, 166, 154, ${intensity})`  // Full intensity for groups
-        : `rgba(239, 83, 80, ${intensity})`;  // Full intensity for groups
+        ? `rgba(38, 166, 154, ${intensity})`
+        : `rgba(239, 83, 80, ${intensity})`;
 
       return {
         name: groupName,
@@ -106,7 +106,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         },
         upperLabel: {
           show: true,
-          height: 40,
+          height: 60,
           backgroundColor: groupColor,
           position: 'top',
           formatter: [
@@ -118,27 +118,26 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
             name: {
               fontSize: 16,
               fontWeight: 'bold',
-              color: isDark ? '#ffffff' : '#111827',
-              padding: [4, 8, 0, 8]
+              color: '#ffffff',
+              padding: [8, 12, 0, 12],
+              width: '100%',
+              align: 'left'
             },
             value: {
               fontSize: 14,
-              color: isDark ? '#ffffff' : '#111827',
-              padding: [0, 8, 0, 8]
+              color: '#ffffff',
+              padding: [0, 12, 0, 12],
+              width: '100%',
+              align: 'left'
             },
             price: {
               fontSize: 14,
-              color: isDark ? '#ffffff' : '#111827',
-              padding: [0, 8, 4, 8]
+              color: '#ffffff',
+              padding: [0, 12, 8, 12],
+              width: '100%',
+              align: 'left'
             }
           }
-        },
-        label: {
-          show: true,
-          position: 'inside',
-          formatter: '{name}',
-          fontSize: 16,
-          color: isDark ? '#ffffff' : '#111827'
         },
         children: stats.holdings.map(holding => {
           const intensity = Math.min(0.9, Math.abs(holding.profit_loss_percentage) / maxValue) + 0.1;
@@ -168,15 +167,18 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
                 name: {
                   fontSize: 14,
                   fontWeight: 'bold',
-                  color: isDark ? '#ffffff' : '#111827'
+                  color: '#ffffff',
+                  padding: [2, 4]
                 },
                 value: {
                   fontSize: 12,
-                  color: isDark ? '#ffffff' : '#111827'
+                  color: '#ffffff',
+                  padding: [2, 4]
                 },
                 price: {
                   fontSize: 12,
-                  color: isDark ? '#ffffff' : '#111827'
+                  color: '#ffffff',
+                  padding: [2, 4]
                 }
               }
             }
