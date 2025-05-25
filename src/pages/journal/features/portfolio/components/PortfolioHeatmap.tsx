@@ -91,8 +91,8 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
     const data = Array.from(groups.entries()).map(([groupName, stats]) => {
       const intensity = Math.min(0.9, Math.abs(stats.profitLossPercentage) / maxValue) + 0.1;
       const groupColor = stats.profitLossPercentage >= 0 
-        ? `rgba(38, 166, 154, ${intensity * 0.3})`  // Lighter green for groups
-        : `rgba(239, 83, 80, ${intensity * 0.3})`;  // Lighter red for groups
+        ? `rgba(38, 166, 154, ${intensity})`  // Full intensity for groups
+        : `rgba(239, 83, 80, ${intensity})`;  // Full intensity for groups
 
       return {
         name: groupName,
@@ -100,10 +100,15 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         profitLoss: stats.profitLoss,
         profitLossPercentage: stats.profitLossPercentage,
         itemStyle: {
-          color: groupColor
+          color: groupColor,
+          borderColor: isDark ? '#374151' : '#e5e7eb',
+          borderWidth: 1
         },
-        label: {
+        upperLabel: {
           show: true,
+          height: 40,
+          backgroundColor: groupColor,
+          position: 'top',
           formatter: [
             `{name|${groupName}}`,
             `{value|${stats.profitLossPercentage >= 0 ? '+' : ''}${stats.profitLossPercentage.toFixed(2)}%}`,
@@ -113,19 +118,27 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
             name: {
               fontSize: 16,
               fontWeight: 'bold',
-              color: isDark ? '#e5e7eb' : '#111827'
+              color: isDark ? '#ffffff' : '#111827',
+              padding: [4, 8, 0, 8]
             },
             value: {
               fontSize: 14,
-              color: stats.profitLossPercentage >= 0 
-                ? '#34d399' 
-                : '#f87171'
+              color: isDark ? '#ffffff' : '#111827',
+              padding: [0, 8, 0, 8]
             },
             price: {
               fontSize: 14,
-              color: isDark ? '#9ca3af' : '#6b7280'
+              color: isDark ? '#ffffff' : '#111827',
+              padding: [0, 8, 4, 8]
             }
           }
+        },
+        label: {
+          show: true,
+          position: 'inside',
+          formatter: '{name}',
+          fontSize: 16,
+          color: isDark ? '#ffffff' : '#111827'
         },
         children: stats.holdings.map(holding => {
           const intensity = Math.min(0.9, Math.abs(holding.profit_loss_percentage) / maxValue) + 0.1;
@@ -140,9 +153,12 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
             profitLossPercentage: holding.profit_loss_percentage,
             itemStyle: {
               color,
+              borderColor: isDark ? '#374151' : '#e5e7eb',
+              borderWidth: 1
             },
             label: {
               show: true,
+              position: 'inside',
               formatter: [
                 `{name|${holding.stock_code}}`,
                 `{value|${holding.profit_loss_percentage >= 0 ? '+' : ''}${holding.profit_loss_percentage.toFixed(2)}%}`,
@@ -152,17 +168,15 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
                 name: {
                   fontSize: 14,
                   fontWeight: 'bold',
-                  color: isDark ? '#e5e7eb' : '#111827'
+                  color: isDark ? '#ffffff' : '#111827'
                 },
                 value: {
                   fontSize: 12,
-                  color: holding.profit_loss_percentage >= 0 
-                    ? '#34d399' 
-                    : '#f87171'
+                  color: isDark ? '#ffffff' : '#111827'
                 },
                 price: {
                   fontSize: 12,
-                  color: isDark ? '#9ca3af' : '#6b7280'
+                  color: isDark ? '#ffffff' : '#111827'
                 }
               }
             }
@@ -225,13 +239,15 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         nodeClick: 'zoomToNode',
         breadcrumb: {
           show: true,
-          height: 30,
+          height: 40,
           top: 'bottom',
           itemStyle: {
             color: isDark ? '#374151' : '#f3f4f6',
             borderColor: isDark ? '#4b5563' : '#e5e7eb',
             textStyle: {
-              color: isDark ? '#e5e7eb' : '#111827'
+              color: isDark ? '#e5e7eb' : '#111827',
+              fontSize: 14,
+              fontWeight: 'bold'
             }
           },
           emphasis: {
@@ -256,11 +272,6 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         label: {
           show: true,
           position: 'inside'
-        },
-        upperLabel: {
-          show: true,
-          height: 30,
-          color: isDark ? '#e5e7eb' : '#111827'
         }
       }]
     };
