@@ -1,9 +1,10 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as echarts from 'echarts';
 import { Theme, themes } from '../../../../../lib/theme';
 import type { Holding } from '../../../../../lib/services/types';
 import { formatCurrency } from '../../../../../lib/types';
 import type { CurrencyConfig } from '../../../../../lib/types';
+import { Filter } from 'lucide-react';
 
 interface PortfolioHeatmapProps {
   holdings: Holding[];
@@ -11,9 +12,12 @@ interface PortfolioHeatmapProps {
   currencyConfig: CurrencyConfig;
 }
 
+type GroupingDimension = 'category' | 'tags';
+
 export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioHeatmapProps) {
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<echarts.ECharts | null>(null);
+  const [groupingDimension, setGroupingDimension] = useState<GroupingDimension>('category');
 
   useEffect(() => {
     if (!chartRef.current || holdings.length === 0) return;
@@ -27,24 +31,38 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
 
     const isDark = theme === 'dark';
 
-    // Group holdings by category
-    const categories = new Map<string, Holding[]>();
-    holdings.forEach(holding => {
-      const category = holding.category || 'Other';
-      if (!categories.has(category)) {
-        categories.set(category, []);
-      }
-      categories.get(category)?.push(holding);
-    });
+    // Group holdings based on selected dimension
+    const groups = new Map<string, Holding[]>();
+    
+    if (groupingDimension === 'category') {
+      holdings.forEach(holding => {
+        const category = holding.category || 'Other';
+        if (!groups.has(category)) {
+          groups.set(category, []);
+        }
+        groups.get(category)?.push(holding);
+      });
+    } else {
+      // For tags dimension, a holding can appear in multiple groups
+      holdings.forEach(holding => {
+        const tags = holding.tags || ['Untagged'];
+        tags.forEach(tag => {
+          if (!groups.has(tag)) {
+            groups.set(tag, []);
+          }
+          groups.get(tag)?.push(holding);
+        });
+      });
+    }
 
     // Calculate max value for color scaling
     const maxValue = Math.max(...holdings.map(h => Math.abs(h.profit_loss_percentage)));
 
     // Prepare treemap data
-    const data = Array.from(categories.entries()).map(([category, categoryHoldings]) => ({
-      name: category,
-      value: categoryHoldings.reduce((sum, h) => sum + h.total_value, 0),
-      children: categoryHoldings.map(holding => {
+    const data = Array.from(groups.entries()).map(([groupName, groupHoldings]) => ({
+      name: groupName,
+      value: groupHoldings.reduce((sum, h) => sum + h.total_value, 0),
+      children: groupHoldings.map(holding => {
         const intensity = Math.min(0.9, Math.abs(holding.profit_loss_percentage) / maxValue) + 0.1;
         const color = holding.profit_loss_percentage >= 0 
           ? `rgba(38, 166, 154, ${intensity})`
@@ -93,9 +111,14 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
           const holding = holdings.find(h => h.stock_code === params.name);
           if (!holding) return '';
 
+          const groupInfo = groupingDimension === 'category'
+            ? `Category: ${holding.category || 'Other'}`
+            : `Tags: ${holding.tags?.join(', ') || 'Untagged'}`;
+
           return `
             <div style="font-weight: 500">${holding.stock_code} - ${holding.stock_name}</div>
             <div style="margin-top: 4px">
+              <div>${groupInfo}</div>
               <div>Current Price: ${formatCurrency(holding.current_price, currencyConfig)}</div>
               <div>Total Value: ${formatCurrency(holding.total_value, currencyConfig)}</div>
               <div>Quantity: ${holding.quantity}</div>
@@ -104,11 +127,6 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               ${holding.profit_loss_percentage >= 0 ? '+' : ''}${holding.profit_loss_percentage.toFixed(2)}%
               (${formatCurrency(holding.profit_loss, currencyConfig)})
             </div>
-            ${holding.tags ? `
-            <div style="margin-top: 4px; font-size: 12px; opacity: 0.8">
-              Tags: ${holding.tags.join(', ')}
-            </div>
-            ` : ''}
           `;
         }
       },
@@ -166,14 +184,27 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         chartInstance.current.dispose();
       }
     };
-  }, [holdings, theme, currencyConfig]);
+  }, [holdings, theme, currencyConfig, groupingDimension]);
 
   return (
     <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
       <div className="p-6">
-        <h2 className={`text-lg font-semibold ${themes[theme].text} mb-4`}>
-          Portfolio Performance Heatmap
-        </h2>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className={`text-lg font-semibold ${themes[theme].text}`}>
+            Portfolio Performance Heatmap
+          </h2>
+          <div className="flex items-center gap-2">
+            <Filter className={`w-4 h-4 ${themes[theme].text}`} />
+            <select
+              value={groupingDimension}
+              onChange={(e) => setGroupingDimension(e.target.value as GroupingDimension)}
+              className={`px-3 py-1.5 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
+            >
+              <option value="category">Group by Category</option>
+              <option value="tags">Group by Tags</option>
+            </select>
+          </div>
+        </div>
         <div ref={chartRef} style={{ height: '400px' }} />
       </div>
     </div>
