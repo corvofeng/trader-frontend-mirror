@@ -4,7 +4,7 @@ import { Theme, themes } from '../../../../../lib/theme';
 import type { Holding } from '../../../../../lib/services/types';
 import { formatCurrency } from '../../../../../lib/types';
 import type { CurrencyConfig } from '../../../../../lib/types';
-import { Filter } from 'lucide-react';
+import { Filter, X } from 'lucide-react';
 
 interface PortfolioHeatmapProps {
   holdings: Holding[];
@@ -18,8 +18,14 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<echarts.ECharts | null>(null);
   const [groupingDimension, setGroupingDimension] = useState<GroupingDimension>('category');
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
+  const [selectedFilters, setSelectedFilters] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
+  // Get all available categories and tags
+  const allCategories = Array.from(new Set(holdings.map(h => h.category || 'Other')));
+  const allTags = Array.from(new Set(holdings.flatMap(h => h.tags || ['Untagged'])));
+
+  const updateChart = () => {
     if (!chartRef.current || holdings.length === 0) return;
 
     if (chartInstance.current) {
@@ -31,11 +37,23 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
 
     const isDark = theme === 'dark';
 
+    // Filter holdings based on selected filters
+    const filteredHoldings = holdings.filter(holding => {
+      if (selectedFilters.size === 0) return true;
+      
+      if (groupingDimension === 'category') {
+        return selectedFilters.has(holding.category || 'Other');
+      } else {
+        const holdingTags = holding.tags || ['Untagged'];
+        return holdingTags.some(tag => selectedFilters.has(tag));
+      }
+    });
+
     // Group holdings based on selected dimension
     const groups = new Map<string, Holding[]>();
     
     if (groupingDimension === 'category') {
-      holdings.forEach(holding => {
+      filteredHoldings.forEach(holding => {
         const category = holding.category || 'Other';
         if (!groups.has(category)) {
           groups.set(category, []);
@@ -43,8 +61,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         groups.get(category)?.push(holding);
       });
     } else {
-      // For tags dimension, a holding can appear in multiple groups
-      holdings.forEach(holding => {
+      filteredHoldings.forEach(holding => {
         const tags = holding.tags || ['Untagged'];
         tags.forEach(tag => {
           if (!groups.has(tag)) {
@@ -56,7 +73,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
     }
 
     // Calculate max value for color scaling
-    const maxValue = Math.max(...holdings.map(h => Math.abs(h.profit_loss_percentage)));
+    const maxValue = Math.max(...filteredHoldings.map(h => Math.abs(h.profit_loss_percentage)));
 
     // Prepare treemap data
     const data = Array.from(groups.entries()).map(([groupName, groupHoldings]) => ({
@@ -138,16 +155,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         roam: false,
         nodeClick: false,
         breadcrumb: {
-          show: true,
-          height: 30,
-          top: 10,
-          itemStyle: {
-            color: isDark ? '#374151' : '#f3f4f6',
-            borderColor: isDark ? '#4b5563' : '#e5e7eb',
-            textStyle: {
-              color: isDark ? '#e5e7eb' : '#111827'
-            }
-          }
+          show: false
         },
         levels: [{
           itemStyle: {
@@ -169,6 +177,10 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
     };
 
     chart.setOption(option);
+  };
+
+  useEffect(() => {
+    updateChart();
 
     const handleResize = () => {
       if (chartInstance.current) {
@@ -184,28 +196,78 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         chartInstance.current.dispose();
       }
     };
-  }, [holdings, theme, currencyConfig, groupingDimension]);
+  }, [holdings, theme, currencyConfig, groupingDimension, selectedFilters]);
+
+  const toggleFilter = (filter: string) => {
+    setSelectedFilters(prev => {
+      const newFilters = new Set(prev);
+      if (newFilters.has(filter)) {
+        newFilters.delete(filter);
+      } else {
+        newFilters.add(filter);
+      }
+      return newFilters;
+    });
+  };
+
+  const clearFilters = () => {
+    setSelectedFilters(new Set());
+  };
 
   return (
     <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
       <div className="p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className={`text-lg font-semibold ${themes[theme].text}`}>
-            Portfolio Performance Heatmap
-          </h2>
-          <div className="flex items-center gap-2">
-            <Filter className={`w-4 h-4 ${themes[theme].text}`} />
-            <select
-              value={groupingDimension}
-              onChange={(e) => setGroupingDimension(e.target.value as GroupingDimension)}
-              className={`px-3 py-1.5 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
-            >
-              <option value="category">Group by Category</option>
-              <option value="tags">Group by Tags</option>
-            </select>
+        <div className="flex flex-col gap-4">
+          <div className="flex justify-between items-center">
+            <h2 className={`text-lg font-semibold ${themes[theme].text}`}>
+              Portfolio Performance Heatmap
+            </h2>
+            <div className="flex items-center gap-2">
+              <Filter className={`w-4 h-4 ${themes[theme].text}`} />
+              <select
+                value={groupingDimension}
+                onChange={(e) => {
+                  setGroupingDimension(e.target.value as GroupingDimension);
+                  setSelectedFilters(new Set());
+                }}
+                className={`px-3 py-1.5 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
+              >
+                <option value="category">Group by Category</option>
+                <option value="tags">Group by Tags</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2 items-center">
+            <div className={`text-sm ${themes[theme].text} opacity-75`}>
+              {groupingDimension === 'category' ? 'Categories:' : 'Tags:'}
+            </div>
+            {(groupingDimension === 'category' ? allCategories : allTags).map(filter => (
+              <button
+                key={filter}
+                onClick={() => toggleFilter(filter)}
+                className={`px-3 py-1 rounded-full text-sm transition-colors ${
+                  selectedFilters.has(filter)
+                    ? themes[theme].primary
+                    : themes[theme].secondary
+                }`}
+              >
+                {filter}
+              </button>
+            ))}
+            {selectedFilters.size > 0 && (
+              <button
+                onClick={clearFilters}
+                className={`inline-flex items-center px-2 py-1 rounded-full text-sm ${themes[theme].secondary}`}
+              >
+                <X className="w-3 h-3 mr-1" />
+                Clear
+              </button>
+            )}
           </div>
         </div>
-        <div ref={chartRef} style={{ height: '400px' }} />
+
+        <div ref={chartRef} style={{ height: '400px' }} className="mt-4" />
       </div>
     </div>
   );
