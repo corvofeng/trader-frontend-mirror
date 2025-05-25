@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as echarts from 'echarts';
+import { Filter, X } from 'lucide-react';
 import { Theme, themes } from '../../../../../lib/theme';
 import type { Holding } from '../../../../../lib/services/types';
 import { formatCurrency } from '../../../../../lib/types';
 import type { CurrencyConfig } from '../../../../../lib/types';
-import { Filter, X } from 'lucide-react';
 
 interface PortfolioHeatmapProps {
   holdings: Holding[];
@@ -18,7 +18,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<echarts.ECharts | null>(null);
   const [groupingDimension, setGroupingDimension] = useState<GroupingDimension>('category');
-  const [selectedSeries, setSelectedSeries] = useState<string[]>([]);
+  const [selectedPath, setSelectedPath] = useState<string[]>([]);
 
   useEffect(() => {
     if (!chartRef.current || holdings.length === 0) return;
@@ -134,15 +134,35 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         width: '100%',
         height: '100%',
         roam: false,
-        nodeClick: false,
+        nodeClick: 'zoomToNode',
         breadcrumb: {
-          show: false
+          show: true,
+          height: 30,
+          top: 'bottom',
+          itemStyle: {
+            color: isDark ? '#374151' : '#f3f4f6',
+            borderColor: isDark ? '#4b5563' : '#e5e7eb',
+            textStyle: {
+              color: isDark ? '#e5e7eb' : '#111827'
+            }
+          },
+          emphasis: {
+            itemStyle: {
+              color: isDark ? '#4b5563' : '#e5e7eb'
+            }
+          }
         },
         levels: [{
           itemStyle: {
             borderColor: isDark ? '#374151' : '#e5e7eb',
             borderWidth: 1,
             gapWidth: 2
+          },
+          emphasis: {
+            itemStyle: {
+              borderColor: isDark ? '#60a5fa' : '#3b82f6',
+              borderWidth: 2
+            }
           }
         }],
         label: {
@@ -153,18 +173,23 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
           show: true,
           height: 30,
           color: isDark ? '#e5e7eb' : '#111827'
-        },
-        select: {
-          disabled: false
         }
       }]
     };
 
     chart.setOption(option);
 
-    // Handle selection events
-    chart.on('selectchanged', (params: any) => {
-      setSelectedSeries(params.selected);
+    // Handle drill down events
+    chart.on('click', (params: any) => {
+      if (params.data.children) {
+        setSelectedPath(prev => [...prev, params.name]);
+      }
+    });
+
+    // Handle breadcrumb navigation
+    chart.on('treeMapRootToNode', (params: any) => {
+      const path = params.targetNode.path.slice(1);
+      setSelectedPath(path);
     });
 
     const handleResize = () => {
@@ -181,7 +206,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         chartInstance.current.dispose();
       }
     };
-  }, [holdings, theme, currencyConfig, groupingDimension, selectedSeries]);
+  }, [holdings, theme, currencyConfig, groupingDimension]);
 
   return (
     <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
