@@ -11,18 +11,6 @@ interface PortfolioHeatmapProps {
   currencyConfig: CurrencyConfig;
 }
 
-interface TreemapData {
-  name: string;
-  value: number[];
-  children?: TreemapData[];
-  itemStyle?: {
-    color: string;
-  };
-  label?: {
-    formatter: string;
-  };
-}
-
 export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioHeatmapProps) {
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<echarts.ECharts | null>(null);
@@ -39,40 +27,61 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
 
     const isDark = theme === 'dark';
 
-    // Group holdings by sector/category
-    const sectors = new Map<string, Holding[]>();
+    // Group holdings by category
+    const categories = new Map<string, Holding[]>();
     holdings.forEach(holding => {
-      const sector = 'Stocks'; // You can add sector categorization here
-      if (!sectors.has(sector)) {
-        sectors.set(sector, []);
+      const category = holding.category || 'Other';
+      if (!categories.has(category)) {
+        categories.set(category, []);
       }
-      sectors.get(sector)?.push(holding);
+      categories.get(category)?.push(holding);
     });
 
+    // Calculate max value for color scaling
+    const maxValue = Math.max(...holdings.map(h => Math.abs(h.profit_loss_percentage)));
+
     // Prepare treemap data
-    const data: TreemapData[] = Array.from(sectors.entries()).map(([sector, sectorHoldings]) => ({
-      name: sector,
-      value: [0], // Placeholder for sector total value
-      children: sectorHoldings.map(holding => {
+    const data = Array.from(categories.entries()).map(([category, categoryHoldings]) => ({
+      name: category,
+      value: categoryHoldings.reduce((sum, h) => sum + h.total_value, 0),
+      children: categoryHoldings.map(holding => {
+        const intensity = Math.min(0.9, Math.abs(holding.profit_loss_percentage) / maxValue) + 0.1;
         const color = holding.profit_loss_percentage >= 0 
-          ? `rgba(38, 166, 154, ${Math.min(1, Math.abs(holding.profit_loss_percentage) / 10)})`
-          : `rgba(239, 83, 80, ${Math.min(1, Math.abs(holding.profit_loss_percentage) / 10)})`;
+          ? `rgba(38, 166, 154, ${intensity})`
+          : `rgba(239, 83, 80, ${intensity})`;
 
         return {
           name: holding.stock_code,
-          value: [
-            holding.total_value,
-            holding.profit_loss_percentage
-          ],
+          value: holding.total_value,
           itemStyle: {
-            color
+            color,
+            borderColor: isDark ? '#374151' : '#e5e7eb',
+            borderWidth: 1
           },
           label: {
+            show: true,
             formatter: [
               `{name|${holding.stock_code}}`,
               `{value|${holding.profit_loss_percentage >= 0 ? '+' : ''}${holding.profit_loss_percentage.toFixed(2)}%}`,
-              `{price|${formatCurrency(holding.current_price, currencyConfig)}}`
-            ].join('\n')
+              `{price|${formatCurrency(holding.total_value, currencyConfig)}}`
+            ].join('\n'),
+            rich: {
+              name: {
+                fontSize: 14,
+                fontWeight: 'bold',
+                color: isDark ? '#e5e7eb' : '#111827'
+              },
+              value: {
+                fontSize: 12,
+                color: holding.profit_loss_percentage >= 0 
+                  ? '#34d399' 
+                  : '#f87171'
+              },
+              price: {
+                fontSize: 12,
+                color: isDark ? '#9ca3af' : '#6b7280'
+              }
+            }
           }
         };
       })
@@ -85,12 +94,21 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
           if (!holding) return '';
 
           return `
-            <div class="font-medium">${holding.stock_code} - ${holding.stock_name}</div>
-            <div class="mt-1">Current Price: ${formatCurrency(holding.current_price, currencyConfig)}</div>
-            <div>Total Value: ${formatCurrency(holding.total_value, currencyConfig)}</div>
-            <div class="mt-1 ${holding.profit_loss_percentage >= 0 ? 'text-green-500' : 'text-red-500'}">
-              ${holding.profit_loss_percentage >= 0 ? '+' : ''}${holding.profit_loss_percentage.toFixed(2)}%
+            <div style="font-weight: 500">${holding.stock_code} - ${holding.stock_name}</div>
+            <div style="margin-top: 4px">
+              <div>Current Price: ${formatCurrency(holding.current_price, currencyConfig)}</div>
+              <div>Total Value: ${formatCurrency(holding.total_value, currencyConfig)}</div>
+              <div>Quantity: ${holding.quantity}</div>
             </div>
+            <div style="margin-top: 4px; color: ${holding.profit_loss_percentage >= 0 ? '#34d399' : '#f87171'}">
+              ${holding.profit_loss_percentage >= 0 ? '+' : ''}${holding.profit_loss_percentage.toFixed(2)}%
+              (${formatCurrency(holding.profit_loss, currencyConfig)})
+            </div>
+            ${holding.tags ? `
+            <div style="margin-top: 4px; font-size: 12px; opacity: 0.8">
+              Tags: ${holding.tags.join(', ')}
+            </div>
+            ` : ''}
           `;
         }
       },
@@ -101,25 +119,15 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         height: '100%',
         roam: false,
         nodeClick: false,
-        breadcrumb: { show: false },
-        label: {
+        breadcrumb: {
           show: true,
-          position: 'inside',
-          rich: {
-            name: {
-              fontSize: 16,
-              lineHeight: 24,
+          height: 30,
+          top: 10,
+          itemStyle: {
+            color: isDark ? '#374151' : '#f3f4f6',
+            borderColor: isDark ? '#4b5563' : '#e5e7eb',
+            textStyle: {
               color: isDark ? '#e5e7eb' : '#111827'
-            },
-            value: {
-              fontSize: 14,
-              lineHeight: 20,
-              color: isDark ? '#e5e7eb' : '#111827'
-            },
-            price: {
-              fontSize: 12,
-              lineHeight: 16,
-              color: isDark ? '#9ca3af' : '#6b7280'
             }
           }
         },
@@ -129,21 +137,34 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
             borderWidth: 1,
             gapWidth: 2
           }
-        }]
+        }],
+        label: {
+          show: true,
+          position: 'inside'
+        },
+        upperLabel: {
+          show: true,
+          height: 30,
+          color: isDark ? '#e5e7eb' : '#111827'
+        }
       }]
     };
 
     chart.setOption(option);
 
     const handleResize = () => {
-      chart.resize();
+      if (chartInstance.current) {
+        chartInstance.current.resize();
+      }
     };
 
     window.addEventListener('resize', handleResize);
 
     return () => {
       window.removeEventListener('resize', handleResize);
-      chart.dispose();
+      if (chartInstance.current) {
+        chartInstance.current.dispose();
+      }
     };
   }, [holdings, theme, currencyConfig]);
 
