@@ -108,16 +108,15 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
           borderColor: isDark ? '#374151' : '#e5e7eb',
           borderWidth: 1
         },
-        upperLabel: {
+        label: {
           show: true,
-          height: 40,
-          backgroundColor: groupColor,
           position: 'top',
           formatter: (params: any) => {
             const stats = params.data.groupStats;
             return [
               `${groupName}`,
-              `${stats.profitLossPercentage >= 0 ? '+' : ''}${stats.profitLossPercentage.toFixed(2)}%`
+              `${stats.profitLossPercentage >= 0 ? '+' : ''}${stats.profitLossPercentage.toFixed(2)}%`,
+              formatCurrency(stats.totalValue, currencyConfig)
             ].join('\n');
           },
           textStyle: {
@@ -125,26 +124,8 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
             fontWeight: 'bold',
             fontSize: 14,
             lineHeight: 20,
-            align: 'center',
-            backgroundColor: 'transparent'
-          }
-        },
-        label: {
-          show: true,
-          position: 'insideTopLeft',
-          formatter: (params: any) => {
-            const stats = params.data.groupStats;
-            return formatCurrency(stats.totalValue, currencyConfig);
-          },
-          textStyle: {
-            color: '#ffffff',
-            fontSize: 12,
-            padding: [4, 8]
-          }
-        },
-        emphasis: {
-          label: {
-            show: true
+            align: 'left',
+            padding: [8, 8]
           }
         },
         children: stats.holdings.map(holding => {
@@ -241,47 +222,18 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         width: '100%',
         height: '100%',
         roam: false,
-        nodeClick: 'zoomToNode',
+        nodeClick: false,
         breadcrumb: {
-          show: true,
-          height: 30,
-          top: 'bottom',
-          itemStyle: {
-            color: isDark ? '#374151' : '#f3f4f6',
-            borderColor: isDark ? '#4b5563' : '#e5e7eb',
-            textStyle: {
-              color: isDark ? '#e5e7eb' : '#111827'
-            }
-          },
-          emphasis: {
-            itemStyle: {
-              color: isDark ? '#4b5563' : '#e5e7eb'
-            }
-          }
+          show: false
         },
         levels: [{
           itemStyle: {
             borderColor: isDark ? '#374151' : '#e5e7eb',
             borderWidth: 1,
             gapWidth: 1
-          },
-          emphasis: {
-            itemStyle: {
-              borderColor: isDark ? '#60a5fa' : '#3b82f6',
-              borderWidth: 2
-            }
-          },
-          upperLabel: {
-            show: true
           }
         }],
-        animation: {
-          duration: 500,
-          easing: 'cubicOut'
-        },
-        animationDuration: 500,
-        animationEasing: 'cubicOut',
-        animationDelay: 0
+        animation: false
       }]
     };
 
