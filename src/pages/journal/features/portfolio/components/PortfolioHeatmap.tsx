@@ -110,18 +110,6 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         label: {
           show: true,
           position: 'inside',
-          formatterOld: (params: any) => {
-            const value = formatCurrency(params.value, currencyConfig);
-            const percentage = stats.profitLossPercentage;
-            const percentageStr = `${percentage >= 0 ? '+' : ''}${percentage.toFixed(2)}%`;
-            
-            return [
-              `{sectionStyle|${groupingDimension === 'category' ? 'Category' : 'Tag'}}`,
-              `{titleStyle|${params.name}}`,
-              `{percentStyle|${percentageStr}}`,
-              `{valueStyle|${value}}`
-            ].join('\n');
-          },
 
           formatter: (params: any) => {
   const stats = groups.get(params.name)!;
