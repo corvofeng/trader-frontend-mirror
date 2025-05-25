@@ -106,7 +106,22 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
     const option = {
       tooltip: {
         formatter: (params: any) => {
+          // Check if params and params.name exist before proceeding
+          if (!params || !params.name) return '';
+
           const holding = holdings.find(h => h.stock_code === params.name);
+          
+          // If no holding is found and params.data exists, it might be a group node
+          if (!holding && params.data) {
+            const groupValue = params.data.value;
+            return `
+              <div style="font-weight: 500">${params.name}</div>
+              <div style="margin-top: 4px">
+                <div>Total Value: ${formatCurrency(groupValue, currencyConfig)}</div>
+              </div>
+            `;
+          }
+          
           if (!holding) return '';
 
           const groupInfo = groupingDimension === 'category'
@@ -181,15 +196,17 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
 
     // Handle drill down events
     chart.on('click', (params: any) => {
-      if (params.data.children) {
+      if (params.data && params.data.children) {
         setSelectedPath(prev => [...prev, params.name]);
       }
     });
 
     // Handle breadcrumb navigation
     chart.on('treeMapRootToNode', (params: any) => {
-      const path = params.targetNode.path.slice(1);
-      setSelectedPath(path);
+      if (params.targetNode && params.targetNode.path) {
+        const path = params.targetNode.path.slice(1);
+        setSelectedPath(path);
+      }
     });
 
     const handleResize = () => {
