@@ -241,7 +241,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
             const profitLossColor = profitLossPercentage >= 0 ? '#34d399' : '#f87171';
             
             return `
-              <div style="font-weight: 50000; font-size: 16px">${groupingDimension === 'category' ? 'Category' : 'Tag'}: ${params.name}</div>
+              <div style="font-weight: 5000; font-size: 16px">${groupingDimension === 'category' ? 'Category' : 'Tag'}: ${params.name}</div>
               <div style="margin-top: 8px">
                 <div>Total Value: ${formatCurrency(value, currencyConfig)}</div>
                 <div>Profit/Loss: ${formatCurrency(profitLoss, currencyConfig)}</div>
