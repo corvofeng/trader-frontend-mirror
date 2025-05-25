@@ -14,6 +14,13 @@ interface PortfolioHeatmapProps {
 
 type GroupingDimension = 'category' | 'tags';
 
+interface GroupStats {
+  totalValue: number;
+  profitLoss: number;
+  profitLossPercentage: number;
+  holdings: Holding[];
+}
+
 export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioHeatmapProps) {
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<echarts.ECharts | null>(null);
@@ -32,92 +39,158 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
 
     const isDark = theme === 'dark';
 
-    // Group holdings based on dimension
-    const groups = new Map<string, Holding[]>();
+    // Group holdings and calculate stats
+    const groups = new Map<string, GroupStats>();
     
     if (groupingDimension === 'category') {
       holdings.forEach(holding => {
         const category = holding.category || 'Other';
         if (!groups.has(category)) {
-          groups.set(category, []);
+          groups.set(category, {
+            totalValue: 0,
+            profitLoss: 0,
+            profitLossPercentage: 0,
+            holdings: []
+          });
         }
-        groups.get(category)?.push(holding);
+        const stats = groups.get(category)!;
+        stats.totalValue += holding.total_value;
+        stats.profitLoss += holding.profit_loss;
+        stats.holdings.push(holding);
       });
     } else {
       holdings.forEach(holding => {
         const tags = holding.tags || ['Untagged'];
         tags.forEach(tag => {
           if (!groups.has(tag)) {
-            groups.set(tag, []);
+            groups.set(tag, {
+              totalValue: 0,
+              profitLoss: 0,
+              profitLossPercentage: 0,
+              holdings: []
+            });
           }
-          groups.get(tag)?.push(holding);
+          const stats = groups.get(tag)!;
+          stats.totalValue += holding.total_value;
+          stats.profitLoss += holding.profit_loss;
+          stats.holdings.push(holding);
         });
       });
     }
+
+    // Calculate profit/loss percentages for groups
+    groups.forEach(stats => {
+      const costBasis = stats.totalValue - stats.profitLoss;
+      stats.profitLossPercentage = (stats.profitLoss / costBasis) * 100;
+    });
 
     // Calculate max value for color scaling
     const maxValue = Math.max(...holdings.map(h => Math.abs(h.profit_loss_percentage)));
 
     // Prepare treemap data
-    const data = Array.from(groups.entries()).map(([groupName, groupHoldings]) => ({
-      name: groupName,
-      value: groupHoldings.reduce((sum, h) => sum + h.total_value, 0),
-      children: groupHoldings.map(holding => {
-        const intensity = Math.min(0.9, Math.abs(holding.profit_loss_percentage) / maxValue) + 0.1;
-        const color = holding.profit_loss_percentage >= 0 
-          ? `rgba(38, 166, 154, ${intensity})`
-          : `rgba(239, 83, 80, ${intensity})`;
+    const data = Array.from(groups.entries()).map(([groupName, stats]) => {
+      const intensity = Math.min(0.9, Math.abs(stats.profitLossPercentage) / maxValue) + 0.1;
+      const groupColor = stats.profitLossPercentage >= 0 
+        ? `rgba(38, 166, 154, ${intensity * 0.3})`  // Lighter green for groups
+        : `rgba(239, 83, 80, ${intensity * 0.3})`;  // Lighter red for groups
 
-        return {
-          name: holding.stock_code,
-          value: holding.total_value,
-          itemStyle: {
-            color,
-          },
-          label: {
-            show: true,
-            formatter: [
-              `{name|${holding.stock_code}}`,
-              `{value|${holding.profit_loss_percentage >= 0 ? '+' : ''}${holding.profit_loss_percentage.toFixed(2)}%}`,
-              `{price|${formatCurrency(holding.total_value, currencyConfig)}}`
-            ].join('\n'),
-            rich: {
-              name: {
-                fontSize: 14,
-                fontWeight: 'bold',
-                color: isDark ? '#e5e7eb' : '#111827'
-              },
-              value: {
-                fontSize: 12,
-                color: holding.profit_loss_percentage >= 0 
-                  ? '#34d399' 
-                  : '#f87171'
-              },
-              price: {
-                fontSize: 12,
-                color: isDark ? '#9ca3af' : '#6b7280'
-              }
+      return {
+        name: groupName,
+        value: stats.totalValue,
+        profitLoss: stats.profitLoss,
+        profitLossPercentage: stats.profitLossPercentage,
+        itemStyle: {
+          color: groupColor
+        },
+        label: {
+          show: true,
+          formatter: [
+            `{name|${groupName}}`,
+            `{value|${stats.profitLossPercentage >= 0 ? '+' : ''}${stats.profitLossPercentage.toFixed(2)}%}`,
+            `{price|${formatCurrency(stats.totalValue, currencyConfig)}}`
+          ].join('\n'),
+          rich: {
+            name: {
+              fontSize: 16,
+              fontWeight: 'bold',
+              color: isDark ? '#e5e7eb' : '#111827'
+            },
+            value: {
+              fontSize: 14,
+              color: stats.profitLossPercentage >= 0 
+                ? '#34d399' 
+                : '#f87171'
+            },
+            price: {
+              fontSize: 14,
+              color: isDark ? '#9ca3af' : '#6b7280'
             }
           }
-        };
-      })
-    }));
+        },
+        children: stats.holdings.map(holding => {
+          const intensity = Math.min(0.9, Math.abs(holding.profit_loss_percentage) / maxValue) + 0.1;
+          const color = holding.profit_loss_percentage >= 0 
+            ? `rgba(38, 166, 154, ${intensity})`
+            : `rgba(239, 83, 80, ${intensity})`;
+
+          return {
+            name: holding.stock_code,
+            value: holding.total_value,
+            profitLoss: holding.profit_loss,
+            profitLossPercentage: holding.profit_loss_percentage,
+            itemStyle: {
+              color,
+            },
+            label: {
+              show: true,
+              formatter: [
+                `{name|${holding.stock_code}}`,
+                `{value|${holding.profit_loss_percentage >= 0 ? '+' : ''}${holding.profit_loss_percentage.toFixed(2)}%}`,
+                `{price|${formatCurrency(holding.total_value, currencyConfig)}}`
+              ].join('\n'),
+              rich: {
+                name: {
+                  fontSize: 14,
+                  fontWeight: 'bold',
+                  color: isDark ? '#e5e7eb' : '#111827'
+                },
+                value: {
+                  fontSize: 12,
+                  color: holding.profit_loss_percentage >= 0 
+                    ? '#34d399' 
+                    : '#f87171'
+                },
+                price: {
+                  fontSize: 12,
+                  color: isDark ? '#9ca3af' : '#6b7280'
+                }
+              }
+            }
+          };
+        })
+      };
+    });
 
     const option = {
       tooltip: {
         formatter: (params: any) => {
-          // Check if params and params.name exist before proceeding
           if (!params || !params.name) return '';
 
           const holding = holdings.find(h => h.stock_code === params.name);
           
-          // If no holding is found and params.data exists, it might be a group node
+          // Group node tooltip
           if (!holding && params.data) {
-            const groupValue = params.data.value;
+            const { value, profitLoss, profitLossPercentage } = params.data;
+            const profitLossColor = profitLossPercentage >= 0 ? '#34d399' : '#f87171';
+            
             return `
               <div style="font-weight: 500">${params.name}</div>
               <div style="margin-top: 4px">
-                <div>Total Value: ${formatCurrency(groupValue, currencyConfig)}</div>
+                <div>Total Value: ${formatCurrency(value, currencyConfig)}</div>
+                <div>Profit/Loss: ${formatCurrency(profitLoss, currencyConfig)}</div>
+                <div style="color: ${profitLossColor}">
+                  Return: ${profitLossPercentage >= 0 ? '+' : ''}${profitLossPercentage.toFixed(2)}%
+                </div>
               </div>
             `;
           }
