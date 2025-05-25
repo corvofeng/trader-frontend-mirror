@@ -108,34 +108,38 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
           borderColor: isDark ? '#374151' : '#e5e7eb',
           borderWidth: 1
         },
-        label: {
+        upperLabel: {
           show: true,
-          position: 'inside',
+          height: 40,
+          backgroundColor: groupColor,
+          position: 'top',
           formatter: (params: any) => {
             const stats = params.data.groupStats;
             return [
-              `{name|${groupName}}`,
-              `{value|${stats.profitLossPercentage >= 0 ? '+' : ''}${stats.profitLossPercentage.toFixed(2)}%}`,
-              `{price|${formatCurrency(stats.totalValue, currencyConfig)}}`
+              `${groupName}`,
+              `${stats.profitLossPercentage >= 0 ? '+' : ''}${stats.profitLossPercentage.toFixed(2)}%`
             ].join('\n');
           },
-          rich: {
-            name: {
-              fontSize: 16,
-              fontWeight: 'bold',
-              color: '#ffffff',
-              padding: [4, 8, 0, 8]
-            },
-            value: {
-              fontSize: 14,
-              color: '#ffffff',
-              padding: [0, 8, 0, 8]
-            },
-            price: {
-              fontSize: 14,
-              color: '#ffffff',
-              padding: [0, 8, 4, 8]
-            }
+          textStyle: {
+            color: '#ffffff',
+            fontWeight: 'bold',
+            fontSize: 14,
+            lineHeight: 20,
+            align: 'center',
+            backgroundColor: 'transparent'
+          }
+        },
+        label: {
+          show: true,
+          position: 'insideTopLeft',
+          formatter: (params: any) => {
+            const stats = params.data.groupStats;
+            return formatCurrency(stats.totalValue, currencyConfig);
+          },
+          textStyle: {
+            color: '#ffffff',
+            fontSize: 12,
+            padding: [4, 8]
           }
         },
         emphasis: {
@@ -168,15 +172,18 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
                 name: {
                   fontSize: 14,
                   fontWeight: 'bold',
-                  color: '#ffffff'
+                  color: '#ffffff',
+                  padding: [4, 8, 0, 8]
                 },
                 value: {
                   fontSize: 12,
-                  color: '#ffffff'
+                  color: '#ffffff',
+                  padding: [0, 8]
                 },
                 price: {
                   fontSize: 12,
-                  color: '#ffffff'
+                  color: '#ffffff',
+                  padding: [0, 8, 4, 8]
                 }
               }
             }
@@ -243,9 +250,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
             color: isDark ? '#374151' : '#f3f4f6',
             borderColor: isDark ? '#4b5563' : '#e5e7eb',
             textStyle: {
-              color: isDark ? '#e5e7eb' : '#111827',
-              fontSize: 14,
-              fontWeight: 'bold'
+              color: isDark ? '#e5e7eb' : '#111827'
             }
           },
           emphasis: {
@@ -265,11 +270,18 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               borderColor: isDark ? '#60a5fa' : '#3b82f6',
               borderWidth: 2
             }
+          },
+          upperLabel: {
+            show: true
           }
         }],
-        animation: true,
+        animation: {
+          duration: 500,
+          easing: 'cubicOut'
+        },
         animationDuration: 500,
-        animationEasing: 'cubicOut'
+        animationEasing: 'cubicOut',
+        animationDelay: 0
       }]
     };
 
