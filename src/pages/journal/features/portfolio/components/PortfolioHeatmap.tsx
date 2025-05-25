@@ -100,34 +100,45 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         profitLoss: stats.profitLoss,
         profitLossPercentage: stats.profitLossPercentage,
         itemStyle: {
-          color: groupColor
+          color: groupColor,
+          borderWidth: 2,
+          borderColor: isDark ? '#4b5563' : '#e5e7eb'
         },
         label: {
           show: true,
           position: 'inside',
-          padding: [10, 10],
+          padding: [15, 15],
           formatter: (params: any) => {
             const value = formatCurrency(params.value, currencyConfig);
             const percentage = stats.profitLossPercentage;
             const percentageStr = `${percentage >= 0 ? '+' : ''}${percentage.toFixed(2)}%`;
             
             return [
+              `{sectionStyle|${groupingDimension === 'category' ? 'Category' : 'Tag'}}`,
               `{titleStyle|${params.name}}`,
               `{percentStyle|${percentageStr}}`,
               `{valueStyle|${value}}`
             ].join('\n');
           },
           rich: {
-            titleStyle: {
-              fontSize: 16,
-              fontWeight: 'bold',
-              color: isDark ? '#e5e7eb' : '#111827',
+            sectionStyle: {
+              fontSize: 12,
+              color: isDark ? '#9ca3af' : '#6b7280',
               padding: [0, 0, 5, 0],
               align: 'center',
               width: '100%'
             },
+            titleStyle: {
+              fontSize: 18,
+              fontWeight: 'bold',
+              color: isDark ? '#e5e7eb' : '#111827',
+              padding: [0, 0, 8, 0],
+              align: 'center',
+              width: '100%'
+            },
             percentStyle: {
-              fontSize: 14,
+              fontSize: 16,
+              fontWeight: 'bold',
               color: stats.profitLossPercentage >= 0 ? '#34d399' : '#f87171',
               padding: [0, 0, 5, 0],
               align: 'center',
@@ -154,6 +165,8 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
             profitLossPercentage: holding.profit_loss_percentage,
             itemStyle: {
               color,
+              borderWidth: 1,
+              borderColor: isDark ? '#374151' : '#e5e7eb'
             },
             label: {
               show: true,
@@ -166,6 +179,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
                 
                 return [
                   `{titleStyle|${params.name}}`,
+                  `{nameStyle|${holding.stock_name}}`,
                   `{percentStyle|${percentageStr}}`,
                   `{valueStyle|${value}}`
                 ].join('\n');
@@ -175,14 +189,22 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
                   fontSize: 14,
                   fontWeight: 'bold',
                   color: isDark ? '#e5e7eb' : '#111827',
-                  padding: [0, 0, 5, 0],
+                  padding: [0, 0, 4, 0],
+                  align: 'center',
+                  width: '100%'
+                },
+                nameStyle: {
+                  fontSize: 12,
+                  color: isDark ? '#9ca3af' : '#6b7280',
+                  padding: [0, 0, 4, 0],
                   align: 'center',
                   width: '100%'
                 },
                 percentStyle: {
                   fontSize: 12,
+                  fontWeight: 'bold',
                   color: holding.profit_loss_percentage >= 0 ? '#34d399' : '#f87171',
-                  padding: [0, 0, 5, 0],
+                  padding: [0, 0, 4, 0],
                   align: 'center',
                   width: '100%'
                 },
@@ -212,11 +234,11 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
             const profitLossColor = profitLossPercentage >= 0 ? '#34d399' : '#f87171';
             
             return `
-              <div style="font-weight: 500">${params.name}</div>
-              <div style="margin-top: 4px">
+              <div style="font-weight: 500; font-size: 16px">${groupingDimension === 'category' ? 'Category' : 'Tag'}: ${params.name}</div>
+              <div style="margin-top: 8px">
                 <div>Total Value: ${formatCurrency(value, currencyConfig)}</div>
                 <div>Profit/Loss: ${formatCurrency(profitLoss, currencyConfig)}</div>
-                <div style="color: ${profitLossColor}">
+                <div style="color: ${profitLossColor}; font-weight: 500">
                   Return: ${profitLossPercentage >= 0 ? '+' : ''}${profitLossPercentage.toFixed(2)}%
                 </div>
               </div>
@@ -259,7 +281,8 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
             color: isDark ? '#374151' : '#f3f4f6',
             borderColor: isDark ? '#4b5563' : '#e5e7eb',
             textStyle: {
-              color: isDark ? '#e5e7eb' : '#111827'
+              color: isDark ? '#e5e7eb' : '#111827',
+              fontWeight: 'bold'
             }
           },
           emphasis: {
@@ -271,7 +294,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         levels: [{
           itemStyle: {
             borderColor: isDark ? '#374151' : '#e5e7eb',
-            borderWidth: 1,
+            borderWidth: 2,
             gapWidth: 2
           },
           emphasis: {
