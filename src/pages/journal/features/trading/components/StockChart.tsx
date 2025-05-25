@@ -8,7 +8,7 @@ import { useCurrency } from '../../../../../lib/context/CurrencyContext';
 import { ChevronDown, ChevronUp, ZoomIn, ZoomOut, RefreshCw, Lock, Unlock, Maximize2, Minimize2, Grid, LineChart, CandlestickChart, BarChart } from 'lucide-react';
 import type { StockData, Trade, Stock } from '../../../../../lib/services/types';
 
-type MarkerStyle = 'line' | 'bubble' | 'grid';
+type MarkerStyle = 'point' | 'bubble' | 'grid';
 type ChartType = 'candlestick' | 'line' | 'bar';
 
 interface StockChartProps {
@@ -42,7 +42,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const costBasisSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [markerStyle, setMarkerStyle] = useState<MarkerStyle>('line');
+  const [markerStyle, setMarkerStyle] = useState<MarkerStyle>('point');
   const [showCostBasis, setShowCostBasis] = useState(true);
   const { currencyConfig } = useCurrency();
   const [stockInfo, setStockInfo] = useState<Stock | null>(null);
@@ -61,34 +61,6 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
     trades: Trade[];
     costBasis: CostBasisPoint[];
   }>({ candlestick: [], volume: [], trades: [], costBasis: [] });
-
-  useEffect(() => {
-    const fetchStockInfo = async () => {
-      if (!stockCode) {
-        setStockInfo({ stock_code: '^SSEC', stock_name: 'Shanghai Composite Index' });
-        return;
-      }
-
-      try {
-        const { data: stocks } = await stockService.getStocks();
-        if (stocks && !isDisposed.current) {
-          const stock = stocks.find(s => s.stock_code === stockCode);
-          if (stock) {
-            setStockInfo(stock);
-          } else {
-            setStockInfo({ stock_code: stockCode, stock_name: stockCode });
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching stock info:', error);
-        if (!isDisposed.current) {
-          setStockInfo({ stock_code: stockCode, stock_name: stockCode });
-        }
-      }
-    };
-
-    fetchStockInfo();
-  }, [stockCode]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -215,66 +187,75 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
   ) => {
     if (isDisposed.current) return;
 
-    trades.forEach(trade => {
+    const markers = trades.map(trade => {
       const isBuy = trade.operation === 'buy';
       const tradeColor = isBuy ? chartColors.upColor : chartColors.downColor;
       const time = Math.floor(new Date(trade.created_at).getTime() / 1000);
 
       switch (style) {
-        case 'line':
-          candlestickSeries.createPriceLine({
-            price: trade.target_price,
+        case 'point':
+          return {
             time,
+            position: isBuy ? 'belowBar' : 'aboveBar',
             color: tradeColor,
-            lineWidth: 2,
-            lineStyle: LineStyle.Solid,
-            axisLabelVisible: true,
-            title: `${isBuy ? '↑' : '↓'} ${trade.quantity}`,
-          });
-          break;
+            shape: isBuy ? 'circle' : 'square',
+            text: `${isBuy ? '↑' : '↓'} ${trade.quantity}`,
+            size: 2
+          };
 
         case 'bubble':
-          const bubbleSize = Math.max(20, Math.min(50, trade.quantity / 10));
-          candlestickSeries.setMarkers([
-            {
-              time,
-              position: isBuy ? 'belowBar' : 'aboveBar',
-              color: tradeColor,
-              shape: 'circle',
-              size: bubbleSize / 10,
-              text: `${isBuy ? '↑' : '↓'} ${trade.quantity}`,
-            }
-          ]);
-          break;
+          const bubbleSize = Math.max(2, Math.min(4, trade.quantity / 100));
+          return {
+            time,
+            position: isBuy ? 'belowBar' : 'aboveBar',
+            color: tradeColor,
+            shape: 'circle',
+            size: bubbleSize,
+            text: `${isBuy ? '↑' : '↓'} ${trade.quantity}`
+          };
 
         case 'grid':
-          const gridWidth = 3;
-          const gridHeight = 20;
-          
-          for (let i = 0; i < gridWidth; i++) {
-            candlestickSeries.createPriceLine({
-              price: trade.target_price - (gridHeight / 2) + (i * (gridHeight / (gridWidth - 1))),
-              time,
-              color: tradeColor,
-              lineWidth: 1,
-              lineStyle: LineStyle.Dotted,
-              axisLabelVisible: false,
-            });
-          }
-          
-          candlestickSeries.createPriceLine({
-            price: trade.target_price,
+          return {
             time,
+            position: isBuy ? 'belowBar' : 'aboveBar',
             color: tradeColor,
-            lineWidth: 2,
-            lineStyle: LineStyle.Solid,
-            axisLabelVisible: true,
-            title: `${isBuy ? '↑' : '↓'} ${trade.quantity}`,
-          });
-          break;
+            shape: isBuy ? 'arrowUp' : 'arrowDown',
+            text: `${trade.quantity}`,
+            size: 2
+          };
       }
     });
+
+    candlestickSeries.setMarkers(markers);
   };
+
+  useEffect(() => {
+    const fetchStockInfo = async () => {
+      if (!stockCode) {
+        setStockInfo({ stock_code: '^SSEC', stock_name: 'Shanghai Composite Index' });
+        return;
+      }
+
+      try {
+        const { data: stocks } = await stockService.getStocks();
+        if (stocks && !isDisposed.current) {
+          const stock = stocks.find(s => s.stock_code === stockCode);
+          if (stock) {
+            setStockInfo(stock);
+          } else {
+            setStockInfo({ stock_code: stockCode, stock_name: stockCode });
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching stock info:', error);
+        if (!isDisposed.current) {
+          setStockInfo({ stock_code: stockCode, stock_name: stockCode });
+        }
+      }
+    };
+
+    fetchStockInfo();
+  }, [stockCode]);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -706,12 +687,12 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
 
         <div className="flex gap-2">
           <button
-            onClick={() => setMarkerStyle('line')}
+            onClick={() => setMarkerStyle('point')}
             className={`px-3 py-1 rounded text-sm ${
-              markerStyle === 'line' ? themes[theme].primary : themes[theme].secondary
+              markerStyle === 'point' ? themes[theme].primary : themes[theme].secondary
             }`}
           >
-            Line
+            Point
           </button>
           <button
             onClick={() => setMarkerStyle('bubble')}
