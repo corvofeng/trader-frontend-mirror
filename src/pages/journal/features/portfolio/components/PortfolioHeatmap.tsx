@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as echarts from 'echarts';
-import { Filter, X } from 'lucide-react';
+import { Filter } from 'lucide-react';
 import { Theme, themes } from '../../../../../lib/theme';
 import type { Holding } from '../../../../../lib/services/types';
 import { formatCurrency } from '../../../../../lib/types';
@@ -25,7 +25,6 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<echarts.ECharts | null>(null);
   const [groupingDimension, setGroupingDimension] = useState<GroupingDimension>('category');
-  const [selectedPath, setSelectedPath] = useState<string[]>([]);
 
   useEffect(() => {
     if (!chartRef.current || holdings.length === 0) return;
@@ -71,9 +70,16 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
             });
           }
           const stats = groups.get(tag)!;
-          stats.totalValue += holding.total_value;
-          stats.profitLoss += holding.profit_loss;
-          stats.holdings.push(holding);
+          // Divide by number of tags to avoid double counting
+          const valuePerTag = holding.total_value / tags.length;
+          const profitLossPerTag = holding.profit_loss / tags.length;
+          stats.totalValue += valuePerTag;
+          stats.profitLoss += profitLossPerTag;
+          stats.holdings.push({
+            ...holding,
+            total_value: valuePerTag,
+            profit_loss: profitLossPerTag
+          });
         });
       });
     }
@@ -81,78 +87,72 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
     // Calculate profit/loss percentages for groups
     groups.forEach(stats => {
       const costBasis = stats.totalValue - stats.profitLoss;
-      stats.profitLossPercentage = (stats.profitLoss / costBasis) * 100;
+      stats.profitLossPercentage = costBasis !== 0 ? (stats.profitLoss / costBasis) * 100 : 0;
     });
 
     // Calculate max value for color scaling
-    const maxValue = Math.max(...holdings.map(h => Math.abs(h.profit_loss_percentage)));
+    const maxValue = Math.max(...Array.from(groups.values()).map(stats => Math.abs(stats.profitLossPercentage)));
 
     // Prepare treemap data
     const data = Array.from(groups.entries()).map(([groupName, stats]) => {
       const intensity = Math.min(0.9, Math.abs(stats.profitLossPercentage) / maxValue) + 0.1;
-      const groupColor = stats.profitLossPercentage >= 0 
-        ? `rgba(38, 166, 154, ${intensity})`  // Full intensity for groups
-        : `rgba(239, 83, 80, ${intensity})`;  // Full intensity for groups
+      const baseColor = stats.profitLossPercentage >= 0 ? [38, 166, 154] : [239, 83, 80];
+      const groupColor = `rgba(${baseColor.join(',')}, ${intensity})`;
 
       return {
         name: groupName,
         value: stats.totalValue,
-        profitLoss: stats.profitLoss,
-        profitLossPercentage: stats.profitLossPercentage,
+        groupStats: stats,
         itemStyle: {
           color: groupColor,
           borderColor: isDark ? '#374151' : '#e5e7eb',
           borderWidth: 1
         },
-        upperLabel: {
+        label: {
           show: true,
-          height: 40,
-          backgroundColor: groupColor,
-          position: 'top',
-          formatter: [
-            `{name|${groupName}}`,
-            `{value|${stats.profitLossPercentage >= 0 ? '+' : ''}${stats.profitLossPercentage.toFixed(2)}%}`,
-            `{price|${formatCurrency(stats.totalValue, currencyConfig)}}`
-          ].join('\n'),
+          position: 'inside',
+          formatter: (params: any) => {
+            const stats = params.data.groupStats;
+            return [
+              `{name|${groupName}}`,
+              `{value|${stats.profitLossPercentage >= 0 ? '+' : ''}${stats.profitLossPercentage.toFixed(2)}%}`,
+              `{price|${formatCurrency(stats.totalValue, currencyConfig)}}`
+            ].join('\n');
+          },
           rich: {
             name: {
               fontSize: 16,
               fontWeight: 'bold',
-              color: isDark ? '#ffffff' : '#111827',
+              color: '#ffffff',
               padding: [4, 8, 0, 8]
             },
             value: {
               fontSize: 14,
-              color: isDark ? '#ffffff' : '#111827',
+              color: '#ffffff',
               padding: [0, 8, 0, 8]
             },
             price: {
               fontSize: 14,
-              color: isDark ? '#ffffff' : '#111827',
+              color: '#ffffff',
               padding: [0, 8, 4, 8]
             }
           }
         },
-        label: {
-          show: true,
-          position: 'inside',
-          formatter: '{name}',
-          fontSize: 16,
-          color: isDark ? '#ffffff' : '#111827'
+        emphasis: {
+          label: {
+            show: true
+          }
         },
         children: stats.holdings.map(holding => {
-          const intensity = Math.min(0.9, Math.abs(holding.profit_loss_percentage) / maxValue) + 0.1;
-          const color = holding.profit_loss_percentage >= 0 
-            ? `rgba(38, 166, 154, ${intensity})`
-            : `rgba(239, 83, 80, ${intensity})`;
+          const holdingIntensity = Math.min(0.9, Math.abs(holding.profit_loss_percentage) / maxValue) + 0.1;
+          const holdingBaseColor = holding.profit_loss_percentage >= 0 ? [38, 166, 154] : [239, 83, 80];
+          const holdingColor = `rgba(${holdingBaseColor.join(',')}, ${holdingIntensity})`;
 
           return {
             name: holding.stock_code,
             value: holding.total_value,
-            profitLoss: holding.profit_loss,
-            profitLossPercentage: holding.profit_loss_percentage,
             itemStyle: {
-              color,
+              color: holdingColor,
               borderColor: isDark ? '#374151' : '#e5e7eb',
               borderWidth: 1
             },
@@ -168,15 +168,15 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
                 name: {
                   fontSize: 14,
                   fontWeight: 'bold',
-                  color: isDark ? '#ffffff' : '#111827'
+                  color: '#ffffff'
                 },
                 value: {
                   fontSize: 12,
-                  color: isDark ? '#ffffff' : '#111827'
+                  color: '#ffffff'
                 },
                 price: {
                   fontSize: 12,
-                  color: isDark ? '#ffffff' : '#111827'
+                  color: '#ffffff'
                 }
               }
             }
@@ -188,27 +188,25 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
     const option = {
       tooltip: {
         formatter: (params: any) => {
-          if (!params || !params.name) return '';
+          if (!params.data) return '';
 
-          const holding = holdings.find(h => h.stock_code === params.name);
+          const isGroup = params.data.groupStats !== undefined;
           
-          // Group node tooltip
-          if (!holding && params.data) {
-            const { value, profitLoss, profitLossPercentage } = params.data;
-            const profitLossColor = profitLossPercentage >= 0 ? '#34d399' : '#f87171';
-            
+          if (isGroup) {
+            const stats = params.data.groupStats;
             return `
               <div style="font-weight: 500">${params.name}</div>
               <div style="margin-top: 4px">
-                <div>Total Value: ${formatCurrency(value, currencyConfig)}</div>
-                <div>Profit/Loss: ${formatCurrency(profitLoss, currencyConfig)}</div>
-                <div style="color: ${profitLossColor}">
-                  Return: ${profitLossPercentage >= 0 ? '+' : ''}${profitLossPercentage.toFixed(2)}%
+                <div>Total Value: ${formatCurrency(stats.totalValue, currencyConfig)}</div>
+                <div>Profit/Loss: ${formatCurrency(stats.profitLoss, currencyConfig)}</div>
+                <div style="color: ${stats.profitLossPercentage >= 0 ? '#34d399' : '#f87171'}">
+                  Return: ${stats.profitLossPercentage >= 0 ? '+' : ''}${stats.profitLossPercentage.toFixed(2)}%
                 </div>
               </div>
             `;
           }
-          
+
+          const holding = holdings.find(h => h.stock_code === params.name);
           if (!holding) return '';
 
           const groupInfo = groupingDimension === 'category'
@@ -239,7 +237,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         nodeClick: 'zoomToNode',
         breadcrumb: {
           show: true,
-          height: 40,
+          height: 30,
           top: 'bottom',
           itemStyle: {
             color: isDark ? '#374151' : '#f3f4f6',
@@ -260,7 +258,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
           itemStyle: {
             borderColor: isDark ? '#374151' : '#e5e7eb',
             borderWidth: 1,
-            gapWidth: 2
+            gapWidth: 1
           },
           emphasis: {
             itemStyle: {
@@ -269,29 +267,13 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
             }
           }
         }],
-        label: {
-          show: true,
-          position: 'inside'
-        }
+        animation: true,
+        animationDuration: 500,
+        animationEasing: 'cubicOut'
       }]
     };
 
     chart.setOption(option);
-
-    // Handle drill down events
-    chart.on('click', (params: any) => {
-      if (params.data && params.data.children) {
-        setSelectedPath(prev => [...prev, params.name]);
-      }
-    });
-
-    // Handle breadcrumb navigation
-    chart.on('treeMapRootToNode', (params: any) => {
-      if (params.targetNode && params.targetNode.path) {
-        const path = params.targetNode.path.slice(1);
-        setSelectedPath(path);
-      }
-    });
 
     const handleResize = () => {
       if (chartInstance.current) {
