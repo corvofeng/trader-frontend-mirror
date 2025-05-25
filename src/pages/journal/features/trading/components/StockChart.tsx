@@ -47,6 +47,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
   const isDisposed = useRef(false);
   const isInitializing = useRef(false);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const [chartType, setChartType] = useState<ChartType>('candlestick');
   const [isLocked, setIsLocked] = useState(false);
@@ -63,46 +64,44 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
   }>({ candlestick: [], volume: [], trades: [], costBasis: [] });
 
   const disposeChart = () => {
+    // Set disposed flag first to prevent any new operations
     isDisposed.current = true;
 
+    // Cancel any pending requests
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+
+    // Disconnect resize observer
     if (resizeObserverRef.current) {
       resizeObserverRef.current.disconnect();
       resizeObserverRef.current = null;
     }
 
+    // Dispose of chart and series
     if (chartRef.current) {
-      // Clear all series references before removing the chart
-      if (candlestickSeriesRef.current) {
-        try {
-          chartRef.current.removeSeries(candlestickSeriesRef.current);
-        } catch (e) {
-          // Ignore errors during cleanup
-        }
-        candlestickSeriesRef.current = null;
-      }
-      if (volumeSeriesRef.current) {
-        try {
-          chartRef.current.removeSeries(volumeSeriesRef.current);
-        } catch (e) {
-          // Ignore errors during cleanup
-        }
-        volumeSeriesRef.current = null;
-      }
-      if (costBasisSeriesRef.current) {
-        try {
-          chartRef.current.removeSeries(costBasisSeriesRef.current);
-        } catch (e) {
-          // Ignore errors during cleanup
-        }
-        costBasisSeriesRef.current = null;
-      }
-      
       try {
+        // Remove series first
+        if (candlestickSeriesRef.current) {
+          chartRef.current.removeSeries(candlestickSeriesRef.current);
+          candlestickSeriesRef.current = null;
+        }
+        if (volumeSeriesRef.current) {
+          chartRef.current.removeSeries(volumeSeriesRef.current);
+          volumeSeriesRef.current = null;
+        }
+        if (costBasisSeriesRef.current) {
+          chartRef.current.removeSeries(costBasisSeriesRef.current);
+          costBasisSeriesRef.current = null;
+        }
+        
+        // Remove the chart
         chartRef.current.remove();
+        chartRef.current = null;
       } catch (e) {
-        // Ignore errors during cleanup
+        console.error('Error during chart disposal:', e);
       }
-      chartRef.current = null;
     }
   };
 
@@ -183,7 +182,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
       try {
         chart.removeSeries(candlestickSeriesRef.current);
       } catch (e) {
-        // Ignore errors during series removal
+        console.error('Error removing series:', e);
         return;
       }
       candlestickSeriesRef.current = null;
@@ -306,16 +305,19 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
   useEffect(() => {
     if (!chartContainerRef.current || isInitializing.current) return;
 
-    // Clean up any existing chart
+    // Clean up any existing chart and set flags
     disposeChart();
-    
-    // Reset disposed flag as we're creating a new chart
     isDisposed.current = false;
     isInitializing.current = true;
+
+    // Create new abort controller for this effect
+    abortControllerRef.current = new AbortController();
+    const { signal } = abortControllerRef.current;
 
     const isDark = theme === 'dark';
     const chartColors = themes[theme].chart;
 
+    // Create new chart
     const chart = createChart(chartContainerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: 'transparent' },
@@ -378,6 +380,11 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
       },
     });
 
+    if (signal.aborted) {
+      chart.remove();
+      return;
+    }
+
     chartRef.current = chart;
 
     const candlestickSeries = chart.addCandlestickSeries({
@@ -387,6 +394,11 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
       wickUpColor: chartColors.upColor,
       wickDownColor: chartColors.downColor,
     });
+
+    if (signal.aborted) {
+      chart.remove();
+      return;
+    }
 
     candlestickSeriesRef.current = candlestickSeries;
 
@@ -398,6 +410,11 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
       priceScaleId: '',
       visible: showVolume,
     });
+
+    if (signal.aborted) {
+      chart.remove();
+      return;
+    }
 
     volumeSeriesRef.current = volumeSeries;
 
@@ -417,6 +434,11 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
       lastValueVisible: false,
     });
 
+    if (signal.aborted) {
+      chart.remove();
+      return;
+    }
+
     costBasisSeriesRef.current = costBasisSeries;
 
     const loadChartData = async () => {
@@ -433,7 +455,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
           stockCode ? authService.getUser() : Promise.resolve({ data: { user: null }, error: null })
         ]);
 
-        if (isDisposed.current) return;
+        if (isDisposed.current || signal.aborted) return;
 
         if (!stockResponse.data) {
           throw new Error('Failed to load stock data');
@@ -468,7 +490,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
             startDate,
             endDate
           );
-          if (tradesResponse.data && !isDisposed.current) {
+          if (tradesResponse.data && !isDisposed.current && !signal.aborted) {
             trades = tradesResponse.data
               .filter(trade => trade.stock_code === stockCode)
               .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
@@ -477,7 +499,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
               addTradeMarkers(candlestickSeries, trades, chartColors);
               costBasisPoints = calculateCostBasis(trades);
               
-              if (costBasisPoints.length > 0 && showCostBasis && !isDisposed.current) {
+              if (costBasisPoints.length > 0 && showCostBasis && !isDisposed.current && !signal.aborted) {
                 try {
                   costBasisSeries.setData(costBasisPoints.map(point => ({
                     time: point.time,
@@ -491,7 +513,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
           }
         }
 
-        if (!isDisposed.current) {
+        if (!isDisposed.current && !signal.aborted) {
           setChartData({
             candlestick: candlestickData,
             volume: volumeData,
@@ -512,7 +534,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
 
       } catch (error) {
         console.error('Failed to load chart data:', error);
-        if (!isDisposed.current) {
+        if (!isDisposed.current && !signal.aborted) {
           setIsLoading(false);
         }
       }
@@ -520,10 +542,10 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
 
     loadChartData();
 
-    // Use ResizeObserver instead of window resize event
+    // Set up resize observer
     if (chartContainerRef.current) {
       resizeObserverRef.current = new ResizeObserver(entries => {
-        if (!isDisposed.current && chartRef.current) {
+        if (!isDisposed.current && chartRef.current && !signal.aborted) {
           try {
             chartRef.current.applyOptions({
               width: entries[0].contentRect.width,
@@ -537,9 +559,10 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
       resizeObserverRef.current.observe(chartContainerRef.current);
     }
 
+    // Cleanup function
     return () => {
-      disposeChart();
       isInitializing.current = false;
+      disposeChart();
     };
   }, [stockCode, theme, currencyConfig, showCostBasis, showGrid, showVolume, isLocked, autoScale]);
 
