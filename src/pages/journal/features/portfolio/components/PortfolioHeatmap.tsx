@@ -21,6 +21,69 @@ interface GroupStats {
   holdings: Holding[];
 }
 
+function getColorByPercentage(percentage: number, isDark: boolean): string {
+  // Define base colors for different percentage ranges
+  const colors = {
+    positive: {
+      strong: isDark ? '#059669' : '#10b981', // Strong gain
+      medium: isDark ? '#34d399' : '#6ee7b7', // Medium gain
+      weak: isDark ? '#6ee7b7' : '#a7f3d0',   // Weak gain
+    },
+    negative: {
+      strong: isDark ? '#dc2626' : '#ef4444', // Strong loss
+      medium: isDark ? '#f87171' : '#fca5a5', // Medium loss
+      weak: isDark ? '#fca5a5' : '#fee2e2',   // Weak loss
+    },
+    neutral: isDark ? '#374151' : '#f3f4f6'    // Near zero
+  };
+
+  // Define percentage thresholds
+  const thresholds = {
+    strong: 10,   // ±10% or more
+    medium: 5,    // ±5% to 10%
+    weak: 2,      // ±2% to 5%
+    neutral: 2    // Between -2% and 2%
+  };
+
+  // Calculate opacity based on absolute percentage
+  const getOpacity = (value: number): number => {
+    const absValue = Math.abs(value);
+    if (absValue >= thresholds.strong) return 0.9;
+    if (absValue >= thresholds.medium) return 0.7;
+    if (absValue >= thresholds.weak) return 0.5;
+    return 0.3;
+  };
+
+  // Get base color
+  let baseColor: string;
+  const absPercentage = Math.abs(percentage);
+
+  if (absPercentage < thresholds.neutral) {
+    return colors.neutral;
+  } else if (percentage > 0) {
+    if (absPercentage >= thresholds.strong) baseColor = colors.positive.strong;
+    else if (absPercentage >= thresholds.medium) baseColor = colors.positive.medium;
+    else baseColor = colors.positive.weak;
+  } else {
+    if (absPercentage >= thresholds.strong) baseColor = colors.negative.strong;
+    else if (absPercentage >= thresholds.medium) baseColor = colors.negative.medium;
+    else baseColor = colors.negative.weak;
+  }
+
+  // Convert hex to rgba
+  const opacity = getOpacity(percentage);
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(baseColor);
+  if (!result) return baseColor;
+  
+  const rgb = {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16)
+  };
+
+  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${opacity})`;
+}
+
 export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioHeatmapProps) {
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<echarts.ECharts | null>(null);
@@ -84,15 +147,9 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
       stats.profitLossPercentage = (stats.profitLoss / costBasis) * 100;
     });
 
-    // Calculate max value for color scaling
-    const maxValue = Math.max(...holdings.map(h => Math.abs(h.profit_loss_percentage)));
-
     // Prepare treemap data
     const data = Array.from(groups.entries()).map(([groupName, stats]) => {
-      const intensity = Math.min(0.9, Math.abs(stats.profitLossPercentage) / maxValue) + 0.1;
-      const groupColor = stats.profitLossPercentage >= 0 
-        ? `rgba(38, 166, 154, ${intensity * 0.3})`  // Lighter green for groups
-        : `rgba(239, 83, 80, ${intensity * 0.3})`;  // Lighter red for groups
+      const groupColor = getColorByPercentage(stats.profitLossPercentage, isDark);
 
       return {
         name: groupName,
@@ -111,18 +168,18 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
           show: true,
           position: 'inside',
           formatter: (params: any) => {
-  const stats = groups.get(params.name)!;
-  const holdingsCount = stats.holdings.length;
-  const formattedValue = formatCurrency(params.value, currencyConfig)
-    .replace(/,(\d{3})+$/, 'M')
-    .replace(/,(\d{3})/, 'K');
-  
-  return [
-    `${groupingDimension === 'category' ? 'SECTOR' : 'GROUP'}: ${params.name}`,
-    `${stats.profitLossPercentage >= 0 ? '▲' : '▼'} ${Math.abs(stats.profitLossPercentage).toFixed(2)}%`,
-    formattedValue
-  ].join('\n');
-},
+            const stats = groups.get(params.name)!;
+            const holdingsCount = stats.holdings.length;
+            const formattedValue = formatCurrency(params.value, currencyConfig)
+              .replace(/,(\d{3})+$/, 'M')
+              .replace(/,(\d{3})/, 'K');
+            
+            return [
+              `${groupingDimension === 'category' ? 'SECTOR' : 'GROUP'}: ${params.name}`,
+              `${stats.profitLossPercentage >= 0 ? '▲' : '▼'} ${Math.abs(stats.profitLossPercentage).toFixed(2)}%`,
+              formattedValue
+            ].join('\n');
+          },
           rich: {
             sectionStyle: {
               fontSize: 16,
@@ -143,11 +200,10 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
             percentStyle: {
               fontSize: 20,
               fontWeight: 'bold',
-                  color: (params: any) => {
-      const stats = groups.get(params.name)!;
-      return '#ffffff';
-      return stats.profitLossPercentage >= 0 ? '#34d399' : '#f87171';
-    },
+              color: (params: any) => {
+                const stats = groups.get(params.name)!;
+                return stats.profitLossPercentage >= 0 ? '#34d399' : '#f87171';
+              },
               padding: [0, 0, 8, 0],
               align: 'center',
               width: '100%'
@@ -161,10 +217,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
           }
         },
         children: stats.holdings.map(holding => {
-          const intensity = Math.min(0.9, Math.abs(holding.profit_loss_percentage) / maxValue) + 0.1;
-          const color = holding.profit_loss_percentage >= 0 
-            ? `rgba(38, 166, 154, ${intensity})`
-            : `rgba(239, 83, 80, ${intensity})`;
+          const color = getColorByPercentage(holding.profit_loss_percentage, isDark);
 
           return {
             name: holding.stock_code,
@@ -259,7 +312,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
             : `Tags: ${holding.tags?.join(', ') || 'Untagged'}`;
 
           return `
-            <div style="font-weight: 5000">${holding.stock_code} - ${holding.stock_name}</div>
+            <div style="font-weight: 500">${holding.stock_code} - ${holding.stock_name}</div>
             <div style="margin-top: 4px">
               <div>${groupInfo}</div>
               <div>Current Price: ${formatCurrency(holding.current_price, currencyConfig)}</div>
