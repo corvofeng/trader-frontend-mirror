@@ -110,7 +110,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         label: {
           show: true,
           position: 'inside',
-          formatter: (params: any) => {
+          formatterOld: (params: any) => {
             const value = formatCurrency(params.value, currencyConfig);
             const percentage = stats.profitLossPercentage;
             const percentageStr = `${percentage >= 0 ? '+' : ''}${percentage.toFixed(2)}%`;
@@ -122,6 +122,21 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               `{valueStyle|${value}}`
             ].join('\n');
           },
+
+          formatter: (params: any) => {
+  const stats = groups.get(params.name)!;
+  const holdingsCount = stats.holdings.length;
+  const formattedValue = formatCurrency(params.value, currencyConfig)
+    .replace(/,(\d{3})+$/, 'M')
+    .replace(/,(\d{3})/, 'K');
+  
+  return [
+    `${groupingDimension === 'category' ? 'SECTOR' : 'GROUP'}: ${params.name}`,
+    `${holdingsCount} holding${holdingsCount > 1 ? 's' : ''}`,
+    `${stats.profitLossPercentage >= 0 ? '▲' : '▼'} ${Math.abs(stats.profitLossPercentage).toFixed(2)}%`,
+    formattedValue
+  ].join('\n');
+},
           rich: {
             sectionStyle: {
               fontSize: 16,
