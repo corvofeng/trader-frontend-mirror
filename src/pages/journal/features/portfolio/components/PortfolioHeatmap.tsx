@@ -362,7 +362,40 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
             }
           }
         },
-        levels: [{
+        levels: [
+
+                {
+        itemStyle: {
+          borderColor: '#777',
+          borderWidth: 0,
+          gapWidth: 1
+        },
+        upperLabel: {
+          show: false
+        }
+      },
+      {
+        itemStyle: {
+          borderColor: '#555',
+          borderWidth: 5,
+          gapWidth: 1
+        },
+        emphasis: {
+          itemStyle: {
+            borderColor: '#ddd'
+          }
+        }
+      },
+      {
+        colorSaturation: [0.35, 0.5],
+        itemStyle: {
+          borderWidth: 5,
+          gapWidth: 1,
+          borderColorSaturation: 0.6
+        }
+      }
+          
+          {
           itemStyle: {
             borderColor: isDark ? '#374151' : '#e5e7eb',
             borderWidth: 4,
