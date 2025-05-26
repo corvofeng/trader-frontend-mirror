@@ -374,8 +374,17 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               borderColor: isDark ? '#60a5fa' : '#3b82f6',
               borderWidth: 4
             }
-          }
-        }],
+          },
+        },      {
+        colorSaturation: [0.35, 0.5],
+        itemStyle: {
+          borderWidth: 5,
+          gapWidth: 1,
+          borderColorSaturation: 0.6
+        }
+      }
+                
+                ],
         label: {
           show: true,
           position: 'inside'
