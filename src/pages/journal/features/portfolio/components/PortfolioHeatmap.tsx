@@ -364,36 +364,51 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         },
         levels: [
 
-      {
-        itemStyle: {
-          borderColor: '#777',
-          borderWidth: 0,
-          gapWidth: 1
-        },
-        upperLabel: {
-          show: false
-        }
-      },
-      {
-        itemStyle: {
-          borderColor: '#555',
-          borderWidth: 5,
-          gapWidth: 1
-        },
-        emphasis: {
+      // {
+      //   itemStyle: {
+      //     borderColor: '#777',
+      //     borderWidth: 0,
+      //     gapWidth: 1
+      //   },
+      //   upperLabel: {
+      //     show: false
+      //   }
+      // },
+      // {
+      //   itemStyle: {
+      //     borderColor: '#555',
+      //     borderWidth: 5,
+      //     gapWidth: 1
+      //   },
+      //   emphasis: {
+      //     itemStyle: {
+      //       borderColor: '#ddd'
+      //     }
+      //   }
+      // },
+      // {
+      //   colorSaturation: [0.35, 0.5],
+      //   itemStyle: {
+      //     borderWidth: 5,
+      //     gapWidth: 1,
+      //     borderColorSaturation: 0.6
+      //   }
+      // }
+          
+          {
           itemStyle: {
-            borderColor: '#ddd'
-          }
-        }
-      },
-      {
-        colorSaturation: [0.35, 0.5],
-        itemStyle: {
-          borderWidth: 5,
-          gapWidth: 1,
-          borderColorSaturation: 0.6
-        }
-      },
+            borderColor: isDark ? '#374151' : '#e5e7eb',
+            borderWidth: 4,
+            gapWidth: 8,
+            borderRadius: 8
+          },
+          emphasis: {
+            itemStyle: {
+              borderColor: isDark ? '#60a5fa' : '#3b82f6',
+              borderWidth: 4
+            }
+          },
+        },    
 
                 
           ],
