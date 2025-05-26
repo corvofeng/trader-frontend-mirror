@@ -394,7 +394,6 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
           borderColorSaturation: 0.6
         }
       },
-          
 
                 
           ],
