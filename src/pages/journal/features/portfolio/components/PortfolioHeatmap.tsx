@@ -409,14 +409,6 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
             }
           },
         },    
-      {
-        colorSaturation: [0.01, 5],
-        itemStyle: {
-          borderWidth: 50,
-          gapWidth: 1,
-          borderColorSaturation: 0.6
-        }
-      }
                 
           ],
         label: {
