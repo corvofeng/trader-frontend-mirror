@@ -182,10 +182,10 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               .replace(/,(\d{3})/, 'K');
             
             return [
-              `${groupingDimension === 'category' ? 'SECTOR' : 'GROUP'}: ${params.name}`,
+              `${params.name}`,
               `${stats.profitLossPercentage >= 0 ? '▲' : '▼'} ${Math.abs(stats.profitLossPercentage).toFixed(2)}%`,
               formattedValue,
-              `(${holdingsCount} holdings)`
+              `(${holdingsCount})`
             ].join('\n');
           },
           rich: {
@@ -292,21 +292,6 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
     });
 
     const option = {
-      title: {
-        text: 'Portfolio Performance Heatmap',
-        subtext: groupingDimension === 'category' ? 'Grouped by Sector' : 'Grouped by Tags',
-        left: '20',
-        top: '20',
-        textStyle: {
-          color: isDark ? '#e5e7eb' : '#111827',
-          fontSize: 16,
-          fontWeight: 'bold'
-        },
-        subtextStyle: {
-          color: isDark ? '#9ca3af' : '#6b7280',
-          fontSize: 12
-        }
-      },
       tooltip: {
         formatter: (params: any) => {
           if (!params || !params.name) return '';
@@ -442,21 +427,16 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
     <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
       <div className="p-6">
         <div className="flex flex-col gap-4">
-          <div className="flex justify-between items-center">
-            <h2 className={`text-lg font-semibold ${themes[theme].text}`}>
-              Portfolio Performance Heatmap
-            </h2>
-            <div className="flex items-center gap-2">
-              <Filter className={`w-4 h-4 ${themes[theme].text}`} />
-              <select
-                value={groupingDimension}
-                onChange={(e) => setGroupingDimension(e.target.value as GroupingDimension)}
-                className={`px-3 py-1.5 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
-              >
-                <option value="category">Group by Category</option>
-                <option value="tags">Group by Tags</option>
-              </select>
-            </div>
+          <div className="flex justify-end items-center gap-2">
+            <Filter className={`w-4 h-4 ${themes[theme].text}`} />
+            <select
+              value={groupingDimension}
+              onChange={(e) => setGroupingDimension(e.target.value as GroupingDimension)}
+              className={`px-3 py-1.5 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
+            >
+              <option value="category">Group by Category</option>
+              <option value="tags">Group by Tags</option>
+            </select>
           </div>
         </div>
 
