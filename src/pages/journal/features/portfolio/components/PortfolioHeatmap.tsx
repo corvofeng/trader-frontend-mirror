@@ -281,7 +281,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
                   const percentage = holding.daily_profit_loss_percentage;
                   const dailyPL = holding.daily_profit_loss >= 0 
                     ? `+${formatCurrency(holding.daily_profit_loss, currencyConfig)}`
-                    : formatCurrency(holding.daily_profit_loss, currencyConfig);
+                    : `-formatCurrency(holding.daily_profit_loss, currencyConfig)`;
                   const percentageStr = `${percentage >= 0 ? '+' : ''}${percentage.toFixed(2)}%`;
                   
                   return [
