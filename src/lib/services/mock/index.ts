@@ -1,5 +1,5 @@
-import { mockUser, mockHoldings, tradeIdCounter, MOCK_STOCKS, generateMockTrades, generateMockOperations, DEMO_STOCK_DATA } from './mockData';
-import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, StockData, StockPrice, Operation, OperationService, TrendData } from '../types';
+import { mockUser, mockHoldings, tradeIdCounter, MOCK_STOCKS, MOCK_STOCK_CONFIGS, generateMockTrades, generateMockOperations, DEMO_STOCK_DATA } from './mockData';
+import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, StockData, StockPrice, Operation, OperationService, TrendData, StockConfigService, StockConfig } from '../types';
 import { format, subDays, addMinutes, startOfDay, endOfDay, parseISO } from 'date-fns';
 
 function generateDemoStockData(): StockData[] {
@@ -158,6 +158,37 @@ export const stockService: StockService = {
       }, 
       error: null 
     };
+  }
+};
+
+export const stockConfigService: StockConfigService = {
+  getStockConfigs: async () => {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return { data: MOCK_STOCK_CONFIGS, error: null };
+  },
+
+  updateStockConfig: async (config: StockConfig) => {
+    await new Promise(resolve => setTimeout(resolve, 800));
+    const index = MOCK_STOCK_CONFIGS.findIndex(c => c.stock_code === config.stock_code);
+    
+    if (index !== -1) {
+      MOCK_STOCK_CONFIGS[index] = config;
+    } else {
+      MOCK_STOCK_CONFIGS.push(config);
+    }
+    
+    return { data: config, error: null };
+  },
+
+  deleteStockConfig: async (stockCode: string) => {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    const index = MOCK_STOCK_CONFIGS.findIndex(c => c.stock_code === stockCode);
+    
+    if (index !== -1) {
+      MOCK_STOCK_CONFIGS.splice(index, 1);
+    }
+    
+    return { error: null };
   }
 };
 

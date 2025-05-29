@@ -1,5 +1,5 @@
 import { format, subDays, addHours, addMinutes } from 'date-fns';
-import type { Operation } from '../types';
+import type { Operation, StockConfig } from '../types';
 
 export const mockUser = {
   id: '123e4567-e89b-12d3-a456-426614174000',
@@ -24,60 +24,93 @@ export const MOCK_STOCKS = [
   { 
     stock_code: 'AAPL', 
     stock_name: 'Apple Inc.',
-    category: STOCK_CATEGORIES.TECH,
-    tags: ['Consumer Electronics', 'Software', 'Services']
   },
   { 
     stock_code: 'GOOGL', 
     stock_name: 'Alphabet Inc.',
-    category: STOCK_CATEGORIES.TECH,
-    tags: ['Internet Services', 'Software', 'AI']
   },
   { 
     stock_code: 'MSFT', 
     stock_name: 'Microsoft Corporation',
-    category: STOCK_CATEGORIES.TECH,
-    tags: ['Software', 'Cloud Computing', 'Enterprise']
   },
   { 
     stock_code: 'AMZN', 
     stock_name: 'Amazon.com Inc.',
-    category: STOCK_CATEGORIES.CONSUMER,
-    tags: ['E-commerce', 'Cloud Computing', 'Streaming']
   },
   { 
     stock_code: 'META', 
     stock_name: 'Meta Platforms Inc.',
-    category: STOCK_CATEGORIES.TECH,
-    tags: ['Social Media', 'VR/AR', 'Advertising']
   },
   { 
     stock_code: 'TSLA', 
     stock_name: 'Tesla Inc.',
-    category: STOCK_CATEGORIES.CONSUMER,
-    tags: ['Electric Vehicles', 'Energy', 'Technology']
   },
   { 
     stock_code: 'NVDA', 
     stock_name: 'NVIDIA Corporation',
-    category: STOCK_CATEGORIES.TECH,
-    tags: ['Semiconductors', 'AI', 'Gaming']
   },
   { 
     stock_code: 'JPM', 
     stock_name: 'JPMorgan Chase & Co.',
-    category: STOCK_CATEGORIES.FINANCE,
-    tags: ['Banking', 'Investment Services', 'Financial Technology']
   },
   { 
     stock_code: 'V', 
     stock_name: 'Visa Inc.',
-    category: STOCK_CATEGORIES.FINANCE,
-    tags: ['Payment Processing', 'Financial Technology']
   },
   { 
     stock_code: 'JNJ', 
     stock_name: 'Johnson & Johnson',
+  }
+];
+
+export const MOCK_STOCK_CONFIGS: StockConfig[] = [
+  { 
+    stock_code: 'AAPL',
+    category: STOCK_CATEGORIES.TECH,
+    tags: ['Consumer Electronics', 'Software', 'Services']
+  },
+  { 
+    stock_code: 'GOOGL',
+    category: STOCK_CATEGORIES.TECH,
+    tags: ['Internet Services', 'Software', 'AI']
+  },
+  { 
+    stock_code: 'MSFT',
+    category: STOCK_CATEGORIES.TECH,
+    tags: ['Software', 'Cloud Computing', 'Enterprise']
+  },
+  { 
+    stock_code: 'AMZN',
+    category: STOCK_CATEGORIES.CONSUMER,
+    tags: ['E-commerce', 'Cloud Computing', 'Streaming']
+  },
+  { 
+    stock_code: 'META',
+    category: STOCK_CATEGORIES.TECH,
+    tags: ['Social Media', 'VR/AR', 'Advertising']
+  },
+  { 
+    stock_code: 'TSLA',
+    category: STOCK_CATEGORIES.CONSUMER,
+    tags: ['Electric Vehicles', 'Energy', 'Technology']
+  },
+  { 
+    stock_code: 'NVDA',
+    category: STOCK_CATEGORIES.TECH,
+    tags: ['Semiconductors', 'AI', 'Gaming']
+  },
+  { 
+    stock_code: 'JPM',
+    category: STOCK_CATEGORIES.FINANCE,
+    tags: ['Banking', 'Investment Services', 'Financial Technology']
+  },
+  { 
+    stock_code: 'V',
+    category: STOCK_CATEGORIES.FINANCE,
+    tags: ['Payment Processing', 'Financial Technology']
+  },
+  { 
+    stock_code: 'JNJ',
     category: STOCK_CATEGORIES.HEALTHCARE,
     tags: ['Pharmaceuticals', 'Medical Devices', 'Consumer Health']
   }

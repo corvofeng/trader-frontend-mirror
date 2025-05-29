@@ -10,9 +10,13 @@ export interface User {
 export interface Stock {
   stock_code: string;
   stock_name: string;
+  price?: number;
+}
+
+export interface StockConfig {
+  stock_code: string;
   category?: string;
   tags?: string[];
-  price?: number;
 }
 
 export interface Trade {
@@ -82,6 +86,12 @@ export interface StockService {
   getCurrentPrice: (symbol: string) => Promise<ServiceResponse<StockPrice>>;
 }
 
+export interface StockConfigService {
+  getStockConfigs: () => Promise<ServiceResponse<StockConfig[]>>;
+  updateStockConfig: (config: StockConfig) => Promise<ServiceResponse<StockConfig>>;
+  deleteStockConfig: (stockCode: string) => Promise<ServiceResponse<void>>;
+}
+
 export interface AuthService {
   getUser: () => Promise<ServiceResponse<{ user: User | null }>>;
   signIn: () => Promise<ServiceResponse<{ user: User }>>;
@@ -119,6 +129,7 @@ export interface Services {
   authService: AuthService;
   tradeService: TradeService;
   stockService: StockService;
+  stockConfigService: StockConfigService;
   portfolioService: PortfolioService;
   currencyService: CurrencyService;
   operationService: OperationService;

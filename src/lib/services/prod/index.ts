@@ -1,4 +1,4 @@
-import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, OperationService } from '../types';
+import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, OperationService, StockConfigService, StockConfig } from '../types';
 import type { Trade } from '../types';
 
 export const authService: AuthService = {
@@ -133,6 +133,61 @@ export const stockService: StockService = {
     } catch (error) {
       console.error('Error fetching current price:', error);
       return { data: null, error: error as Error };
+    }
+  }
+};
+
+export const stockConfigService: StockConfigService = {
+  getStockConfigs: async () => {
+    try {
+      const response = await fetch('/api/stock-configs');
+      if (!response.ok) {
+        throw new Error('Failed to fetch stock configs');
+      }
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error fetching stock configs:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  updateStockConfig: async (config: StockConfig) => {
+    try {
+      const response = await fetch('/api/stock-configs', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(config)
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update stock config');
+      }
+      
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error updating stock config:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  deleteStockConfig: async (stockCode: string) => {
+    try {
+      const response = await fetch(`/api/stock-configs/${stockCode}`, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete stock config');
+      }
+      
+      return { error: null };
+    } catch (error) {
+      console.error('Error deleting stock config:', error);
+      return { error: error as Error };
     }
   }
 };
