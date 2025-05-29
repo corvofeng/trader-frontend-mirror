@@ -347,7 +347,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         nodeClick: 'zoomToNode',
         breadcrumb: {
           show: true,
-          height: 30,
+          height: 20,
           top: 'bottom',
           itemStyle: {
             color: isDark ? '#374151' : '#f3f4f6',
