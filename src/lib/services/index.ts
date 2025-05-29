@@ -1,4 +1,4 @@
-import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, OperationService, StockConfigService } from './types';
+import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService } from './types';
 import * as mockServices from './mock';
 import * as prodServices from './prod';
 
