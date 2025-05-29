@@ -165,7 +165,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         profitLossPercentage: stats.profitLossPercentage,
         itemStyle: {
           color: groupColor,
-          borderWidth: 4,
+          borderWidth: 1,
           borderRadius: 8,
           borderColor: isDark ? '#4b5563' : '#e5e7eb',
           shadowBlur: 10,
