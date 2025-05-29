@@ -2,54 +2,6 @@ import { mockUser, mockHoldings, tradeIdCounter, MOCK_STOCKS, MOCK_STOCK_CONFIGS
 import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, StockData, StockPrice, Operation, OperationService, TrendData, StockConfigService, StockConfig } from '../types';
 import { format, subDays, addMinutes, startOfDay, endOfDay, parseISO } from 'date-fns';
 
-function generateDemoStockData(): StockData[] {
-  const data: StockData[] = [];
-  const basePrice = 150;
-  const now = new Date();
-  let currentPrice = basePrice;
-  
-  // Generate historical data (1 year)
-  for (let i = 365; i >= 0; i--) {
-    const date = new Date(now);
-    date.setDate(date.getDate() - i);
-    
-    // More realistic price movement with trends
-    const trend = Math.sin(i / 30) * 0.3; // Cyclical trend
-    const dailyVolatility = 0.015; // 1.5% daily volatility
-    const priceChange = currentPrice * (dailyVolatility * (Math.random() - 0.5) + trend * 0.01);
-    
-    // Generate OHLC data with more realistic patterns
-    const open = currentPrice;
-    const range = currentPrice * 0.02; // 2% range
-    const high = Math.max(open, open + priceChange) + (range * Math.random());
-    const low = Math.min(open, open + priceChange) - (range * Math.random());
-    const close = open + priceChange;
-    
-    // Volume varies with price movement and time of week
-    const baseVolume = 2000000;
-    const volumeVariation = Math.abs(priceChange / currentPrice);
-    const dayOfWeek = date.getDay();
-    const weekdayFactor = (dayOfWeek > 0 && dayOfWeek < 6) ? 1 : 0.6; // Lower volume on weekends
-    const volume = Math.floor(baseVolume * weekdayFactor * (1 + volumeVariation * 3));
-
-    data.push({
-      date: date.toISOString().split('T')[0],
-      open,
-      high,
-      low,
-      close,
-      volume
-    });
-
-    currentPrice = close;
-  }
-
-  return data;
-}
-
-export const DEMO_STOCK_DATA: StockData[] = generateDemoStockData();
-export const mockTrades = generateMockTrades(DEMO_STOCK_DATA);
-
 export const authService: AuthService = {
   getUser: async () => {
     await new Promise(resolve => setTimeout(resolve, 500));

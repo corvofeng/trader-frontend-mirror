@@ -78,18 +78,18 @@ export interface StockPrice {
   price: number;
 }
 
+export interface StockConfigService {
+  getStockConfigs: () => Promise<ServiceResponse<StockConfig[]>>;
+  updateStockConfig: (config: StockConfig) => Promise<ServiceResponse<StockConfig>>;
+  deleteStockConfig: (stockCode: string) => Promise<ServiceResponse<void>>;
+}
+
 export interface StockService {
   getStockName: (stockCode: string) => string;
   getStocks: () => Promise<ServiceResponse<Stock[]>>;
   searchStocks: (query: string) => Promise<ServiceResponse<Stock[]>>;
   getStockData: (symbol: string) => Promise<ServiceResponse<StockData[]>>;
   getCurrentPrice: (symbol: string) => Promise<ServiceResponse<StockPrice>>;
-}
-
-export interface StockConfigService {
-  getStockConfigs: () => Promise<ServiceResponse<StockConfig[]>>;
-  updateStockConfig: (config: StockConfig) => Promise<ServiceResponse<StockConfig>>;
-  deleteStockConfig: (stockCode: string) => Promise<ServiceResponse<void>>;
 }
 
 export interface AuthService {
