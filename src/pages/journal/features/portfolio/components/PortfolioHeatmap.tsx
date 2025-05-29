@@ -302,7 +302,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
 
                   return [
                     `{titleStyle|${params.name}}`,
-                    `{nameStyle|${holding.stock_name}}`,
+                    `{nameStyle|${holding.stock_code}}`,
                     `{percentStyle|${percentageStr}}`,
                     `{valueStyle|${dailyPL}}`
                   ].join('\n');
