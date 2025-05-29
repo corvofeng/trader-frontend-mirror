@@ -170,7 +170,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
           shadowColor: isDark ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.1)'
         },
         label: {
-          show: true,
+          show: false,
           position: 'inside',
           formatter: (params: any) => {
             const stats = groups.get(params.name)!;
