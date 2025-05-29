@@ -292,6 +292,21 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
     });
 
     const option = {
+      title: {
+        text: 'Portfolio Performance Heatmap',
+        subtext: groupingDimension === 'category' ? 'Grouped by Sector' : 'Grouped by Tags',
+        left: '20',
+        top: '20',
+        textStyle: {
+          color: isDark ? '#e5e7eb' : '#111827',
+          fontSize: 16,
+          fontWeight: 'bold'
+        },
+        subtextStyle: {
+          color: isDark ? '#9ca3af' : '#6b7280',
+          fontSize: 12
+        }
+      },
       tooltip: {
         formatter: (params: any) => {
           if (!params || !params.name) return '';
