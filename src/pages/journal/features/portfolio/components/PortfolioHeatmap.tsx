@@ -166,7 +166,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
           borderWidth: 4,
           borderRadius: 8,
           borderColor: isDark ? '#4b5563' : '#e5e7eb',
-          shadowBlur: 10,
+          // shadowBlur: 10,
           shadowColor: isDark ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.1)'
         },
         label: {
