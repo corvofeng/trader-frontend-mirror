@@ -180,10 +180,10 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               .replace(/,(\d{3})/, 'K');
             
             return [
-              `${groupingDimension === 'category' ? 'SECTOR' : 'GROUP'}: ${params.name}`,
-              `${stats.profitLossPercentage >= 0 ? '▲' : '▼'} ${Math.abs(stats.profitLossPercentage).toFixed(2)}%`,
-              formattedValue,
-              `(${holdingsCount} holdings)`
+              // `${groupingDimension === 'category' ? 'SECTOR' : 'GROUP'}: ${params.name}`,
+              `${params.name} ${stats.profitLossPercentage >= 0 ? '▲' : '▼'} ${Math.abs(stats.profitLossPercentage).toFixed(2)}%`,
+              // formattedValue,
+              // `(${holdingsCount} holdings)`
             ].join('\n');
           },
           rich: {
