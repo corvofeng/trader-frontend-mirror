@@ -211,10 +211,14 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               .replace(/,(\d{3})+$/, 'M')
               .replace(/,(\d{3})/, 'K');
             
+            const dailyPL = stats.dailyProfitLoss >= 0 
+              ? `+${formatCurrency(stats.dailyProfitLoss, currencyConfig)}`
+              : formatCurrency(stats.dailyProfitLoss, currencyConfig);
+            
             return [
               `${params.name}`,
-              `${stats.dailyProfitLossPercentage >= 0 ? '▲' : '▼'} ${Math.abs(stats.dailyProfitLossPercentage).toFixed(2)}%`,
-              `${formatCurrency(stats.dailyProfitLoss, currencyConfig)}`,
+              `${stats.dailyProfitLossPercentage >= 0 ? '▲' : '▼'} ${stats.dailyProfitLossPercentage >= 0 ? '+' : ''}${stats.dailyProfitLossPercentage.toFixed(2)}%`,
+              dailyPL,
               `(${holdingsCount} holdings)`
             ].join('\n');
           },
@@ -275,14 +279,16 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
                 formatter: (params: any) => {
                   const value = formatCurrency(params.value, currencyConfig);
                   const percentage = holding.daily_profit_loss_percentage;
-                  const profitLoss = formatCurrency(holding.daily_profit_loss, currencyConfig);
+                  const dailyPL = holding.daily_profit_loss >= 0 
+                    ? `+${formatCurrency(holding.daily_profit_loss, currencyConfig)}`
+                    : formatCurrency(holding.daily_profit_loss, currencyConfig);
                   const percentageStr = `${percentage >= 0 ? '+' : ''}${percentage.toFixed(2)}%`;
                   
                   return [
                     `{titleStyle|${params.name}}`,
                     `{nameStyle|${holding.stock_name}}`,
                     `{percentStyle|${percentageStr}}`,
-                    `{valueStyle|${profitLoss}}`
+                    `{valueStyle|${dailyPL}}`
                   ].join('\n');
                 },
                 rich: {
@@ -329,7 +335,6 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
 
           const holding = holdings.find(h => h.stock_code === params.name);
           
-          
           // Group node tooltip
           if (!holding && params.data) {
             const { value, dailyProfitLoss, dailyProfitLossPercentage } = params.data;
@@ -341,7 +346,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               <div style="margin-top: 8px">
                 <div>Holdings: ${stats.holdings.length}</div>
                 <div>Total Value: ${formatCurrency(value, currencyConfig)}</div>
-                <div>Daily P/L: ${formatCurrency(dailyProfitLoss, currencyConfig)}</div>
+                <div>Daily P/L: ${dailyProfitLoss >= 0 ? '+' : ''}${formatCurrency(dailyProfitLoss, currencyConfig)}</div>
                 <div style="color: ${profitLossColor}; font-weight: 500">
                   Daily Return: ${dailyProfitLossPercentage >= 0 ? '+' : ''}${dailyProfitLossPercentage.toFixed(2)}%
                 </div>
@@ -362,7 +367,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               <div>${groupInfo}</div>
               <div>Current Price: ${formatCurrency(holding.current_price, currencyConfig)}</div>
               <div>Total Value: ${formatCurrency(holding.total_value, currencyConfig)}</div>
-              <div>Daily P/L: ${formatCurrency(holding.daily_profit_loss, currencyConfig)}</div>
+              <div>Daily P/L: ${holding.daily_profit_loss >= 0 ? '+' : ''}${formatCurrency(holding.daily_profit_loss, currencyConfig)}</div>
             </div>
             <div style="margin-top: 4px; color: ${holding.daily_profit_loss_percentage >= 0 ? '#34d399' : '#f87171'}">
               Daily Return: ${holding.daily_profit_loss_percentage >= 0 ? '+' : ''}${holding.daily_profit_loss_percentage.toFixed(2)}%
