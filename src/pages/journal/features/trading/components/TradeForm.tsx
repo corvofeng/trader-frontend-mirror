@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { PlusCircle } from 'lucide-react';
+import { PlusCircle, Settings } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { authService, tradeService } from '../../../../../lib/services';
 import { Theme, themes } from '../../../../../lib/theme';
@@ -7,6 +7,7 @@ import { useCurrency } from '../../../../../lib/context/CurrencyContext';
 import type { Stock } from '../../../../../lib/services/types';
 import { formatCurrency } from '../../../../../lib/types';
 import { StockChart } from './StockChart';
+import { StockConfigEditor } from './StockConfigEditor';
 
 interface TradeFormProps {
   selectedStock: Stock | null;
@@ -20,6 +21,7 @@ export function TradeForm({ selectedStock, theme }: TradeFormProps) {
   const [targetPrice, setTargetPrice] = useState('');
   const [quantity, setQuantity] = useState('');
   const [notes, setNotes] = useState('');
+  const [showConfigEditor, setShowConfigEditor] = useState(false);
   const { currencyConfig } = useCurrency();
 
   useEffect(() => {
@@ -77,102 +79,122 @@ export function TradeForm({ selectedStock, theme }: TradeFormProps) {
     <div className="space-y-6">
       <StockChart stockCode={selectedStock?.stock_code} theme={theme} />
       
-      <form onSubmit={handleSubmit} className={`${themes[theme].card} p-6 rounded-lg shadow-md transition-colors duration-200`}>
-        <h2 className={`text-2xl font-bold mb-6 ${themes[theme].text}`}>Add New Trade Plan</h2>
-        
-        <div className="grid gap-4">
-          <div>
-            <label className={`block text-sm font-medium ${themes[theme].text}`}>Stock Code</label>
-            <input
-              type="text"
-              value={stockCode}
-              onChange={(e) => setStockCode(e.target.value)}
-              className={inputClasses}
-              placeholder="AAPL"
-              required
-              readOnly={!!selectedStock}
-            />
-            <div className="mt-2">
-              <label className={`block text-sm font-medium ${themes[theme].text}`}>Stock Name</label>
+      {showConfigEditor && selectedStock ? (
+        <StockConfigEditor
+          stockCode={selectedStock.stock_code}
+          theme={theme}
+          onClose={() => setShowConfigEditor(false)}
+        />
+      ) : (
+        <form onSubmit={handleSubmit} className={`${themes[theme].card} p-6 rounded-lg shadow-md transition-colors duration-200`}>
+          <div className="flex justify-between items-center mb-6">
+            <h2 className={`text-2xl font-bold ${themes[theme].text}`}>Add New Trade Plan</h2>
+            {selectedStock && (
+              <button
+                type="button"
+                onClick={() => setShowConfigEditor(true)}
+                className={`inline-flex items-center px-3 py-2 rounded-md ${themes[theme].secondary}`}
+              >
+                <Settings className="w-5 h-5 mr-2" />
+                Configure Stock
+              </button>
+            )}
+          </div>
+          
+          <div className="grid gap-4">
+            <div>
+              <label className={`block text-sm font-medium ${themes[theme].text}`}>Stock Code</label>
               <input
                 type="text"
-                value={stockName}
-                onChange={(e) => setStockName(e.target.value)}
+                value={stockCode}
+                onChange={(e) => setStockCode(e.target.value)}
                 className={inputClasses}
-                placeholder="Enter stock name"
+                placeholder="AAPL"
                 required
+                readOnly={!!selectedStock}
               />
+              <div className="mt-2">
+                <label className={`block text-sm font-medium ${themes[theme].text}`}>Stock Name</label>
+                <input
+                  type="text"
+                  value={stockName}
+                  onChange={(e) => setStockName(e.target.value)}
+                  className={inputClasses}
+                  placeholder="Enter stock name"
+                  required
+                />
+              </div>
             </div>
-          </div>
 
-          <div>
-            <label className={`block text-sm font-medium ${themes[theme].text}`}>Operation</label>
-            <select
-              value={operation}
-              onChange={(e) => setOperation(e.target.value as 'buy' | 'sell')}
-              className={inputClasses}
-            >
-              <option value="buy">Buy</option>
-              <option value="sell">Sell</option>
-            </select>
-          </div>
+            <div>
+              <label className={`block text-sm font-medium ${themes[theme].text}`}>Operation</label>
+              <select
+                value={operation}
+                onChange={(e) => setOperation(e.target.value as 'buy' | 'sell')}
+                className={inputClasses}
+              >
+                <option value="buy">Buy</option>
+                <option value="sell">Sell</option>
+              </select>
+            </div>
 
-          <div>
-            <label className={`block text-sm font-medium ${themes[theme].text}`}>Target Price</label>
-            <div className="relative">
+            <div>
+              <label className={`block text-sm font-medium ${themes[theme].text}`}>Target Price</label>
+              <div className="relative">
+                <input
+                  type="number"
+                  value={targetPrice}
+                  onChange={(e) => setTargetPrice(e.target.value)}
+                  className={`${inputClasses} pl-8`}
+                  step="0.01"
+                  required
+                />
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                  {currencyConfig.symbol}
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <label className={`block text-sm font-medium ${themes[theme].text}`}>Quantity</label>
               <input
                 type="number"
-                value={targetPrice}
-                onChange={(e) => setTargetPrice(e.target.value)}
-                className={`${inputClasses} pl-8`}
-                step="0.01"
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                className={inputClasses}
                 required
               />
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
-                {currencyConfig.symbol}
-              </span>
             </div>
-          </div>
 
-          <div>
-            <label className={`block text-sm font-medium ${themes[theme].text}`}>Quantity</label>
-            <input
-              type="number"
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              className={inputClasses}
-              required
-            />
-          </div>
+            {targetPrice && quantity && (
+              <div>
+                <label className={`block text-sm font-medium ${themes[theme].text}`}>Total Value</label>
+                <p className={`text-lg font-medium ${themes[theme].text}`}>
+                  {formatCurrency(totalValue, currencyConfig)}
+                </p>
+              </div>
+            )}
 
-          {targetPrice && quantity && (
             <div>
-              <label className={`block text-sm font-medium ${themes[theme].text}`}>Total Value</label>
-              <p className={`text-lg font-medium ${themes[theme].text}`}>
-                {formatCurrency(totalValue, currencyConfig)}
-              </p>
+              <label className={`block text-sm font-medium ${themes[theme].text}`}>Notes</label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className={inputClasses}
+                rows={3}
+              />
             </div>
-          )}
 
-          <div>
-            <label className={`block text-sm font-medium ${themes[theme].text}`}>Notes</label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className={inputClasses}
-              rows={3}
-            />
+            <button
+              type="submit"
+              className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md ${themes[theme].primary} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
+            >
+              <PlusCircle className="w-5 h-5 mr-2" />
+              Add Trade Plan
+            </button>
           </div>
-
-          <button
-            type="submit"
-            className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md ${themes[theme].primary} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
-          >
-            <PlusCircle className="w-5 h-5 mr-2" />
-            Add Trade Plan
-          </button>
-        </div>
-      </form>
+        </form>
+      )}
     </div>
   );
 }
