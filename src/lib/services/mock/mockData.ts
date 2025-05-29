@@ -63,18 +63,6 @@ export const MOCK_STOCKS = [
   }
 ];
 
-// Add the missing DEMO_STOCK_DATA export
-export const DEMO_STOCK_DATA = MOCK_STOCKS.map(stock => ({
-  ...stock,
-  current_price: Math.floor(Math.random() * 900) + 100, // Random price between 100 and 1000
-  daily_change: (Math.random() * 10 - 5).toFixed(2), // Random change between -5 and +5
-  daily_volume: Math.floor(Math.random() * 1000000), // Random volume up to 1M
-  market_cap: Math.floor(Math.random() * 1000) + 'B', // Random market cap in billions
-  pe_ratio: (Math.random() * 30 + 10).toFixed(2), // Random P/E ratio between 10 and 40
-  dividend_yield: (Math.random() * 5).toFixed(2), // Random dividend yield between 0 and 5
-  last_updated: new Date().toISOString()
-}));
-
 export const MOCK_STOCK_CONFIGS: StockConfig[] = [
   { 
     stock_code: 'AAPL',
