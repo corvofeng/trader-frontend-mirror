@@ -367,10 +367,10 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               <div>${groupInfo}</div>
               <div>Current Price: ${formatCurrency(holding.current_price, currencyConfig)}</div>
               <div>Total Value: ${formatCurrency(holding.total_value, currencyConfig)}</div>
-              <div>Daily P/L: ${holding.daily_profit_loss >= 0 ? '+' : ''}${formatCurrency(holding.daily_profit_loss, currencyConfig)}</div>
+              <div>Daily P/L: ${holding.daily_profit_loss >= 0 ? '+' : 'xxx'}${formatCurrency(holding.daily_profit_loss, currencyConfig)}</div>
             </div>
             <div style="margin-top: 4px; color: ${holding.daily_profit_loss_percentage >= 0 ? '#34d399' : '#f87171'}">
-              Daily Return: ${holding.daily_profit_loss_percentage >= 0 ? '+' : ''}${holding.daily_profit_loss_percentage.toFixed(2)}%
+              Daily Return: ${holding.daily_profit_loss_percentage >= 0 ? '+' : 'xxx'}${holding.daily_profit_loss_percentage.toFixed(2)}%
             </div>
           `;
         }
