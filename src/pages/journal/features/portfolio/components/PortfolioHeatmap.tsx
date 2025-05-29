@@ -186,7 +186,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               // `(${holdingsCount} holdings)`
             ].join('\n');
           },
-          rich: {
+          rich2: {
             sectionStyle: {
               fontSize: 16,
               color: isDark ? '#9ca3af' : '#6b7280',
