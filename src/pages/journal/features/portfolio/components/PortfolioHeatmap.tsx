@@ -169,7 +169,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
           shadowBlur: 10,
           shadowColor: isDark ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.1)'
         },
-        label2: {
+        label: {
           show: true,
           position: 'inside',
           formatter: (params: any) => {
