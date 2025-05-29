@@ -282,7 +282,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
                   const dailyPL = holding.daily_profit_loss >= 0 
                     ? `+${formatCurrency(holding.daily_profit_loss, currencyConfig)}`
                     : formatCurrency(holding.daily_profit_loss, currencyConfig);
-                  const percentageStr = `${percentage >= 0 ? '+' : '-'}${percentage.toFixed(2)}%`;
+                  const percentageStr = `${percentage >= 0 ? '+' : ''}${percentage.toFixed(2)}%`;
                   
                   return [
                     `{titleStyle|${params.name}}`,
@@ -346,7 +346,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               <div style="margin-top: 8px">
                 <div>Holdings: ${stats.holdings.length}</div>
                 <div>Total Value: ${formatCurrency(value, currencyConfig)}</div>
-                <div>Daily P/L: ${dailyProfitLoss >= 0 ? '+' : ''}${formatCurrency(dailyProfitLoss, currencyConfig)}</div>
+                <div>Daily P/L: ${dailyProfitLoss >= 0 ? '+' : '-'}${formatCurrency(dailyProfitLoss, currencyConfig)}</div>
                 <div style="color: ${profitLossColor}; font-weight: 500">
                   Daily Return: ${dailyProfitLossPercentage >= 0 ? '+' : ''}${dailyProfitLossPercentage.toFixed(2)}%
                 </div>
