@@ -120,8 +120,6 @@ export const mockHoldings = [
   {
     stock_code: 'AAPL',
     stock_name: 'Apple Inc.',
-    category: STOCK_CATEGORIES.TECH,
-    tags: ['Consumer Electronics', 'Software', 'Services'],
     quantity: 150,
     average_price: 150.00,
     current_price: 175.00,
@@ -133,8 +131,6 @@ export const mockHoldings = [
   {
     stock_code: 'GOOGL',
     stock_name: 'Alphabet Inc.',
-    category: STOCK_CATEGORIES.TECH,
-    tags: ['Internet Services', 'Software', 'AI'],
     quantity: 50,
     average_price: 2800.00,
     current_price: 2900.00,
@@ -146,8 +142,6 @@ export const mockHoldings = [
   {
     stock_code: 'MSFT',
     stock_name: 'Microsoft Corporation',
-    category: STOCK_CATEGORIES.TECH,
-    tags: ['Software', 'Cloud Computing', 'Enterprise'],
     quantity: 100,
     average_price: 300.00,
     current_price: 320.00,
@@ -159,8 +153,6 @@ export const mockHoldings = [
   {
     stock_code: 'TSLA',
     stock_name: 'Tesla Inc.',
-    category: STOCK_CATEGORIES.CONSUMER,
-    tags: ['Electric Vehicles', 'Energy', 'Technology'],
     quantity: 75,
     average_price: 250.00,
     current_price: 240.00,
@@ -172,8 +164,6 @@ export const mockHoldings = [
   {
     stock_code: 'NVDA',
     stock_name: 'NVIDIA Corporation',
-    category: STOCK_CATEGORIES.TECH,
-    tags: ['Semiconductors', 'AI', 'Gaming'],
     quantity: 80,
     average_price: 400.00,
     current_price: 450.00,
@@ -185,8 +175,6 @@ export const mockHoldings = [
   {
     stock_code: 'JPM',
     stock_name: 'JPMorgan Chase & Co.',
-    category: STOCK_CATEGORIES.FINANCE,
-    tags: ['Banking', 'Investment Services', 'Financial Technology'],
     quantity: 120,
     average_price: 140.00,
     current_price: 135.00,
@@ -198,8 +186,6 @@ export const mockHoldings = [
   {
     stock_code: 'JNJ',
     stock_name: 'Johnson & Johnson',
-    category: STOCK_CATEGORIES.HEALTHCARE,
-    tags: ['Pharmaceuticals', 'Medical Devices', 'Consumer Health'],
     quantity: 90,
     average_price: 160.00,
     current_price: 165.00,
