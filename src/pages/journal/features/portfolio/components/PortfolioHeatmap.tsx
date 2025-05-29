@@ -97,9 +97,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
       chartInstance.current.dispose();
     }
 
-    const chart = echarts.init(chartRef.current, {
-      useDirtyRect: true
-    });
+    const chart = echarts.init(chartRef.current);
     chartInstance.current = chart;
 
     const isDark = theme === 'dark';
@@ -292,21 +290,6 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
     });
 
     const option = {
-      title: {
-        text: 'Portfolio Performance Heatmap',
-        subtext: groupingDimension === 'category' ? 'Grouped by Sector' : 'Grouped by Tags',
-        left: '20',
-        top: '20',
-        textStyle: {
-          color: isDark ? '#e5e7eb' : '#111827',
-          fontSize: 16,
-          fontWeight: 'bold'
-        },
-        subtextStyle: {
-          color: isDark ? '#9ca3af' : '#6b7280',
-          fontSize: 12
-        }
-      },
       tooltip: {
         formatter: (params: any) => {
           if (!params || !params.name) return '';
@@ -391,7 +374,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               borderColor: isDark ? '#60a5fa' : '#3b82f6',
               borderWidth: 4
             }
-          },
+          }
         }],
         label: {
           show: true,
