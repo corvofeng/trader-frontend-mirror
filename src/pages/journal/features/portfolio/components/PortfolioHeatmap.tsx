@@ -25,30 +25,27 @@ interface GroupStats {
 }
 
 function getColorByPercentage(percentage: number, isDark: boolean): string {
-  // Define base colors for different percentage ranges
   const colors = {
     positive: {
-      strong: isDark ? '#059669' : '#10b981', // Strong gain
-      medium: isDark ? '#34d399' : '#6ee7b7', // Medium gain
-      weak: isDark ? '#6ee7b7' : '#a7f3d0',   // Weak gain
+      strong: isDark ? '#059669' : '#10b981',
+      medium: isDark ? '#34d399' : '#6ee7b7',
+      weak: isDark ? '#6ee7b7' : '#a7f3d0',
     },
     negative: {
-      strong: isDark ? '#dc2626' : '#ef4444', // Strong loss
-      medium: isDark ? '#f87171' : '#fca5a5', // Medium loss
-      weak: isDark ? '#fca5a5' : '#fee2e2',   // Weak loss
+      strong: isDark ? '#dc2626' : '#ef4444',
+      medium: isDark ? '#f87171' : '#fca5a5',
+      weak: isDark ? '#fca5a5' : '#fee2e2',
     },
-    neutral: isDark ? '#374151' : '#f3f4f6'    // Near zero
+    neutral: isDark ? '#374151' : '#f3f4f6'
   };
 
-  // Define percentage thresholds
   const thresholds = {
-    strong: 2.5,   // ±2.5% or more
-    medium: 1.5,   // ±1.5% to 2.5%
-    weak: 0.5,     // ±0.5% to 1.5%
-    neutral: 0.5   // Between -0.5% and 0.5%
+    strong: 2.5,
+    medium: 1.5,
+    weak: 0.5,
+    neutral: 0.5
   };
 
-  // Calculate opacity based on absolute percentage
   const getOpacity = (value: number): number => {
     const absValue = Math.abs(value);
     if (absValue >= thresholds.strong) return 0.9;
@@ -57,7 +54,6 @@ function getColorByPercentage(percentage: number, isDark: boolean): string {
     return 0.3;
   };
 
-  // Get base color
   let baseColor: string;
   const absPercentage = Math.abs(percentage);
 
@@ -73,7 +69,6 @@ function getColorByPercentage(percentage: number, isDark: boolean): string {
     else baseColor = colors.negative.weak;
   }
 
-  // Convert hex to rgba
   const opacity = getOpacity(percentage);
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(baseColor);
   if (!result) return baseColor;
@@ -94,6 +89,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
   const [selectedPath, setSelectedPath] = useState<string[]>([]);
   const [stockConfigs, setStockConfigs] = useState<StockConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const isMobile = window.innerWidth < 768;
 
   useEffect(() => {
     const fetchStockConfigs = async () => {
@@ -125,7 +121,6 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
 
     const isDark = theme === 'dark';
 
-    // Group holdings and calculate stats
     const groups = new Map<string, GroupStats>();
     
     if (groupingDimension === 'category') {
@@ -172,19 +167,16 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
       });
     }
 
-    // Calculate percentages for groups
     groups.forEach(stats => {
       const costBasis = stats.totalValue - stats.profitLoss;
       stats.profitLossPercentage = (stats.profitLoss / costBasis) * 100;
       stats.dailyProfitLossPercentage = (stats.dailyProfitLoss / stats.totalValue) * 100;
     });
 
-    // Sort groups by daily profit/loss percentage for visual comparison
     const sortedGroups = Array.from(groups.entries()).sort((a, b) => 
       b[1].dailyProfitLossPercentage - a[1].dailyProfitLossPercentage
     );
 
-    // Prepare treemap data
     const data = sortedGroups.map(([groupName, stats]) => {
       const groupColor = getColorByPercentage(stats.dailyProfitLossPercentage, isDark);
 
@@ -214,6 +206,14 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
             const dailyPL = stats.dailyProfitLoss >= 0 
               ? `+${formatCurrency(stats.dailyProfitLoss, currencyConfig)}`
               : formatCurrency(stats.dailyProfitLoss, currencyConfig);
+
+            if (isMobile) {
+              return [
+                `${params.name}`,
+                `${stats.dailyProfitLossPercentage >= 0 ? '+' : ''}${stats.dailyProfitLossPercentage.toFixed(1)}%`,
+                `${holdingsCount}`
+              ].join('\n');
+            }
             
             return [
               `${params.name}`,
@@ -224,34 +224,34 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
           },
           rich: {
             sectionStyle: {
-              fontSize: 16,
+              fontSize: isMobile ? 10 : 16,
               color: isDark ? '#9ca3af' : '#6b7280',
-              padding: [0, 0, 8, 0],
+              padding: [0, 0, isMobile ? 4 : 8, 0],
               align: 'center',
               width: '100%'
             },
             titleStyle: {
-              fontSize: 24,
+              fontSize: isMobile ? 12 : 24,
               fontWeight: 'bold',
               color: isDark ? '#e5e7eb' : '#111827',
-              padding: [0, 0, 12, 0],
+              padding: [0, 0, isMobile ? 6 : 12, 0],
               align: 'center',
               width: '100%',
-              lineHeight: 32
+              lineHeight: isMobile ? 16 : 32
             },
             percentStyle: {
-              fontSize: 20,
+              fontSize: isMobile ? 11 : 20,
               fontWeight: 'bold',
               color: (params: any) => {
                 const stats = groups.get(params.name)!;
                 return stats.dailyProfitLossPercentage >= 0 ? '#34d399' : '#f87171';
               },
-              padding: [0, 0, 8, 0],
+              padding: [0, 0, isMobile ? 4 : 8, 0],
               align: 'center',
               width: '100%'
             },
             valueStyle: {
-              fontSize: 16,
+              fontSize: isMobile ? 10 : 16,
               color: isDark ? '#9ca3af' : '#6b7280',
               align: 'center',
               width: '100%'
@@ -281,9 +281,16 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
                   const percentage = holding.daily_profit_loss_percentage;
                   const dailyPL = holding.daily_profit_loss >= 0 
                     ? `+${formatCurrency(holding.daily_profit_loss, currencyConfig)}`
-                    : `-${formatCurrency(holding.daily_profit_loss, currencyConfig)}`;
+                    : formatCurrency(holding.daily_profit_loss, currencyConfig);
                   const percentageStr = `${percentage >= 0 ? '+' : ''}${percentage.toFixed(2)}%`;
                   
+                  if (isMobile) {
+                    return [
+                      `${params.name}`,
+                      `${percentageStr}`,
+                    ].join('\n');
+                  }
+
                   return [
                     `{titleStyle|${params.name}}`,
                     `{nameStyle|${holding.stock_name}}`,
@@ -293,30 +300,30 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
                 },
                 rich: {
                   titleStyle: {
-                    fontSize: 16,
+                    fontSize: isMobile ? 11 : 16,
                     fontWeight: 'bold',
                     color: isDark ? '#e5e7eb' : '#111827',
-                    padding: [0, 0, 8, 0],
+                    padding: [0, 0, isMobile ? 4 : 8, 0],
                     align: 'center',
                     width: '100%'
                   },
                   nameStyle: {
-                    fontSize: 14,
+                    fontSize: isMobile ? 10 : 14,
                     color: isDark ? '#9ca3af' : '#6b7280',
-                    padding: [0, 0, 8, 0],
+                    padding: [0, 0, isMobile ? 4 : 8, 0],
                     align: 'center',
                     width: '100%'
                   },
                   percentStyle: {
-                    fontSize: 14,
+                    fontSize: isMobile ? 10 : 14,
                     fontWeight: 'bold',
                     color: holding.daily_profit_loss_percentage >= 0 ? '#34d399' : '#f87171',
-                    padding: [0, 0, 8, 0],
+                    padding: [0, 0, isMobile ? 4 : 8, 0],
                     align: 'center',
                     width: '100%'
                   },
                   valueStyle: {
-                    fontSize: 14,
+                    fontSize: isMobile ? 9 : 14,
                     color: isDark ? '#9ca3af' : '#6b7280',
                     align: 'center',
                     width: '100%'
@@ -335,18 +342,17 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
 
           const holding = holdings.find(h => h.stock_code === params.name);
           
-          // Group node tooltip
           if (!holding && params.data) {
             const { value, dailyProfitLoss, dailyProfitLossPercentage } = params.data;
             const profitLossColor = dailyProfitLossPercentage >= 0 ? '#34d399' : '#f87171';
             const stats = groups.get(params.name)!;
             
             return `
-              <div style="font-weight: 500; font-size: 16px">${groupingDimension === 'category' ? 'Category' : 'Tag'}: ${params.name}</div>
+              <div style="font-weight: 500; font-size: ${isMobile ? '14px' : '16px'}">${groupingDimension === 'category' ? 'Category' : 'Tag'}: ${params.name}</div>
               <div style="margin-top: 8px">
                 <div>Holdings: ${stats.holdings.length}</div>
                 <div>Total Value: ${formatCurrency(value, currencyConfig)}</div>
-                <div>Daily P/L: ${dailyProfitLoss >= 0 ? '+' : '-'}${formatCurrency(dailyProfitLoss, currencyConfig)}</div>
+                <div>Daily P/L: ${dailyProfitLoss >= 0 ? '+' : '-'}${formatCurrency(Math.abs(dailyProfitLoss), currencyConfig)}</div>
                 <div style="color: ${profitLossColor}; font-weight: 500">
                   Daily Return: ${dailyProfitLossPercentage >= 0 ? '+' : ''}${dailyProfitLossPercentage.toFixed(2)}%
                 </div>
@@ -384,7 +390,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         nodeClick: 'zoomToNode',
         breadcrumb: {
           show: true,
-          height: 30,
+          height: isMobile ? 24 : 30,
           top: 'bottom',
           itemStyle: {
             color: isDark ? '#374151' : '#f3f4f6',
@@ -392,7 +398,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
             textStyle: {
               color: isDark ? '#e5e7eb' : '#111827',
               fontWeight: 'bold',
-              fontSize: 14
+              fontSize: isMobile ? 12 : 14
             }
           },
           emphasis: {
@@ -405,7 +411,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
           itemStyle: {
             borderColor: isDark ? '#374151' : '#e5e7eb',
             borderWidth: 4,
-            gapWidth: 8,
+            gapWidth: isMobile ? 4 : 8,
             borderRadius: 8
           },
           emphasis: {
@@ -421,7 +427,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         },
         upperLabel: {
           show: true,
-          height: 40,
+          height: isMobile ? 30 : 40,
           color: isDark ? '#e5e7eb' : '#111827'
         }
       }]
@@ -429,14 +435,12 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
 
     chart.setOption(option);
 
-    // Handle drill down events
     chart.on('click', (params: any) => {
       if (params.data && params.data.children) {
         setSelectedPath(prev => [...prev, params.name]);
       }
     });
 
-    // Handle breadcrumb navigation
     chart.on('treeMapRootToNode', (params: any) => {
       if (params.targetNode && params.targetNode.path) {
         const path = params.targetNode.path.slice(1);
@@ -458,11 +462,11 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         chartInstance.current.dispose();
       }
     };
-  }, [holdings, theme, currencyConfig, groupingDimension, stockConfigs, isLoading]);
+  }, [holdings, theme, currencyConfig, groupingDimension, stockConfigs, isLoading, isMobile]);
 
   return (
     <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <div className="flex flex-col gap-4">
           <div className="flex justify-between items-center">
             <h2 className={`text-lg font-semibold ${themes[theme].text}`}>
@@ -473,7 +477,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               <select
                 value={groupingDimension}
                 onChange={(e) => setGroupingDimension(e.target.value as GroupingDimension)}
-                className={`px-3 py-1.5 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
+                className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
               >
                 <option value="category">Group by Category</option>
                 <option value="tags">Group by Tags</option>
@@ -483,11 +487,11 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         </div>
 
         {isLoading ? (
-          <div className="h-[600px] flex items-center justify-center">
+          <div className="h-[400px] sm:h-[600px] flex items-center justify-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
           </div>
         ) : (
-          <div ref={chartRef} style={{ height: '600px' }} className="mt-4" />
+          <div ref={chartRef} style={{ height: isMobile ? '400px' : '600px' }} className="mt-4" />
         )}
       </div>
     </div>
