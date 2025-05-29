@@ -97,7 +97,9 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
       chartInstance.current.dispose();
     }
 
-    const chart = echarts.init(chartRef.current);
+    const chart = echarts.init(chartRef.current, {
+      useDirtyRect: true
+    });
     chartInstance.current = chart;
 
     const isDark = theme === 'dark';
