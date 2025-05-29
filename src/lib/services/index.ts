@@ -13,5 +13,6 @@ export const {
   stockService, 
   portfolioService,
   currencyService,
-  operationService 
+  operationService,
+  stockConfigService 
 } = services;
