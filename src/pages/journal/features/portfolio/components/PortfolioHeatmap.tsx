@@ -273,7 +273,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
             const color = getColorByPercentage(holding.daily_profit_loss_percentage, isDark);
 
             return {
-              name: holding.stock_code,
+              name: holding.stock_name,
               value: holding.total_value,
               dailyProfitLoss: holding.daily_profit_loss,
               dailyProfitLossPercentage: holding.daily_profit_loss_percentage,
