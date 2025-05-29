@@ -91,64 +91,6 @@ function getColorByPercentage(percentage: number, isDark: boolean): string {
   return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${opacity})`;
 }
 
-function getColorByPercentageOld(percentage: number, isDark: boolean): string {
-  const colors = {
-    positive: {
-      strong: isDark ? '#059669' : '#10b981',
-      medium: isDark ? '#34d399' : '#6ee7b7',
-      weak: isDark ? '#6ee7b7' : '#a7f3d0',
-    },
-    negative: {
-      strong: isDark ? '#dc2626' : '#ef4444',
-      medium: isDark ? '#f87171' : '#fca5a5',
-      weak: isDark ? '#fca5a5' : '#fee2e2',
-    },
-    neutral: isDark ? '#374151' : '#f3f4f6'
-  };
-
-  const thresholds = {
-    strong: 2.5,
-    medium: 1.5,
-    weak: 0.5,
-    neutral: 0.5
-  };
-
-  const getOpacity = (value: number): number => {
-    const absValue = Math.abs(value);
-    if (absValue >= thresholds.strong) return 0.9;
-    if (absValue >= thresholds.medium) return 0.7;
-    if (absValue >= thresholds.weak) return 0.5;
-    return 0.3;
-  };
-
-  let baseColor: string;
-  const absPercentage = Math.abs(percentage);
-
-  if (absPercentage < thresholds.neutral) {
-    return colors.neutral;
-  } else if (percentage > 0) {
-    if (absPercentage >= thresholds.strong) baseColor = colors.positive.strong;
-    else if (absPercentage >= thresholds.medium) baseColor = colors.positive.medium;
-    else baseColor = colors.positive.weak;
-  } else {
-    if (absPercentage >= thresholds.strong) baseColor = colors.negative.strong;
-    else if (absPercentage >= thresholds.medium) baseColor = colors.negative.medium;
-    else baseColor = colors.negative.weak;
-  }
-
-  const opacity = getOpacity(percentage);
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(baseColor);
-  if (!result) return baseColor;
-  
-  const rgb = {
-    r: parseInt(result[1], 16),
-    g: parseInt(result[2], 16),
-    b: parseInt(result[3], 16)
-  };
-
-  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${opacity})`;
-}
-
 export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioHeatmapProps) {
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<echarts.ECharts | null>(null);
