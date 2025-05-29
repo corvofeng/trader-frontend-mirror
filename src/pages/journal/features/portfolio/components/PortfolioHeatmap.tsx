@@ -341,7 +341,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
       series: [{
         type: 'treemap',
         data: data,
-        width: '100%',
+        width: '80%',
         height: '100%',
         roam: false,
         nodeClick: 'zoomToNode',
