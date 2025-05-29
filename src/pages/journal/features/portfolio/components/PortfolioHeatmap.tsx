@@ -2,9 +2,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as echarts from 'echarts';
 import { Filter, X } from 'lucide-react';
 import { Theme, themes } from '../../../../../lib/theme';
-import type { Holding } from '../../../../../lib/services/types';
+import type { Holding, StockConfig } from '../../../../../lib/services/types';
 import { formatCurrency } from '../../../../../lib/types';
 import type { CurrencyConfig } from '../../../../../lib/types';
+import { stockConfigService } from '../../../../../lib/services';
 
 interface PortfolioHeatmapProps {
   holdings: Holding[];
@@ -89,9 +90,29 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
   const chartInstance = useRef<echarts.ECharts | null>(null);
   const [groupingDimension, setGroupingDimension] = useState<GroupingDimension>('category');
   const [selectedPath, setSelectedPath] = useState<string[]>([]);
+  const [stockConfigs, setStockConfigs] = useState<StockConfig[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!chartRef.current || holdings.length === 0) return;
+    const fetchStockConfigs = async () => {
+      try {
+        const { data, error } = await stockConfigService.getStockConfigs();
+        if (error) throw error;
+        if (data) {
+          setStockConfigs(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch stock configs:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchStockConfigs();
+  }, []);
+
+  useEffect(() => {
+    if (!chartRef.current || holdings.length === 0 || isLoading) return;
 
     if (chartInstance.current) {
       chartInstance.current.dispose();
@@ -107,7 +128,8 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
     
     if (groupingDimension === 'category') {
       holdings.forEach(holding => {
-        const category = holding.category || 'Other';
+        const config = stockConfigs.find(c => c.stock_code === holding.stock_code);
+        const category = config?.category || 'Other';
         if (!groups.has(category)) {
           groups.set(category, {
             totalValue: 0,
@@ -123,7 +145,8 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
       });
     } else {
       holdings.forEach(holding => {
-        const tags = holding.tags || ['Untagged'];
+        const config = stockConfigs.find(c => c.stock_code === holding.stock_code);
+        const tags = config?.tags || ['Untagged'];
         tags.forEach(tag => {
           if (!groups.has(tag)) {
             groups.set(tag, {
@@ -180,10 +203,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               .replace(/,(\d{3})/, 'K');
             
             return [
-              // `${groupingDimension === 'category' ? 'SECTOR' : 'GROUP'}: ${params.name}`,
               `${params.name} ${stats.profitLossPercentage >= 0 ? '▲' : '▼'} ${Math.abs(stats.profitLossPercentage).toFixed(2)}%`,
-              // formattedValue,
-              // `(${holdingsCount} holdings)`
             ].join('\n');
           },
           rich: {
@@ -317,9 +337,10 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
           
           if (!holding) return '';
 
+          const config = stockConfigs.find(c => c.stock_code === holding.stock_code);
           const groupInfo = groupingDimension === 'category'
-            ? `Category: ${holding.category || 'Other'}`
-            : `Tags: ${holding.tags?.join(', ') || 'Untagged'}`;
+            ? `Category: ${config?.category || 'Other'}`
+            : `Tags: ${config?.tags?.join(', ') || 'Untagged'}`;
 
           return `
             <div style="font-weight: 500">${holding.stock_code} - ${holding.stock_name}</div>
@@ -419,7 +440,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         chartInstance.current.dispose();
       }
     };
-  }, [holdings, theme, currencyConfig, groupingDimension]);
+  }, [holdings, theme, currencyConfig, groupingDimension, stockConfigs, isLoading]);
 
   return (
     <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
@@ -443,7 +464,13 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
           </div>
         </div>
 
-        <div ref={chartRef} style={{ height: '600px' }} className="mt-4" />
+        {isLoading ? (
+          <div className="h-[600px] flex items-center justify-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+          </div>
+        ) : (
+          <div ref={chartRef} style={{ height: '600px' }} className="mt-4" />
+        )}
       </div>
     </div>
   );
