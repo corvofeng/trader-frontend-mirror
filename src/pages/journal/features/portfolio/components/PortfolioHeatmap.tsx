@@ -184,8 +184,8 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
             return [
               `${params.name}`,
               `${stats.profitLossPercentage >= 0 ? '▲' : '▼'} ${Math.abs(stats.profitLossPercentage).toFixed(2)}%`,
-              formattedValue,
-              `(${holdingsCount})`
+              // formattedValue,
+              // `(${holdingsCount})`
             ].join('\n');
           },
           rich: {
