@@ -19,6 +19,8 @@ interface GroupStats {
   totalValue: number;
   profitLoss: number;
   profitLossPercentage: number;
+  dailyProfitLoss: number;
+  dailyProfitLossPercentage: number;
   holdings: Holding[];
 }
 
@@ -40,10 +42,10 @@ function getColorByPercentage(percentage: number, isDark: boolean): string {
 
   // Define percentage thresholds
   const thresholds = {
-    strong: 10,   // ±10% or more
-    medium: 5,    // ±5% to 10%
-    weak: 2,      // ±2% to 5%
-    neutral: 2    // Between -2% and 2%
+    strong: 2.5,   // ±2.5% or more
+    medium: 1.5,   // ±1.5% to 2.5%
+    weak: 0.5,     // ±0.5% to 1.5%
+    neutral: 0.5   // Between -0.5% and 0.5%
   };
 
   // Calculate opacity based on absolute percentage
@@ -135,12 +137,15 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
             totalValue: 0,
             profitLoss: 0,
             profitLossPercentage: 0,
+            dailyProfitLoss: 0,
+            dailyProfitLossPercentage: 0,
             holdings: []
           });
         }
         const stats = groups.get(category)!;
         stats.totalValue += holding.total_value;
         stats.profitLoss += holding.profit_loss;
+        stats.dailyProfitLoss += holding.daily_profit_loss;
         stats.holdings.push(holding);
       });
     } else {
@@ -153,37 +158,41 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               totalValue: 0,
               profitLoss: 0,
               profitLossPercentage: 0,
+              dailyProfitLoss: 0,
+              dailyProfitLossPercentage: 0,
               holdings: []
             });
           }
           const stats = groups.get(tag)!;
           stats.totalValue += holding.total_value;
           stats.profitLoss += holding.profit_loss;
+          stats.dailyProfitLoss += holding.daily_profit_loss;
           stats.holdings.push(holding);
         });
       });
     }
 
-    // Calculate profit/loss percentages for groups
+    // Calculate percentages for groups
     groups.forEach(stats => {
       const costBasis = stats.totalValue - stats.profitLoss;
       stats.profitLossPercentage = (stats.profitLoss / costBasis) * 100;
+      stats.dailyProfitLossPercentage = (stats.dailyProfitLoss / stats.totalValue) * 100;
     });
 
-    // Sort groups by profit/loss percentage for visual comparison
+    // Sort groups by daily profit/loss percentage for visual comparison
     const sortedGroups = Array.from(groups.entries()).sort((a, b) => 
-      b[1].profitLossPercentage - a[1].profitLossPercentage
+      b[1].dailyProfitLossPercentage - a[1].dailyProfitLossPercentage
     );
 
     // Prepare treemap data
     const data = sortedGroups.map(([groupName, stats]) => {
-      const groupColor = getColorByPercentage(stats.profitLossPercentage, isDark);
+      const groupColor = getColorByPercentage(stats.dailyProfitLossPercentage, isDark);
 
       return {
         name: groupName,
         value: stats.totalValue,
-        profitLoss: stats.profitLoss,
-        profitLossPercentage: stats.profitLossPercentage,
+        dailyProfitLoss: stats.dailyProfitLoss,
+        dailyProfitLossPercentage: stats.dailyProfitLossPercentage,
         itemStyle: {
           color: groupColor,
           borderWidth: 4,
@@ -203,7 +212,10 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               .replace(/,(\d{3})/, 'K');
             
             return [
-              `${params.name} ${stats.profitLossPercentage >= 0 ? '▲' : '▼'} ${Math.abs(stats.profitLossPercentage).toFixed(2)}%`,
+              `${params.name}`,
+              `${stats.dailyProfitLossPercentage >= 0 ? '▲' : '▼'} ${Math.abs(stats.dailyProfitLossPercentage).toFixed(2)}%`,
+              `${formatCurrency(stats.dailyProfitLoss, currencyConfig)}`,
+              `(${holdingsCount} holdings)`
             ].join('\n');
           },
           rich: {
@@ -228,7 +240,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               fontWeight: 'bold',
               color: (params: any) => {
                 const stats = groups.get(params.name)!;
-                return stats.profitLossPercentage >= 0 ? '#34d399' : '#f87171';
+                return stats.dailyProfitLossPercentage >= 0 ? '#34d399' : '#f87171';
               },
               padding: [0, 0, 8, 0],
               align: 'center',
@@ -243,15 +255,15 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
           }
         },
         children: stats.holdings
-          .sort((a, b) => b.profit_loss_percentage - a.profit_loss_percentage)
+          .sort((a, b) => b.daily_profit_loss_percentage - a.daily_profit_loss_percentage)
           .map(holding => {
-            const color = getColorByPercentage(holding.profit_loss_percentage, isDark);
+            const color = getColorByPercentage(holding.daily_profit_loss_percentage, isDark);
 
             return {
               name: holding.stock_code,
               value: holding.total_value,
-              profitLoss: holding.profit_loss,
-              profitLossPercentage: holding.profit_loss_percentage,
+              dailyProfitLoss: holding.daily_profit_loss,
+              dailyProfitLossPercentage: holding.daily_profit_loss_percentage,
               itemStyle: {
                 color,
                 borderWidth: 1,
@@ -262,14 +274,15 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
                 position: 'inside',
                 formatter: (params: any) => {
                   const value = formatCurrency(params.value, currencyConfig);
-                  const percentage = holding.profit_loss_percentage;
+                  const percentage = holding.daily_profit_loss_percentage;
+                  const profitLoss = formatCurrency(holding.daily_profit_loss, currencyConfig);
                   const percentageStr = `${percentage >= 0 ? '+' : ''}${percentage.toFixed(2)}%`;
                   
                   return [
                     `{titleStyle|${params.name}}`,
                     `{nameStyle|${holding.stock_name}}`,
                     `{percentStyle|${percentageStr}}`,
-                    `{valueStyle|${value}}`
+                    `{valueStyle|${profitLoss}}`
                   ].join('\n');
                 },
                 rich: {
@@ -291,7 +304,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
                   percentStyle: {
                     fontSize: 14,
                     fontWeight: 'bold',
-                    color: holding.profit_loss_percentage >= 0 ? '#34d399' : '#f87171',
+                    color: holding.daily_profit_loss_percentage >= 0 ? '#34d399' : '#f87171',
                     padding: [0, 0, 8, 0],
                     align: 'center',
                     width: '100%'
@@ -316,10 +329,11 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
 
           const holding = holdings.find(h => h.stock_code === params.name);
           
+          
           // Group node tooltip
           if (!holding && params.data) {
-            const { value, profitLoss, profitLossPercentage } = params.data;
-            const profitLossColor = profitLossPercentage >= 0 ? '#34d399' : '#f87171';
+            const { value, dailyProfitLoss, dailyProfitLossPercentage } = params.data;
+            const profitLossColor = dailyProfitLossPercentage >= 0 ? '#34d399' : '#f87171';
             const stats = groups.get(params.name)!;
             
             return `
@@ -327,9 +341,9 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               <div style="margin-top: 8px">
                 <div>Holdings: ${stats.holdings.length}</div>
                 <div>Total Value: ${formatCurrency(value, currencyConfig)}</div>
-                <div>Profit/Loss: ${formatCurrency(profitLoss, currencyConfig)}</div>
+                <div>Daily P/L: ${formatCurrency(dailyProfitLoss, currencyConfig)}</div>
                 <div style="color: ${profitLossColor}; font-weight: 500">
-                  Return: ${profitLossPercentage >= 0 ? '+' : ''}${profitLossPercentage.toFixed(2)}%
+                  Daily Return: ${dailyProfitLossPercentage >= 0 ? '+' : ''}${dailyProfitLossPercentage.toFixed(2)}%
                 </div>
               </div>
             `;
@@ -348,11 +362,10 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               <div>${groupInfo}</div>
               <div>Current Price: ${formatCurrency(holding.current_price, currencyConfig)}</div>
               <div>Total Value: ${formatCurrency(holding.total_value, currencyConfig)}</div>
-              <div>Quantity: ${holding.quantity}</div>
+              <div>Daily P/L: ${formatCurrency(holding.daily_profit_loss, currencyConfig)}</div>
             </div>
-            <div style="margin-top: 4px; color: ${holding.profit_loss_percentage >= 0 ? '#34d399' : '#f87171'}">
-              ${holding.profit_loss_percentage >= 0 ? '+' : ''}${holding.profit_loss_percentage.toFixed(2)}%
-              (${formatCurrency(holding.profit_loss, currencyConfig)})
+            <div style="margin-top: 4px; color: ${holding.daily_profit_loss_percentage >= 0 ? '#34d399' : '#f87171'}">
+              Daily Return: ${holding.daily_profit_loss_percentage >= 0 ? '+' : ''}${holding.daily_profit_loss_percentage.toFixed(2)}%
             </div>
           `;
         }
@@ -448,7 +461,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         <div className="flex flex-col gap-4">
           <div className="flex justify-between items-center">
             <h2 className={`text-lg font-semibold ${themes[theme].text}`}>
-              Portfolio Performance Heatmap
+              Daily Performance Heatmap
             </h2>
             <div className="flex items-center gap-2">
               <Filter className={`w-4 h-4 ${themes[theme].text}`} />

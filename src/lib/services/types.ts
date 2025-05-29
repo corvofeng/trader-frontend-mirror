@@ -36,14 +36,14 @@ export interface Trade {
 export interface Holding {
   stock_code: string;
   stock_name: string;
-  category?: string;
-  tags?: string[];
   quantity: number;
   average_price: number;
   current_price: number;
   total_value: number;
   profit_loss: number;
   profit_loss_percentage: number;
+  daily_profit_loss: number;
+  daily_profit_loss_percentage: number;
   last_updated: string;
 }
 

@@ -126,6 +126,8 @@ export const mockHoldings = [
     total_value: 26250.00,
     profit_loss: 3750.00,
     profit_loss_percentage: 16.67,
+    daily_profit_loss: 450.00,
+    daily_profit_loss_percentage: 1.75,
     last_updated: new Date().toISOString()
   },
   {
@@ -137,6 +139,8 @@ export const mockHoldings = [
     total_value: 145000.00,
     profit_loss: 5000.00,
     profit_loss_percentage: 3.57,
+    daily_profit_loss: -1500.00,
+    daily_profit_loss_percentage: -1.02,
     last_updated: new Date().toISOString()
   },
   {
@@ -148,6 +152,8 @@ export const mockHoldings = [
     total_value: 32000.00,
     profit_loss: 2000.00,
     profit_loss_percentage: 6.67,
+    daily_profit_loss: 800.00,
+    daily_profit_loss_percentage: 2.56,
     last_updated: new Date().toISOString()
   },
   {
@@ -159,6 +165,8 @@ export const mockHoldings = [
     total_value: 18000.00,
     profit_loss: -750.00,
     profit_loss_percentage: -4.00,
+    daily_profit_loss: -375.00,
+    daily_profit_loss_percentage: -2.04,
     last_updated: new Date().toISOString()
   },
   {
@@ -170,6 +178,8 @@ export const mockHoldings = [
     total_value: 36000.00,
     profit_loss: 4000.00,
     profit_loss_percentage: 12.50,
+    daily_profit_loss: 1200.00,
+    daily_profit_loss_percentage: 3.45,
     last_updated: new Date().toISOString()
   },
   {
@@ -181,6 +191,8 @@ export const mockHoldings = [
     total_value: 16200.00,
     profit_loss: -600.00,
     profit_loss_percentage: -3.57,
+    daily_profit_loss: -240.00,
+    daily_profit_loss_percentage: -1.46,
     last_updated: new Date().toISOString()
   },
   {
@@ -192,6 +204,8 @@ export const mockHoldings = [
     total_value: 14850.00,
     profit_loss: 450.00,
     profit_loss_percentage: 3.12,
+    daily_profit_loss: 180.00,
+    daily_profit_loss_percentage: 1.23,
     last_updated: new Date().toISOString()
   }
 ];
