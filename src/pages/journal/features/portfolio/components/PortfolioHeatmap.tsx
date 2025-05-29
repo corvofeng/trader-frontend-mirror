@@ -205,7 +205,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
             
             const dailyPL = stats.dailyProfitLoss >= 0 
               ? `+${formatCurrency(stats.dailyProfitLoss, currencyConfig)}`
-              : formatCurrency(stats.dailyProfitLoss, currencyConfig);
+              : `-${formatCurrency(stats.dailyProfitLoss, currencyConfig)}`;
 
             if (isMobile) {
               return [
