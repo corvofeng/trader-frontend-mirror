@@ -348,7 +348,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
                 <div>Total Value: ${formatCurrency(value, currencyConfig)}</div>
                 <div>Daily P/L: ${dailyProfitLoss >= 0 ? '+' : '-'}${formatCurrency(dailyProfitLoss, currencyConfig)}</div>
                 <div style="color: ${profitLossColor}; font-weight: 500">
-                  Daily Return: ${dailyProfitLossPercentage >= 0 ? '+' : ''}${dailyProfitLossPercentage.toFixed(2)}%
+                  Daily Return: ${dailyProfitLossPercentage >= 0 ? '+' : '-'}${dailyProfitLossPercentage.toFixed(2)}%
                 </div>
               </div>
             `;
