@@ -99,6 +99,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
   const [stockConfigs, setStockConfigs] = useState<StockConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const isMobile = window.innerWidth < 768;
+  const groupsRef = useRef<Map<string, GroupStats>>(new Map());
 
   useEffect(() => {
     const fetchStockConfigs = async () => {
@@ -131,6 +132,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
     const isDark = theme === 'dark';
 
     const groups = new Map<string, GroupStats>();
+    groupsRef.current = groups;
     
     if (groupingDimension === 'category') {
       holdings.forEach(holding => {
@@ -206,7 +208,9 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
           show: true,
           position: 'inside',
           formatter: (params: any) => {
-            const stats = groups.get(params.name)!;
+            const stats = groups.get(params.name);
+            if (!stats) return '';
+
             const holdingsCount = stats.holdings.length;
             const formattedValue = formatCurrency(params.value, currencyConfig)
               .replace(/,(\d{3})+$/, 'M')
@@ -252,8 +256,8 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               fontSize: isMobile ? 11 : 20,
               fontWeight: 'bold',
               color: (params: any) => {
-                const stats = groups.get(params.name)!;
-                return stats.dailyProfitLossPercentage >= 0 ? '#34d399' : '#f87171';
+                const stats = groups.get(params.name);
+                return stats?.dailyProfitLossPercentage >= 0 ? '#34d399' : '#f87171';
               },
               padding: [0, 0, isMobile ? 4 : 8, 0],
               align: 'center',
@@ -354,8 +358,10 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
           if (!holding && params.data) {
             const { value, dailyProfitLoss, dailyProfitLossPercentage } = params.data;
             const profitLossColor = dailyProfitLossPercentage >= 0 ? '#34d399' : '#f87171';
-            const stats = groups.get(params.name)!;
+            const stats = groupsRef.current.get(params.name);
             
+            if (!stats) return '';
+
             return `
               <div style="font-weight: 500; font-size: ${isMobile ? '14px' : '16px'}">${groupingDimension === 'category' ? 'Category' : 'Tag'}: ${params.name}</div>
               <div style="margin-top: 8px">
