@@ -71,7 +71,7 @@ export const MOCK_STOCK_CONFIGS: StockConfig[] = [
   },
   { 
     stock_code: 'GOOGL',
-    category: STOCK_CATEGORIES.TECH,
+    category: STOCK_CATEGORIES.CONSUMER,
     tags: ['Internet Services', 'Software', 'AI']
   },
   { 
