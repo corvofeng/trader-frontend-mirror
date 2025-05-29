@@ -182,8 +182,8 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               .replace(/,(\d{3})/, 'K');
             
             return [
-              `${params.name}`,
-              `${stats.profitLossPercentage >= 0 ? '▲' : '▼'} ${Math.abs(stats.profitLossPercentage).toFixed(2)}%`,
+              // ``,
+              `${params.name} ${stats.profitLossPercentage >= 0 ? '▲' : '▼'} ${Math.abs(stats.profitLossPercentage).toFixed(2)}%`,
               // formattedValue,
               // `(${holdingsCount})`
             ].join('\n');
