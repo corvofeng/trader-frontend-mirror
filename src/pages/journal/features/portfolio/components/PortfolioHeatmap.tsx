@@ -92,7 +92,6 @@ function getColorByPercentage(percentage: number, isDark: boolean): string {
   return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${opacity})`;
 }
 
-// Helper function to safely format percentages
 function formatPercentage(value: number | undefined): string {
   if (typeof value !== 'number' || !isFinite(value)) {
     return '0.00';
@@ -137,115 +136,111 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
     chartInstance.current = chart;
 
     const isDark = theme === 'dark';
-
-    const data: any = { name: 'root', children: [] };
     const totalPortfolioValue = holdings.reduce((sum, h) => sum + h.total_value, 0);
 
-    if (groupingDimension === 'tags') {
-      // Create hierarchical structure for tags
-      const tagGroups = new Map<string, {
-        value: number,
-        dailyPL: number,
-        holdings: Holding[]
-      }>();
+    const prepareTreemapData = () => {
+      if (groupingDimension === 'tags') {
+        const tagGroups = new Map<string, {
+          value: number,
+          dailyPL: number,
+          holdings: Holding[]
+        }>();
 
-      holdings.forEach(holding => {
-        const config = stockConfigs.find(c => c.stock_code === holding.stock_code);
-        const tags = config?.tags || ['Untagged'];
-        
-        tags.forEach(tag => {
-          if (!tagGroups.has(tag)) {
-            tagGroups.set(tag, {
+        holdings.forEach(holding => {
+          const config = stockConfigs.find(c => c.stock_code === holding.stock_code);
+          const tags = config?.tags || ['Untagged'];
+          
+          tags.forEach(tag => {
+            if (!tagGroups.has(tag)) {
+              tagGroups.set(tag, {
+                value: 0,
+                dailyPL: 0,
+                holdings: []
+              });
+            }
+            const group = tagGroups.get(tag)!;
+            group.value += holding.total_value;
+            group.dailyPL += holding.daily_profit_loss;
+            group.holdings.push(holding);
+          });
+        });
+
+        return Array.from(tagGroups.entries()).map(([tag, group]) => {
+          const dailyPLPercentage = group.value > 0 ? (group.dailyPL / group.value) * 100 : 0;
+          const color = getColorByPercentage(dailyPLPercentage, isDark);
+
+          return {
+            name: tag,
+            value: group.value,
+            dailyPLPercentage,
+            itemStyle: {
+              color,
+              borderWidth: 2,
+              borderColor: isDark ? '#4b5563' : '#e5e7eb'
+            },
+            children: group.holdings.map(holding => ({
+              name: holding.stock_code,
+              value: holding.total_value,
+              dailyPLPercentage: holding.daily_profit_loss_percentage || 0,
+              itemStyle: {
+                color: getColorByPercentage(holding.daily_profit_loss_percentage || 0, isDark),
+                borderWidth: 1,
+                borderColor: isDark ? '#374151' : '#e5e7eb'
+              }
+            }))
+          };
+        });
+      } else {
+        const categoryGroups = new Map<string, {
+          value: number,
+          dailyPL: number,
+          holdings: Holding[]
+        }>();
+
+        holdings.forEach(holding => {
+          const config = stockConfigs.find(c => c.stock_code === holding.stock_code);
+          const category = config?.category || 'Other';
+          
+          if (!categoryGroups.has(category)) {
+            categoryGroups.set(category, {
               value: 0,
               dailyPL: 0,
               holdings: []
             });
           }
-          const group = tagGroups.get(tag)!;
+          const group = categoryGroups.get(category)!;
           group.value += holding.total_value;
           group.dailyPL += holding.daily_profit_loss;
           group.holdings.push(holding);
         });
-      });
 
-      data.children = Array.from(tagGroups.entries()).map(([tag, group]) => {
-        // Safe calculation of daily PL percentage
-        const dailyPLPercentage = group.value > 0 ? (group.dailyPL / group.value) * 100 : 0;
-        const color = getColorByPercentage(dailyPLPercentage, isDark);
+        return Array.from(categoryGroups.entries()).map(([category, group]) => {
+          const dailyPLPercentage = group.value > 0 ? (group.dailyPL / group.value) * 100 : 0;
+          const color = getColorByPercentage(dailyPLPercentage, isDark);
 
-        return {
-          name: tag,
-          value: group.value,
-          dailyPLPercentage,
-          itemStyle: {
-            color,
-            borderWidth: 2,
-            borderColor: isDark ? '#4b5563' : '#e5e7eb'
-          },
-          children: group.holdings.map(holding => ({
-            name: holding.stock_code,
-            value: holding.total_value,
-            dailyPLPercentage: holding.daily_profit_loss_percentage || 0,
+          return {
+            name: category,
+            value: group.value,
+            dailyPLPercentage,
             itemStyle: {
-              color: getColorByPercentage(holding.daily_profit_loss_percentage || 0, isDark),
-              borderWidth: 1,
-              borderColor: isDark ? '#374151' : '#e5e7eb'
-            }
-          }))
-        };
-      });
-    } else {
-      // Original category grouping logic
-      const categoryGroups = new Map<string, {
-        value: number,
-        dailyPL: number,
-        holdings: Holding[]
-      }>();
-
-      holdings.forEach(holding => {
-        const config = stockConfigs.find(c => c.stock_code === holding.stock_code);
-        const category = config?.category || 'Other';
-        
-        if (!categoryGroups.has(category)) {
-          categoryGroups.set(category, {
-            value: 0,
-            dailyPL: 0,
-            holdings: []
-          });
-        }
-        const group = categoryGroups.get(category)!;
-        group.value += holding.total_value;
-        group.dailyPL += holding.daily_profit_loss;
-        group.holdings.push(holding);
-      });
-
-      data.children = Array.from(categoryGroups.entries()).map(([category, group]) => {
-        // Safe calculation of daily PL percentage
-        const dailyPLPercentage = group.value > 0 ? (group.dailyPL / group.value) * 100 : 0;
-        const color = getColorByPercentage(dailyPLPercentage, isDark);
-
-        return {
-          name: category,
-          value: group.value,
-          dailyPLPercentage,
-          itemStyle: {
-            color,
-            borderWidth: 2,
-            borderColor: isDark ? '#4b5563' : '#e5e7eb'
-          },
-          children: group.holdings.map(holding => ({
-            name: holding.stock_code,
-            value: holding.total_value,
-            dailyPLPercentage: holding.daily_profit_loss_percentage || 0,
-            itemStyle: {
-              color: getColorByPercentage(holding.daily_profit_loss_percentage || 0, isDark),
-              borderWidth: 1,
-              borderColor: isDark ? '#374151' : '#e5e7eb'
-            }
-          }))
-        };
-      });
-    }
+              color,
+              borderWidth: 2,
+              borderColor: isDark ? '#4b5563' : '#e5e7eb'
+            },
+            children: group.holdings.map(holding => ({
+              name: holding.stock_code,
+              value: holding.total_value,
+              dailyPLPercentage: holding.daily_profit_loss_percentage || 0,
+              itemStyle: {
+                color: getColorByPercentage(holding.daily_profit_loss_percentage || 0, isDark),
+                borderWidth: 1,
+                borderColor: isDark ? '#374151' : '#e5e7eb'
+              }
+            }))
+          };
+        });
+      }
+    };
 
     const option = {
       tooltip: {
@@ -271,11 +266,13 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
       series: [{
         name: groupingDimension === 'tags' ? 'Tags' : 'Categories',
         type: 'treemap',
-        data: data.children,
+        data: prepareTreemapData(),
         width: '100%',
         height: '100%',
         roam: false,
         nodeClick: 'zoomToNode',
+        leafDepth: 1,
+        drillDownIcon: '▶',
         breadcrumb: {
           show: true,
           height: isMobile ? 24 : 30,
@@ -316,11 +313,20 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               .replace(/,(\d{3})/, 'K');
             const percentage = formatPercentage(params.data.dailyPLPercentage);
             
-            return [
-              `${params.name}`,
-              `${percentage}%`,
-              value
-            ].join('\n');
+            if (params.depth === 0) {
+              return [
+                `${params.name}`,
+                `${percentage}%`,
+                value,
+                `(${params.data.children?.length || 0} holdings)`
+              ].join('\n');
+            } else {
+              return [
+                `${params.name}`,
+                `${percentage}%`,
+                value
+              ].join('\n');
+            }
           }
         },
         upperLabel: {
