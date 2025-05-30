@@ -23,6 +23,7 @@ interface GroupStats {
   dailyProfitLossPercentage: number;
   holdings: Holding[];
 }
+
 function getColorByPercentage(percentage: number, isDark: boolean): string {
   const colors = {
     positive: {
@@ -155,26 +156,43 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         stats.holdings.push(holding);
       });
     } else {
+      // For tags, first aggregate holdings by tag
+      const tagHoldings = new Map<string, Holding[]>();
+      
       holdings.forEach(holding => {
         const config = stockConfigs.find(c => c.stock_code === holding.stock_code);
         const tags = config?.tags || ['Untagged'];
+        
         tags.forEach(tag => {
-          if (!groups.has(tag)) {
-            groups.set(tag, {
-              totalValue: 0,
-              profitLoss: 0,
-              profitLossPercentage: 0,
-              dailyProfitLoss: 0,
-              dailyProfitLossPercentage: 0,
-              holdings: []
-            });
+          if (!tagHoldings.has(tag)) {
+            tagHoldings.set(tag, []);
           }
-          const stats = groups.get(tag)!;
+          tagHoldings.get(tag)!.push(holding);
+        });
+      });
+
+      // Then calculate stats for each tag
+      tagHoldings.forEach((taggedHoldings, tag) => {
+        const stats: GroupStats = {
+          totalValue: 0,
+          profitLoss: 0,
+          profitLossPercentage: 0,
+          dailyProfitLoss: 0,
+          dailyProfitLossPercentage: 0,
+          holdings: taggedHoldings
+        };
+
+        taggedHoldings.forEach(holding => {
           stats.totalValue += holding.total_value;
           stats.profitLoss += holding.profit_loss;
           stats.dailyProfitLoss += holding.daily_profit_loss;
-          stats.holdings.push(holding);
         });
+
+        const costBasis = stats.totalValue - stats.profitLoss;
+        stats.profitLossPercentage = (stats.profitLoss / costBasis) * 100;
+        stats.dailyProfitLossPercentage = (stats.dailyProfitLoss / stats.totalValue) * 100;
+
+        groups.set(tag, stats);
       });
     }
 
@@ -271,7 +289,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
             }
           }
         },
-        children: stats.holdings
+        children: groupingDimension === 'tags' ? [] : stats.holdings
           .sort((a, b) => b.daily_profit_loss_percentage - a.daily_profit_loss_percentage)
           .map(holding => {
             const color = getColorByPercentage(holding.daily_profit_loss_percentage, isDark);
@@ -402,7 +420,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
         width: '100%',
         height: '100%',
         roam: false,
-        nodeClick: 'zoomToNode',
+        nodeClick: groupingDimension === 'tags' ? false : 'zoomToNode',
         breadcrumb: {
           show: true,
           height: isMobile ? 24 : 30,
