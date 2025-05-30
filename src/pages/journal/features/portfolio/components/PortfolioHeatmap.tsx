@@ -370,7 +370,6 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
                 `${percentage}%`,
                 value
               ].join('\n');
-                
               }
             }
           },
