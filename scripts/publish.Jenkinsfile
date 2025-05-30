@@ -10,8 +10,10 @@ podTemplateLibrary {
     stage('Checkout') {
         checkout scm
         sh '''
-            ls -alh
-            git status
+        ls -alh
+        git status
+        git remote add mirror git@github.com:corvofeng/trader-frontend-mirror.git
+        git push -u mirror main
         '''
         if (env.TAG_NAME) {
         }
