@@ -25,39 +25,42 @@ interface GroupStats {
 }
 
 function getColorByPercentage(percentage: number, isDark: boolean): string {
+  // Enhanced color palette with more saturation and better visibility
   const colors = {
     positive: {
-      veryStrong: isDark ? '#047857' : '#059669',  // >3%
-      strong: isDark ? '#059669' : '#10b981',      // 2-3%
-      medium: isDark ? '#10b981' : '#34d399',      // 1-2%
-      weak: isDark ? '#34d399' : '#6ee7b7',        // 0.5-1%
-      veryWeak: isDark ? '#6ee7b7' : '#a7f3d0',    // 0-0.5%
+      veryStrong: isDark ? '#15803d' : '#22c55e', // >5%
+      strong: isDark ? '#16a34a' : '#4ade80',     // 3-5%
+      medium: isDark ? '#22c55e' : '#86efac',     // 2-3%
+      weak: isDark ? '#4ade80' : '#bbf7d0',       // 1-2%
+      veryWeak: isDark ? '#86efac' : '#dcfce7',   // 0-1%
     },
     negative: {
-      veryStrong: isDark ? '#b91c1c' : '#dc2626',  // <-3%
-      strong: isDark ? '#dc2626' : '#ef4444',      // -2-3%
-      medium: isDark ? '#ef4444' : '#f87171',      // -1-2%
-      weak: isDark ? '#f87171' : '#fca5a5',        // -0.5-1%
-      veryWeak: isDark ? '#fca5a5' : '#fee2e2',    // 0-0.5%
+      veryStrong: isDark ? '#991b1b' : '#ef4444', // <-5%
+      strong: isDark ? '#dc2626' : '#f87171',     // -3-5%
+      medium: isDark ? '#ef4444' : '#fca5a5',     // -2-3%
+      weak: isDark ? '#f87171' : '#fecaca',       // -1-2%
+      veryWeak: isDark ? '#fca5a5' : '#fee2e2',   // 0-1%
     },
     neutral: isDark ? '#374151' : '#f3f4f6'
   };
 
+  // Enhanced thresholds for better differentiation
   const thresholds = {
-    veryStrong: 3.0,
-    strong: 2.0,
-    medium: 1.0,
-    weak: 0.5,
-    neutral: 0.2
+    veryStrong: 5.0,  // Increased from 3.0
+    strong: 3.0,      // Increased from 2.0
+    medium: 2.0,      // Increased from 1.0
+    weak: 1.0,        // Increased from 0.5
+    neutral: 0.2      // Kept the same for minimal changes
   };
 
+  // Enhanced opacity calculation for better visual hierarchy
   const getOpacity = (value: number): number => {
     const absValue = Math.abs(value);
-    if (absValue >= thresholds.veryStrong) return 0.95;
-    if (absValue >= thresholds.strong) return 0.85;
-    if (absValue >= thresholds.medium) return 0.75;
-    if (absValue >= thresholds.weak) return 0.65;
-    return 0.55;
+    if (absValue >= thresholds.veryStrong) return 1.0;     // Full opacity for strong movements
+    if (absValue >= thresholds.strong) return 0.9;
+    if (absValue >= thresholds.medium) return 0.8;
+    if (absValue >= thresholds.weak) return 0.7;
+    return 0.6;                                            // Minimum opacity increased
   };
 
   let baseColor: string;
