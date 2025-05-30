@@ -356,7 +356,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
             } else {
               return [
                 `${params.name}`,
-                // `${params.data.stock_code}`,
+                `${params.data.stock_code|| '' }`,
                 `${percentage}%`,
                 value
               ].join('\n');
