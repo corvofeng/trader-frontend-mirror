@@ -17,7 +17,7 @@ podTemplateLibrary {
         sshagent(credentials: ['yfeng-github-ssh']) {
             sh '''
                 [ -d ~/.ssh ] || mkdir ~/.ssh && chmod 0700 ~/.ssh
-                ssh-keyscan -t rsa,dsa github.com >> ~/.ssh/known_hosts
+                ssh-keyscan -t rsa,ed25519 github.com >> ~/.ssh/known_hosts
                 git push -u mirror main
             '''
         }
