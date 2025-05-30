@@ -148,9 +148,11 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
 
         holdings.forEach(holding => {
           const config = stockConfigs.find(c => c.stock_code === holding.stock_code);
-          const tags = config?.tags || ['Untagged'];
+          const tags = config?.tags?.length ? config.tags : ['Untagged'];
           
           tags.forEach(tag => {
+            if (!tag) return; // Skip undefined tags
+            
             if (!tagGroups.has(tag)) {
               tagGroups.set(tag, {
                 value: 0,
@@ -165,40 +167,42 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
           });
         });
 
-        return Array.from(tagGroups.entries()).map(([tag, group]) => {
-          const dailyPLPercentage = group.value > 0 ? (group.dailyPL / group.value) * 100 : 0;
-          const color = getColorByPercentage(dailyPLPercentage, isDark);
+        return Array.from(tagGroups.entries())
+          .filter(([tag]) => tag) // Filter out any remaining undefined tags
+          .map(([tag, group]) => {
+            const dailyPLPercentage = group.value > 0 ? (group.dailyPL / group.value) * 100 : 0;
+            const color = getColorByPercentage(dailyPLPercentage, isDark);
 
-          return {
-            name: tag,
-            value: group.value,
-            dailyPLPercentage,
-            itemStyle: {
-              color,
-              borderWidth: 2,
-              borderColor: isDark ? '#4b5563' : '#e5e7eb'
-            },
-            label: {
-              color: isDark ? '#e5e7eb' : '#111827',
-              fontWeight: 500
-            },
-            children: group.holdings.map(holding => ({
-              name: holding.stock_name,
-              stock_code: holding.stock_code,
-              value: holding.total_value,
-              dailyPLPercentage: holding.daily_profit_loss_percentage || 0,
+            return {
+              name: tag,
+              value: group.value,
+              dailyPLPercentage,
               itemStyle: {
-                color: getColorByPercentage(holding.daily_profit_loss_percentage || 0, isDark),
-                borderWidth: 1,
-                borderColor: isDark ? '#374151' : '#e5e7eb'
+                color,
+                borderWidth: 2,
+                borderColor: isDark ? '#4b5563' : '#e5e7eb'
               },
               label: {
                 color: isDark ? '#e5e7eb' : '#111827',
                 fontWeight: 500
-              }
-            }))
-          };
-        });
+              },
+              children: group.holdings.map(holding => ({
+                name: holding.stock_name || holding.stock_code,
+                stock_code: holding.stock_code,
+                value: holding.total_value,
+                dailyPLPercentage: holding.daily_profit_loss_percentage || 0,
+                itemStyle: {
+                  color: getColorByPercentage(holding.daily_profit_loss_percentage || 0, isDark),
+                  borderWidth: 1,
+                  borderColor: isDark ? '#374151' : '#e5e7eb'
+                },
+                label: {
+                  color: isDark ? '#e5e7eb' : '#111827',
+                  fontWeight: 500
+                }
+              }))
+            };
+          });
       } else {
         const categoryGroups = new Map<string, {
           value: number,
@@ -223,40 +227,42 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
           group.holdings.push(holding);
         });
 
-        return Array.from(categoryGroups.entries()).map(([category, group]) => {
-          const dailyPLPercentage = group.value > 0 ? (group.dailyPL / group.value) * 100 : 0;
-          const color = getColorByPercentage(dailyPLPercentage, isDark);
+        return Array.from(categoryGroups.entries())
+          .filter(([category]) => category) // Filter out any undefined categories
+          .map(([category, group]) => {
+            const dailyPLPercentage = group.value > 0 ? (group.dailyPL / group.value) * 100 : 0;
+            const color = getColorByPercentage(dailyPLPercentage, isDark);
 
-          return {
-            name: category,
-            value: group.value,
-            dailyPLPercentage,
-            itemStyle: {
-              color,
-              borderWidth: 2,
-              borderColor: isDark ? '#4b5563' : '#e5e7eb'
-            },
-            label: {
-              color: isDark ? '#e5e7eb' : '#111827',
-              fontWeight: 500
-            },
-            children: group.holdings.map(holding => ({
-              name: holding.stock_name,
-              stock_code: holding.stock_code,
-              value: holding.total_value,
-              dailyPLPercentage: holding.daily_profit_loss_percentage || 0,
+            return {
+              name: category,
+              value: group.value,
+              dailyPLPercentage,
               itemStyle: {
-                color: getColorByPercentage(holding.daily_profit_loss_percentage || 0, isDark),
-                borderWidth: 1,
-                borderColor: isDark ? '#374151' : '#e5e7eb'
+                color,
+                borderWidth: 2,
+                borderColor: isDark ? '#4b5563' : '#e5e7eb'
               },
               label: {
                 color: isDark ? '#e5e7eb' : '#111827',
                 fontWeight: 500
-              }
-            }))
-          };
-        });
+              },
+              children: group.holdings.map(holding => ({
+                name: holding.stock_name || holding.stock_code,
+                stock_code: holding.stock_code,
+                value: holding.total_value,
+                dailyPLPercentage: holding.daily_profit_loss_percentage || 0,
+                itemStyle: {
+                  color: getColorByPercentage(holding.daily_profit_loss_percentage || 0, isDark),
+                  borderWidth: 1,
+                  borderColor: isDark ? '#374151' : '#e5e7eb'
+                },
+                label: {
+                  color: isDark ? '#e5e7eb' : '#111827',
+                  fontWeight: 500
+                }
+              }))
+            };
+          });
       }
     };
 
