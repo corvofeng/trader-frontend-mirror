@@ -22,7 +22,7 @@ podTemplateLibrary {
 
         sshagent(credentials: ['id_ed25519_ansible']) {
             sh '''
-                git checkout origin/main
+                git checkout main
                 git push -u mirror main
             '''
         }
