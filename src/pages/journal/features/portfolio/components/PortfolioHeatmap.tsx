@@ -25,42 +25,39 @@ interface GroupStats {
 }
 
 function getColorByPercentage(percentage: number, isDark: boolean): string {
-  // Enhanced color palette with more saturation and better visibility
   const colors = {
     positive: {
-      veryStrong: isDark ? '#15803d' : '#22c55e', // >5%
-      strong: isDark ? '#16a34a' : '#4ade80',     // 3-5%
-      medium: isDark ? '#22c55e' : '#86efac',     // 2-3%
-      weak: isDark ? '#4ade80' : '#bbf7d0',       // 1-2%
-      veryWeak: isDark ? '#86efac' : '#dcfce7',   // 0-1%
+      veryStrong: isDark ? '#15803d' : '#22c55e',
+      strong: isDark ? '#16a34a' : '#4ade80',
+      medium: isDark ? '#22c55e' : '#86efac',
+      weak: isDark ? '#4ade80' : '#bbf7d0',
+      veryWeak: isDark ? '#86efac' : '#dcfce7',
     },
     negative: {
-      veryStrong: isDark ? '#991b1b' : '#ef4444', // <-5%
-      strong: isDark ? '#dc2626' : '#f87171',     // -3-5%
-      medium: isDark ? '#ef4444' : '#fca5a5',     // -2-3%
-      weak: isDark ? '#f87171' : '#fecaca',       // -1-2%
-      veryWeak: isDark ? '#fca5a5' : '#fee2e2',   // 0-1%
+      veryStrong: isDark ? '#991b1b' : '#ef4444',
+      strong: isDark ? '#dc2626' : '#f87171',
+      medium: isDark ? '#ef4444' : '#fca5a5',
+      weak: isDark ? '#f87171' : '#fecaca',
+      veryWeak: isDark ? '#fca5a5' : '#fee2e2',
     },
     neutral: isDark ? '#374151' : '#f3f4f6'
   };
 
-  // Enhanced thresholds for better differentiation
   const thresholds = {
-    veryStrong: 5.0,  // Increased from 3.0
-    strong: 3.0,      // Increased from 2.0
-    medium: 2.0,      // Increased from 1.0
-    weak: 1.0,        // Increased from 0.5
-    neutral: 0.2      // Kept the same for minimal changes
+    veryStrong: 5.0,
+    strong: 3.0,
+    medium: 2.0,
+    weak: 1.0,
+    neutral: 0.2
   };
 
-  // Enhanced opacity calculation for better visual hierarchy
   const getOpacity = (value: number): number => {
     const absValue = Math.abs(value);
-    if (absValue >= thresholds.veryStrong) return 1.0;     // Full opacity for strong movements
+    if (absValue >= thresholds.veryStrong) return 1.0;
     if (absValue >= thresholds.strong) return 0.9;
     if (absValue >= thresholds.medium) return 0.8;
     if (absValue >= thresholds.weak) return 0.7;
-    return 0.6;                                            // Minimum opacity increased
+    return 0.6;
   };
 
   let baseColor: string;
@@ -186,7 +183,8 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               fontWeight: 500
             },
             children: group.holdings.map(holding => ({
-              name: holding.stock_code,
+              name: holding.stock_name,
+              stock_code: holding.stock_code,
               value: holding.total_value,
               dailyPLPercentage: holding.daily_profit_loss_percentage || 0,
               itemStyle: {
@@ -243,7 +241,8 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               fontWeight: 500
             },
             children: group.holdings.map(holding => ({
-              name: holding.stock_code,
+              name: holding.stock_name,
+              stock_code: holding.stock_code,
               value: holding.total_value,
               dailyPLPercentage: holding.daily_profit_loss_percentage || 0,
               itemStyle: {
@@ -264,7 +263,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
     const option = {
       tooltip: {
         formatter: (params: any) => {
-          const { name, value, dailyPLPercentage } = params.data;
+          const { name, value, dailyPLPercentage, stock_code } = params.data;
           const percentage = formatPercentage(dailyPLPercentage);
           const formattedValue = formatCurrency(value, currencyConfig);
           const percentageOfTotal = totalPortfolioValue > 0 
@@ -273,6 +272,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
 
           return `
             <div style="font-weight: 500; font-size: ${isMobile ? '14px' : '16px'}">${name}</div>
+            ${stock_code ? `<div style="font-size: ${isMobile ? '12px' : '14px'}; opacity: 0.75">${stock_code}</div>` : ''}
             <div style="margin-top: 8px">
               <div>Value: ${formattedValue} (${percentageOfTotal}% of portfolio)</div>
               <div style="color: ${dailyPLPercentage >= 0 ? '#34d399' : '#f87171'}; font-weight: 500">
@@ -350,6 +350,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
             } else {
               return [
                 `${params.name}`,
+                `${params.data.stock_code}`,
                 `${percentage}%`,
                 value
               ].join('\n');
