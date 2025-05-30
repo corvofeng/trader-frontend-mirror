@@ -9,8 +9,11 @@ podTemplateLibrary {
 
     stage('Checkout') {
         checkout scm
-        if (env.TAG_NAME) {
+        sh '''
+            ls -alh
             git status
+        '''
+        if (env.TAG_NAME) {
         }
     }
 }
