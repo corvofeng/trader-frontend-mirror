@@ -96,11 +96,9 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<echarts.ECharts | null>(null);
   const [groupingDimension, setGroupingDimension] = useState<GroupingDimension>('category');
-  const [selectedPath, setSelectedPath] = useState<string[]>([]);
   const [stockConfigs, setStockConfigs] = useState<StockConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const isMobile = window.innerWidth < 768;
-  const groupsRef = useRef<Map<string, GroupStats>>(new Map());
 
   useEffect(() => {
     const fetchStockConfigs = async () => {
@@ -132,295 +130,140 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
 
     const isDark = theme === 'dark';
 
-    const groups = new Map<string, GroupStats>();
-    groupsRef.current = groups;
-    
-    if (groupingDimension === 'category') {
-      holdings.forEach(holding => {
-        const config = stockConfigs.find(c => c.stock_code === holding.stock_code);
-        const category = config?.category || 'Other';
-        if (!groups.has(category)) {
-          groups.set(category, {
-            totalValue: 0,
-            profitLoss: 0,
-            profitLossPercentage: 0,
-            dailyProfitLoss: 0,
-            dailyProfitLossPercentage: 0,
-            holdings: []
-          });
-        }
-        const stats = groups.get(category)!;
-        stats.totalValue += holding.total_value;
-        stats.profitLoss += holding.profit_loss;
-        stats.dailyProfitLoss += holding.daily_profit_loss;
-        stats.holdings.push(holding);
-      });
-    } else {
-      // For tags, first aggregate holdings by tag
-      const tagHoldings = new Map<string, Holding[]>();
-      
+    const data: any = { name: 'root', children: [] };
+    const totalPortfolioValue = holdings.reduce((sum, h) => sum + h.total_value, 0);
+
+    if (groupingDimension === 'tags') {
+      // Create hierarchical structure for tags
+      const tagGroups = new Map<string, {
+        value: number,
+        dailyPL: number,
+        holdings: Holding[]
+      }>();
+
       holdings.forEach(holding => {
         const config = stockConfigs.find(c => c.stock_code === holding.stock_code);
         const tags = config?.tags || ['Untagged'];
         
         tags.forEach(tag => {
-          if (!tagHoldings.has(tag)) {
-            tagHoldings.set(tag, []);
+          if (!tagGroups.has(tag)) {
+            tagGroups.set(tag, {
+              value: 0,
+              dailyPL: 0,
+              holdings: []
+            });
           }
-          tagHoldings.get(tag)!.push(holding);
+          const group = tagGroups.get(tag)!;
+          group.value += holding.total_value;
+          group.dailyPL += holding.daily_profit_loss;
+          group.holdings.push(holding);
         });
       });
 
-      // Then calculate stats for each tag
-      tagHoldings.forEach((taggedHoldings, tag) => {
-        const stats: GroupStats = {
-          totalValue: 0,
-          profitLoss: 0,
-          profitLossPercentage: 0,
-          dailyProfitLoss: 0,
-          dailyProfitLossPercentage: 0,
-          holdings: taggedHoldings
+      data.children = Array.from(tagGroups.entries()).map(([tag, group]) => {
+        const dailyPLPercentage = (group.dailyPL / group.value) * 100;
+        const color = getColorByPercentage(dailyPLPercentage, isDark);
+
+        return {
+          name: tag,
+          value: group.value,
+          dailyPLPercentage,
+          itemStyle: {
+            color,
+            borderWidth: 2,
+            borderColor: isDark ? '#4b5563' : '#e5e7eb'
+          },
+          children: group.holdings.map(holding => ({
+            name: holding.stock_code,
+            value: holding.total_value,
+            dailyPLPercentage: holding.daily_profit_loss_percentage,
+            itemStyle: {
+              color: getColorByPercentage(holding.daily_profit_loss_percentage, isDark),
+              borderWidth: 1,
+              borderColor: isDark ? '#374151' : '#e5e7eb'
+            }
+          }))
         };
+      });
+    } else {
+      // Original category grouping logic
+      const categoryGroups = new Map<string, {
+        value: number,
+        dailyPL: number,
+        holdings: Holding[]
+      }>();
 
-        taggedHoldings.forEach(holding => {
-          stats.totalValue += holding.total_value;
-          stats.profitLoss += holding.profit_loss;
-          stats.dailyProfitLoss += holding.daily_profit_loss;
-        });
+      holdings.forEach(holding => {
+        const config = stockConfigs.find(c => c.stock_code === holding.stock_code);
+        const category = config?.category || 'Other';
+        
+        if (!categoryGroups.has(category)) {
+          categoryGroups.set(category, {
+            value: 0,
+            dailyPL: 0,
+            holdings: []
+          });
+        }
+        const group = categoryGroups.get(category)!;
+        group.value += holding.total_value;
+        group.dailyPL += holding.daily_profit_loss;
+        group.holdings.push(holding);
+      });
 
-        const costBasis = stats.totalValue - stats.profitLoss;
-        stats.profitLossPercentage = (stats.profitLoss / costBasis) * 100;
-        stats.dailyProfitLossPercentage = (stats.dailyProfitLoss / stats.totalValue) * 100;
+      data.children = Array.from(categoryGroups.entries()).map(([category, group]) => {
+        const dailyPLPercentage = (group.dailyPL / group.value) * 100;
+        const color = getColorByPercentage(dailyPLPercentage, isDark);
 
-        groups.set(tag, stats);
+        return {
+          name: category,
+          value: group.value,
+          dailyPLPercentage,
+          itemStyle: {
+            color,
+            borderWidth: 2,
+            borderColor: isDark ? '#4b5563' : '#e5e7eb'
+          },
+          children: group.holdings.map(holding => ({
+            name: holding.stock_code,
+            value: holding.total_value,
+            dailyPLPercentage: holding.daily_profit_loss_percentage,
+            itemStyle: {
+              color: getColorByPercentage(holding.daily_profit_loss_percentage, isDark),
+              borderWidth: 1,
+              borderColor: isDark ? '#374151' : '#e5e7eb'
+            }
+          }))
+        };
       });
     }
-
-    groups.forEach(stats => {
-      const costBasis = stats.totalValue - stats.profitLoss;
-      stats.profitLossPercentage = (stats.profitLoss / costBasis) * 100;
-      stats.dailyProfitLossPercentage = (stats.dailyProfitLoss / stats.totalValue) * 100;
-    });
-
-    const sortedGroups = Array.from(groups.entries()).sort((a, b) => 
-      b[1].dailyProfitLossPercentage - a[1].dailyProfitLossPercentage
-    );
-
-    const data = sortedGroups.map(([groupName, stats]) => {
-      const groupColor = getColorByPercentage(stats.dailyProfitLossPercentage, isDark);
-
-      return {
-        name: groupName,
-        value: stats.totalValue,
-        dailyProfitLoss: stats.dailyProfitLoss,
-        dailyProfitLossPercentage: stats.dailyProfitLossPercentage,
-        itemStyle: {
-          color: groupColor,
-          borderWidth: 4,
-          borderRadius: 8,
-          borderColor: isDark ? '#4b5563' : '#e5e7eb',
-          shadowBlur: 10,
-          shadowColor: isDark ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.1)'
-        },
-        label: {
-          show: true,
-          position: 'inside',
-          formatter: (params: any) => {
-            const stats = groups.get(params.name);
-            if (!stats) return '';
-
-            const holdingsCount = stats.holdings.length;
-            const formattedValue = formatCurrency(params.value, currencyConfig)
-              .replace(/,(\d{3})+$/, 'M')
-              .replace(/,(\d{3})/, 'K');
-            
-            const dailyPL = stats.dailyProfitLoss >= 0 
-              ? `+${formatCurrency(stats.dailyProfitLoss, currencyConfig)}`
-              : `-${formatCurrency(stats.dailyProfitLoss, currencyConfig)}`;
-
-            if (isMobile) {
-              return [
-                `${params.name}`,
-                `${stats.dailyProfitLossPercentage >= 0 ? '+' : ''}${stats.dailyProfitLossPercentage.toFixed(1)}%`,
-                `${holdingsCount}`
-              ].join('\n');
-            }
-            
-            return [
-              `${params.name}`,
-              `${stats.dailyProfitLossPercentage >= 0 ? '▲' : '▼'} ${stats.dailyProfitLossPercentage >= 0 ? '+' : ''}${stats.dailyProfitLossPercentage.toFixed(2)}%`,
-              dailyPL,
-              `(${holdingsCount} holdings)`
-            ].join('\n');
-          },
-          rich: {
-            sectionStyle: {
-              fontSize: isMobile ? 10 : 16,
-              color: isDark ? '#9ca3af' : '#6b7280',
-              padding: [0, 0, isMobile ? 4 : 8, 0],
-              align: 'center',
-              width: '100%'
-            },
-            titleStyle: {
-              fontSize: isMobile ? 12 : 24,
-              fontWeight: 'bold',
-              color: isDark ? '#e5e7eb' : '#111827',
-              padding: [0, 0, isMobile ? 6 : 12, 0],
-              align: 'center',
-              width: '100%',
-              lineHeight: isMobile ? 16 : 32
-            },
-            percentStyle: {
-              fontSize: isMobile ? 11 : 20,
-              fontWeight: 'bold',
-              color: (params: any) => {
-                const stats = groups.get(params.name);
-                return stats?.dailyProfitLossPercentage >= 0 ? '#34d399' : '#f87171';
-              },
-              padding: [0, 0, isMobile ? 4 : 8, 0],
-              align: 'center',
-              width: '100%'
-            },
-            valueStyle: {
-              fontSize: isMobile ? 10 : 16,
-              color: isDark ? '#9ca3af' : '#6b7280',
-              align: 'center',
-              width: '100%'
-            }
-          }
-        },
-        children: groupingDimension === 'tags' ? [] : stats.holdings
-          .sort((a, b) => b.daily_profit_loss_percentage - a.daily_profit_loss_percentage)
-          .map(holding => {
-            const color = getColorByPercentage(holding.daily_profit_loss_percentage, isDark);
-
-            return {
-              name: holding.stock_name,
-              value: holding.total_value,
-              dailyProfitLoss: holding.daily_profit_loss,
-              dailyProfitLossPercentage: holding.daily_profit_loss_percentage,
-              itemStyle: {
-                color,
-                borderWidth: 1,
-                borderColor: isDark ? '#374151' : '#e5e7eb'
-              },
-              label: {
-                show: true,
-                position: 'inside',
-                formatter: (params: any) => {
-                  const value = formatCurrency(params.value, currencyConfig);
-                  const percentage = holding.daily_profit_loss_percentage;
-                  const dailyPL = holding.daily_profit_loss >= 0 
-                    ? `+${formatCurrency(holding.daily_profit_loss, currencyConfig)}`
-                    : `-${formatCurrency(holding.daily_profit_loss, currencyConfig)}`;
-                  const percentageStr = `${percentage >= 0 ? '+' : ''}${percentage.toFixed(2)}%`;
-                  
-                  if (isMobile) {
-                    return [
-                      `${params.name}`,
-                      `${percentageStr}`,
-                    ].join('\n');
-                  }
-
-                  return [
-                    `{titleStyle|${params.name}}`,
-                    `{nameStyle|${holding.stock_code}}`,
-                    `{percentStyle|${percentageStr}}`,
-                    `{valueStyle|${dailyPL}}`
-                  ].join('\n');
-                },
-                rich: {
-                  titleStyle: {
-                    fontSize: isMobile ? 11 : 16,
-                    fontWeight: 'bold',
-                    color: isDark ? '#e5e7eb' : '#111827',
-                    padding: [0, 0, isMobile ? 4 : 8, 0],
-                    align: 'center',
-                    width: '100%'
-                  },
-                  nameStyle: {
-                    fontSize: isMobile ? 10 : 14,
-                    color: isDark ? '#9ca3af' : '#6b7280',
-                    padding: [0, 0, isMobile ? 4 : 8, 0],
-                    align: 'center',
-                    width: '100%'
-                  },
-                  percentStyle: {
-                    fontSize: isMobile ? 10 : 14,
-                    fontWeight: 'bold',
-                    color: holding.daily_profit_loss_percentage >= 0 ? '#34d399' : '#f87171',
-                    padding: [0, 0, isMobile ? 4 : 8, 0],
-                    align: 'center',
-                    width: '100%'
-                  },
-                  valueStyle: {
-                    fontSize: isMobile ? 9 : 14,
-                    color: isDark ? '#9ca3af' : '#6b7280',
-                    align: 'center',
-                    width: '100%'
-                  }
-                }
-              }
-            };
-          })
-      };
-    });
 
     const option = {
       tooltip: {
         formatter: (params: any) => {
-          if (!params || !params.name) return '';
-
-          const holding = holdings.find(h => h.stock_code === params.name);
-          
-          if (!holding && params.data) {
-            const { value, dailyProfitLoss, dailyProfitLossPercentage } = params.data;
-            const profitLossColor = dailyProfitLossPercentage >= 0 ? '#34d399' : '#f87171';
-            const stats = groupsRef.current.get(params.name);
-            
-            if (!stats) return '';
-
-            return `
-              <div style="font-weight: 500; font-size: ${isMobile ? '14px' : '16px'}">${groupingDimension === 'category' ? 'Category' : 'Tag'}: ${params.name}</div>
-              <div style="margin-top: 8px">
-                <div>Holdings: ${stats.holdings.length}</div>
-                <div>Total Value: ${formatCurrency(value, currencyConfig)}</div>
-                <div>Daily P/L: ${dailyProfitLoss >= 0 ? '+' : '-'}${formatCurrency(Math.abs(dailyProfitLoss), currencyConfig)}</div>
-                <div style="color: ${profitLossColor}; font-weight: 500">
-                  Daily Return: ${dailyProfitLossPercentage >= 0 ? '+' : ''}${dailyProfitLossPercentage.toFixed(2)}%
-                </div>
-              </div>
-            `;
-          }
-          
-          if (!holding) return '';
-
-          const config = stockConfigs.find(c => c.stock_code === holding.stock_code);
-          const groupInfo = groupingDimension === 'category'
-            ? `Category: ${config?.category || 'Other'}`
-            : `Tags: ${config?.tags?.join(', ') || 'Untagged'}`;
+          const { name, value, dailyPLPercentage } = params.data;
+          const percentage = dailyPLPercentage.toFixed(2);
+          const formattedValue = formatCurrency(value, currencyConfig);
+          const percentageOfTotal = ((value / totalPortfolioValue) * 100).toFixed(1);
 
           return `
-            <div style="font-weight: 500">${holding.stock_code} - ${holding.stock_name}</div>
-            <div style="margin-top: 4px">
-              <div>${groupInfo}</div>
-              <div>Current Price: ${formatCurrency(holding.current_price, currencyConfig)}</div>
-              <div>Total Value: ${formatCurrency(holding.total_value, currencyConfig)}</div>
-              <div>Daily P/L: ${holding.daily_profit_loss >= 0 ? '+' : ''}${formatCurrency(holding.daily_profit_loss, currencyConfig)}</div>
-            </div>
-            <div style="margin-top: 4px; color: ${holding.daily_profit_loss_percentage >= 0 ? '#34d399' : '#f87171'}">
-              Daily Return: ${holding.daily_profit_loss_percentage >= 0 ? '+' : ''}${holding.daily_profit_loss_percentage.toFixed(2)}%
+            <div style="font-weight: 500; font-size: ${isMobile ? '14px' : '16px'}">${name}</div>
+            <div style="margin-top: 8px">
+              <div>Value: ${formattedValue} (${percentageOfTotal}% of portfolio)</div>
+              <div style="color: ${dailyPLPercentage >= 0 ? '#34d399' : '#f87171'}; font-weight: 500">
+                Daily Return: ${dailyPLPercentage >= 0 ? '+' : ''}${percentage}%
+              </div>
             </div>
           `;
         }
       },
       series: [{
+        name: groupingDimension === 'tags' ? 'Tags' : 'Categories',
         type: 'treemap',
-        data: data,
+        data: data.children,
         width: '100%',
         height: '100%',
         roam: false,
-        nodeClick: groupingDimension === 'tags' ? false : 'zoomToNode',
+        nodeClick: 'zoomToNode',
         breadcrumb: {
           show: true,
           height: isMobile ? 24 : 30,
@@ -433,30 +276,40 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               fontWeight: 'bold',
               fontSize: isMobile ? 12 : 14
             }
-          },
-          emphasis: {
-            itemStyle: {
-              color: isDark ? '#4b5563' : '#e5e7eb'
-            }
           }
         },
-        levels: [{
-          itemStyle: {
-            borderColor: isDark ? '#374151' : '#e5e7eb',
-            borderWidth: 4,
-            gapWidth: isMobile ? 4 : 8,
-            borderRadius: 8
-          },
-          emphasis: {
+        levels: [
+          {
             itemStyle: {
-              borderColor: isDark ? '#60a5fa' : '#3b82f6',
-              borderWidth: 4
+              borderColor: isDark ? '#374151' : '#e5e7eb',
+              borderWidth: 4,
+              gapWidth: isMobile ? 4 : 8,
+              borderRadius: 8
+            }
+          },
+          {
+            itemStyle: {
+              borderColor: isDark ? '#374151' : '#e5e7eb',
+              borderWidth: 2,
+              gapWidth: isMobile ? 2 : 4,
+              borderRadius: 4
             }
           }
-        }],
+        ],
         label: {
           show: true,
-          position: 'inside'
+          formatter: (params: any) => {
+            const value = formatCurrency(params.value, currencyConfig)
+              .replace(/,(\d{3})+$/, 'M')
+              .replace(/,(\d{3})/, 'K');
+            const percentage = params.data.dailyPLPercentage.toFixed(1);
+            
+            return [
+              `${params.name}`,
+              `${percentage}%`,
+              value
+            ].join('\n');
+          }
         },
         upperLabel: {
           show: true,
@@ -467,19 +320,6 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
     };
 
     chart.setOption(option);
-
-    chart.on('click', (params: any) => {
-      if (params.data && params.data.children) {
-        setSelectedPath(prev => [...prev, params.name]);
-      }
-    });
-
-    chart.on('treeMapRootToNode', (params: any) => {
-      if (params.targetNode && params.targetNode.path) {
-        const path = params.targetNode.path.slice(1);
-        setSelectedPath(path);
-      }
-    });
 
     const handleResize = () => {
       if (chartInstance.current) {
