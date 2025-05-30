@@ -13,8 +13,15 @@ podTemplateLibrary {
         ls -alh
         git status
         git remote add mirror git@github.com:corvofeng/trader-frontend-mirror.git
-        git push -u mirror main
         '''
+        sshagent(credentials: ['yfeng-github-ssh']) {
+            sh '''
+                [ -d ~/.ssh ] || mkdir ~/.ssh && chmod 0700 ~/.ssh
+                ssh-keyscan -t rsa,dsa github.com >> ~/.ssh/known_hosts
+                git push -u mirror main
+            '''
+        }
+
         if (env.TAG_NAME) {
         }
     }
