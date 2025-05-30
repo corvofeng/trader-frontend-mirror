@@ -355,19 +355,18 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               ].join('\n');
             } else {
               if (params.data.stock_code ) {
-              return [
+                return [
                 `${params.name}`,
                 `${params.data.stock_code}`,
                 `${percentage}%`,
                 value
-              ].join('\n');
-
+                ].join('\n');
               } else {
-              return [
+                return [
                 `${params.name}`,
                 `${percentage}%`,
                 value
-              ].join('\n');
+                ].join('\n');
               }
             }
           },
