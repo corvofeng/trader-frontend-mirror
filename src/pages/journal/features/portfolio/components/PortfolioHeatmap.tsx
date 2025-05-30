@@ -92,6 +92,14 @@ function getColorByPercentage(percentage: number, isDark: boolean): string {
   return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${opacity})`;
 }
 
+// Helper function to safely format percentages
+function formatPercentage(value: number | undefined): string {
+  if (typeof value !== 'number' || !isFinite(value)) {
+    return '0.00';
+  }
+  return value.toFixed(2);
+}
+
 export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioHeatmapProps) {
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<echarts.ECharts | null>(null);
@@ -161,7 +169,8 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
       });
 
       data.children = Array.from(tagGroups.entries()).map(([tag, group]) => {
-        const dailyPLPercentage = (group.dailyPL / group.value) * 100;
+        // Safe calculation of daily PL percentage
+        const dailyPLPercentage = group.value > 0 ? (group.dailyPL / group.value) * 100 : 0;
         const color = getColorByPercentage(dailyPLPercentage, isDark);
 
         return {
@@ -176,9 +185,9 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
           children: group.holdings.map(holding => ({
             name: holding.stock_code,
             value: holding.total_value,
-            dailyPLPercentage: holding.daily_profit_loss_percentage,
+            dailyPLPercentage: holding.daily_profit_loss_percentage || 0,
             itemStyle: {
-              color: getColorByPercentage(holding.daily_profit_loss_percentage, isDark),
+              color: getColorByPercentage(holding.daily_profit_loss_percentage || 0, isDark),
               borderWidth: 1,
               borderColor: isDark ? '#374151' : '#e5e7eb'
             }
@@ -211,7 +220,8 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
       });
 
       data.children = Array.from(categoryGroups.entries()).map(([category, group]) => {
-        const dailyPLPercentage = (group.dailyPL / group.value) * 100;
+        // Safe calculation of daily PL percentage
+        const dailyPLPercentage = group.value > 0 ? (group.dailyPL / group.value) * 100 : 0;
         const color = getColorByPercentage(dailyPLPercentage, isDark);
 
         return {
@@ -226,9 +236,9 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
           children: group.holdings.map(holding => ({
             name: holding.stock_code,
             value: holding.total_value,
-            dailyPLPercentage: holding.daily_profit_loss_percentage,
+            dailyPLPercentage: holding.daily_profit_loss_percentage || 0,
             itemStyle: {
-              color: getColorByPercentage(holding.daily_profit_loss_percentage, isDark),
+              color: getColorByPercentage(holding.daily_profit_loss_percentage || 0, isDark),
               borderWidth: 1,
               borderColor: isDark ? '#374151' : '#e5e7eb'
             }
@@ -241,9 +251,11 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
       tooltip: {
         formatter: (params: any) => {
           const { name, value, dailyPLPercentage } = params.data;
-          const percentage = dailyPLPercentage.toFixed(2);
+          const percentage = formatPercentage(dailyPLPercentage);
           const formattedValue = formatCurrency(value, currencyConfig);
-          const percentageOfTotal = ((value / totalPortfolioValue) * 100).toFixed(1);
+          const percentageOfTotal = totalPortfolioValue > 0 
+            ? ((value / totalPortfolioValue) * 100).toFixed(1)
+            : '0.0';
 
           return `
             <div style="font-weight: 500; font-size: ${isMobile ? '14px' : '16px'}">${name}</div>
@@ -302,7 +314,7 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
             const value = formatCurrency(params.value, currencyConfig)
               .replace(/,(\d{3})+$/, 'M')
               .replace(/,(\d{3})/, 'K');
-            const percentage = params.data.dailyPLPercentage.toFixed(1);
+            const percentage = formatPercentage(params.data.dailyPLPercentage);
             
             return [
               `${params.name}`,
