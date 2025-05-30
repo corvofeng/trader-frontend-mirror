@@ -181,6 +181,10 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               borderWidth: 2,
               borderColor: isDark ? '#4b5563' : '#e5e7eb'
             },
+            label: {
+              color: isDark ? '#e5e7eb' : '#111827',
+              fontWeight: 500
+            },
             children: group.holdings.map(holding => ({
               name: holding.stock_code,
               value: holding.total_value,
@@ -189,6 +193,10 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
                 color: getColorByPercentage(holding.daily_profit_loss_percentage || 0, isDark),
                 borderWidth: 1,
                 borderColor: isDark ? '#374151' : '#e5e7eb'
+              },
+              label: {
+                color: isDark ? '#e5e7eb' : '#111827',
+                fontWeight: 500
               }
             }))
           };
@@ -230,6 +238,10 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               borderWidth: 2,
               borderColor: isDark ? '#4b5563' : '#e5e7eb'
             },
+            label: {
+              color: isDark ? '#e5e7eb' : '#111827',
+              fontWeight: 500
+            },
             children: group.holdings.map(holding => ({
               name: holding.stock_code,
               value: holding.total_value,
@@ -238,6 +250,10 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
                 color: getColorByPercentage(holding.daily_profit_loss_percentage || 0, isDark),
                 borderWidth: 1,
                 borderColor: isDark ? '#374151' : '#e5e7eb'
+              },
+              label: {
+                color: isDark ? '#e5e7eb' : '#111827',
+                fontWeight: 500
               }
             }))
           };
@@ -297,6 +313,10 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               borderWidth: 4,
               gapWidth: isMobile ? 4 : 8,
               borderRadius: 8
+            },
+            label: {
+              color: isDark ? '#e5e7eb' : '#111827',
+              fontWeight: 500
             }
           },
           {
@@ -305,6 +325,10 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
               borderWidth: 2,
               gapWidth: isMobile ? 2 : 4,
               borderRadius: 4
+            },
+            label: {
+              color: isDark ? '#e5e7eb' : '#111827',
+              fontWeight: 500
             }
           }
         ],
@@ -330,7 +354,9 @@ export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioH
                 value
               ].join('\n');
             }
-          }
+          },
+          color: isDark ? '#e5e7eb' : '#111827',
+          fontWeight: 500
         },
         upperLabel: {
           show: true,
