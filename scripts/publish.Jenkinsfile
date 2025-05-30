@@ -20,14 +20,16 @@ podTemplateLibrary {
         ssh-keyscan -t rsa,ed25519 github.com >> ~/.ssh/known_hosts
         '''
 
-        sshagent(credentials: ['id_ed25519_ansible']) {
-            sh '''
-                git checkout main
-                git push -u mirror main
-            '''
-        }
-
         if (env.TAG_NAME) {
+            sshagent(credentials: ['id_ed25519_ansible']) {
+                sh """
+                git checkout -b main
+                git push -u mirror main
+
+                git tag -a ${env.TAG_NAME} -m "Release ${env.TAG_NAME}"
+                git push mirror ${env.TAG_NAME}
+                """
+            }
         }
     }
 }
