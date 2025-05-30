@@ -25,9 +25,7 @@ podTemplateLibrary {
                 sh """
                 git checkout -b main
                 git push -u mirror main
-
-                git tag -a ${env.TAG_NAME} -m "Release ${env.TAG_NAME}"
-                git push mirror ${env.TAG_NAME}
+                git push -u mirror ${env.TAG_NAME}
                 """
             }
         }
