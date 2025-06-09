@@ -50,6 +50,14 @@ function generateDemoStockData(): StockData[] {
 export const DEMO_STOCK_DATA: StockData[] = generateDemoStockData();
 export const mockTrades = generateMockTrades(DEMO_STOCK_DATA);
 
+// Store for uploaded portfolio data
+const uploadedPortfolios = new Map<string, {
+  holdings: any[];
+  trades: any[];
+  uploadTime: string;
+  filename: string;
+}>();
+
 export const authService: AuthService = {
   getUser: async () => {
     await new Promise(resolve => setTimeout(resolve, 500));
@@ -239,6 +247,63 @@ export const portfolioService: PortfolioService = {
     }
 
     return { data: trendData, error: null };
+  },
+
+  // UUID-based methods for shared portfolios
+  getHoldingsByUuid: async (uuid: string) => {
+    await new Promise(resolve => setTimeout(resolve, 700));
+    const portfolio = uploadedPortfolios.get(uuid);
+    if (!portfolio) {
+      return { data: null, error: new Error('Portfolio not found') };
+    }
+    return { data: portfolio.holdings, error: null };
+  },
+
+  getRecentTradesByUuid: async (uuid: string, startDate: string, endDate: string) => {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    const portfolio = uploadedPortfolios.get(uuid);
+    if (!portfolio) {
+      return { data: null, error: new Error('Portfolio not found') };
+    }
+    
+    const filteredTrades = portfolio.trades.filter(trade => {
+      const tradeDate = new Date(trade.created_at).toISOString().split('T')[0];
+      return tradeDate >= startDate && tradeDate <= endDate;
+    });
+    
+    return { data: filteredTrades, error: null };
+  },
+
+  getTrendDataByUuid: async (uuid: string, startDate: string, endDate: string) => {
+    await new Promise(resolve => setTimeout(resolve, 600));
+    const portfolio = uploadedPortfolios.get(uuid);
+    if (!portfolio) {
+      return { data: null, error: new Error('Portfolio not found') };
+    }
+    
+    // Generate mock trend data for uploaded portfolio
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    
+    const trendData: TrendData[] = [];
+    const totalValue = portfolio.holdings.reduce((sum: number, h: any) => sum + (h.total_value || 0), 0);
+    let currentValue = totalValue * 0.9; // Start 10% lower
+    
+    for (let i = 0; i <= days; i++) {
+      const currentDate = new Date(start);
+      currentDate.setDate(start.getDate() + i);
+      
+      const progress = i / days;
+      currentValue = totalValue * 0.9 + (totalValue * 0.1 * progress) + (Math.random() - 0.5) * totalValue * 0.02;
+      
+      trendData.push({
+        date: currentDate.toISOString(),
+        value: currentValue
+      });
+    }
+
+    return { data: trendData, error: null };
   }
 };
 
@@ -259,4 +324,68 @@ export const operationService: OperationService = {
     const operations = generateMockOperations(startDate, endDate);
     return { data: operations, error: null };
   }
+};
+
+// Mock upload endpoint
+export const uploadPortfolioFile = async (file: File): Promise<{ uuid: string; filename: string; uploadTime: string }> => {
+  await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate upload time
+  
+  const uuid = 'portfolio-' + Math.random().toString(36).substr(2, 9);
+  const uploadTime = new Date().toISOString();
+  
+  // Parse file content (mock implementation)
+  const mockHoldingsFromFile = [
+    {
+      stock_code: 'AAPL',
+      stock_name: 'Apple Inc.',
+      quantity: 100,
+      average_price: 150.00,
+      current_price: 175.50,
+      total_value: 17550.00,
+      profit_loss: 2550.00,
+      profit_loss_percentage: 17.00,
+      daily_profit_loss: 350.00,
+      daily_profit_loss_percentage: 2.03,
+      last_updated: uploadTime
+    },
+    {
+      stock_code: 'GOOGL',
+      stock_name: 'Alphabet Inc.',
+      quantity: 25,
+      average_price: 2800.00,
+      current_price: 2900.00,
+      total_value: 72500.00,
+      profit_loss: 2500.00,
+      profit_loss_percentage: 3.57,
+      daily_profit_loss: -750.00,
+      daily_profit_loss_percentage: -1.02,
+      last_updated: uploadTime
+    }
+  ];
+  
+  const mockTradesFromFile = [
+    {
+      id: 1001,
+      user_id: 'uploaded-user',
+      stock_code: 'AAPL',
+      stock_name: 'Apple Inc.',
+      operation: 'buy' as const,
+      target_price: 150.00,
+      quantity: 100,
+      notes: 'Initial position',
+      status: 'completed' as const,
+      created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+    }
+  ];
+  
+  // Store the uploaded portfolio data
+  uploadedPortfolios.set(uuid, {
+    holdings: mockHoldingsFromFile,
+    trades: mockTradesFromFile,
+    uploadTime,
+    filename: file.name
+  });
+  
+  return { uuid, filename: file.name, uploadTime };
 };

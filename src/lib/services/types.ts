@@ -108,6 +108,10 @@ export interface PortfolioService {
   getHoldings: (userId: string) => Promise<ServiceResponse<Holding[]>>;
   getRecentTrades: (userId: string, startDate: string, endDate: string) => Promise<ServiceResponse<Trade[]>>;
   getTrendData: (userId: string, startDate: string, endDate: string) => Promise<ServiceResponse<TrendData[]>>;
+  // New UUID-based methods
+  getHoldingsByUuid: (uuid: string) => Promise<ServiceResponse<Holding[]>>;
+  getRecentTradesByUuid: (uuid: string, startDate: string, endDate: string) => Promise<ServiceResponse<Trade[]>>;
+  getTrendDataByUuid: (uuid: string, startDate: string, endDate: string) => Promise<ServiceResponse<TrendData[]>>;
 }
 
 export interface CurrencyService {

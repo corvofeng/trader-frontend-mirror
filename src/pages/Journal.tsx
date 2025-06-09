@@ -3,7 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { TradeForm, TradeList, StockSearch } from './journal/features/trading';
 import { Portfolio } from './journal/features/portfolio';
 import { OperationsView } from './journal/features/operations/OperationsView';
-import { Settings, LayoutGrid, History, BookOpen, Briefcase, Activity } from 'lucide-react';
+import { UploadPage } from './journal/features/upload';
+import { Settings, LayoutGrid, History, BookOpen, Briefcase, Activity, Upload } from 'lucide-react';
 import { Theme, themes } from '../lib/theme';
 import { portfolioService } from '../lib/services';
 import { StockChart } from './journal/features/trading/components/StockChart';
@@ -15,7 +16,7 @@ interface JournalProps {
   onStockSelect: (stock: Stock) => void;
 }
 
-type Tab = 'portfolio' | 'trades' | 'history' | 'analysis' | 'settings' | 'operations';
+type Tab = 'portfolio' | 'trades' | 'history' | 'analysis' | 'settings' | 'operations' | 'upload';
 
 const DEMO_USER_ID = 'mock-user-id';
 
@@ -25,7 +26,7 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab') as Tab;
-    return tab && ['portfolio', 'trades', 'history', 'analysis', 'settings', 'operations'].includes(tab)
+    return tab && ['portfolio', 'trades', 'history', 'analysis', 'settings', 'operations', 'upload'].includes(tab)
       ? tab
       : 'portfolio';
   });
@@ -36,31 +37,49 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
     endDate: new Date().toISOString().split('T')[0]
   });
 
+  // Get UUID from URL params for portfolio sharing
+  const portfolioUuid = new URLSearchParams(location.search).get('uuid');
+
   const handleTabChange = (newTab: Tab) => {
     setActiveTab(newTab);
-    navigate(`/journal?tab=${newTab}`, { replace: true });
+    const params = new URLSearchParams(location.search);
+    params.set('tab', newTab);
+    navigate(`/journal?${params.toString()}`, { replace: true });
   };
 
   useEffect(() => {
     const fetchData = async () => {
       if (activeTab === 'portfolio') {
-        const [holdingsResponse, tradesResponse] = await Promise.all([
-          portfolioService.getHoldings(DEMO_USER_ID),
-          portfolioService.getRecentTrades(DEMO_USER_ID, dateRange.startDate, dateRange.endDate)
-        ]);
-        
-        if (holdingsResponse.data) setHoldings(holdingsResponse.data);
-        if (tradesResponse.data) setRecentTrades(tradesResponse.data);
+        if (portfolioUuid) {
+          // Fetch portfolio data by UUID
+          const [holdingsResponse, tradesResponse] = await Promise.all([
+            portfolioService.getHoldingsByUuid(portfolioUuid),
+            portfolioService.getRecentTradesByUuid(portfolioUuid, dateRange.startDate, dateRange.endDate)
+          ]);
+          
+          if (holdingsResponse.data) setHoldings(holdingsResponse.data);
+          if (tradesResponse.data) setRecentTrades(tradesResponse.data);
+        } else {
+          // Fetch regular user portfolio data
+          const [holdingsResponse, tradesResponse] = await Promise.all([
+            portfolioService.getHoldings(DEMO_USER_ID),
+            portfolioService.getRecentTrades(DEMO_USER_ID, dateRange.startDate, dateRange.endDate)
+          ]);
+          
+          if (holdingsResponse.data) setHoldings(holdingsResponse.data);
+          if (tradesResponse.data) setRecentTrades(tradesResponse.data);
+        }
       }
     };
 
     fetchData();
-  }, [activeTab, dateRange]);
+  }, [activeTab, dateRange, portfolioUuid]);
 
   const tabs = [
     { id: 'portfolio' as Tab, name: 'Portfolio', icon: Briefcase },
     { id: 'trades' as Tab, name: 'Trade Plans', icon: LayoutGrid },
     { id: 'history' as Tab, name: 'Trade History', icon: History },
+    { id: 'upload' as Tab, name: 'Upload', icon: Upload },
     { id: 'operations' as Tab, name: 'Operations', icon: Activity },
     { id: 'analysis' as Tab, name: 'Analysis', icon: BookOpen },
     { id: 'settings' as Tab, name: 'Settings', icon: Settings },
@@ -70,12 +89,15 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
       <div className="mb-6">
         <div className="flex flex-col gap-4">
-          <div className="w-full">
-            <StockSearch
-              onSelect={onStockSelect}
-              selectedStockCode={selectedStock?.stock_code}
-            />
-          </div>
+          {/* Only show stock search if not viewing shared portfolio */}
+          {!portfolioUuid && (
+            <div className="w-full">
+              <StockSearch
+                onSelect={onStockSelect}
+                selectedStockCode={selectedStock?.stock_code}
+              />
+            </div>
+          )}
           
           <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
             <div className="flex space-x-2 min-w-max sm:min-w-0">
@@ -101,6 +123,18 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
         </div>
       </div>
 
+      {/* Show portfolio UUID info if viewing shared portfolio */}
+      {portfolioUuid && activeTab === 'portfolio' && (
+        <div className={`${themes[theme].card} rounded-lg p-4 mb-6 border-l-4 border-blue-500`}>
+          <div className="flex items-center space-x-2">
+            <Briefcase className="w-5 h-5 text-blue-500" />
+            <span className={`text-sm font-medium ${themes[theme].text}`}>
+              Viewing shared portfolio: {portfolioUuid}
+            </span>
+          </div>
+        </div>
+      )}
+
       {activeTab === 'portfolio' && (
         <Portfolio 
           holdings={holdings} 
@@ -108,17 +142,18 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
           recentTrades={recentTrades}
           dateRange={dateRange}
           onDateRangeChange={setDateRange}
+          isSharedView={!!portfolioUuid}
         />
       )}
 
-      {activeTab === 'trades' && (
+      {activeTab === 'trades' && !portfolioUuid && (
         <div className="flex flex-col gap-6">
           <TradeForm selectedStock={selectedStock} theme={theme} />
           <TradeList selectedStockCode={selectedStock?.stock_code} theme={theme} />
         </div>
       )}
 
-      {activeTab === 'history' && (
+      {activeTab === 'history' && !portfolioUuid && (
         <div className="space-y-6">
           {selectedStock?.stock_code && (
             <StockChart stockCode={selectedStock.stock_code} theme={theme} />
@@ -130,7 +165,11 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
         </div>
       )}
 
-      {activeTab === 'operations' && (
+      {activeTab === 'upload' && !portfolioUuid && (
+        <UploadPage theme={theme} />
+      )}
+
+      {activeTab === 'operations' && !portfolioUuid && (
         <OperationsView theme={theme} />
       )}
 
@@ -143,12 +182,23 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
         </div>
       )}
 
-      {activeTab === 'settings' && (
+      {activeTab === 'settings' && !portfolioUuid && (
         <div className={`${themes[theme].card} rounded-lg p-4 sm:p-6`}>
           <h2 className={`text-xl sm:text-2xl font-bold mb-4 ${themes[theme].text}`}>Account Settings</h2>
           <p className={`${themes[theme].text} opacity-70`}>
             Account and preferences settings coming soon...
           </p>
+        </div>
+      )}
+
+      {/* Show message for restricted tabs in shared view */}
+      {portfolioUuid && !['portfolio', 'analysis'].includes(activeTab) && (
+        <div className={`${themes[theme].card} rounded-lg p-8 text-center`}>
+          <div className={`${themes[theme].text} opacity-70`}>
+            <Briefcase className="w-12 h-12 mx-auto mb-4 opacity-40" />
+            <p className="text-lg font-medium">This feature is not available in shared portfolio view</p>
+            <p className="text-sm">Switch to Portfolio or Analysis tab to view shared data</p>
+          </div>
         </div>
       )}
     </main>

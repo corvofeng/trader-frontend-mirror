@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { format, subDays } from 'date-fns';
-import { ArrowUpCircle, ArrowDownCircle, Calendar, Filter, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, BarChart2, Briefcase } from 'lucide-react';
+import { ArrowUpCircle, ArrowDownCircle, Calendar, Filter, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, BarChart2, Briefcase, ExternalLink } from 'lucide-react';
 import { Theme, themes } from '../../../../lib/theme';
 import { formatCurrency } from '../../../../lib/types';
 import type { Holding, Trade, TrendData } from '../../../../lib/services/types';
@@ -30,11 +30,19 @@ interface PortfolioProps {
     endDate: string;
   };
   onDateRangeChange: (range: { startDate: string; endDate: string }) => void;
+  isSharedView?: boolean;
 }
 
 const DEMO_USER_ID = 'mock-user-id';
 
-export function Portfolio({ holdings, theme, recentTrades = [], dateRange, onDateRangeChange }: PortfolioProps) {
+export function Portfolio({ 
+  holdings, 
+  theme, 
+  recentTrades = [], 
+  dateRange, 
+  onDateRangeChange,
+  isSharedView = false 
+}: PortfolioProps) {
   const [showRecentTrades, setShowRecentTrades] = useState(true);
   const [holdingsPage, setHoldingsPage] = useState(1);
   const [holdingsPerPage, setHoldingsPerPage] = useState(5);
@@ -51,6 +59,11 @@ export function Portfolio({ holdings, theme, recentTrades = [], dateRange, onDat
 
   useEffect(() => {
     const fetchTrendData = async () => {
+      if (isSharedView) {
+        // For shared views, we might not have trend data or need different API
+        return;
+      }
+      
       const { data } = await portfolioService.getTrendData(
         DEMO_USER_ID,
         dateRange.startDate,
@@ -62,9 +75,11 @@ export function Portfolio({ holdings, theme, recentTrades = [], dateRange, onDat
     };
 
     fetchTrendData();
-  }, [dateRange]);
+  }, [dateRange, isSharedView]);
 
   const setQuickDateRange = (days: number) => {
+    if (isSharedView) return; // Disable date range changes in shared view
+    
     const endDate = new Date();
     const startDate = subDays(endDate, days);
     onDateRangeChange({
@@ -196,55 +211,73 @@ export function Portfolio({ holdings, theme, recentTrades = [], dateRange, onDat
 
   return (
     <div className="space-y-6">
+      {isSharedView && (
+        <div className={`${themes[theme].card} rounded-lg p-4 border-l-4 border-blue-500`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <ExternalLink className="w-5 h-5 text-blue-500" />
+              <span className={`text-sm font-medium ${themes[theme].text}`}>
+                This is a shared portfolio view
+              </span>
+            </div>
+            <span className={`text-xs ${themes[theme].text} opacity-60`}>
+              Read-only access
+            </span>
+          </div>
+        </div>
+      )}
+
       <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
         <div className="p-6 border-b border-gray-200">
           <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center mb-6">
             <h2 className={`text-xl font-bold ${themes[theme].text}`}>
               Portfolio Overview
             </h2>
-            <div className="flex flex-wrap gap-4 items-center">
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setQuickDateRange(7)}
-                  className={`px-3 py-1 rounded-md text-sm ${themes[theme].secondary}`}
-                >
-                  1W
-                </button>
-                <button
-                  onClick={() => setQuickDateRange(30)}
-                  className={`px-3 py-1 rounded-md text-sm ${themes[theme].secondary}`}
-                >
-                  1M
-                </button>
-                <button
-                  onClick={() => setQuickDateRange(90)}
-                  className={`px-3 py-1 rounded-md text-sm ${themes[theme].secondary}`}
-                >
-                  3M
-                </button>
-                <button
-                  onClick={() => setQuickDateRange(180)}
-                  className={`px-3 py-1 rounded-md text-sm ${themes[theme].secondary}`}
-                >
-                  6M
-                </button>
+            {!isSharedView && (
+              <div className="flex flex-wrap gap-4 items-center">
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setQuickDateRange(7)}
+                    className={`px-3 py-1 rounded-md text-sm ${themes[theme].secondary}`}
+                  >
+                    1W
+                  </button>
+                  <button
+                    onClick={() => setQuickDateRange(30)}
+                    className={`px-3 py-1 rounded-md text-sm ${themes[theme].secondary}`}
+                  >
+                    1M
+                  </button>
+                  <button
+                    onClick={() => setQuickDateRange(90)}
+                    className={`px-3 py-1 rounded-md text-sm ${themes[theme].secondary}`}
+                  >
+                    3M
+                  </button>
+                  <button
+                    onClick={() => setQuickDateRange(180)}
+                    className={`px-3 py-1 rounded-md text-sm ${themes[theme].secondary}`}
+                  >
+                    6M
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    value={dateRange.startDate}
+                    onChange={(e) => onDateRangeChange({ ...dateRange, startDate: e.target.value })}
+                    className={`px-2 py-1 rounded-md text-sm ${themes[theme].input} ${themes[theme].text}`}
+                  />
+                  <span className={`text-sm ${themes[theme].text}`}>to</span>
+                  <input
+                    type="date"
+                    value={dateRange.endDate}
+                    onChange={(e) => onDateRangeChange({ ...dateRange, endDate: e.target.value })}
+                    className={`px-2 py-1 rounded-md text-sm ${themes[theme].input} ${themes[theme].text}`}
+                  />
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="date"
-                  value={dateRange.startDate}
-                  onChange={(e) => onDateRangeChange({ ...dateRange, startDate: e.target.value })}
-                  className={`px-2 py-1 rounded-md text-sm ${themes[theme].input} ${themes[theme].text}`}
-                />
-                <span className={`text-sm ${themes[theme].text}`}>to</span>
-                <input
-                  type="date"
-                  value={dateRange.endDate}
-                  onChange={(e) => onDateRangeChange({ ...dateRange, endDate: e.target.value })}
-                  className={`px-2 py-1 rounded-md text-sm ${themes[theme].input} ${themes[theme].text}`}
-                />
-              </div>
-            </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -269,11 +302,13 @@ export function Portfolio({ holdings, theme, recentTrades = [], dateRange, onDat
           </div>
         </div>
 
-        <PortfolioTrend 
-          trendData={trendData}
-          theme={theme}
-          currencyConfig={currencyConfig}
-        />
+        {!isSharedView && trendData.length > 0 && (
+          <PortfolioTrend 
+            trendData={trendData}
+            theme={theme}
+            currencyConfig={currencyConfig}
+          />
+        )}
 
         <PortfolioHeatmap 
           holdings={holdings}
@@ -387,165 +422,153 @@ export function Portfolio({ holdings, theme, recentTrades = [], dateRange, onDat
         </div>
       </div>
 
-      <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-            <h2 className={`text-lg font-semibold ${themes[theme].text}`}>Recent Trades</h2>
-            <button
-              onClick={() => setShowRecentTrades(!showRecentTrades)}
-              className={`p-2 rounded-md ${themes[theme].secondary}`}
-            >
-              <Filter className="w-4 h-4" />
-            </button>
+      {recentTrades.length > 0 && (
+        <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+              <h2 className={`text-lg font-semibold ${themes[theme].text}`}>Recent Trades</h2>
+              <button
+                onClick={() => setShowRecentTrades(!showRecentTrades)}
+                className={`p-2 rounded-md ${themes[theme].secondary}`}
+              >
+                <Filter className="w-4 h-4" />
+              </button>
+            </div>
           </div>
-        </div>
-        
-        {showRecentTrades && (
-          <div className="p-4">
-            {recentTrades.length === 0 ? (
-              <div className="p-8 text-center">
-                <div className={themes[theme].text}>
-                  <BarChart2 className="w-12 h-12 mx-auto mb-4 opacity-40" />
-                  <p className="text-lg font-medium">No trades found</p>
-                  <p className="text-sm opacity-75">
-                    Try selecting a different date range to view more trades
-                  </p>
+          
+          {showRecentTrades && (
+            <div className="p-4">
+              <div className="flex justify-between items-center mb-4">
+                <div className={`text-sm ${themes[theme].text}`}>
+                  Showing {Math.min(recentTrades.length, (tradesPage - 1) * tradesPerPage + 1)} to {Math.min(recentTrades.length, tradesPage * tradesPerPage)} of {recentTrades.length} trades
+                </div>
+                <select
+                  value={tradesPerPage}
+                  onChange={(e) => setTradesPerPage(Number(e.target.value))}
+                  className={`px-2 py-1 rounded-md text-sm ${themes[theme].input} ${themes[theme].text}`}
+                >
+                  <option value={5}>5 per page</option>
+                  <option value={10}>10 per page</option>
+                  <option value={20}>20 per page</option>
+                </select>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className={`${themes[theme].background}`}>
+                    <tr>
+                      <th 
+                        className={`px-6 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
+                        onClick={() => handleTradesSort('created_at')}
+                      >
+                        <div className="flex items-center space-x-1">
+                          <span>Date</span>
+                          <SortIcon field="created_at" currentSort={tradesSort} />
+                        </div>
+                      </th>
+                      <th 
+                        className={`px-6 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
+                        onClick={() => handleTradesSort('stock_code')}
+                      >
+                        <div className="flex items-center space-x-1">
+                          <span>Stock</span>
+                          <SortIcon field="stock_code" currentSort={tradesSort} />
+                        </div>
+                      </th>
+                      <th 
+                        className={`px-6 py-3 text-center text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
+                        onClick={() => handleTradesSort('operation')}
+                      >
+                        <div className="flex items-center justify-center space-x-1">
+                          <span>Operation</span>
+                          <SortIcon field="operation" currentSort={tradesSort} />
+                        </div>
+                      </th>
+                      <th 
+                        className={`px-6 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
+                        onClick={() => handleTradesSort('target_price')}
+                      >
+                        <div className="flex items-center justify-end space-x-1">
+                          <span>Price</span>
+                          <SortIcon field="target_price" currentSort={tradesSort} />
+                        </div>
+                      </th>
+                      <th 
+                        className={`px-6 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
+                        onClick={() => handleTradesSort('quantity')}
+                      >
+                        <div className="flex items-center justify-end space-x-1">
+                          <span>Quantity</span>
+                          <SortIcon field="quantity" currentSort={tradesSort} />
+                        </div>
+                      </th>
+                      <th className={`px-6 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
+                        Total
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className={`divide-y ${themes[theme].border}`}>
+                    {paginatedTrades.map((trade) => (
+                      <tr key={trade.id} className={themes[theme].cardHover}>
+                        <td className={`px-6 py-4 text-sm ${themes[theme].text}`}>
+                          {format(new Date(trade.created_at), 'MMM d, yyyy HH:mm')}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div>
+                            <div className={`text-sm font-medium ${themes[theme].text}`}>{trade.stock_code}</div>
+                            <div className={`text-sm ${themes[theme].text} opacity-75`}>{trade.stock_name}</div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex justify-center">
+                            {trade.operation === 'buy' ? (
+                              <ArrowUpCircle className="w-5 h-5 text-green-600" />
+                            ) : (
+                              <ArrowDownCircle className="w-5 h-5 text-red-600" />
+                            )}
+                          </div>
+                        </td>
+                        <td className={`px-6 py-4 text-right text-sm ${themes[theme].text}`}>
+                          {formatCurrency(trade.target_price, currencyConfig)}
+                        </td>
+                        <td className={`px-6 py-4 text-right text-sm ${themes[theme].text}`}>
+                          {trade.quantity}
+                        </td>
+                        <td className={`px-6 py-4 text-right text-sm ${themes[theme].text}`}>
+                          {formatCurrency(trade.target_price * trade.quantity, currencyConfig)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex justify-end mt-4">
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setTradesPage(Math.max(1, tradesPage - 1))}
+                    disabled={tradesPage === 1}
+                    className={`p-1 rounded-md ${themes[theme].secondary} ${
+                      tradesPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => setTradesPage(Math.min(totalTradesPages, tradesPage + 1))}
+                    disabled={tradesPage === totalTradesPages}
+                    className={`p-1 rounded-md ${themes[theme].secondary} ${
+                      tradesPage === totalTradesPages ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
                 </div>
               </div>
-            ) : (
-              <>
-                <div className="flex justify-between items-center mb-4">
-                  <div className={`text-sm ${themes[theme].text}`}>
-                    Showing {Math.min(recentTrades.length, (tradesPage - 1) * tradesPerPage + 1)} to {Math.min(recentTrades.length, tradesPage * tradesPerPage)} of {recentTrades.length} trades
-                  </div>
-                  <select
-                    value={tradesPerPage}
-                    onChange={(e) => setTradesPerPage(Number(e.target.value))}
-                    className={`px-2 py-1 rounded-md text-sm ${themes[theme].input} ${themes[theme].text}`}
-                  >
-                    <option value={5}>5 per page</option>
-                    <option value={10}>10 per page</option>
-                    <option value={20}>20 per page</option>
-                  </select>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className={`${themes[theme].background}`}>
-                      <tr>
-                        <th 
-                          className={`px-6 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
-                          onClick={() => handleTradesSort('created_at')}
-                        >
-                          <div className="flex items-center space-x-1">
-                            <span>Date</span>
-                            <SortIcon field="created_at" currentSort={tradesSort} />
-                          </div>
-                        </th>
-                        <th 
-                          className={`px-6 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
-                          onClick={() => handleTradesSort('stock_code')}
-                        >
-                          <div className="flex items-center space-x-1">
-                            <span>Stock</span>
-                            <SortIcon field="stock_code" currentSort={tradesSort} />
-                          </div>
-                        </th>
-                        <th 
-                          className={`px-6 py-3 text-center text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
-                          onClick={() => handleTradesSort('operation')}
-                        >
-                          <div className="flex items-center justify-center space-x-1">
-                            <span>Operation</span>
-                            <SortIcon field="operation" currentSort={tradesSort} />
-                          </div>
-                        </th>
-                        <th 
-                          className={`px-6 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
-                          onClick={() => handleTradesSort('target_price')}
-                        >
-                          <div className="flex items-center justify-end space-x-1">
-                            <span>Price</span>
-                            <SortIcon field="target_price" currentSort={tradesSort} />
-                          </div>
-                        </th>
-                        <th 
-                          className={`px-6 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
-                          onClick={() => handleTradesSort('quantity')}
-                        >
-                          <div className="flex items-center justify-end space-x-1">
-                            <span>Quantity</span>
-                            <SortIcon field="quantity" currentSort={tradesSort} />
-                          </div>
-                        </th>
-                        <th className={`px-6 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
-                          Total
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className={`divide-y ${themes[theme].border}`}>
-                      {paginatedTrades.map((trade) => (
-                        <tr key={trade.id} className={themes[theme].cardHover}>
-                          <td className={`px-6 py-4 text-sm ${themes[theme].text}`}>
-                            {format(new Date(trade.created_at), 'MMM d, yyyy HH:mm')}
-                          </td>
-                          <td className="px-6 py-4">
-                            <div>
-                              <div className={`text-sm font-medium ${themes[theme].text}`}>{trade.stock_code}</div>
-                              <div className={`text-sm ${themes[theme].text} opacity-75`}>{trade.stock_name}</div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex justify-center">
-                              {trade.operation === 'buy' ? (
-                                <ArrowUpCircle className="w-5 h-5 text-green-600" />
-                              ) : (
-                                <ArrowDownCircle className="w-5 h-5 text-red-600" />
-                              )}
-                            </div>
-                          </td>
-                          <td className={`px-6 py-4 text-right text-sm ${themes[theme].text}`}>
-                            {formatCurrency(trade.target_price, currencyConfig)}
-                          </td>
-                          <td className={`px-6 py-4 text-right text-sm ${themes[theme].text}`}>
-                            {trade.quantity}
-                          </td>
-                          <td className={`px-6 py-4 text-right text-sm ${themes[theme].text}`}>
-                            {formatCurrency(trade.target_price * trade.quantity, currencyConfig)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="flex justify-end mt-4">
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setTradesPage(Math.max(1, tradesPage - 1))}
-                      disabled={tradesPage === 1}
-                      className={`p-1 rounded-md ${themes[theme].secondary} ${
-                        tradesPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
-                      }`}
-                    >
-                      <ChevronLeft className="w-5 h-5" />
-                    </button>
-                    <button
-                      onClick={() => setTradesPage(Math.min(totalTradesPages, tradesPage + 1))}
-                      disabled={tradesPage === totalTradesPages}
-                      className={`p-1 rounded-md ${themes[theme].secondary} ${
-                        tradesPage === totalTradesPages ? 'opacity-50 cursor-not-allowed' : ''
-                      }`}
-                    >
-                      <ChevronRight className="w-5 h-5" />
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-      </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

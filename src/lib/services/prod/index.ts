@@ -239,6 +239,55 @@ export const portfolioService: PortfolioService = {
       console.error('Error fetching trend data:', error);
       return { data: null, error: error as Error };
     }
+  },
+
+  // UUID-based methods for shared portfolios
+  getHoldingsByUuid: async (uuid: string) => {
+    try {
+      const response = await fetch(`/api/portfolio/shared/${uuid}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch shared portfolio data');
+      }
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error fetching shared portfolio:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  getRecentTradesByUuid: async (uuid: string, startDate: string, endDate: string) => {
+    try {
+      const response = await fetch(
+        `/api/portfolio/shared/${uuid}/recent-trades?startDate=${startDate}&endDate=${endDate}`
+      );
+      if (!response.ok) {
+        throw new Error('Failed to fetch shared portfolio trades');
+      }
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error fetching shared portfolio trades:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  getTrendDataByUuid: async (uuid: string, startDate: string, endDate: string) => {
+    try {
+      const response = await fetch(
+        `/api/portfolio/shared/${uuid}/trend?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`
+      );
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch shared portfolio trend data');
+      }
+      
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error fetching shared portfolio trend data:', error);
+      return { data: null, error: error as Error };
+    }
   }
 };
 
