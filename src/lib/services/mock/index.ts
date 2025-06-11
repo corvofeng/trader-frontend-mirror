@@ -289,7 +289,7 @@ export const portfolioService: PortfolioService = {
     const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
     
     const trendData: TrendData[] = [];
-    const totalValue = portfolio.holdings.reduce((sum: number, h: any) => sum + (h.market_value || 0), 0);
+    const totalValue = portfolio.holdings.reduce((sum: number, h: any) => sum + (h.total_value || 0), 0);
     let currentValue = totalValue * 0.9; // Start 10% lower
     
     for (let i = 0; i <= days; i++) {
@@ -335,12 +335,7 @@ export const uploadPortfolioFile = async (file: File): Promise<{
   uploadTime: string;
   account: any;
   balance: any;
-  summary: {
-    totalHoldings: number;
-    totalValue: number;
-    totalProfit: number;
-    profitRatio: number;
-  };
+  holdings: any[];
 }> => {
   await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate upload time
   
@@ -364,65 +359,33 @@ export const uploadPortfolioFile = async (file: File): Promise<{
     timestamp: uploadTime
   };
 
-  // Generate realistic holdings data
-  const mockHoldingsFromFile = [
-    {
-      stock_code: '513100',
-      stock_name: '纳指ETF',
-      quantity: 5000,
-      available_quantity: 5000,
-      price: 1.556 + (Math.random() - 0.5) * 0.2,
-      cost: 1.3628,
-      market_value: 7780.0 + (Math.random() - 0.5) * 1000,
-      profit: 966.0 + (Math.random() - 0.5) * 200,
-      profit_ratio: 14.18 + (Math.random() - 0.5) * 5,
-      today_profit: (Math.random() - 0.5) * 100,
-      today_profit_ratio: (Math.random() - 0.5) * 2,
-      currency: '人民币',
-      timestamp: uploadTime
-    },
-    {
-      stock_code: '159915',
-      stock_name: '创业板ETF',
-      quantity: 3000,
-      available_quantity: 3000,
-      price: 2.234 + (Math.random() - 0.5) * 0.3,
-      cost: 2.156,
-      market_value: 6702.0 + (Math.random() - 0.5) * 800,
-      profit: 234.0 + (Math.random() - 0.5) * 100,
-      profit_ratio: 3.62 + (Math.random() - 0.5) * 2,
-      today_profit: (Math.random() - 0.5) * 80,
-      today_profit_ratio: (Math.random() - 0.5) * 1.5,
-      currency: '人民币',
-      timestamp: uploadTime
-    },
-    {
-      stock_code: '000001',
-      stock_name: '平安银行',
-      quantity: 1000,
-      available_quantity: 1000,
-      price: 12.45 + (Math.random() - 0.5) * 2,
-      cost: 11.80,
-      market_value: 12450.0 + (Math.random() - 0.5) * 2000,
-      profit: 650.0 + (Math.random() - 0.5) * 300,
-      profit_ratio: 5.51 + (Math.random() - 0.5) * 3,
-      today_profit: (Math.random() - 0.5) * 150,
-      today_profit_ratio: (Math.random() - 0.5) * 2,
-      currency: '人民币',
-      timestamp: uploadTime
-    }
-  ];
+  // Use mockHoldings as base data and convert to uploaded format
+  const mockHoldingsFromFile = mockHoldings.map(holding => ({
+    stock_code: holding.stock_code,
+    stock_name: holding.stock_name,
+    quantity: holding.quantity,
+    available_quantity: holding.quantity,
+    price: holding.current_price,
+    cost: holding.average_price,
+    market_value: holding.total_value,
+    profit: holding.profit_loss,
+    profit_ratio: holding.profit_loss_percentage,
+    today_profit: holding.daily_profit_loss,
+    today_profit_ratio: holding.daily_profit_loss_percentage,
+    currency: '人民币',
+    timestamp: uploadTime
+  }));
   
   const mockTradesFromFile = [
     {
       id: 1001,
       user_id: 'uploaded-user',
-      stock_code: '513100',
-      stock_name: '纳指ETF',
+      stock_code: mockHoldings[0].stock_code,
+      stock_name: mockHoldings[0].stock_name,
       operation: 'buy' as const,
-      target_price: 1.3628,
-      quantity: 5000,
-      notes: '建仓纳指ETF',
+      target_price: mockHoldings[0].average_price,
+      quantity: mockHoldings[0].quantity,
+      notes: `建仓${mockHoldings[0].stock_name}`,
       status: 'completed' as const,
       created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
       updated_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
@@ -430,30 +393,17 @@ export const uploadPortfolioFile = async (file: File): Promise<{
     {
       id: 1002,
       user_id: 'uploaded-user',
-      stock_code: '159915',
-      stock_name: '创业板ETF',
+      stock_code: mockHoldings[1].stock_code,
+      stock_name: mockHoldings[1].stock_name,
       operation: 'buy' as const,
-      target_price: 2.156,
-      quantity: 3000,
-      notes: '分批建仓创业板',
+      target_price: mockHoldings[1].average_price,
+      quantity: mockHoldings[1].quantity,
+      notes: `分批建仓${mockHoldings[1].stock_name}`,
       status: 'completed' as const,
       created_at: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
       updated_at: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString()
     }
   ];
-
-  // Calculate summary
-  const totalValue = mockHoldingsFromFile.reduce((sum, h) => sum + h.market_value, 0);
-  const totalProfit = mockHoldingsFromFile.reduce((sum, h) => sum + h.profit, 0);
-  const totalCost = totalValue - totalProfit;
-  const profitRatio = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0;
-
-  const summary = {
-    totalHoldings: mockHoldingsFromFile.length,
-    totalValue,
-    totalProfit,
-    profitRatio
-  };
   
   // Store the uploaded portfolio data
   uploadedPortfolios.set(uuid, {
@@ -471,6 +421,6 @@ export const uploadPortfolioFile = async (file: File): Promise<{
     uploadTime,
     account: mockAccount,
     balance: mockBalance,
-    summary
+    holdings: mockHoldingsFromFile
   };
 };

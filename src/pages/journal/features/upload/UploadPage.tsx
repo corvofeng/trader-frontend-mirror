@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Upload, FileText, Check, Copy, ExternalLink, AlertCircle, User, CreditCard, TrendingUp, DollarSign } from 'lucide-react';
+import { Upload, FileText, Check, Copy, ExternalLink, AlertCircle, User, CreditCard, TrendingUp, DollarSign, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 import { Theme, themes } from '../../../../lib/theme';
 import { formatCurrency } from '../../../../lib/types';
 import { useCurrency } from '../../../../lib/context/CurrencyContext';
@@ -27,12 +27,21 @@ interface UploadResponse {
     market_value: number;
     timestamp: string;
   };
-  summary: {
-    totalHoldings: number;
-    totalValue: number;
-    totalProfit: number;
-    profitRatio: number;
-  };
+  holdings: Array<{
+    stock_code: string;
+    stock_name: string;
+    quantity: number;
+    available_quantity: number;
+    price: number;
+    cost: number;
+    market_value: number;
+    profit: number;
+    profit_ratio: number;
+    today_profit: number;
+    today_profit_ratio: number;
+    currency: string;
+    timestamp: string;
+  }>;
 }
 
 export function UploadPage({ theme }: UploadPageProps) {
@@ -316,51 +325,69 @@ export function UploadPage({ theme }: UploadPageProps) {
                 </div>
               </div>
 
-              {/* Portfolio Summary */}
+              {/* Holdings Details */}
               <div className={`${themes[theme].card} rounded-lg p-6 border ${themes[theme].border}`}>
                 <div className="flex items-center space-x-3 mb-4">
                   <TrendingUp className="w-5 h-5 text-purple-500" />
                   <h3 className={`text-lg font-semibold ${themes[theme].text}`}>
-                    Portfolio Summary
+                    Portfolio Holdings ({uploadResult.holdings.length} stocks)
                   </h3>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div className={`${themes[theme].background} rounded-lg p-4`}>
-                    <label className={`text-sm font-medium ${themes[theme].text} opacity-75`}>
-                      Total Holdings
-                    </label>
-                    <p className={`text-lg font-bold ${themes[theme].text}`}>
-                      {uploadResult.summary.totalHoldings}
-                    </p>
-                  </div>
-                  <div className={`${themes[theme].background} rounded-lg p-4`}>
-                    <label className={`text-sm font-medium ${themes[theme].text} opacity-75`}>
-                      Total Value
-                    </label>
-                    <p className={`text-lg font-bold ${themes[theme].text}`}>
-                      ¥{uploadResult.summary.totalValue.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
-                    </p>
-                  </div>
-                  <div className={`${themes[theme].background} rounded-lg p-4`}>
-                    <label className={`text-sm font-medium ${themes[theme].text} opacity-75`}>
-                      Total Profit
-                    </label>
-                    <p className={`text-lg font-bold ${
-                      uploadResult.summary.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                      {uploadResult.summary.totalProfit >= 0 ? '+' : ''}¥{uploadResult.summary.totalProfit.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
-                    </p>
-                  </div>
-                  <div className={`${themes[theme].background} rounded-lg p-4`}>
-                    <label className={`text-sm font-medium ${themes[theme].text} opacity-75`}>
-                      Profit Ratio
-                    </label>
-                    <p className={`text-lg font-bold ${
-                      uploadResult.summary.profitRatio >= 0 ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                      {uploadResult.summary.profitRatio >= 0 ? '+' : ''}{uploadResult.summary.profitRatio.toFixed(2)}%
-                    </p>
-                  </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className={`${themes[theme].background}`}>
+                      <tr>
+                        <th className={`px-4 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>Stock</th>
+                        <th className={`px-4 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>Quantity</th>
+                        <th className={`px-4 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>Cost</th>
+                        <th className={`px-4 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>Price</th>
+                        <th className={`px-4 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>Market Value</th>
+                        <th className={`px-4 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>P/L</th>
+                        <th className={`px-4 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>P/L %</th>
+                      </tr>
+                    </thead>
+                    <tbody className={`divide-y ${themes[theme].border}`}>
+                      {uploadResult.holdings.map((holding) => (
+                        <tr key={holding.stock_code} className={themes[theme].cardHover}>
+                          <td className="px-4 py-4">
+                            <div>
+                              <div className={`text-sm font-medium ${themes[theme].text}`}>{holding.stock_code}</div>
+                              <div className={`text-sm ${themes[theme].text} opacity-75`}>{holding.stock_name}</div>
+                            </div>
+                          </td>
+                          <td className={`px-4 py-4 text-right text-sm ${themes[theme].text}`}>
+                            {holding.quantity.toLocaleString()}
+                          </td>
+                          <td className={`px-4 py-4 text-right text-sm ${themes[theme].text}`}>
+                            ¥{holding.cost.toFixed(3)}
+                          </td>
+                          <td className={`px-4 py-4 text-right text-sm ${themes[theme].text}`}>
+                            ¥{holding.price.toFixed(3)}
+                          </td>
+                          <td className={`px-4 py-4 text-right text-sm ${themes[theme].text}`}>
+                            ¥{holding.market_value.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className={`px-4 py-4 text-right text-sm font-medium ${
+                            holding.profit >= 0 ? 'text-green-600' : 'text-red-600'
+                          }`}>
+                            {holding.profit >= 0 ? '+' : ''}¥{holding.profit.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className={`px-4 py-4 text-right text-sm font-medium ${
+                            holding.profit_ratio >= 0 ? 'text-green-600' : 'text-red-600'
+                          }`}>
+                            <div className="flex items-center justify-end space-x-1">
+                              {holding.profit_ratio >= 0 ? (
+                                <ArrowUpCircle className="w-4 h-4" />
+                              ) : (
+                                <ArrowDownCircle className="w-4 h-4" />
+                              )}
+                              <span>{holding.profit_ratio >= 0 ? '+' : ''}{holding.profit_ratio.toFixed(2)}%</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
