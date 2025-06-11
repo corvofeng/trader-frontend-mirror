@@ -344,3 +344,28 @@ export const operationService: OperationService = {
     }
   }
 };
+
+// Production upload endpoint
+export const uploadPortfolioFile = async (file: File): Promise<{ 
+  uuid: string; 
+  filename: string; 
+  uploadTime: string;
+  account: any;
+  balance: any;
+  holdings: any[];
+}> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  const response = await fetch('/api/portfolio/upload', {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error('Upload failed');
+  }
+
+  const result = await response.json();
+  return result;
+};

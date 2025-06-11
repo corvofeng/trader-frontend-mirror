@@ -98,9 +98,20 @@ export function UploadPage({ theme }: UploadPageProps) {
     setIsUploading(true);
     
     try {
-      // Import the mock upload function
-      const { uploadPortfolioFile } = await import('../../../../lib/services/mock');
-      const result = await uploadPortfolioFile(file);
+      // Dynamically import the appropriate upload function based on environment
+      const isProduction = import.meta.env.VITE_ENV === 'production';
+      
+      let result: UploadResponse;
+      
+      if (isProduction) {
+        // Use production upload endpoint
+        const { uploadPortfolioFile } = await import('../../../../lib/services/prod');
+        result = await uploadPortfolioFile(file);
+      } else {
+        // Use mock upload endpoint
+        const { uploadPortfolioFile } = await import('../../../../lib/services/mock');
+        result = await uploadPortfolioFile(file);
+      }
       
       setUploadResult(result);
       toast.success('File uploaded and parsed successfully!');
