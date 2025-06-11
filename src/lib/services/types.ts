@@ -1,5 +1,3 @@
-import type { CurrencyConfig } from '../types';
-
 export interface User {
   id: string;
   email: string;
@@ -78,6 +76,41 @@ export interface StockPrice {
   price: number;
 }
 
+export interface UploadResponse {
+  uuid: string;
+  filename: string;
+  uploadTime: string;
+  account: {
+    broker: string;
+    branch: string;
+    username: string;
+    account_no: string;
+  };
+  balance: {
+    currency: string;
+    available: number;
+    withdrawable: number;
+    total_asset: number;
+    market_value: number;
+    timestamp: string;
+  };
+  holdings: Array<{
+    stock_code: string;
+    stock_name: string;
+    quantity: number;
+    available_quantity: number;
+    price: number;
+    cost: number;
+    market_value: number;
+    profit: number;
+    profit_ratio: number;
+    today_profit: number;
+    today_profit_ratio: number;
+    currency: string;
+    timestamp: string;
+  }>;
+}
+
 export interface StockService {
   getStockName: (stockCode: string) => string;
   getStocks: () => Promise<ServiceResponse<Stock[]>>;
@@ -129,6 +162,10 @@ export interface OperationService {
   getOperations: (startDate: string, endDate: string) => Promise<ServiceResponse<Operation[]>>;
 }
 
+export interface UploadService {
+  uploadPortfolioFile: (file: File) => Promise<UploadResponse>;
+}
+
 export interface Services {
   authService: AuthService;
   tradeService: TradeService;
@@ -137,4 +174,5 @@ export interface Services {
   portfolioService: PortfolioService;
   currencyService: CurrencyService;
   operationService: OperationService;
+  uploadService: UploadService;
 }

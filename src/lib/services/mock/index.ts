@@ -1,5 +1,5 @@
 import { mockUser, mockHoldings, tradeIdCounter, MOCK_STOCKS, MOCK_STOCK_CONFIGS, generateMockTrades, generateMockOperations, DEMO_STOCK_DATA } from './mockData';
-import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, StockData, StockPrice, Operation, OperationService, TrendData, StockConfigService, StockConfig } from '../types';
+import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, StockData, StockPrice, Operation, OperationService, TrendData, StockConfigService, StockConfig, UploadService, UploadResponse } from '../types';
 import { format, subDays, addMinutes, startOfDay, endOfDay, parseISO } from 'date-fns';
 
 function generateDemoStockData(): StockData[] {
@@ -328,99 +328,93 @@ export const operationService: OperationService = {
   }
 };
 
-// Mock upload endpoint with real data format
-export const uploadPortfolioFile = async (file: File): Promise<{ 
-  uuid: string; 
-  filename: string; 
-  uploadTime: string;
-  account: any;
-  balance: any;
-  holdings: any[];
-}> => {
-  await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate upload time
-  
-  const uuid = 'portfolio-' + Math.random().toString(36).substr(2, 9);
-  const uploadTime = new Date().toISOString();
-  
-  // Generate realistic account data based on your example
-  const mockAccount = {
-    broker: '中金财富',
-    branch: '北京分公司',
-    username: 'Demo User',
-    account_no: '1200' + Math.floor(Math.random() * 1000000).toString().padStart(6, '0')
-  };
+export const uploadService: UploadService = {
+  uploadPortfolioFile: async (file: File): Promise<UploadResponse> => {
+    await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate upload time
+    
+    const uuid = 'portfolio-' + Math.random().toString(36).substr(2, 9);
+    const uploadTime = new Date().toISOString();
+    
+    // Generate realistic account data based on your example
+    const mockAccount = {
+      broker: '中金财富',
+      branch: '北京分公司',
+      username: 'Demo User',
+      account_no: '1200' + Math.floor(Math.random() * 1000000).toString().padStart(6, '0')
+    };
 
-  const mockBalance = {
-    currency: '人民币',
-    available: 35607.94 + (Math.random() - 0.5) * 10000,
-    withdrawable: 101.83 + (Math.random() - 0.5) * 200,
-    total_asset: 153165.94 + (Math.random() - 0.5) * 50000,
-    market_value: 117558.0 + (Math.random() - 0.5) * 30000,
-    timestamp: uploadTime
-  };
+    const mockBalance = {
+      currency: '人民币',
+      available: 35607.94 + (Math.random() - 0.5) * 10000,
+      withdrawable: 101.83 + (Math.random() - 0.5) * 200,
+      total_asset: 153165.94 + (Math.random() - 0.5) * 50000,
+      market_value: 117558.0 + (Math.random() - 0.5) * 30000,
+      timestamp: uploadTime
+    };
 
-  // Use mockHoldings as base data and convert to uploaded format
-  const mockHoldingsFromFile = mockHoldings.map(holding => ({
-    stock_code: holding.stock_code,
-    stock_name: holding.stock_name,
-    quantity: holding.quantity,
-    available_quantity: holding.quantity,
-    price: holding.current_price,
-    cost: holding.average_price,
-    market_value: holding.total_value,
-    profit: holding.profit_loss,
-    profit_ratio: holding.profit_loss_percentage,
-    today_profit: holding.daily_profit_loss,
-    today_profit_ratio: holding.daily_profit_loss_percentage,
-    currency: '人民币',
-    timestamp: uploadTime
-  }));
-  
-  const mockTradesFromFile = [
-    {
-      id: 1001,
-      user_id: 'uploaded-user',
-      stock_code: mockHoldings[0].stock_code,
-      stock_name: mockHoldings[0].stock_name,
-      operation: 'buy' as const,
-      target_price: mockHoldings[0].average_price,
-      quantity: mockHoldings[0].quantity,
-      notes: `建仓${mockHoldings[0].stock_name}`,
-      status: 'completed' as const,
-      created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-    },
-    {
-      id: 1002,
-      user_id: 'uploaded-user',
-      stock_code: mockHoldings[1].stock_code,
-      stock_name: mockHoldings[1].stock_name,
-      operation: 'buy' as const,
-      target_price: mockHoldings[1].average_price,
-      quantity: mockHoldings[1].quantity,
-      notes: `分批建仓${mockHoldings[1].stock_name}`,
-      status: 'completed' as const,
-      created_at: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString()
-    }
-  ];
-  
-  // Store the uploaded portfolio data
-  uploadedPortfolios.set(uuid, {
-    account: mockAccount,
-    balance: mockBalance,
-    holdings: mockHoldingsFromFile,
-    trades: mockTradesFromFile,
-    uploadTime,
-    filename: file.name
-  });
-  
-  return { 
-    uuid, 
-    filename: file.name, 
-    uploadTime,
-    account: mockAccount,
-    balance: mockBalance,
-    holdings: mockHoldingsFromFile
-  };
+    // Use mockHoldings as base data and convert to uploaded format
+    const mockHoldingsFromFile = mockHoldings.map(holding => ({
+      stock_code: holding.stock_code,
+      stock_name: holding.stock_name,
+      quantity: holding.quantity,
+      available_quantity: holding.quantity,
+      price: holding.current_price,
+      cost: holding.average_price,
+      market_value: holding.total_value,
+      profit: holding.profit_loss,
+      profit_ratio: holding.profit_loss_percentage,
+      today_profit: holding.daily_profit_loss,
+      today_profit_ratio: holding.daily_profit_loss_percentage,
+      currency: '人民币',
+      timestamp: uploadTime
+    }));
+    
+    const mockTradesFromFile = [
+      {
+        id: 1001,
+        user_id: 'uploaded-user',
+        stock_code: mockHoldings[0].stock_code,
+        stock_name: mockHoldings[0].stock_name,
+        operation: 'buy' as const,
+        target_price: mockHoldings[0].average_price,
+        quantity: mockHoldings[0].quantity,
+        notes: `建仓${mockHoldings[0].stock_name}`,
+        status: 'completed' as const,
+        created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+        updated_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+      },
+      {
+        id: 1002,
+        user_id: 'uploaded-user',
+        stock_code: mockHoldings[1].stock_code,
+        stock_name: mockHoldings[1].stock_name,
+        operation: 'buy' as const,
+        target_price: mockHoldings[1].average_price,
+        quantity: mockHoldings[1].quantity,
+        notes: `分批建仓${mockHoldings[1].stock_name}`,
+        status: 'completed' as const,
+        created_at: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
+        updated_at: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString()
+      }
+    ];
+    
+    // Store the uploaded portfolio data
+    uploadedPortfolios.set(uuid, {
+      account: mockAccount,
+      balance: mockBalance,
+      holdings: mockHoldingsFromFile,
+      trades: mockTradesFromFile,
+      uploadTime,
+      filename: file.name
+    });
+    
+    return { 
+      uuid, 
+      filename: file.name, 
+      uploadTime,
+      account: mockAccount,
+      balance: mockBalance,
+      holdings: mockHoldingsFromFile
+    };
+  }
 };

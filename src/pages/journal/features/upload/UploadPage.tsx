@@ -3,45 +3,12 @@ import { Upload, FileText, Check, Copy, ExternalLink, AlertCircle, User, CreditC
 import { Theme, themes } from '../../../../lib/theme';
 import { formatCurrency } from '../../../../lib/types';
 import { useCurrency } from '../../../../lib/context/CurrencyContext';
+import { uploadService } from '../../../../lib/services';
+import type { UploadResponse } from '../../../../lib/services/types';
 import toast from 'react-hot-toast';
 
 interface UploadPageProps {
   theme: Theme;
-}
-
-interface UploadResponse {
-  uuid: string;
-  filename: string;
-  uploadTime: string;
-  account: {
-    broker: string;
-    branch: string;
-    username: string;
-    account_no: string;
-  };
-  balance: {
-    currency: string;
-    available: number;
-    withdrawable: number;
-    total_asset: number;
-    market_value: number;
-    timestamp: string;
-  };
-  holdings: Array<{
-    stock_code: string;
-    stock_name: string;
-    quantity: number;
-    available_quantity: number;
-    price: number;
-    cost: number;
-    market_value: number;
-    profit: number;
-    profit_ratio: number;
-    today_profit: number;
-    today_profit_ratio: number;
-    currency: string;
-    timestamp: string;
-  }>;
 }
 
 export function UploadPage({ theme }: UploadPageProps) {
@@ -98,21 +65,7 @@ export function UploadPage({ theme }: UploadPageProps) {
     setIsUploading(true);
     
     try {
-      // Dynamically import the appropriate upload function based on environment
-      const isProduction = import.meta.env.VITE_ENV === 'production';
-      
-      let result: UploadResponse;
-      
-      if (isProduction) {
-        // Use production upload endpoint
-        const { uploadPortfolioFile } = await import('../../../../lib/services/prod');
-        result = await uploadPortfolioFile(file);
-      } else {
-        // Use mock upload endpoint
-        const { uploadPortfolioFile } = await import('../../../../lib/services/mock');
-        result = await uploadPortfolioFile(file);
-      }
-      
+      const result = await uploadService.uploadPortfolioFile(file);
       setUploadResult(result);
       toast.success('File uploaded and parsed successfully!');
       
