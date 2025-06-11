@@ -52,6 +52,8 @@ export const mockTrades = generateMockTrades(DEMO_STOCK_DATA);
 
 // Store for uploaded portfolio data
 const uploadedPortfolios = new Map<string, {
+  account: any;
+  balance: any;
   holdings: any[];
   trades: any[];
   uploadTime: string;
@@ -287,7 +289,7 @@ export const portfolioService: PortfolioService = {
     const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
     
     const trendData: TrendData[] = [];
-    const totalValue = portfolio.holdings.reduce((sum: number, h: any) => sum + (h.total_value || 0), 0);
+    const totalValue = portfolio.holdings.reduce((sum: number, h: any) => sum + (h.market_value || 0), 0);
     let currentValue = totalValue * 0.9; // Start 10% lower
     
     for (let i = 0; i <= days; i++) {
@@ -326,40 +328,88 @@ export const operationService: OperationService = {
   }
 };
 
-// Mock upload endpoint
-export const uploadPortfolioFile = async (file: File): Promise<{ uuid: string; filename: string; uploadTime: string }> => {
+// Mock upload endpoint with real data format
+export const uploadPortfolioFile = async (file: File): Promise<{ 
+  uuid: string; 
+  filename: string; 
+  uploadTime: string;
+  account: any;
+  balance: any;
+  summary: {
+    totalHoldings: number;
+    totalValue: number;
+    totalProfit: number;
+    profitRatio: number;
+  };
+}> => {
   await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate upload time
   
   const uuid = 'portfolio-' + Math.random().toString(36).substr(2, 9);
   const uploadTime = new Date().toISOString();
   
-  // Parse file content (mock implementation)
+  // Generate realistic account data based on your example
+  const mockAccount = {
+    broker: '中金财富',
+    branch: '北京分公司',
+    username: 'Demo User',
+    account_no: '1200' + Math.floor(Math.random() * 1000000).toString().padStart(6, '0')
+  };
+
+  const mockBalance = {
+    currency: '人民币',
+    available: 35607.94 + (Math.random() - 0.5) * 10000,
+    withdrawable: 101.83 + (Math.random() - 0.5) * 200,
+    total_asset: 153165.94 + (Math.random() - 0.5) * 50000,
+    market_value: 117558.0 + (Math.random() - 0.5) * 30000,
+    timestamp: uploadTime
+  };
+
+  // Generate realistic holdings data
   const mockHoldingsFromFile = [
     {
-      stock_code: 'AAPL',
-      stock_name: 'Apple Inc.',
-      quantity: 100,
-      average_price: 150.00,
-      current_price: 175.50,
-      total_value: 17550.00,
-      profit_loss: 2550.00,
-      profit_loss_percentage: 17.00,
-      daily_profit_loss: 350.00,
-      daily_profit_loss_percentage: 2.03,
-      last_updated: uploadTime
+      stock_code: '513100',
+      stock_name: '纳指ETF',
+      quantity: 5000,
+      available_quantity: 5000,
+      price: 1.556 + (Math.random() - 0.5) * 0.2,
+      cost: 1.3628,
+      market_value: 7780.0 + (Math.random() - 0.5) * 1000,
+      profit: 966.0 + (Math.random() - 0.5) * 200,
+      profit_ratio: 14.18 + (Math.random() - 0.5) * 5,
+      today_profit: (Math.random() - 0.5) * 100,
+      today_profit_ratio: (Math.random() - 0.5) * 2,
+      currency: '人民币',
+      timestamp: uploadTime
     },
     {
-      stock_code: 'GOOGL',
-      stock_name: 'Alphabet Inc.',
-      quantity: 25,
-      average_price: 2800.00,
-      current_price: 2900.00,
-      total_value: 72500.00,
-      profit_loss: 2500.00,
-      profit_loss_percentage: 3.57,
-      daily_profit_loss: -750.00,
-      daily_profit_loss_percentage: -1.02,
-      last_updated: uploadTime
+      stock_code: '159915',
+      stock_name: '创业板ETF',
+      quantity: 3000,
+      available_quantity: 3000,
+      price: 2.234 + (Math.random() - 0.5) * 0.3,
+      cost: 2.156,
+      market_value: 6702.0 + (Math.random() - 0.5) * 800,
+      profit: 234.0 + (Math.random() - 0.5) * 100,
+      profit_ratio: 3.62 + (Math.random() - 0.5) * 2,
+      today_profit: (Math.random() - 0.5) * 80,
+      today_profit_ratio: (Math.random() - 0.5) * 1.5,
+      currency: '人民币',
+      timestamp: uploadTime
+    },
+    {
+      stock_code: '000001',
+      stock_name: '平安银行',
+      quantity: 1000,
+      available_quantity: 1000,
+      price: 12.45 + (Math.random() - 0.5) * 2,
+      cost: 11.80,
+      market_value: 12450.0 + (Math.random() - 0.5) * 2000,
+      profit: 650.0 + (Math.random() - 0.5) * 300,
+      profit_ratio: 5.51 + (Math.random() - 0.5) * 3,
+      today_profit: (Math.random() - 0.5) * 150,
+      today_profit_ratio: (Math.random() - 0.5) * 2,
+      currency: '人民币',
+      timestamp: uploadTime
     }
   ];
   
@@ -367,25 +417,60 @@ export const uploadPortfolioFile = async (file: File): Promise<{ uuid: string; f
     {
       id: 1001,
       user_id: 'uploaded-user',
-      stock_code: 'AAPL',
-      stock_name: 'Apple Inc.',
+      stock_code: '513100',
+      stock_name: '纳指ETF',
       operation: 'buy' as const,
-      target_price: 150.00,
-      quantity: 100,
-      notes: 'Initial position',
+      target_price: 1.3628,
+      quantity: 5000,
+      notes: '建仓纳指ETF',
       status: 'completed' as const,
       created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
       updated_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+    },
+    {
+      id: 1002,
+      user_id: 'uploaded-user',
+      stock_code: '159915',
+      stock_name: '创业板ETF',
+      operation: 'buy' as const,
+      target_price: 2.156,
+      quantity: 3000,
+      notes: '分批建仓创业板',
+      status: 'completed' as const,
+      created_at: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
+      updated_at: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString()
     }
   ];
+
+  // Calculate summary
+  const totalValue = mockHoldingsFromFile.reduce((sum, h) => sum + h.market_value, 0);
+  const totalProfit = mockHoldingsFromFile.reduce((sum, h) => sum + h.profit, 0);
+  const totalCost = totalValue - totalProfit;
+  const profitRatio = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0;
+
+  const summary = {
+    totalHoldings: mockHoldingsFromFile.length,
+    totalValue,
+    totalProfit,
+    profitRatio
+  };
   
   // Store the uploaded portfolio data
   uploadedPortfolios.set(uuid, {
+    account: mockAccount,
+    balance: mockBalance,
     holdings: mockHoldingsFromFile,
     trades: mockTradesFromFile,
     uploadTime,
     filename: file.name
   });
   
-  return { uuid, filename: file.name, uploadTime };
+  return { 
+    uuid, 
+    filename: file.name, 
+    uploadTime,
+    account: mockAccount,
+    balance: mockBalance,
+    summary
+  };
 };

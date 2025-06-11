@@ -1,6 +1,8 @@
 import React, { useState, useRef } from 'react';
-import { Upload, FileText, Check, Copy, ExternalLink, AlertCircle } from 'lucide-react';
+import { Upload, FileText, Check, Copy, ExternalLink, AlertCircle, User, CreditCard, TrendingUp, DollarSign } from 'lucide-react';
 import { Theme, themes } from '../../../../lib/theme';
+import { formatCurrency } from '../../../../lib/types';
+import { useCurrency } from '../../../../lib/context/CurrencyContext';
 import toast from 'react-hot-toast';
 
 interface UploadPageProps {
@@ -11,6 +13,26 @@ interface UploadResponse {
   uuid: string;
   filename: string;
   uploadTime: string;
+  account: {
+    broker: string;
+    branch: string;
+    username: string;
+    account_no: string;
+  };
+  balance: {
+    currency: string;
+    available: number;
+    withdrawable: number;
+    total_asset: number;
+    market_value: number;
+    timestamp: string;
+  };
+  summary: {
+    totalHoldings: number;
+    totalValue: number;
+    totalProfit: number;
+    profitRatio: number;
+  };
 }
 
 export function UploadPage({ theme }: UploadPageProps) {
@@ -19,6 +41,7 @@ export function UploadPage({ theme }: UploadPageProps) {
   const [uploadResult, setUploadResult] = useState<UploadResponse | null>(null);
   const [copiedUrl, setCopiedUrl] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { currencyConfig } = useCurrency();
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -66,21 +89,12 @@ export function UploadPage({ theme }: UploadPageProps) {
     setIsUploading(true);
     
     try {
-      const formData = new FormData();
-      formData.append('file', file);
+      // Import the mock upload function
+      const { uploadPortfolioFile } = await import('../../../../lib/services/mock');
+      const result = await uploadPortfolioFile(file);
       
-      const response = await fetch('/api/portfolio/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error('Upload failed');
-      }
-
-      const result: UploadResponse = await response.json();
       setUploadResult(result);
-      toast.success('File uploaded successfully!');
+      toast.success('File uploaded and parsed successfully!');
       
       // Reset file input
       if (fileInputRef.current) {
@@ -153,7 +167,7 @@ export function UploadPage({ theme }: UploadPageProps) {
                 <div className="space-y-4">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
                   <p className={`text-lg font-medium ${themes[theme].text}`}>
-                    Uploading file...
+                    Uploading and parsing file...
                   </p>
                 </div>
               ) : (
@@ -195,7 +209,7 @@ export function UploadPage({ theme }: UploadPageProps) {
                       Upload Successful!
                     </h3>
                     <p className={`text-sm ${themes[theme].text} opacity-75 mt-1`}>
-                      Your portfolio file has been processed and is ready to view
+                      Your portfolio file has been processed and parsed successfully
                     </p>
                     <div className="mt-4 space-y-2">
                       <div className="flex items-center space-x-2">
@@ -210,6 +224,142 @@ export function UploadPage({ theme }: UploadPageProps) {
                         </span>
                       </div>
                     </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Account Information */}
+              <div className={`${themes[theme].card} rounded-lg p-6 border ${themes[theme].border}`}>
+                <div className="flex items-center space-x-3 mb-4">
+                  <User className="w-5 h-5 text-blue-500" />
+                  <h3 className={`text-lg font-semibold ${themes[theme].text}`}>
+                    Account Information
+                  </h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className={`text-sm font-medium ${themes[theme].text} opacity-75`}>
+                      Broker
+                    </label>
+                    <p className={`text-sm ${themes[theme].text}`}>
+                      {uploadResult.account.broker}
+                    </p>
+                  </div>
+                  <div>
+                    <label className={`text-sm font-medium ${themes[theme].text} opacity-75`}>
+                      Account No.
+                    </label>
+                    <p className={`text-sm ${themes[theme].text} font-mono`}>
+                      {uploadResult.account.account_no}
+                    </p>
+                  </div>
+                  <div>
+                    <label className={`text-sm font-medium ${themes[theme].text} opacity-75`}>
+                      Username
+                    </label>
+                    <p className={`text-sm ${themes[theme].text}`}>
+                      {uploadResult.account.username}
+                    </p>
+                  </div>
+                  <div>
+                    <label className={`text-sm font-medium ${themes[theme].text} opacity-75`}>
+                      Branch
+                    </label>
+                    <p className={`text-sm ${themes[theme].text}`}>
+                      {uploadResult.account.branch || 'N/A'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Balance Information */}
+              <div className={`${themes[theme].card} rounded-lg p-6 border ${themes[theme].border}`}>
+                <div className="flex items-center space-x-3 mb-4">
+                  <CreditCard className="w-5 h-5 text-green-500" />
+                  <h3 className={`text-lg font-semibold ${themes[theme].text}`}>
+                    Balance Information
+                  </h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className={`${themes[theme].background} rounded-lg p-4`}>
+                    <label className={`text-sm font-medium ${themes[theme].text} opacity-75`}>
+                      Total Assets
+                    </label>
+                    <p className={`text-lg font-bold ${themes[theme].text}`}>
+                      ¥{uploadResult.balance.total_asset.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                  <div className={`${themes[theme].background} rounded-lg p-4`}>
+                    <label className={`text-sm font-medium ${themes[theme].text} opacity-75`}>
+                      Market Value
+                    </label>
+                    <p className={`text-lg font-bold ${themes[theme].text}`}>
+                      ¥{uploadResult.balance.market_value.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                  <div className={`${themes[theme].background} rounded-lg p-4`}>
+                    <label className={`text-sm font-medium ${themes[theme].text} opacity-75`}>
+                      Available
+                    </label>
+                    <p className={`text-lg font-bold ${themes[theme].text}`}>
+                      ¥{uploadResult.balance.available.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                  <div className={`${themes[theme].background} rounded-lg p-4`}>
+                    <label className={`text-sm font-medium ${themes[theme].text} opacity-75`}>
+                      Withdrawable
+                    </label>
+                    <p className={`text-lg font-bold ${themes[theme].text}`}>
+                      ¥{uploadResult.balance.withdrawable.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Portfolio Summary */}
+              <div className={`${themes[theme].card} rounded-lg p-6 border ${themes[theme].border}`}>
+                <div className="flex items-center space-x-3 mb-4">
+                  <TrendingUp className="w-5 h-5 text-purple-500" />
+                  <h3 className={`text-lg font-semibold ${themes[theme].text}`}>
+                    Portfolio Summary
+                  </h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className={`${themes[theme].background} rounded-lg p-4`}>
+                    <label className={`text-sm font-medium ${themes[theme].text} opacity-75`}>
+                      Total Holdings
+                    </label>
+                    <p className={`text-lg font-bold ${themes[theme].text}`}>
+                      {uploadResult.summary.totalHoldings}
+                    </p>
+                  </div>
+                  <div className={`${themes[theme].background} rounded-lg p-4`}>
+                    <label className={`text-sm font-medium ${themes[theme].text} opacity-75`}>
+                      Total Value
+                    </label>
+                    <p className={`text-lg font-bold ${themes[theme].text}`}>
+                      ¥{uploadResult.summary.totalValue.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                  <div className={`${themes[theme].background} rounded-lg p-4`}>
+                    <label className={`text-sm font-medium ${themes[theme].text} opacity-75`}>
+                      Total Profit
+                    </label>
+                    <p className={`text-lg font-bold ${
+                      uploadResult.summary.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {uploadResult.summary.totalProfit >= 0 ? '+' : ''}¥{uploadResult.summary.totalProfit.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                  <div className={`${themes[theme].background} rounded-lg p-4`}>
+                    <label className={`text-sm font-medium ${themes[theme].text} opacity-75`}>
+                      Profit Ratio
+                    </label>
+                    <p className={`text-lg font-bold ${
+                      uploadResult.summary.profitRatio >= 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {uploadResult.summary.profitRatio >= 0 ? '+' : ''}{uploadResult.summary.profitRatio.toFixed(2)}%
+                    </p>
                   </div>
                 </div>
               </div>
@@ -268,7 +418,7 @@ export function UploadPage({ theme }: UploadPageProps) {
                     </p>
                     <ul className={`mt-2 space-y-1 ${themes[theme].text} opacity-75`}>
                       <li>• This URL provides read-only access to your portfolio data</li>
-                      <li>• The file will be stored securely and can be accessed via the UUID</li>
+                      <li>• The file has been parsed and account information extracted</li>
                       <li>• Share this URL with anyone you want to view your portfolio</li>
                       <li>• The data will be available for 30 days from upload</li>
                     </ul>
@@ -292,11 +442,11 @@ export function UploadPage({ theme }: UploadPageProps) {
               </h4>
               <div className={`${themes[theme].background} rounded-lg p-4 font-mono text-sm`}>
                 <div className={themes[theme].text}>
-                  stock_code,stock_name,quantity,average_price,current_price
+                  stock_code,stock_name,quantity,price,cost,market_value,profit,profit_ratio
                   <br />
-                  AAPL,Apple Inc.,100,150.00,175.50
+                  513100,纳指ETF,5000,1.556,1.3628,7780.0,966.0,14.18
                   <br />
-                  MSFT,Microsoft Corporation,50,300.00,338.20
+                  000001,平安银行,1000,12.45,11.80,12450.0,650.0,5.51
                 </div>
               </div>
             </div>
@@ -305,11 +455,14 @@ export function UploadPage({ theme }: UploadPageProps) {
                 Required Columns:
               </h4>
               <ul className={`text-sm ${themes[theme].text} opacity-75 space-y-1`}>
-                <li>• <strong>stock_code</strong>: Stock symbol (e.g., AAPL, MSFT)</li>
-                <li>• <strong>stock_name</strong>: Company name</li>
+                <li>• <strong>stock_code</strong>: Stock symbol (e.g., 513100, 000001)</li>
+                <li>• <strong>stock_name</strong>: Stock name (e.g., 纳指ETF, 平安银行)</li>
                 <li>• <strong>quantity</strong>: Number of shares</li>
-                <li>• <strong>average_price</strong>: Average purchase price</li>
-                <li>• <strong>current_price</strong>: Current market price</li>
+                <li>• <strong>price</strong>: Current market price</li>
+                <li>• <strong>cost</strong>: Average purchase price</li>
+                <li>• <strong>market_value</strong>: Current market value</li>
+                <li>• <strong>profit</strong>: Profit/Loss amount</li>
+                <li>• <strong>profit_ratio</strong>: Profit/Loss percentage</li>
               </ul>
             </div>
           </div>
