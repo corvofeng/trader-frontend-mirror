@@ -57,28 +57,42 @@ export function Portfolio({
   const totalProfitLoss = holdings.reduce((sum, holding) => sum + holding.profit_loss, 0);
   const totalProfitLossPercentage = (totalProfitLoss / (totalValue - totalProfitLoss)) * 100;
 
+  // Get UUID from URL params for portfolio sharing
+  const portfolioUuid = new URLSearchParams(window.location.search).get('uuid');
+
   useEffect(() => {
     const fetchTrendData = async () => {
-      if (isSharedView) {
-        // For shared views, we might not have trend data or need different API
-        return;
-      }
-      
-      const { data } = await portfolioService.getTrendData(
-        DEMO_USER_ID,
-        dateRange.startDate,
-        dateRange.endDate
-      );
-      if (data) {
-        setTrendData(data);
+      try {
+        let response;
+        if (portfolioUuid) {
+          // Use UUID-based API for shared portfolios
+          response = await portfolioService.getTrendDataByUuid(
+            portfolioUuid,
+            dateRange.startDate,
+            dateRange.endDate
+          );
+        } else if (!isSharedView) {
+          // Use regular user-based API
+          response = await portfolioService.getTrendData(
+            DEMO_USER_ID,
+            dateRange.startDate,
+            dateRange.endDate
+          );
+        }
+        
+        if (response?.data) {
+          setTrendData(response.data);
+        }
+      } catch (error) {
+        console.error('Error fetching trend data:', error);
       }
     };
 
     fetchTrendData();
-  }, [dateRange, isSharedView]);
+  }, [dateRange, isSharedView, portfolioUuid]);
 
   const setQuickDateRange = (days: number) => {
-    if (isSharedView) return; // Disable date range changes in shared view
+    if (isSharedView && !portfolioUuid) return; // Disable date range changes in shared view without UUID
     
     const endDate = new Date();
     const startDate = subDays(endDate, days);
@@ -233,7 +247,7 @@ export function Portfolio({
             <h2 className={`text-xl font-bold ${themes[theme].text}`}>
               Portfolio Overview
             </h2>
-            {!isSharedView && (
+            {(!isSharedView || portfolioUuid) && (
               <div className="flex flex-wrap gap-4 items-center">
                 <div className="flex gap-2">
                   <button
@@ -302,7 +316,7 @@ export function Portfolio({
           </div>
         </div>
 
-        {!isSharedView && trendData.length > 0 && (
+        {trendData.length > 0 && (
           <PortfolioTrend 
             trendData={trendData}
             theme={theme}
