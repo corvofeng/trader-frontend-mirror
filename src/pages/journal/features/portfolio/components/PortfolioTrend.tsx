@@ -9,12 +9,11 @@ import { formatCurrency } from '../../../../../lib/types';
 
 interface PortfolioTrendProps {
   trendData: TrendData[];
-  positionData: TrendData[];
   theme: Theme;
   currencyConfig: CurrencyConfig;
 }
 
-export function PortfolioTrend({ trendData, positionData, theme, currencyConfig }: PortfolioTrendProps) {
+export function PortfolioTrend({ trendData, theme, currencyConfig }: PortfolioTrendProps) {
   const lineChartData = {
     labels: trendData.map(point => format(new Date(point.date), 'MMM d, yyyy')),
     datasets: [
@@ -31,7 +30,7 @@ export function PortfolioTrend({ trendData, positionData, theme, currencyConfig 
       },
       {
         label: '持仓市值',
-        data: positionData.map(point => point.value),
+        data: trendData.map(point => point.position_value || 0),
         borderColor: theme === 'dark' ? '#34d399' : '#10b981',
         backgroundColor: theme === 'dark' ? '#34d39933' : '#10b98133',
         fill: false,

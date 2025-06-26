@@ -229,12 +229,13 @@ export const portfolioService: PortfolioService = {
     
     const trendData: TrendData[] = [];
     let currentValue = 100000; // Starting value
+    let currentPositionValue = 75000; // Starting position value (75% of total)
     
     for (let i = 0; i <= days; i++) {
       const currentDate = new Date(start);
       currentDate.setDate(start.getDate() + i);
       
-      // Generate random growth with some volatility
+      // Generate random growth with some volatility for total value
       const dailyChange = (Math.random() * 0.02) - 0.005; // Random change between -0.5% and 1.5%
       currentValue = currentValue * (1 + dailyChange);
       
@@ -242,9 +243,25 @@ export const portfolioService: PortfolioService = {
       const trendFactor = Math.sin(i / 30) * 0.01; // Cyclical trend
       currentValue = currentValue * (1 + trendFactor);
       
+      // Generate position value with different patterns
+      const positionChange = (Math.random() * 0.015) - 0.0075; // Smaller volatility for positions
+      currentPositionValue = currentPositionValue * (1 + positionChange);
+      
+      // Position value should generally be less than total value
+      const maxPositionRatio = 0.95;
+      const minPositionRatio = 0.50;
+      const currentRatio = currentPositionValue / currentValue;
+      
+      if (currentRatio > maxPositionRatio) {
+        currentPositionValue = currentValue * maxPositionRatio;
+      } else if (currentRatio < minPositionRatio) {
+        currentPositionValue = currentValue * minPositionRatio;
+      }
+      
       trendData.push({
         date: currentDate.toISOString(),
-        value: currentValue
+        value: currentValue,
+        position_value: currentPositionValue
       });
     }
 
@@ -290,7 +307,10 @@ export const portfolioService: PortfolioService = {
     
     const trendData: TrendData[] = [];
     const totalValue = portfolio.holdings.reduce((sum: number, h: any) => sum + (h.total_value || 0), 0);
+    const positionValue = portfolio.holdings.reduce((sum: number, h: any) => sum + (h.market_value || 0), 0);
+    
     let currentValue = totalValue * 0.9; // Start 10% lower
+    let currentPositionValue = positionValue * 0.9;
     
     for (let i = 0; i <= days; i++) {
       const currentDate = new Date(start);
@@ -298,10 +318,12 @@ export const portfolioService: PortfolioService = {
       
       const progress = i / days;
       currentValue = totalValue * 0.9 + (totalValue * 0.1 * progress) + (Math.random() - 0.5) * totalValue * 0.02;
+      currentPositionValue = positionValue * 0.9 + (positionValue * 0.1 * progress) + (Math.random() - 0.5) * positionValue * 0.015;
       
       trendData.push({
         date: currentDate.toISOString(),
-        value: currentValue
+        value: currentValue,
+        position_value: currentPositionValue
       });
     }
 

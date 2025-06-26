@@ -57,6 +57,7 @@ export interface StockData {
 export interface TrendData {
   date: string;
   value: number;
+  position_value?: number; // 新增：持仓市值
 }
 
 export interface CurrencyConfig {

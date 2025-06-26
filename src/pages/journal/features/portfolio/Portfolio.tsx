@@ -51,7 +51,6 @@ export function Portfolio({
   const [tradesPerPage, setTradesPerPage] = useState(5);
   const [tradesSort, setTradesSort] = useState<{ field: string; direction: 'asc' | 'desc' }>({ field: 'created_at', direction: 'desc' });
   const [trendData, setTrendData] = useState<TrendData[]>([]);
-  const [positionData, setPositionData] = useState<TrendData[]>([]);
   const { currencyConfig } = useCurrency();
   
   // Calculate portfolio metrics
@@ -89,22 +88,6 @@ export function Portfolio({
         
         if (response?.data) {
           setTrendData(response.data);
-          
-          // Generate position data based on holdings value over time
-          // For demo purposes, we'll create position data that shows the evolution of holdings
-          const positionTrendData = response.data.map((point, index) => {
-            // Simulate position changes over time - could be based on actual trade history
-            const basePositionRatio = 0.75; // Assume 75% base position
-            const variation = Math.sin(index / 10) * 0.1; // Some variation over time
-            const positionRatio = Math.max(0.5, Math.min(0.95, basePositionRatio + variation));
-            
-            return {
-              date: point.date,
-              value: point.value * positionRatio
-            };
-          });
-          
-          setPositionData(positionTrendData);
         }
       } catch (error) {
         console.error('Error fetching trend data:', error);
@@ -360,7 +343,6 @@ export function Portfolio({
         {trendData.length > 0 && (
           <PortfolioTrend 
             trendData={trendData}
-            positionData={positionData}
             theme={theme}
             currencyConfig={currencyConfig}
           />
