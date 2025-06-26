@@ -9,23 +9,37 @@ import { formatCurrency } from '../../../../../lib/types';
 
 interface PortfolioTrendProps {
   trendData: TrendData[];
+  positionData: TrendData[];
   theme: Theme;
   currencyConfig: CurrencyConfig;
 }
 
-export function PortfolioTrend({ trendData, theme, currencyConfig }: PortfolioTrendProps) {
+export function PortfolioTrend({ trendData, positionData, theme, currencyConfig }: PortfolioTrendProps) {
   const lineChartData = {
     labels: trendData.map(point => format(new Date(point.date), 'MMM d, yyyy')),
     datasets: [
       {
-        label: 'Portfolio Value',
+        label: '总资产',
         data: trendData.map(point => point.value),
         borderColor: theme === 'dark' ? '#60a5fa' : '#3b82f6',
         backgroundColor: theme === 'dark' ? '#60a5fa33' : '#3b82f633',
-        fill: true,
+        fill: false,
         tension: 0.4,
-        pointRadius: 4,
+        pointRadius: 3,
         pointHoverRadius: 6,
+        borderWidth: 2,
+      },
+      {
+        label: '持仓市值',
+        data: positionData.map(point => point.value),
+        borderColor: theme === 'dark' ? '#34d399' : '#10b981',
+        backgroundColor: theme === 'dark' ? '#34d39933' : '#10b98133',
+        fill: false,
+        tension: 0.4,
+        pointRadius: 3,
+        pointHoverRadius: 6,
+        borderWidth: 2,
+        borderDash: [5, 5], // 虚线样式
       }
     ]
   };
@@ -35,12 +49,39 @@ export function PortfolioTrend({ trendData, theme, currencyConfig }: PortfolioTr
     maintainAspectRatio: false,
     plugins: {
       legend: {
-        display: false
+        display: true,
+        position: 'top' as const,
+        labels: {
+          color: theme === 'dark' ? '#e5e7eb' : '#374151',
+          usePointStyle: true,
+          padding: 20,
+          font: {
+            size: 12
+          }
+        }
       },
       tooltip: {
+        mode: 'index' as const,
+        intersect: false,
+        backgroundColor: theme === 'dark' ? '#374151' : '#ffffff',
+        titleColor: theme === 'dark' ? '#e5e7eb' : '#374151',
+        bodyColor: theme === 'dark' ? '#e5e7eb' : '#374151',
+        borderColor: theme === 'dark' ? '#4b5563' : '#e5e7eb',
+        borderWidth: 1,
         callbacks: {
           label: (context: any) => {
-            return `Value: ${formatCurrency(context.raw, currencyConfig)}`;
+            const label = context.dataset.label || '';
+            const value = formatCurrency(context.raw, currencyConfig);
+            return `${label}: ${value}`;
+          },
+          afterBody: (tooltipItems: any[]) => {
+            if (tooltipItems.length >= 2) {
+              const assetValue = tooltipItems[0].raw;
+              const positionValue = tooltipItems[1].raw;
+              const ratio = assetValue > 0 ? ((positionValue / assetValue) * 100).toFixed(2) : '0.00';
+              return [`持仓比例: ${ratio}%`];
+            }
+            return [];
           }
         }
       }
@@ -60,9 +101,17 @@ export function PortfolioTrend({ trendData, theme, currencyConfig }: PortfolioTr
         },
         ticks: {
           color: theme === 'dark' ? '#e5e7eb' : '#374151',
-          callback: (value: number) => formatCurrency(value, currencyConfig)
+          callback: (value: any) => formatCurrency(value, currencyConfig)
         }
       }
+    },
+    interaction: {
+      mode: 'index' as const,
+      intersect: false,
+    },
+    hover: {
+      mode: 'index' as const,
+      intersect: false,
     }
   };
 
@@ -70,7 +119,15 @@ export function PortfolioTrend({ trendData, theme, currencyConfig }: PortfolioTr
     <div className="p-6">
       <div className="flex items-center justify-between mb-4">
         <h3 className={`text-lg font-semibold ${themes[theme].text}`}>Portfolio Trend</h3>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-0.5 bg-blue-500"></div>
+            <span className={`text-sm ${themes[theme].text} opacity-75`}>总资产</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-0.5 bg-green-500 border-dashed" style={{ borderTop: '1px dashed' }}></div>
+            <span className={`text-sm ${themes[theme].text} opacity-75`}>持仓市值</span>
+          </div>
           <TrendingUp className={`w-5 h-5 ${themes[theme].text} opacity-75`} />
         </div>
       </div>
