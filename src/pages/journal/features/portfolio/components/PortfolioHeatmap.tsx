@@ -24,21 +24,21 @@ interface GroupStats {
   holdings: Holding[];
 }
 
-function getColorByPercentage(percentage: number, isDark: boolean): string {
+function getColorByPercentage(percentage: number, isDark: boolean, regionalColors: any): string {
   const colors = {
     positive: {
-      veryStrong: isDark ? '#15803d' : '#22c55e',
-      strong: isDark ? '#16a34a' : '#4ade80',
-      medium: isDark ? '#22c55e' : '#86efac',
-      weak: isDark ? '#4ade80' : '#bbf7d0',
-      veryWeak: isDark ? '#86efac' : '#dcfce7',
+      veryStrong: regionalColors.upColor,
+      strong: regionalColors.upColor + 'dd',
+      medium: regionalColors.upColor + 'bb',
+      weak: regionalColors.upColor + '99',
+      veryWeak: regionalColors.upColor + '77',
     },
     negative: {
-      veryStrong: isDark ? '#991b1b' : '#ef4444',
-      strong: isDark ? '#dc2626' : '#f87171',
-      medium: isDark ? '#ef4444' : '#fca5a5',
-      weak: isDark ? '#f87171' : '#fecaca',
-      veryWeak: isDark ? '#fca5a5' : '#fee2e2',
+      veryStrong: regionalColors.downColor,
+      strong: regionalColors.downColor + 'dd',
+      medium: regionalColors.downColor + 'bb',
+      weak: regionalColors.downColor + '99',
+      veryWeak: regionalColors.downColor + '77',
     },
     neutral: isDark ? '#374151' : '#f3f4f6'
   };
@@ -105,7 +105,7 @@ export function PortfolioHeatmap({ holdings, theme }: PortfolioHeatmapProps) {
   const [groupingDimension, setGroupingDimension] = useState<GroupingDimension>('category');
   const [stockConfigs, setStockConfigs] = useState<StockConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const { currencyConfig } = useCurrency();
+  const { currencyConfig, regionalColors } = useCurrency();
   const isMobile = window.innerWidth < 768;
 
   useEffect(() => {
@@ -172,7 +172,7 @@ export function PortfolioHeatmap({ holdings, theme }: PortfolioHeatmapProps) {
           .filter(([tag]) => tag) // Filter out any remaining undefined tags
           .map(([tag, group]) => {
             const dailyPLPercentage = group.value > 0 ? (group.dailyPL / group.value) * 100 : 0;
-            const color = getColorByPercentage(dailyPLPercentage, isDark);
+            const color = getColorByPercentage(dailyPLPercentage, isDark, regionalColors);
 
             return {
               name: tag,
@@ -193,7 +193,7 @@ export function PortfolioHeatmap({ holdings, theme }: PortfolioHeatmapProps) {
                 value: holding.total_value,
                 dailyPLPercentage: holding.daily_profit_loss_percentage || 0,
                 itemStyle: {
-                  color: getColorByPercentage(holding.daily_profit_loss_percentage || 0, isDark),
+                  color: getColorByPercentage(holding.daily_profit_loss_percentage || 0, isDark, regionalColors),
                   borderWidth: 1,
                   borderColor: isDark ? '#374151' : '#e5e7eb'
                 },
@@ -232,7 +232,7 @@ export function PortfolioHeatmap({ holdings, theme }: PortfolioHeatmapProps) {
           .filter(([category]) => category) // Filter out any undefined categories
           .map(([category, group]) => {
             const dailyPLPercentage = group.value > 0 ? (group.dailyPL / group.value) * 100 : 0;
-            const color = getColorByPercentage(dailyPLPercentage, isDark);
+            const color = getColorByPercentage(dailyPLPercentage, isDark, regionalColors);
 
             return {
               name: category,
@@ -253,7 +253,7 @@ export function PortfolioHeatmap({ holdings, theme }: PortfolioHeatmapProps) {
                 value: holding.total_value,
                 dailyPLPercentage: holding.daily_profit_loss_percentage || 0,
                 itemStyle: {
-                  color: getColorByPercentage(holding.daily_profit_loss_percentage || 0, isDark),
+                  color: getColorByPercentage(holding.daily_profit_loss_percentage || 0, isDark, regionalColors),
                   borderWidth: 1,
                   borderColor: isDark ? '#374151' : '#e5e7eb'
                 },
@@ -282,7 +282,7 @@ export function PortfolioHeatmap({ holdings, theme }: PortfolioHeatmapProps) {
             ${stock_code ? `<div style="font-size: ${isMobile ? '12px' : '14px'}; opacity: 0.75">${stock_code}</div>` : ''}
             <div style="margin-top: 8px">
               <div>Value: ${formattedValue} (${percentageOfTotal}% of portfolio)</div>
-              <div style="color: ${dailyPLPercentage >= 0 ? '#34d399' : '#f87171'}; font-weight: 500">
+              <div style="color: ${dailyPLPercentage >= 0 ? regionalColors.upColor : regionalColors.downColor}; font-weight: 500">
                 Daily Return: ${dailyPLPercentage >= 0 ? '+' : ''}${percentage}%
               </div>
             </div>
