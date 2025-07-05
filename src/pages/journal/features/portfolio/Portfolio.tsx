@@ -558,9 +558,9 @@ export function Portfolio({
                         <td className="px-6 py-4">
                           <div className="flex justify-center">
                             {trade.operation === 'buy' ? (
-                              <ArrowUpCircle className="w-5 h-5 text-green-600" />
+                              <ArrowUpCircle className="w-5 h-5" style={{ color: currencyConfig.region === 'CN' || currencyConfig.region === 'JP' ? '#ef5350' : '#26a69a' }} />
                             ) : (
-                              <ArrowDownCircle className="w-5 h-5 text-red-600" />
+                              <ArrowDownCircle className="w-5 h-5" style={{ color: currencyConfig.region === 'CN' || currencyConfig.region === 'JP' ? '#26a69a' : '#ef5350' }} />
                             )}
                           </div>
                         </td>

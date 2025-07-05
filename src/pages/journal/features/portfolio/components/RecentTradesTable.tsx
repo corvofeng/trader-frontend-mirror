@@ -5,11 +5,11 @@ import { Theme, themes } from '../../../../../lib/theme';
 import type { Trade } from '../../../../../lib/services/types';
 import type { CurrencyConfig } from '../../../../../lib/types';
 import { formatCurrency } from '../../../../../lib/types';
+import { useCurrency } from '../../../../../lib/context/CurrencyContext';
 
 interface RecentTradesTableProps {
   trades: Trade[];
   theme: Theme;
-  currencyConfig: CurrencyConfig;
   currentPage: number;
   itemsPerPage: number;
   totalPages: number;
@@ -22,13 +22,13 @@ const ITEMS_PER_PAGE_OPTIONS = [10, 20, 50, 100];
 export function RecentTradesTable({
   trades,
   theme,
-  currencyConfig,
   currentPage,
   itemsPerPage,
   totalPages,
   onPageChange,
   onItemsPerPageChange,
 }: RecentTradesTableProps) {
+  const { currencyConfig, regionalColors } = useCurrency();
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedTrades = trades.slice(startIndex, startIndex + itemsPerPage);
 
@@ -61,9 +61,9 @@ export function RecentTradesTable({
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex justify-center">
                     {trade.operation === 'buy' ? (
-                      <ArrowUpCircle className="w-5 h-5 text-green-600" />
+                      <ArrowUpCircle className="w-5 h-5" style={{ color: regionalColors.upColor }} />
                     ) : (
-                      <ArrowDownCircle className="w-5 h-5 text-red-600" />
+                      <ArrowDownCircle className="w-5 h-5" style={{ color: regionalColors.downColor }} />
                     )}
                   </div>
                 </td>
