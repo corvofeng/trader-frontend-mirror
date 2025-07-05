@@ -3,14 +3,16 @@ import { Theme, themes } from '../../../../../lib/theme';
 import type { Holding } from '../../../../../lib/services/types';
 import type { CurrencyConfig } from '../../../../../lib/types';
 import { formatCurrency } from '../../../../../lib/types';
+import { useCurrency } from '../../../../../lib/context/CurrencyContext';
 
 interface HoldingsTableProps {
   holdings: Holding[];
   theme: Theme;
-  currencyConfig: CurrencyConfig;
 }
 
-export function HoldingsTable({ holdings, theme, currencyConfig }: HoldingsTableProps) {
+export function HoldingsTable({ holdings, theme }: HoldingsTableProps) {
+  const { currencyConfig, regionalColors } = useCurrency();
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full">
@@ -36,7 +38,9 @@ export function HoldingsTable({ holdings, theme, currencyConfig }: HoldingsTable
                 {formatCurrency(holding.total_value, currencyConfig)}
               </td>
               <td className={`px-6 py-4 whitespace-nowrap text-right text-sm font-medium ${
-                holding.profit_loss_percentage >= 0 ? 'text-green-600' : 'text-red-600'
+                holding.profit_loss_percentage >= 0 
+                  ? `text-[${regionalColors.upColor}]` 
+                  : `text-[${regionalColors.downColor}]`
               }`}>
                 {holding.profit_loss_percentage >= 0 ? '+' : ''}{holding.profit_loss_percentage.toFixed(2)}%
               </td>
