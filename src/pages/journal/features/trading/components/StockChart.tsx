@@ -42,7 +42,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
   const costBasisSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showCostBasis, setShowCostBasis] = useState(true);
-  const { currencyConfig } = useCurrency();
+  const { currencyConfig, getThemedColors } = useCurrency();
   const [stockInfo, setStockInfo] = useState<Stock | null>(null);
   const isDisposed = useRef(false);
   const isInitializing = useRef(false);
@@ -314,7 +314,8 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
     isInitializing.current = true;
 
     const isDark = theme === 'dark';
-    const chartColors = themes[theme].chart;
+    const themedColors = getThemedColors(theme);
+    const chartColors = themedColors.chart;
 
     const chart = createChart(chartContainerRef.current, {
       layout: {

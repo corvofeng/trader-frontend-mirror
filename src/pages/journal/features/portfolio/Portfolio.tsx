@@ -344,14 +344,12 @@ export function Portfolio({
           <PortfolioTrend 
             trendData={trendData}
             theme={theme}
-            currencyConfig={currencyConfig}
           />
         )}
 
         <PortfolioHeatmap 
           holdings={holdings}
           theme={theme}
-          currencyConfig={currencyConfig}
         />
 
         <div className="grid md:grid-cols-2 gap-6 p-6">

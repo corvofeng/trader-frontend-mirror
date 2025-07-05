@@ -5,12 +5,12 @@ import { Theme, themes } from '../../../../../lib/theme';
 import type { Holding, StockConfig } from '../../../../../lib/services/types';
 import { formatCurrency } from '../../../../../lib/types';
 import type { CurrencyConfig } from '../../../../../lib/types';
+import { useCurrency } from '../../../../../lib/context/CurrencyContext';
 import { stockConfigService } from '../../../../../lib/services';
 
 interface PortfolioHeatmapProps {
   holdings: Holding[];
   theme: Theme;
-  currencyConfig: CurrencyConfig;
 }
 
 type GroupingDimension = 'category' | 'tags';
@@ -99,12 +99,13 @@ function formatPercentage(value: number | undefined): string {
   return value.toFixed(2);
 }
 
-export function PortfolioHeatmap({ holdings, theme, currencyConfig }: PortfolioHeatmapProps) {
+export function PortfolioHeatmap({ holdings, theme }: PortfolioHeatmapProps) {
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<echarts.ECharts | null>(null);
   const [groupingDimension, setGroupingDimension] = useState<GroupingDimension>('category');
   const [stockConfigs, setStockConfigs] = useState<StockConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { currencyConfig } = useCurrency();
   const isMobile = window.innerWidth < 768;
 
   useEffect(() => {

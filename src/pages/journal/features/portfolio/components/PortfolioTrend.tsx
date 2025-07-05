@@ -6,22 +6,25 @@ import { Theme, themes } from '../../../../../lib/theme';
 import type { TrendData } from '../../../../../lib/services/types';
 import type { CurrencyConfig } from '../../../../../lib/types';
 import { formatCurrency } from '../../../../../lib/types';
+import { useCurrency } from '../../../../../lib/context/CurrencyContext';
 
 interface PortfolioTrendProps {
   trendData: TrendData[];
   theme: Theme;
-  currencyConfig: CurrencyConfig;
 }
 
-export function PortfolioTrend({ trendData, theme, currencyConfig }: PortfolioTrendProps) {
+export function PortfolioTrend({ trendData, theme }: PortfolioTrendProps) {
+  const { currencyConfig, getThemedColors } = useCurrency();
+  const themedColors = getThemedColors(theme);
+
   const lineChartData = {
     labels: trendData.map(point => format(new Date(point.date), 'MMM d, yyyy')),
     datasets: [
       {
         label: '总资产',
         data: trendData.map(point => point.value),
-        borderColor: theme === 'dark' ? '#60a5fa' : '#3b82f6',
-        backgroundColor: theme === 'dark' ? '#60a5fa33' : '#3b82f633',
+        borderColor: themedColors.chart.upColor,
+        backgroundColor: themedColors.chart.upColor + '33',
         fill: false,
         tension: 0.4,
         pointRadius: 3,
@@ -31,8 +34,8 @@ export function PortfolioTrend({ trendData, theme, currencyConfig }: PortfolioTr
       {
         label: '持仓市值',
         data: trendData.map(point => point.position_value || 0),
-        borderColor: theme === 'dark' ? '#34d399' : '#10b981',
-        backgroundColor: theme === 'dark' ? '#34d39933' : '#10b98133',
+        borderColor: themedColors.chart.downColor,
+        backgroundColor: themedColors.chart.downColor + '33',
         fill: false,
         tension: 0.4,
         pointRadius: 3,

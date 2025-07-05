@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createChart, ColorType, IChartApi, ISeriesApi } from 'lightweight-charts';
 import { themes, Theme } from '../../../../lib/theme';
 import { stockService } from '../../../../lib/services';
+import { useCurrency } from '../../../../lib/context/CurrencyContext';
 import type { StockData } from '../../../../lib/services/types';
 
 interface AnimatedChartProps {
@@ -15,6 +16,7 @@ export function AnimatedChart({ theme }: AnimatedChartProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [containerReady, setContainerReady] = useState(false);
+  const { getThemedColors } = useCurrency();
 
   useEffect(() => {
     if (chartContainerRef.current) {
@@ -32,7 +34,8 @@ export function AnimatedChart({ theme }: AnimatedChartProps) {
     async function initializeChart() {
       if (!chartContainerRef.current) return;
 
-      const chartColors = themes[theme].chart;
+      const themedColors = getThemedColors(theme);
+      const chartColors = themedColors.chart;
       const isDark = theme === 'dark';
       
       chart = createChart(chartContainerRef.current, {

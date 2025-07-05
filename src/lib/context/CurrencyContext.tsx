@@ -1,12 +1,16 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import type { CurrencyConfig } from '../types';
-import { currencyConfigs } from '../theme';
+import type { CurrencyConfig, RegionalColorConfig } from '../types';
+import { currencyConfigs, getThemeColors } from '../theme';
+import { regionalColorConfigs } from '../types';
 import { currencyService } from '../services';
+import type { Theme } from '../theme';
 
 interface CurrencyContextType {
   currency: string;
   setCurrency: (currency: string) => void;
   currencyConfig: CurrencyConfig;
+  regionalColors: RegionalColorConfig;
+  getThemedColors: (theme: Theme) => any;
   isLoading: boolean;
 }
 
@@ -37,9 +41,21 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   };
 
   const currencyConfig = currencyConfigs[currency];
+  const regionalColors = regionalColorConfigs[currencyConfig?.region || 'US'];
+
+  const getThemedColors = (theme: Theme) => {
+    return getThemeColors(theme, regionalColors);
+  };
 
   return (
-    <CurrencyContext.Provider value={{ currency, setCurrency, currencyConfig, isLoading }}>
+    <CurrencyContext.Provider value={{ 
+      currency, 
+      setCurrency, 
+      currencyConfig, 
+      regionalColors,
+      getThemedColors,
+      isLoading 
+    }}>
       {children}
     </CurrencyContext.Provider>
   );

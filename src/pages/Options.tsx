@@ -4,6 +4,7 @@ import 'echarts-gl';
 import { format } from 'date-fns';
 import { Theme, themes } from '../lib/theme';
 import { MOCK_OPTION_DATA } from '../lib/services/mock/mockData';
+import { useCurrency } from '../lib/context/CurrencyContext';
 import type { OptionQuote } from '../lib/services/mock/mockData';
 
 interface OptionsProps {
@@ -16,6 +17,7 @@ export function Options({ theme }: OptionsProps) {
   const isMountedRef = useRef(true);
   const [selectedExpiry, setSelectedExpiry] = useState(MOCK_OPTION_DATA.quotes[0].expiry);
   const [isLoading, setIsLoading] = useState(true);
+  const { getThemedColors } = useCurrency();
 
   const uniqueExpiryDates = Array.from(new Set(MOCK_OPTION_DATA.quotes.map(q => q.expiry)))
     .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
@@ -135,7 +137,7 @@ export function Options({ theme }: OptionsProps) {
           data: callData,
           shading: 'realistic',
           itemStyle: {
-            color: themes[theme].chart.upColor
+            color: getThemedColors(theme).chart.upColor
           }
         },
         {
@@ -144,7 +146,7 @@ export function Options({ theme }: OptionsProps) {
           data: putData,
           shading: 'realistic',
           itemStyle: {
-            color: themes[theme].chart.downColor
+            color: getThemedColors(theme).chart.downColor
           }
         }
       ]
