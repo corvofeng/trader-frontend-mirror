@@ -42,10 +42,55 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
             return itemDate >= startDate && itemDate <= endDate;
           });
           
+          // Helper function to fill missing trading days for SSE data
+          const fillMissingSSEDays = (data: any[]): any[] => {
+            if (data.length === 0) return data;
+            
+            const filledData: any[] = [];
+            const sortedData = [...data].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            
+            for (let i = 0; i < sortedData.length; i++) {
+              filledData.push(sortedData[i]);
+              
+              // Fill gaps between current and next data point
+              if (i < sortedData.length - 1) {
+                const currentDate = new Date(sortedData[i].date);
+                const nextDate = new Date(sortedData[i + 1].date);
+                const daysDiff = Math.ceil((nextDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
+                
+                // If there's a gap of more than 1 day, fill with interpolated values
+                if (daysDiff > 1) {
+                  const currentPoint = sortedData[i];
+                  const nextPoint = sortedData[i + 1];
+                  
+                  for (let j = 1; j < daysDiff; j++) {
+                    const interpolationRatio = j / daysDiff;
+                    const interpolatedDate = new Date(currentDate);
+                    interpolatedDate.setDate(currentDate.getDate() + j);
+                    
+                    // Linear interpolation for smooth transitions
+                    const interpolatedClose = currentPoint.close + 
+                      (nextPoint.close - currentPoint.close) * interpolationRatio;
+                    
+                    filledData.push({
+                      date: interpolatedDate.toISOString().split('T')[0],
+                      close: interpolatedClose,
+                      returnRate: 0 // Will be calculated later
+                    });
+                  }
+                }
+              }
+            }
+            
+            return filledData;
+          };
+          
           // Calculate SSE return rates
           if (filteredData.length > 0) {
+            // First fill missing days, then calculate returns
+            const smoothedSSEData = fillMissingSSEDays(filteredData);
             const basePrice = filteredData[0].close;
-            const sseReturnData = filteredData.map(item => ({
+            const sseReturnData = smoothedSSEData.map(item => ({
               date: item.date,
               close: item.close,
               returnRate: ((item.close - basePrice) / basePrice) * 100
