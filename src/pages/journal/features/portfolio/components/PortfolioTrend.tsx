@@ -248,51 +248,53 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
   };
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className={`text-lg font-semibold ${themes[theme].text}`}>
-          {viewMode === 'return' ? '收益率趋势' : '资产趋势'}
-        </h3>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setViewMode('absolute')}
-              className={`px-3 py-1 rounded-md text-sm ${
-                viewMode === 'absolute' ? themes[theme].primary : themes[theme].secondary
-              }`}
-            >
-              绝对值
-            </button>
-            <button
-              onClick={() => setViewMode('return')}
-              className={`px-3 py-1 rounded-md text-sm ${
-                viewMode === 'return' ? themes[theme].primary : themes[theme].secondary
-              }`}
-            >
-              收益率
-            </button>
-          </div>
-          
-          {viewMode === 'return' && (
+    <>
+      <div className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className={`text-lg font-semibold ${themes[theme].text}`}>
+            {viewMode === 'return' ? '收益率趋势' : '资产趋势'}
+          </h3>
+          <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setShowComparison(!showComparison)}
-                disabled={isLoadingSSE}
+                onClick={() => setViewMode('absolute')}
                 className={`px-3 py-1 rounded-md text-sm ${
-                  showComparison ? themes[theme].primary : themes[theme].secondary
-                } ${isLoadingSSE ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  viewMode === 'absolute' ? themes[theme].primary : themes[theme].secondary
+                }`}
               >
-                {isLoadingSSE ? (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                ) : (
-                  <>
-                    <BarChart3 className="w-4 h-4 mr-1" />
-                    上证对比
-                  </>
-                )}
+                绝对值
+              </button>
+              <button
+                onClick={() => setViewMode('return')}
+                className={`px-3 py-1 rounded-md text-sm ${
+                  viewMode === 'return' ? themes[theme].primary : themes[theme].secondary
+                }`}
+              >
+                收益率
               </button>
             </div>
-          )}
+            
+            {viewMode === 'return' && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowComparison(!showComparison)}
+                  disabled={isLoadingSSE}
+                  className={`px-3 py-1 rounded-md text-sm ${
+                    showComparison ? themes[theme].primary : themes[theme].secondary
+                  } ${isLoadingSSE ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {isLoadingSSE ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <BarChart3 className="w-4 h-4 mr-1" />
+                      上证对比
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+            <div className="flex items-center gap-4">
             {viewMode === 'absolute' ? (
               <>
                 <div className="flex items-center gap-2">
@@ -328,13 +330,14 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
                 )}
               </>
             )}
+            </div>
+            <TrendingUp className={`w-5 h-5 ${themes[theme].text} opacity-75`} />
           </div>
-          <TrendingUp className={`w-5 h-5 ${themes[theme].text} opacity-75`} />
+        </div>
+        <div className="h-[300px]">
+          <Line data={lineChartData} options={lineChartOptions} />
         </div>
       </div>
-      <div className="h-[300px]">
-        <Line data={lineChartData} options={lineChartOptions} />
-      </div>
-    </div>
+    </>
   );
 }
