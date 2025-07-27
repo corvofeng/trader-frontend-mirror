@@ -429,14 +429,6 @@ export function Portfolio({
                     <th className={`px-6 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
                       操作
                     </th>
-                    <td className="px-6 py-4 text-right">
-                      <button
-                        onClick={() => setSelectedStockForAnalysis({ code: holding.stock_code, name: holding.stock_name })}
-                        className={`px-3 py-1 rounded-md text-xs ${themes[theme].secondary}`}
-                      >
-                        分析
-                      </button>
-                    </td>
                   </tr>
                 </thead>
                 <tbody className={`divide-y ${themes[theme].border}`}>
@@ -455,6 +447,14 @@ export function Portfolio({
                         holding.profit_loss_percentage >= 0 ? 'text-green-600' : 'text-red-600'
                       }`}>
                         {holding.profit_loss_percentage >= 0 ? '+' : ''}{holding.profit_loss_percentage.toFixed(2)}%
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          onClick={() => setSelectedStockForAnalysis({ code: holding.stock_code, name: holding.stock_name })}
+                          className={`px-3 py-1 rounded-md text-xs ${themes[theme].secondary}`}
+                        >
+                          分析
+                        </button>
                       </td>
                     </tr>
                   ))}
