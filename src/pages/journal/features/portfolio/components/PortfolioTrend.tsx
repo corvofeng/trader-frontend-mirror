@@ -93,18 +93,6 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
           pointRadius: 2,
           pointHoverRadius: 6,
           borderWidth: 2,
-        },
-        {
-          label: '持仓收益率',
-          data: positionReturns,
-          borderColor: themedColors.chart.downColor,
-          backgroundColor: themedColors.chart.downColor + '33',
-          fill: false,
-          tension: 0.4,
-          pointRadius: 2,
-          pointHoverRadius: 6,
-          borderWidth: 2,
-          borderDash: [5, 5],
         }
       ];
 
@@ -320,12 +308,6 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-0.5" style={{ backgroundColor: themedColors.chart.upColor }}></div>
                   <span className={`text-sm ${themes[theme].text} opacity-75`}>总资产收益率</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-0.5 border-dashed" style={{ 
-                    borderTop: `1px dashed ${themedColors.chart.downColor}` 
-                  }}></div>
-                  <span className={`text-sm ${themes[theme].text} opacity-75`}>持仓收益率</span>
                 </div>
                 {showComparison && sseData.length > 0 && (
                   <div className="flex items-center gap-2">
