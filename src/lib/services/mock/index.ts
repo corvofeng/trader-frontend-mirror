@@ -232,9 +232,66 @@ export const portfolioService: PortfolioService = {
     let currentValue = baseValue;
     let currentPositionValue = 75000; // Starting position value (75% of total)
     
+    // Helper function to fill missing trading days
+    const fillMissingDays = (data: TrendData[]): TrendData[] => {
+      if (data.length === 0) return data;
+      
+      const filledData: TrendData[] = [];
+      const sortedData = [...data].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      
+      for (let i = 0; i < sortedData.length; i++) {
+        filledData.push(sortedData[i]);
+        
+        // Fill gaps between current and next data point
+        if (i < sortedData.length - 1) {
+          const currentDate = new Date(sortedData[i].date);
+          const nextDate = new Date(sortedData[i + 1].date);
+          const daysDiff = Math.ceil((nextDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
+          
+          // If there's a gap of more than 1 day, fill with interpolated values
+          if (daysDiff > 1) {
+            const currentPoint = sortedData[i];
+            const nextPoint = sortedData[i + 1];
+            
+            for (let j = 1; j < daysDiff; j++) {
+              const interpolationRatio = j / daysDiff;
+              const interpolatedDate = new Date(currentDate);
+              interpolatedDate.setDate(currentDate.getDate() + j);
+              
+              // Linear interpolation for smooth transitions
+              const interpolatedValue = currentPoint.value + 
+                (nextPoint.value - currentPoint.value) * interpolationRatio;
+              const interpolatedPositionValue = (currentPoint.position_value || 0) + 
+                ((nextPoint.position_value || 0) - (currentPoint.position_value || 0)) * interpolationRatio;
+              const interpolatedReturnRate = ((interpolatedValue - baseValue) / baseValue) * 100;
+              
+              filledData.push({
+                date: interpolatedDate.toISOString(),
+                value: interpolatedValue,
+                position_value: interpolatedPositionValue,
+                return_rate: interpolatedReturnRate
+              });
+            }
+          }
+        }
+      }
+      
+      return filledData;
+    };
+    
+    // Generate base data points (simulate some missing trading days)
     for (let i = 0; i <= days; i++) {
       const currentDate = new Date(start);
       currentDate.setDate(start.getDate() + i);
+      
+      // Skip some weekends and holidays to simulate real trading data
+      const dayOfWeek = currentDate.getDay();
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      const isHoliday = Math.random() < 0.02; // 2% chance of holiday
+      
+      if (isWeekend || isHoliday) {
+        continue; // Skip non-trading days
+      }
       
       // Generate random growth with some volatility for total value
       const dailyChange = (Math.random() * 0.02) - 0.005; // Random change between -0.5% and 1.5%
@@ -270,7 +327,10 @@ export const portfolioService: PortfolioService = {
       });
     }
 
-    return { data: trendData, error: null };
+    // Fill missing days and smooth the data
+    const smoothedData = fillMissingDays(trendData);
+    
+    return { data: smoothedData, error: null };
   },
 
   // UUID-based methods for shared portfolios
@@ -305,6 +365,53 @@ export const portfolioService: PortfolioService = {
       return { data: null, error: new Error('Portfolio not found') };
     }
     
+    // Helper function to fill missing trading days
+    const fillMissingDays = (data: TrendData[]): TrendData[] => {
+      if (data.length === 0) return data;
+      
+      const filledData: TrendData[] = [];
+      const sortedData = [...data].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      
+      for (let i = 0; i < sortedData.length; i++) {
+        filledData.push(sortedData[i]);
+        
+        // Fill gaps between current and next data point
+        if (i < sortedData.length - 1) {
+          const currentDate = new Date(sortedData[i].date);
+          const nextDate = new Date(sortedData[i + 1].date);
+          const daysDiff = Math.ceil((nextDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
+          
+          // If there's a gap of more than 1 day, fill with interpolated values
+          if (daysDiff > 1) {
+            const currentPoint = sortedData[i];
+            const nextPoint = sortedData[i + 1];
+            
+            for (let j = 1; j < daysDiff; j++) {
+              const interpolationRatio = j / daysDiff;
+              const interpolatedDate = new Date(currentDate);
+              interpolatedDate.setDate(currentDate.getDate() + j);
+              
+              // Linear interpolation for smooth transitions
+              const interpolatedValue = currentPoint.value + 
+                (nextPoint.value - currentPoint.value) * interpolationRatio;
+              const interpolatedPositionValue = (currentPoint.position_value || 0) + 
+                ((nextPoint.position_value || 0) - (currentPoint.position_value || 0)) * interpolationRatio;
+              const interpolatedReturnRate = ((interpolatedValue - baseValue) / baseValue) * 100;
+              
+              filledData.push({
+                date: interpolatedDate.toISOString(),
+                value: interpolatedValue,
+                position_value: interpolatedPositionValue,
+                return_rate: interpolatedReturnRate
+              });
+            }
+          }
+        }
+      }
+      
+      return filledData;
+    };
+    
     // Generate mock trend data for uploaded portfolio
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -322,6 +429,15 @@ export const portfolioService: PortfolioService = {
       const currentDate = new Date(start);
       currentDate.setDate(start.getDate() + i);
       
+      // Skip some weekends and holidays to simulate real trading data
+      const dayOfWeek = currentDate.getDay();
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      const isHoliday = Math.random() < 0.02; // 2% chance of holiday
+      
+      if (isWeekend || isHoliday) {
+        continue; // Skip non-trading days
+      }
+      
       const progress = i / days;
       currentValue = totalValue * 0.9 + (totalValue * 0.1 * progress) + (Math.random() - 0.5) * totalValue * 0.02;
       currentPositionValue = positionValue * 0.9 + (positionValue * 0.1 * progress) + (Math.random() - 0.5) * positionValue * 0.015;
@@ -337,7 +453,10 @@ export const portfolioService: PortfolioService = {
       });
     }
 
-    return { data: trendData, error: null };
+    // Fill missing days and smooth the data
+    const smoothedData = fillMissingDays(trendData);
+    
+    return { data: smoothedData, error: null };
   }
 };
 
