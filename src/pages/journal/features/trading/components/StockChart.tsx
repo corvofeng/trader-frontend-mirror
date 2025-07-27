@@ -175,25 +175,24 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
   };
 
   const updateChartType = (type: ChartType) => {
-    if (!chartRef.current || !chartData.candlestick.length || isDisposed.current) return;
+    if (!chartRef.current || !candlestickSeriesRef.current || !chartData.candlestick.length || isDisposed.current) return;
     
     const chart = chartRef.current;
     
-    if (candlestickSeriesRef.current) {
-      try {
-        chart.removeSeries(candlestickSeriesRef.current);
-      } catch (e) {
-        // Ignore errors during series removal
-        return;
-      }
-      candlestickSeriesRef.current = null;
+    // Remove existing series
+    try {
+      chart.removeSeries(candlestickSeriesRef.current);
+    } catch (e) {
+      // Ignore errors during series removal
+      return;
     }
+    candlestickSeriesRef.current = null;
     
     let newSeries;
     try {
       switch (type) {
         case 'line':
-          newSeries = chart.addLineSeries({
+          newSeries = chartRef.current.addLineSeries({
             color: themes[theme].chart.upColor,
             lineWidth: 2,
           });
@@ -207,7 +206,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
           break;
         
         case 'bar':
-          newSeries = chart.addBarSeries({
+          newSeries = chartRef.current.addBarSeries({
             upColor: themes[theme].chart.upColor,
             downColor: themes[theme].chart.downColor,
           });
@@ -216,7 +215,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
           break;
         
         default:
-          newSeries = chart.addCandlestickSeries({
+          newSeries = chartRef.current.addCandlestickSeries({
             upColor: themes[theme].chart.upColor,
             downColor: themes[theme].chart.downColor,
             borderVisible: false,
@@ -230,11 +229,11 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
       candlestickSeriesRef.current = newSeries;
       setChartType(type);
 
-      if (chartData.trades.length > 0 && !isDisposed.current) {
+      if (chartData.trades.length > 0 && !isDisposed.current && candlestickSeriesRef.current) {
         const sortedTrades = [...chartData.trades].sort((a, b) => 
           new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
         );
-        addTradeMarkers(newSeries, sortedTrades, themes[theme].chart);
+        addTradeMarkers(candlestickSeriesRef.current, sortedTrades, themes[theme].chart);
       }
     } catch (e) {
       console.error('Error updating chart type:', e);
@@ -246,7 +245,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
     trades: Trade[],
     chartColors: { upColor: string; downColor: string }
   ) => {
-    if (isDisposed.current) return;
+    if (isDisposed.current || !candlestickSeries) return;
 
     const markers = trades.map(trade => {
       const isBuy = trade.operation === 'buy';
@@ -267,7 +266,7 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
     });
 
     try {
-      if (!isDisposed.current) {
+      if (!isDisposed.current && candlestickSeries) {
         candlestickSeries.setMarkers(markers);
       }
     } catch (e) {
@@ -475,12 +474,14 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
               .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
             
             if (trades.length > 0) {
-              addTradeMarkers(candlestickSeries, trades, chartColors);
+              if (candlestickSeriesRef.current && !isDisposed.current) {
+                addTradeMarkers(candlestickSeriesRef.current, trades, chartColors);
+              }
               costBasisPoints = calculateCostBasis(trades);
               
-              if (costBasisPoints.length > 0 && showCostBasis && !isDisposed.current) {
+              if (costBasisPoints.length > 0 && showCostBasis && !isDisposed.current && costBasisSeriesRef.current) {
                 try {
-                  costBasisSeries.setData(costBasisPoints.map(point => ({
+                  costBasisSeriesRef.current.setData(costBasisPoints.map(point => ({
                     time: point.time,
                     value: point.value,
                   })));
@@ -501,9 +502,15 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
           });
 
           try {
-            candlestickSeries.setData(candlestickData);
-            volumeSeries.setData(volumeData);
-            chart.timeScale().fitContent();
+            if (candlestickSeriesRef.current && !isDisposed.current) {
+              candlestickSeriesRef.current.setData(candlestickData);
+            }
+            if (volumeSeriesRef.current && !isDisposed.current) {
+              volumeSeriesRef.current.setData(volumeData);
+            }
+            if (chartRef.current && !isDisposed.current) {
+              chartRef.current.timeScale().fitContent();
+            }
           } catch (e) {
             console.error('Error setting chart data:', e);
           }

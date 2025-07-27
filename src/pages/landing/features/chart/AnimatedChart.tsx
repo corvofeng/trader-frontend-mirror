@@ -27,8 +27,7 @@ export function AnimatedChart({ theme }: AnimatedChartProps) {
   useEffect(() => {
     if (!containerReady) return;
 
-    let chart: IChartApi | null = null;
-    let candlestickSeries: ISeriesApi<"Candlestick"> | null = null;
+    let disposed = false;
     let animationFrame: number;
 
     async function initializeChart() {
@@ -38,7 +37,7 @@ export function AnimatedChart({ theme }: AnimatedChartProps) {
       const chartColors = themedColors.chart;
       const isDark = theme === 'dark';
       
-      chart = createChart(chartContainerRef.current, {
+      const chart = createChart(chartContainerRef.current, {
         layout: {
           background: { type: ColorType.Solid, color: 'transparent' },
           textColor: isDark ? '#e5e7eb' : '#374151',
@@ -87,7 +86,7 @@ export function AnimatedChart({ theme }: AnimatedChartProps) {
 
       chartRef.current = chart;
 
-      candlestickSeries = chart.addCandlestickSeries({
+      const candlestickSeries = chart.addCandlestickSeries({
         upColor: chartColors.upColor,
         downColor: chartColors.downColor,
         borderVisible: false,
@@ -121,26 +120,35 @@ export function AnimatedChart({ theme }: AnimatedChartProps) {
           // Progressive loading animation with slower speed
           let currentIndex = 0;
           const animateData = () => {
-            if (currentIndex < candlestickData.length) {
-              if (candlestickSeries) {
+            if (currentIndex < candlestickData.length && !disposed) {
+              if (candlestickSeriesRef.current && chartRef.current) {
                 // Add data in chunks for smoother animation
                 const chunkSize = Math.max(1, Math.floor(candlestickData.length / 100));
                 const nextIndex = Math.min(currentIndex + chunkSize, candlestickData.length);
                 
-                candlestickSeries.setData(candlestickData.slice(0, nextIndex));
+                try {
+                  candlestickSeriesRef.current.setData(candlestickData.slice(0, nextIndex));
                 
-                // Auto-scale and fit content for smooth animation
-                chart.timeScale().fitContent();
+                  // Auto-scale and fit content for smooth animation
+                  chartRef.current.timeScale().fitContent();
+                } catch (e) {
+                  console.error('Error during animation:', e);
+                  return;
+                }
                 
                 currentIndex = nextIndex;
                 
                 // Slow down the animation
                 setTimeout(() => {
-                  animationFrame = requestAnimationFrame(animateData);
+                  if (!disposed) {
+                    animationFrame = requestAnimationFrame(animateData);
+                  }
                 }, 50); // Add delay between frames
               }
             } else {
-              setIsLoading(false);
+              if (!disposed) {
+                setIsLoading(false);
+              }
             }
           };
 
@@ -149,8 +157,10 @@ export function AnimatedChart({ theme }: AnimatedChartProps) {
         }
       } catch (err) {
         console.error('Error loading stock data:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load chart data');
-        setIsLoading(false);
+        if (!disposed) {
+          setError(err instanceof Error ? err.message : 'Failed to load chart data');
+          setIsLoading(false);
+        }
       }
     }
 
@@ -158,21 +168,32 @@ export function AnimatedChart({ theme }: AnimatedChartProps) {
 
     // Handle window resize
     function handleResize() {
-      if (chartContainerRef.current && chartRef.current) {
-        chartRef.current.applyOptions({ 
-          width: chartContainerRef.current.clientWidth 
-        });
-        chartRef.current.timeScale().fitContent();
+      if (chartContainerRef.current && chartRef.current && !disposed) {
+        try {
+          chartRef.current.applyOptions({ 
+            width: chartContainerRef.current.clientWidth 
+          });
+          chartRef.current.timeScale().fitContent();
+        } catch (e) {
+          console.error('Error during resize:', e);
+        }
       }
     }
 
     window.addEventListener('resize', handleResize);
 
     return () => {
+      disposed = true;
       window.removeEventListener('resize', handleResize);
       if (chartRef.current) {
-        chartRef.current.remove();
+        try {
+          chartRef.current.remove();
+        } catch (e) {
+          // Ignore errors during cleanup
+        }
+        chartRef.current = null;
       }
+      candlestickSeriesRef.current = null;
       if (animationFrame) {
         cancelAnimationFrame(animationFrame);
       }
