@@ -5,6 +5,8 @@ import { format } from 'date-fns';
 import { Theme, themes } from '../lib/theme';
 import { MOCK_OPTION_DATA } from '../lib/services/mock/mockData';
 import { useCurrency } from '../lib/context/CurrencyContext';
+import { InternalLink } from '../components/common/InternalLink';
+import { RelatedLinks } from '../components/common/RelatedLinks';
 import type { OptionQuote } from '../lib/services/mock/mockData';
 
 interface OptionsProps {
@@ -175,6 +177,26 @@ export function Options({ theme }: OptionsProps) {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="space-y-6">
+        <div className={`${themes[theme].card} rounded-lg p-4`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className={`text-2xl font-bold ${themes[theme].text}`}>
+                Options Trading Analysis
+              </h1>
+              <p className={`text-sm ${themes[theme].text} opacity-75 mt-1`}>
+                Advanced options chain analysis and surface visualization
+              </p>
+            </div>
+            <InternalLink
+              to="/journal?tab=trades"
+              className={`px-4 py-2 rounded-md ${themes[theme].secondary} text-sm font-medium`}
+              title="Create options trading plans in your journal"
+            >
+              Create Options Plan
+            </InternalLink>
+          </div>
+        </div>
+
         <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
           <div className="p-6">
             <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center mb-6">
@@ -255,6 +277,12 @@ export function Options({ theme }: OptionsProps) {
             <div ref={surfaceChartRef} style={{ height: '600px' }} />
           </div>
         </div>
+
+        <RelatedLinks 
+          theme={theme} 
+          currentPath="/options" 
+          maxItems={4}
+        />
       </div>
     </div>
   );

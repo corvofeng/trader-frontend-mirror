@@ -2,6 +2,8 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TrendingUp, CandlestickChart as ChartCandle, BarChart2, Sun, Moon, DollarSign, ArrowUpCircle, ArrowDownCircle, Briefcase, Sigma } from 'lucide-react';
 import { AnimatedChart } from './landing/features/chart';
+import { InternalLink } from '../components/common/InternalLink';
+import { RelatedLinks } from '../components/common/RelatedLinks';
 import { Theme, themes } from '../lib/theme';
 
 interface LandingProps {
@@ -94,13 +96,14 @@ export function Landing({ theme, onThemeChange }: LandingProps) {
               <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>
                 Market Overview
               </h2>
-              <button
-                onClick={() => navigate('/journal')}
+              <InternalLink
+                to="/journal"
                 className={`text-blue-500 hover:text-blue-600 flex items-center gap-2 transition-colors`}
+                title="Access your complete trading dashboard"
               >
                 <span>Open Trading View</span>
                 <TrendingUp className="w-5 h-5" />
-              </button>
+              </InternalLink>
             </div>
             <AnimatedChart theme={theme} />
           </div>
@@ -110,13 +113,14 @@ export function Landing({ theme, onThemeChange }: LandingProps) {
               <h2 className={`text-2xl sm:text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-800'}`}>
                 Track Your Portfolio Performance
               </h2>
-              <button
-                onClick={() => navigate('/journal?tab=portfolio')}
+              <InternalLink
+                to="/journal?tab=portfolio"
                 className={`text-blue-500 hover:text-blue-600 flex items-center gap-2 transition-colors`}
+                title="Access detailed portfolio analytics and performance metrics"
               >
                 <span>View Full Portfolio</span>
                 <ArrowUpCircle className="w-5 h-5" />
-              </button>
+              </InternalLink>
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {DEMO_HOLDINGS.map((holding) => (
@@ -196,7 +200,24 @@ export function Landing({ theme, onThemeChange }: LandingProps) {
               <p className={isDark ? 'text-gray-300' : 'text-gray-600'}>
                 Keep detailed records of your trades with notes and analysis
               </p>
+              <div className="mt-4">
+                <InternalLink
+                  to="/journal?tab=trades"
+                  className="text-blue-500 hover:text-blue-600 text-sm font-medium"
+                  title="Create and manage your trading plans"
+                >
+                  Create Trade Plans →
+                </InternalLink>
+              </div>
             </div>
+          </div>
+
+          <div className="mt-16">
+            <RelatedLinks 
+              theme={isDark ? 'dark' : 'light'} 
+              currentPath="/" 
+              maxItems={4}
+            />
           </div>
         </div>
       </main>

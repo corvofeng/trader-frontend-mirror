@@ -2,6 +2,7 @@ import React from 'react';
 import { useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { Navigation } from '../pages/journal/features/navigation';
+import { Breadcrumbs } from '../components/common/Breadcrumbs';
 import { Theme, themes } from '../lib/theme';
 import type { User } from '../lib/services/types';
 
@@ -50,6 +51,8 @@ export function MainLayout({
           onThemeDropdownToggle={onThemeDropdownToggle}
         />
       )}
+
+      {showNav && <Breadcrumbs theme={theme} />}
 
       {children}
     </div>
