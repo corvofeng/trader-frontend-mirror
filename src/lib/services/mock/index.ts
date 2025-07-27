@@ -1,5 +1,5 @@
 import { mockUser, mockHoldings, tradeIdCounter, MOCK_STOCKS, MOCK_STOCK_CONFIGS, generateMockTrades, generateMockOperations, DEMO_STOCK_DATA } from './mockData';
-import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, StockData, StockPrice, Operation, OperationService, TrendData, StockConfigService, StockConfig, UploadService, UploadResponse } from '../types';
+import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, StockData, StockPrice, Operation, OperationService, TrendData, StockConfigService, StockConfig, UploadService, UploadResponse, AnalysisService, StockAnalysis, PortfolioAnalysis } from '../types';
 import { format, subDays, addMinutes, startOfDay, endOfDay, parseISO } from 'date-fns';
 
 function generateDemoStockData(): StockData[] {
@@ -438,5 +438,138 @@ export const uploadService: UploadService = {
       balance: mockBalance,
       holdings: mockHoldingsFromFile
     };
+  }
+};
+
+export const analysisService: AnalysisService = {
+  getStockAnalysis: async (stockCode: string) => {
+    await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate API delay
+    
+    const stock = MOCK_STOCKS.find(s => s.stock_code === stockCode);
+    if (!stock) {
+      return { data: null, error: new Error('Stock not found') };
+    }
+
+    // Generate realistic mock analysis data
+    const mockAnalysis: StockAnalysis = {
+      stock_code: stockCode,
+      stock_name: stock.stock_name,
+      analysis_time: new Date().toISOString(),
+      technical_analysis: {
+        trend: Math.random() > 0.5 ? 'bullish' : Math.random() > 0.3 ? 'bearish' : 'neutral',
+        support_level: 140 + Math.random() * 20,
+        resistance_level: 180 + Math.random() * 20,
+        rsi: 30 + Math.random() * 40,
+        macd: {
+          signal: Math.random() > 0.6 ? 'buy' : Math.random() > 0.3 ? 'sell' : 'hold',
+          value: (Math.random() - 0.5) * 2
+        },
+        moving_averages: {
+          ma5: 165 + Math.random() * 10,
+          ma10: 162 + Math.random() * 10,
+          ma20: 158 + Math.random() * 10,
+          ma50: 155 + Math.random() * 10
+        }
+      },
+      fundamental_analysis: {
+        pe_ratio: 15 + Math.random() * 20,
+        pb_ratio: 1.5 + Math.random() * 2,
+        dividend_yield: Math.random() * 4,
+        market_cap: 1000000000000 + Math.random() * 2000000000000,
+        revenue_growth: (Math.random() - 0.3) * 30,
+        profit_margin: 10 + Math.random() * 20
+      },
+      sentiment_analysis: {
+        score: (Math.random() - 0.5) * 2,
+        news_sentiment: Math.random() > 0.6 ? 'positive' : Math.random() > 0.3 ? 'negative' : 'neutral',
+        social_sentiment: Math.random() > 0.6 ? 'positive' : Math.random() > 0.3 ? 'negative' : 'neutral',
+        analyst_rating: Math.random() > 0.6 ? 'buy' : Math.random() > 0.3 ? 'sell' : 'hold'
+      },
+      risk_metrics: {
+        volatility: 15 + Math.random() * 25,
+        beta: 0.8 + Math.random() * 0.8,
+        var_95: -(2 + Math.random() * 8),
+        sharpe_ratio: 0.5 + Math.random() * 1.5
+      },
+      recommendations: [
+        {
+          type: Math.random() > 0.5 ? 'buy' : 'hold',
+          reason: '基于技术分析和基本面分析，该股票显示出积极的投资机会',
+          confidence: 70 + Math.random() * 25,
+          target_price: 180 + Math.random() * 40,
+          stop_loss: 140 + Math.random() * 20
+        }
+      ]
+    };
+
+    return { data: mockAnalysis, error: null };
+  },
+
+  getPortfolioAnalysis: async (userId: string) => {
+    await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API delay
+    
+    const mockPortfolioAnalysis: PortfolioAnalysis = {
+      user_id: userId,
+      analysis_time: new Date().toISOString(),
+      overall_metrics: {
+        total_return: (Math.random() - 0.3) * 30,
+        annualized_return: (Math.random() - 0.2) * 25,
+        volatility: 15 + Math.random() * 20,
+        sharpe_ratio: 0.5 + Math.random() * 1.5,
+        max_drawdown: -(5 + Math.random() * 15),
+        win_rate: 45 + Math.random() * 30,
+        profit_factor: 1.1 + Math.random() * 0.8
+      },
+      sector_allocation: [
+        { sector: '科技', weight: 35 + Math.random() * 20, return: (Math.random() - 0.3) * 20, risk_contribution: 25 + Math.random() * 15 },
+        { sector: '金融', weight: 20 + Math.random() * 15, return: (Math.random() - 0.4) * 15, risk_contribution: 15 + Math.random() * 10 },
+        { sector: '医疗', weight: 15 + Math.random() * 10, return: (Math.random() - 0.2) * 18, risk_contribution: 12 + Math.random() * 8 },
+        { sector: '消费', weight: 10 + Math.random() * 10, return: (Math.random() - 0.1) * 12, risk_contribution: 8 + Math.random() * 6 },
+        { sector: '其他', weight: 5 + Math.random() * 10, return: (Math.random() - 0.2) * 10, risk_contribution: 5 + Math.random() * 5 }
+      ],
+      risk_analysis: {
+        portfolio_beta: 0.9 + Math.random() * 0.4,
+        var_95: -(3 + Math.random() * 7),
+        correlation_matrix: mockHoldings.slice(0, 3).map((h1, i) => 
+          mockHoldings.slice(i + 1, 4).map(h2 => ({
+            stock1: h1.stock_code,
+            stock2: h2.stock_code,
+            correlation: (Math.random() - 0.5) * 1.8
+          }))
+        ).flat(),
+        concentration_risk: 20 + Math.random() * 30
+      },
+      performance_attribution: mockHoldings.slice(0, 5).map(holding => ({
+        stock_code: holding.stock_code,
+        contribution_to_return: (Math.random() - 0.3) * 5,
+        weight: (holding.total_value / mockHoldings.reduce((sum, h) => sum + h.total_value, 0)) * 100,
+        alpha: (Math.random() - 0.4) * 8
+      })),
+      rebalancing_suggestions: mockHoldings.slice(0, 3).map(holding => ({
+        stock_code: holding.stock_code,
+        current_weight: (holding.total_value / mockHoldings.reduce((sum, h) => sum + h.total_value, 0)) * 100,
+        suggested_weight: 15 + Math.random() * 20,
+        action: Math.random() > 0.6 ? 'buy' : Math.random() > 0.3 ? 'sell' : 'hold',
+        reason: '基于风险调整和市场前景，建议调整该股票的仓位配置'
+      })),
+      market_outlook: {
+        trend: Math.random() > 0.5 ? 'bullish' : Math.random() > 0.3 ? 'bearish' : 'neutral',
+        confidence: 60 + Math.random() * 30,
+        key_factors: ['宏观经济环境', '行业政策变化', '市场流动性', '地缘政治风险'],
+        time_horizon: Math.random() > 0.7 ? '1Y' : Math.random() > 0.5 ? '6M' : Math.random() > 0.3 ? '3M' : '1M'
+      }
+    };
+
+    return { data: mockPortfolioAnalysis, error: null };
+  },
+
+  refreshStockAnalysis: async (stockCode: string) => {
+    // Same as getStockAnalysis but with a refresh indicator
+    return analysisService.getStockAnalysis(stockCode);
+  },
+
+  refreshPortfolioAnalysis: async (userId: string) => {
+    // Same as getPortfolioAnalysis but with a refresh indicator
+    return analysisService.getPortfolioAnalysis(userId);
   }
 };

@@ -112,6 +112,105 @@ export interface UploadResponse {
   }>;
 }
 
+// Stock Analysis Types
+export interface StockAnalysis {
+  stock_code: string;
+  stock_name: string;
+  analysis_time: string;
+  technical_analysis: {
+    trend: 'bullish' | 'bearish' | 'neutral';
+    support_level: number;
+    resistance_level: number;
+    rsi: number;
+    macd: {
+      signal: 'buy' | 'sell' | 'hold';
+      value: number;
+    };
+    moving_averages: {
+      ma5: number;
+      ma10: number;
+      ma20: number;
+      ma50: number;
+    };
+  };
+  fundamental_analysis: {
+    pe_ratio: number;
+    pb_ratio: number;
+    dividend_yield: number;
+    market_cap: number;
+    revenue_growth: number;
+    profit_margin: number;
+  };
+  sentiment_analysis: {
+    score: number; // -1 to 1
+    news_sentiment: 'positive' | 'negative' | 'neutral';
+    social_sentiment: 'positive' | 'negative' | 'neutral';
+    analyst_rating: 'buy' | 'sell' | 'hold';
+  };
+  risk_metrics: {
+    volatility: number;
+    beta: number;
+    var_95: number; // Value at Risk 95%
+    sharpe_ratio: number;
+  };
+  recommendations: Array<{
+    type: 'buy' | 'sell' | 'hold' | 'reduce' | 'increase';
+    reason: string;
+    confidence: number; // 0-100
+    target_price?: number;
+    stop_loss?: number;
+  }>;
+}
+
+export interface PortfolioAnalysis {
+  user_id: string;
+  analysis_time: string;
+  overall_metrics: {
+    total_return: number;
+    annualized_return: number;
+    volatility: number;
+    sharpe_ratio: number;
+    max_drawdown: number;
+    win_rate: number;
+    profit_factor: number;
+  };
+  sector_allocation: Array<{
+    sector: string;
+    weight: number;
+    return: number;
+    risk_contribution: number;
+  }>;
+  risk_analysis: {
+    portfolio_beta: number;
+    var_95: number;
+    correlation_matrix: Array<{
+      stock1: string;
+      stock2: string;
+      correlation: number;
+    }>;
+    concentration_risk: number;
+  };
+  performance_attribution: Array<{
+    stock_code: string;
+    contribution_to_return: number;
+    weight: number;
+    alpha: number;
+  }>;
+  rebalancing_suggestions: Array<{
+    stock_code: string;
+    current_weight: number;
+    suggested_weight: number;
+    action: 'buy' | 'sell' | 'hold';
+    reason: string;
+  }>;
+  market_outlook: {
+    trend: 'bullish' | 'bearish' | 'neutral';
+    confidence: number;
+    key_factors: string[];
+    time_horizon: '1M' | '3M' | '6M' | '1Y';
+  };
+}
+
 export interface StockService {
   getStockName: (stockCode: string) => string;
   getStocks: () => Promise<ServiceResponse<Stock[]>>;
@@ -148,6 +247,13 @@ export interface PortfolioService {
   getTrendDataByUuid: (uuid: string, startDate: string, endDate: string) => Promise<ServiceResponse<TrendData[]>>;
 }
 
+export interface AnalysisService {
+  getStockAnalysis: (stockCode: string) => Promise<ServiceResponse<StockAnalysis>>;
+  getPortfolioAnalysis: (userId: string) => Promise<ServiceResponse<PortfolioAnalysis>>;
+  refreshStockAnalysis: (stockCode: string) => Promise<ServiceResponse<StockAnalysis>>;
+  refreshPortfolioAnalysis: (userId: string) => Promise<ServiceResponse<PortfolioAnalysis>>;
+}
+
 export interface CurrencyService {
   getCurrency: () => Promise<ServiceResponse<string>>;
   setCurrency: (currency: string) => Promise<ServiceResponse<void>>;
@@ -175,5 +281,6 @@ export interface Services {
   portfolioService: PortfolioService;
   currencyService: CurrencyService;
   operationService: OperationService;
+  analysisService: AnalysisService;
   uploadService: UploadService;
 }

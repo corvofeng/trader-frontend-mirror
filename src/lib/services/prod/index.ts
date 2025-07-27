@@ -1,4 +1,4 @@
-import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, OperationService, StockConfigService, StockConfig, UploadService, UploadResponse } from '../types';
+import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, OperationService, StockConfigService, StockConfig, UploadService, UploadResponse, AnalysisService } from '../types';
 import type { Trade } from '../types';
 
 export const authService: AuthService = {
@@ -361,5 +361,67 @@ export const uploadService: UploadService = {
 
     const result = await response.json();
     return result;
+  }
+};
+
+export const analysisService: AnalysisService = {
+  getStockAnalysis: async (stockCode: string) => {
+    try {
+      const response = await fetch(`/api/analysis/stock/${stockCode}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch stock analysis');
+      }
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error fetching stock analysis:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  getPortfolioAnalysis: async (userId: string) => {
+    try {
+      const response = await fetch(`/api/analysis/portfolio/${userId}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch portfolio analysis');
+      }
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error fetching portfolio analysis:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  refreshStockAnalysis: async (stockCode: string) => {
+    try {
+      const response = await fetch(`/api/analysis/stock/${stockCode}/refresh`, {
+        method: 'POST'
+      });
+      if (!response.ok) {
+        throw new Error('Failed to refresh stock analysis');
+      }
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error refreshing stock analysis:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  refreshPortfolioAnalysis: async (userId: string) => {
+    try {
+      const response = await fetch(`/api/analysis/portfolio/${userId}/refresh`, {
+        method: 'POST'
+      });
+      if (!response.ok) {
+        throw new Error('Failed to refresh portfolio analysis');
+      }
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error refreshing portfolio analysis:', error);
+      return { data: null, error: error as Error };
+    }
   }
 };

@@ -10,6 +10,8 @@ import { useCurrency } from '../../../../lib/context/CurrencyContext';
 import { portfolioService } from '../../../../lib/services';
 import { PortfolioTrend } from './components/PortfolioTrend';
 import { PortfolioHeatmap } from './components/PortfolioHeatmap';
+import { StockAnalysisModal } from './components/StockAnalysisModal';
+import { PortfolioAnalysisPanel } from './components/PortfolioAnalysisPanel';
 
 ChartJS.register(
   ArcElement, 
@@ -51,6 +53,8 @@ export function Portfolio({
   const [tradesPerPage, setTradesPerPage] = useState(5);
   const [tradesSort, setTradesSort] = useState<{ field: string; direction: 'asc' | 'desc' }>({ field: 'created_at', direction: 'desc' });
   const [trendData, setTrendData] = useState<TrendData[]>([]);
+  const [selectedStockForAnalysis, setSelectedStockForAnalysis] = useState<{ code: string; name: string } | null>(null);
+  const [showPortfolioAnalysis, setShowPortfolioAnalysis] = useState(false);
   const { currencyConfig } = useCurrency();
   
   // Calculate portfolio metrics
@@ -247,6 +251,29 @@ export function Portfolio({
         </div>
       )}
 
+      {/* Portfolio Analysis Panel */}
+      <div className="mt-6">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className={`text-lg font-semibold ${themes[theme].text}`}>智能分析</h3>
+          <button
+            onClick={() => setShowPortfolioAnalysis(!showPortfolioAnalysis)}
+            className={`px-4 py-2 rounded-md ${themes[theme].secondary}`}
+          >
+            {showPortfolioAnalysis ? '隐藏分析' : '查看分析'}
+          </button>
+        </div>
+        {showPortfolioAnalysis && <PortfolioAnalysisPanel theme={theme} />}
+      </div>
+
+      {/* Stock Analysis Modal */}
+      {selectedStockForAnalysis && (
+        <StockAnalysisModal
+          stockCode={selectedStockForAnalysis.code}
+          stockName={selectedStockForAnalysis.name}
+          theme={theme}
+          onClose={() => setSelectedStockForAnalysis(null)}
+        />
+      )}
       <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
         <div className="p-6 border-b border-gray-200">
           <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center mb-6">
@@ -398,6 +425,17 @@ export function Portfolio({
                         <SortIcon field="profit_loss_percentage" currentSort={holdingsSort} />
                       </div>
                     </th>
+                    <th className={`px-6 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
+                      操作
+                    </th>
+                    <td className="px-6 py-4 text-right">
+                      <button
+                        onClick={() => setSelectedStockForAnalysis({ code: holding.stock_code, name: holding.stock_name })}
+                        className={`px-3 py-1 rounded-md text-xs ${themes[theme].secondary}`}
+                      >
+                        分析
+                      </button>
+                    </td>
                   </tr>
                 </thead>
                 <tbody className={`divide-y ${themes[theme].border}`}>
