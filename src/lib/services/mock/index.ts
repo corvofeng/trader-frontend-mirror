@@ -228,7 +228,8 @@ export const portfolioService: PortfolioService = {
     const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
     
     const trendData: TrendData[] = [];
-    let currentValue = 100000; // Starting value
+    const baseValue = 100000; // Starting value
+    let currentValue = baseValue;
     let currentPositionValue = 75000; // Starting position value (75% of total)
     
     for (let i = 0; i <= days; i++) {
@@ -258,10 +259,14 @@ export const portfolioService: PortfolioService = {
         currentPositionValue = currentValue * minPositionRatio;
       }
       
+      // Calculate return rate based on base value
+      const returnRate = ((currentValue - baseValue) / baseValue) * 100;
+      
       trendData.push({
         date: currentDate.toISOString(),
         value: currentValue,
-        position_value: currentPositionValue
+        position_value: currentPositionValue,
+        return_rate: returnRate
       });
     }
 
@@ -309,7 +314,8 @@ export const portfolioService: PortfolioService = {
     const totalValue = portfolio.holdings.reduce((sum: number, h: any) => sum + (h.total_value || 0), 0);
     const positionValue = portfolio.holdings.reduce((sum: number, h: any) => sum + (h.market_value || 0), 0);
     
-    let currentValue = totalValue * 0.9; // Start 10% lower
+    const baseValue = totalValue * 0.9; // Start 10% lower
+    let currentValue = baseValue;
     let currentPositionValue = positionValue * 0.9;
     
     for (let i = 0; i <= days; i++) {
@@ -320,10 +326,14 @@ export const portfolioService: PortfolioService = {
       currentValue = totalValue * 0.9 + (totalValue * 0.1 * progress) + (Math.random() - 0.5) * totalValue * 0.02;
       currentPositionValue = positionValue * 0.9 + (positionValue * 0.1 * progress) + (Math.random() - 0.5) * positionValue * 0.015;
       
+      // Calculate return rate based on base value
+      const returnRate = ((currentValue - baseValue) / baseValue) * 100;
+      
       trendData.push({
         date: currentDate.toISOString(),
         value: currentValue,
-        position_value: currentPositionValue
+        position_value: currentPositionValue,
+        return_rate: returnRate
       });
     }
 

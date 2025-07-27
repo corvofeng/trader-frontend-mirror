@@ -371,6 +371,7 @@ export function Portfolio({
           <PortfolioTrend 
             trendData={trendData}
             theme={theme}
+            dateRange={dateRange}
           />
         )}
 

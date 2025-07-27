@@ -58,6 +58,7 @@ export interface TrendData {
   date: string;
   value: number;
   position_value?: number; // 新增：持仓市值
+  return_rate?: number; // 新增：收益率
 }
 
 export interface CurrencyConfig {
