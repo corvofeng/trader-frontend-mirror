@@ -69,7 +69,14 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
   const getChartData = () => {
     if (viewMode === 'return') {
       // Return rate view
-      const portfolioReturns = trendData.map(point => point.return_rate || 0);
+      // Calculate portfolio returns based on first data point as baseline
+      const portfolioReturns = trendData.length > 0 
+        ? trendData.map(point => {
+            const baseValue = trendData[0].value;
+            return baseValue > 0 ? ((point.value - baseValue) / baseValue) * 100 : 0;
+          })
+        : [];
+      
       const positionReturns = trendData.map(point => {
         if (!point.position_value || !trendData[0]?.position_value) return 0;
         return ((point.position_value - trendData[0].position_value) / trendData[0].position_value) * 100;
