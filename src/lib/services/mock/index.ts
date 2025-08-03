@@ -752,11 +752,22 @@ export const analysisService: AnalysisService = {
         time_horizon: Math.random() > 0.7 ? '1Y' : Math.random() > 0.5 ? '6M' : Math.random() > 0.3 ? '3M' : '1M'
       }
     };
+
   refreshStockAnalysis: async (stockCode: string) => {
     // Same as getStockAnalysis but with a refresh indicator
     return analysisService.getStockAnalysis(stockCode);
   },
 
+  refreshPortfolioAnalysis: async (userId: string) => {
+    // Same as getPortfolioAnalysis but with a refresh indicator
+    return analysisService.getPortfolioAnalysis(userId);
+  },
+
+  refreshPortfolioAnalysisByUuid: async (uuid: string) => {
+    // Same as getPortfolioAnalysisByUuid but with a refresh indicator
+    return analysisService.getPortfolioAnalysisByUuid(uuid);
+  }
+};
     return { data: mockPortfolioAnalysis, error: null };
   },
   refreshPortfolioAnalysis: async (userId: string) => {
