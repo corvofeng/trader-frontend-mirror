@@ -768,15 +768,3 @@ export const analysisService: AnalysisService = {
     return analysisService.getPortfolioAnalysisByUuid(uuid);
   }
 };
-    return { data: mockPortfolioAnalysis, error: null };
-  },
-  refreshPortfolioAnalysis: async (userId: string) => {
-    // Same as getPortfolioAnalysis but with a refresh indicator
-    return analysisService.getPortfolioAnalysis(userId);
-  },
-
-  refreshPortfolioAnalysisByUuid: async (uuid: string) => {
-    // Same as getPortfolioAnalysisByUuid but with a refresh indicator
-    return analysisService.getPortfolioAnalysisByUuid(uuid);
-  }
-};
