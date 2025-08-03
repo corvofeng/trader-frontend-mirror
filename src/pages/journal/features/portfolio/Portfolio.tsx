@@ -262,7 +262,7 @@ export function Portfolio({
             {showPortfolioAnalysis ? '隐藏分析' : '查看分析'}
           </button>
         </div>
-        {showPortfolioAnalysis && <PortfolioAnalysisPanel theme={theme} />}
+        {showPortfolioAnalysis && <PortfolioAnalysisPanel theme={theme} portfolioUuid={portfolioUuid} />}
       </div>
 
       {/* Stock Analysis Modal */}

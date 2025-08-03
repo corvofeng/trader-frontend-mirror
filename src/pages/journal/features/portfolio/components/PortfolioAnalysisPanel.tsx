@@ -9,11 +9,12 @@ import toast from 'react-hot-toast';
 
 interface PortfolioAnalysisPanelProps {
   theme: Theme;
+  portfolioUuid?: string;
 }
 
 const DEMO_USER_ID = 'mock-user-id';
 
-export function PortfolioAnalysisPanel({ theme }: PortfolioAnalysisPanelProps) {
+export function PortfolioAnalysisPanel({ theme, portfolioUuid }: PortfolioAnalysisPanelProps) {
   const [analysis, setAnalysis] = useState<PortfolioAnalysis | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -24,7 +25,9 @@ export function PortfolioAnalysisPanel({ theme }: PortfolioAnalysisPanelProps) {
     try {
       if (refresh) {
         setIsRefreshing(true);
-        const { data, error } = await analysisService.refreshPortfolioAnalysis(DEMO_USER_ID);
+        const { data, error } = portfolioUuid 
+          ? await analysisService.refreshPortfolioAnalysisByUuid(portfolioUuid)
+          : await analysisService.refreshPortfolioAnalysis(DEMO_USER_ID);
         if (error) throw error;
         if (data) {
           setAnalysis(data);
@@ -32,7 +35,9 @@ export function PortfolioAnalysisPanel({ theme }: PortfolioAnalysisPanelProps) {
         }
       } else {
         setIsLoading(true);
-        const { data, error } = await analysisService.getPortfolioAnalysis(DEMO_USER_ID);
+        const { data, error } = portfolioUuid 
+          ? await analysisService.getPortfolioAnalysisByUuid(portfolioUuid)
+          : await analysisService.getPortfolioAnalysis(DEMO_USER_ID);
         if (error) throw error;
         if (data) setAnalysis(data);
       }
@@ -47,7 +52,7 @@ export function PortfolioAnalysisPanel({ theme }: PortfolioAnalysisPanelProps) {
 
   useEffect(() => {
     fetchAnalysis();
-  }, []);
+  }, [portfolioUuid]);
 
   const toggleSection = (section: string) => {
     setExpandedSections(prev => 

@@ -393,6 +393,19 @@ export const analysisService: AnalysisService = {
     }
   },
 
+  getPortfolioAnalysisByUuid: async (uuid: string) => {
+    try {
+      const response = await fetch(`/api/analysis/portfolio/shared/${uuid}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch shared portfolio analysis');
+      }
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error fetching shared portfolio analysis:', error);
+      return { data: null, error: error as Error };
+    }
+  },
   refreshStockAnalysis: async (stockCode: string) => {
     try {
       const response = await fetch(`/api/analysis/stock/${stockCode}/refresh`, {
@@ -421,6 +434,22 @@ export const analysisService: AnalysisService = {
       return { data, error: null };
     } catch (error) {
       console.error('Error refreshing portfolio analysis:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  refreshPortfolioAnalysisByUuid: async (uuid: string) => {
+    try {
+      const response = await fetch(`/api/analysis/portfolio/shared/${uuid}/refresh`, {
+        method: 'POST'
+      });
+      if (!response.ok) {
+        throw new Error('Failed to refresh shared portfolio analysis');
+      }
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error refreshing shared portfolio analysis:', error);
       return { data: null, error: error as Error };
     }
   }

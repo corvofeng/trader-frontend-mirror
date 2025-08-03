@@ -251,8 +251,10 @@ export interface PortfolioService {
 export interface AnalysisService {
   getStockAnalysis: (stockCode: string) => Promise<ServiceResponse<StockAnalysis>>;
   getPortfolioAnalysis: (userId: string) => Promise<ServiceResponse<PortfolioAnalysis>>;
+  getPortfolioAnalysisByUuid: (uuid: string) => Promise<ServiceResponse<PortfolioAnalysis>>;
   refreshStockAnalysis: (stockCode: string) => Promise<ServiceResponse<StockAnalysis>>;
   refreshPortfolioAnalysis: (userId: string) => Promise<ServiceResponse<PortfolioAnalysis>>;
+  refreshPortfolioAnalysisByUuid: (uuid: string) => Promise<ServiceResponse<PortfolioAnalysis>>;
 }
 
 export interface CurrencyService {
