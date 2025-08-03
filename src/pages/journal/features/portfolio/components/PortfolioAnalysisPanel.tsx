@@ -23,14 +23,23 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid }: PortfolioAnalys
 
   // 渲染markdown内容的函数
   const renderMarkdownContent = (content: string) => {
-    // 简单的markdown渲染，支持基本格式
+    // 增强的markdown渲染，支持多级标题、分割线等格式
     return content
-      .replace(/### (.*?)(?=\n|$)/g, '<h3 class="text-lg font-semibold mb-3 text-blue-600">$1</h3>')
-      .replace(/## (.*?)(?=\n|$)/g, '<h2 class="text-xl font-bold mb-4 text-blue-700">$1</h2>')
-      .replace(/# (.*?)(?=\n|$)/g, '<h1 class="text-2xl font-bold mb-4 text-blue-800">$1</h1>')
+      // 处理分割线
+      .replace(/^---$/gm, '<hr class="my-6 border-t border-gray-300 dark:border-gray-600" />')
+      .replace(/^\*\*\*$/gm, '<hr class="my-6 border-t border-gray-300 dark:border-gray-600" />')
+      // 处理多级标题（从高级到低级，避免冲突）
+      .replace(/^#### (.*?)$/gm, '<h4 class="text-base font-semibold mb-2 mt-4 text-purple-600 dark:text-purple-400">$1</h4>')
+      .replace(/^### (.*?)$/gm, '<h3 class="text-lg font-semibold mb-3 mt-5 text-blue-600 dark:text-blue-400">$1</h3>')
+      .replace(/^## (.*?)$/gm, '<h2 class="text-xl font-bold mb-4 mt-6 text-blue-700 dark:text-blue-300">$1</h2>')
+      .replace(/^# (.*?)$/gm, '<h1 class="text-2xl font-bold mb-4 mt-6 text-blue-800 dark:text-blue-200">$1</h1>')
+      // 处理粗体和斜体
       .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
       .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
-      .replace(/- (.*?)(?=\n|$)/g, '<li class="ml-4 mb-1">• $1</li>')
+      // 处理列表项
+      .replace(/^- (.*?)$/gm, '<li class="ml-4 mb-1 list-disc list-inside">$1</li>')
+      .replace(/^  - (.*?)$/gm, '<li class="ml-8 mb-1 list-circle list-inside">$1</li>')
+      // 处理段落分隔
       .replace(/\n\n/g, '<br><br>')
       .replace(/\n/g, '<br>');
   };
