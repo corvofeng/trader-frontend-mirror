@@ -91,7 +91,7 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid }: PortfolioAnalys
   };
 
   // 如果有content字段，优先显示markdown内容
-  if (analysis.content) {
+  if (analysis && analysis.content) {
     return (
       <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
         <div className="p-6 border-b border-gray-200">
@@ -134,14 +134,6 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid }: PortfolioAnalys
     );
   }
 
-  const getActionColor = (action: string) => {
-    switch (action) {
-      case 'buy': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100';
-      case 'sell': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100';
-      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100';
-    }
-  };
-
   if (isLoading) {
     return (
       <div className={`${themes[theme].card} rounded-lg p-6`}>
@@ -169,6 +161,14 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid }: PortfolioAnalys
       </div>
     );
   }
+
+  const getActionColor = (action: string) => {
+    switch (action) {
+      case 'buy': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100';
+      case 'sell': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100';
+      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100';
+    }
+  };
 
   const sections = [
     {
