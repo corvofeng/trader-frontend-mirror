@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, TrendingUp, TrendingDown, PieChart, Shield, Target, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
+import { RefreshCw, TrendingUp, TrendingDown, PieChart, Shield, Target, AlertTriangle, ChevronDown, ChevronUp, FileText } from 'lucide-react';
 import { Theme, themes } from '../../../../../lib/theme';
 import { analysisService, authService } from '../../../../../lib/services';
 import type { PortfolioAnalysis } from '../../../../../lib/services/types';
@@ -20,6 +20,20 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid }: PortfolioAnalys
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [expandedSections, setExpandedSections] = useState<string[]>(['overview']);
   const { currencyConfig, regionalColors } = useCurrency();
+
+  // 渲染markdown内容的函数
+  const renderMarkdownContent = (content: string) => {
+    // 简单的markdown渲染，支持基本格式
+    return content
+      .replace(/### (.*?)(?=\n|$)/g, '<h3 class="text-lg font-semibold mb-3 text-blue-600">$1</h3>')
+      .replace(/## (.*?)(?=\n|$)/g, '<h2 class="text-xl font-bold mb-4 text-blue-700">$1</h2>')
+      .replace(/# (.*?)(?=\n|$)/g, '<h1 class="text-2xl font-bold mb-4 text-blue-800">$1</h1>')
+      .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
+      .replace(/- (.*?)(?=\n|$)/g, '<li class="ml-4 mb-1">• $1</li>')
+      .replace(/\n\n/g, '<br><br>')
+      .replace(/\n/g, '<br>');
+  };
 
   const fetchAnalysis = async (refresh = false) => {
     try {
@@ -75,6 +89,50 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid }: PortfolioAnalys
     if (value < 0) return `text-[${regionalColors.downColor}]`;
     return themes[theme].text;
   };
+
+  // 如果有content字段，优先显示markdown内容
+  if (analysis.content) {
+    return (
+      <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className={`text-xl font-bold ${themes[theme].text}`}>
+                智能分析报告
+              </h2>
+              <p className={`text-sm ${themes[theme].text} opacity-75`}>
+                分析时间: {new Date(analysis.analysis_time).toLocaleString()}
+              </p>
+            </div>
+            <button
+              onClick={() => fetchAnalysis(true)}
+              disabled={isRefreshing}
+              className={`p-2 rounded-md ${themes[theme].secondary} ${isRefreshing ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+        </div>
+
+        <div className="p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <FileText className="w-5 h-5 text-blue-500" />
+            <h3 className={`text-lg font-semibold ${themes[theme].text}`}>分析报告</h3>
+          </div>
+          <div 
+            className={`prose prose-sm max-w-none ${themes[theme].text}`}
+            dangerouslySetInnerHTML={{ 
+              __html: renderMarkdownContent(analysis.content) 
+            }}
+            style={{
+              lineHeight: '1.6',
+              color: theme === 'dark' ? '#e5e7eb' : '#374151'
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
 
   const getActionColor = (action: string) => {
     switch (action) {

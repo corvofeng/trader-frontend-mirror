@@ -640,6 +640,24 @@ export const analysisService: AnalysisService = {
     const mockPortfolioAnalysis: PortfolioAnalysis = {
       user_id: userId,
       analysis_time: new Date().toISOString(),
+      content: `### 1. 持仓变化分析
+- **显著变化**：
+  - **加仓**：粤高速A（7月25日加仓400股至800股），中信证券（7月12日从400股增至600股，但当前回落至400股）。
+  - **减仓**：暂无明显减仓操作。
+
+### 2. 收益表现分析
+- **整体表现**：投资组合在过去30天内表现良好，总收益率达到${(Math.random() * 10 + 5).toFixed(2)}%。
+- **个股贡献**：
+  - **AAPL**: 贡献了${(Math.random() * 3 + 1).toFixed(2)}%的收益
+  - **GOOGL**: 贡献了${(Math.random() * 2 + 0.5).toFixed(2)}%的收益
+
+### 3. 风险评估
+- **风险水平**：当前投资组合风险处于**中等**水平
+- **建议**：考虑适当分散投资，降低单一股票集中度风险
+
+### 4. 投资建议
+- **短期策略**：维持当前仓位，关注市场波动
+- **长期规划**：建议逐步增加科技股配置比例`,
       overall_metrics: {
         total_return: (Math.random() - 0.3) * 30,
         annualized_return: (Math.random() - 0.2) * 25,

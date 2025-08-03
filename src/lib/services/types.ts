@@ -166,6 +166,7 @@ export interface StockAnalysis {
 export interface PortfolioAnalysis {
   user_id: string;
   analysis_time: string;
+  content?: string; // 新增：支持markdown格式的分析报告内容
   overall_metrics: {
     total_return: number;
     annualized_return: number;
