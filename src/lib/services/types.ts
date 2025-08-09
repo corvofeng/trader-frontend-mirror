@@ -318,4 +318,5 @@ export interface OptionsData {
 
 export interface OptionsService {
   getOptionsData: (symbol?: string) => Promise<ServiceResponse<OptionsData>>;
+  getAvailableSymbols: () => Promise<ServiceResponse<string[]>>;
 }

@@ -788,21 +788,49 @@ export const analysisService: AnalysisService = {
   }
 };
 
+// 支持的期权标的列表
+const AVAILABLE_OPTIONS_SYMBOLS = [
+  'SPY',   // SPDR S&P 500 ETF
+  'QQQ',   // Invesco QQQ Trust
+  'AAPL',  // Apple Inc.
+  'TSLA',  // Tesla Inc.
+  'MSFT',  // Microsoft Corporation
+  'NVDA',  // NVIDIA Corporation
+  'AMZN',  // Amazon.com Inc.
+  'GOOGL', // Alphabet Inc.
+];
+
 export const optionsService: OptionsService = {
   getOptionsData: async (symbol?: string) => {
     await new Promise(resolve => setTimeout(resolve, 1000));
     
+    const targetSymbol = symbol || 'SPY';
+    
     // Generate realistic options data
-    const basePrice = 150 + Math.random() * 100; // Random base price between 150-250
+    const basePrices: Record<string, number> = {
+      'SPY': 450 + Math.random() * 50,
+      'QQQ': 380 + Math.random() * 40,
+      'AAPL': 175 + Math.random() * 25,
+      'TSLA': 250 + Math.random() * 100,
+      'MSFT': 380 + Math.random() * 40,
+      'NVDA': 800 + Math.random() * 200,
+      'AMZN': 150 + Math.random() * 30,
+      'GOOGL': 140 + Math.random() * 20,
+    };
+    
+    const basePrice = basePrices[targetSymbol] || (150 + Math.random() * 100);
+    
     const expiryDates = [30, 60, 90].map(days => {
       const date = new Date();
       date.setDate(date.getDate() + days);
       return date.toISOString();
     });
     
+    // Generate strikes based on the symbol's typical price range
+    const strikeRange = targetSymbol === 'NVDA' ? 50 : targetSymbol === 'SPY' || targetSymbol === 'QQQ' || targetSymbol === 'MSFT' ? 25 : 10;
     const strikes = [];
-    for (let i = -5; i <= 5; i++) {
-      strikes.push(Math.round((basePrice + i * 10) / 5) * 5); // Round to nearest 5
+    for (let i = -4; i <= 4; i++) {
+      strikes.push(Math.round((basePrice + i * strikeRange) / 5) * 5); // Round to nearest 5
     }
     
     const quotes = expiryDates.flatMap(expiry => 
@@ -811,7 +839,18 @@ export const optionsService: OptionsService = {
         const moneyness = strike / basePrice;
         
         // Simple Black-Scholes approximation for realistic pricing
-        const volatility = 0.2 + Math.random() * 0.3;
+        // Different volatilities for different symbols
+        const baseVolatilities: Record<string, number> = {
+          'SPY': 0.15,
+          'QQQ': 0.20,
+          'AAPL': 0.25,
+          'TSLA': 0.45,
+          'MSFT': 0.22,
+          'NVDA': 0.35,
+          'AMZN': 0.28,
+          'GOOGL': 0.24,
+        };
+        const volatility = (baseVolatilities[targetSymbol] || 0.25) + (Math.random() - 0.5) * 0.1;
         const riskFreeRate = 0.05;
         
         const d1 = (Math.log(basePrice / strike) + (riskFreeRate + 0.5 * volatility * volatility) * timeToExpiry) / (volatility * Math.sqrt(timeToExpiry));
@@ -820,15 +859,28 @@ export const optionsService: OptionsService = {
         const callPrice = Math.max(0.01, basePrice * normalCDF(d1) - strike * Math.exp(-riskFreeRate * timeToExpiry) * normalCDF(d2));
         const putPrice = Math.max(0.01, strike * Math.exp(-riskFreeRate * timeToExpiry) * normalCDF(-d2) - basePrice * normalCDF(-d1));
         
+        // Volume varies by symbol popularity
+        const volumeMultipliers: Record<string, number> = {
+          'SPY': 3.0,
+          'QQQ': 2.5,
+          'AAPL': 2.0,
+          'TSLA': 1.8,
+          'MSFT': 1.5,
+          'NVDA': 1.7,
+          'AMZN': 1.3,
+          'GOOGL': 1.2,
+        };
+        const volumeMultiplier = volumeMultipliers[targetSymbol] || 1.0;
+        
         return {
           expiry,
           strike,
           callPrice: Math.round(callPrice * 100) / 100,
           putPrice: Math.round(putPrice * 100) / 100,
-          callVolume: Math.floor(Math.random() * 1000 + 100),
-          putVolume: Math.floor(Math.random() * 800 + 50),
-          callOpenInterest: Math.floor(Math.random() * 5000 + 500),
-          putOpenInterest: Math.floor(Math.random() * 4000 + 300),
+          callVolume: Math.floor((Math.random() * 1000 + 100) * volumeMultiplier),
+          putVolume: Math.floor((Math.random() * 800 + 50) * volumeMultiplier),
+          callOpenInterest: Math.floor((Math.random() * 5000 + 500) * volumeMultiplier),
+          putOpenInterest: Math.floor((Math.random() * 4000 + 300) * volumeMultiplier),
           callImpliedVol: volatility + (Math.random() - 0.5) * 0.1,
           putImpliedVol: volatility + (Math.random() - 0.5) * 0.1
         };
@@ -853,6 +905,11 @@ export const optionsService: OptionsService = {
     );
     
     return { data: { quotes, surface }, error: null };
+  },
+
+  getAvailableSymbols: async () => {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    return { data: AVAILABLE_OPTIONS_SYMBOLS, error: null };
   }
 };
 

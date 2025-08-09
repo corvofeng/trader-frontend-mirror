@@ -470,5 +470,19 @@ export const optionsService: OptionsService = {
       console.error('Error fetching options data:', error);
       return { data: null, error: error as Error };
     }
+  },
+
+  getAvailableSymbols: async () => {
+    try {
+      const response = await fetch('/api/options/symbols');
+      if (!response.ok) {
+        throw new Error('Failed to fetch available symbols');
+      }
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error fetching available symbols:', error);
+      return { data: null, error: error as Error };
+    }
   }
 };

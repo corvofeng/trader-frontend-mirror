@@ -16,18 +16,53 @@ export function Options({ theme }: OptionsProps) {
   const surfaceChartRef = useRef<HTMLDivElement>(null);
   const chartInstanceRef = useRef<echarts.ECharts | null>(null);
   const isMountedRef = useRef(true);
+  const [availableSymbols, setAvailableSymbols] = useState<string[]>([]);
+  const [selectedSymbol, setSelectedSymbol] = useState<string>('SPY');
   const [optionsData, setOptionsData] = useState<OptionsData | null>(null);
   const [selectedExpiry, setSelectedExpiry] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingSymbols, setIsLoadingSymbols] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { getThemedColors } = useCurrency();
 
+  // Fetch available symbols on component mount
+  useEffect(() => {
+    const fetchAvailableSymbols = async () => {
+      try {
+        setIsLoadingSymbols(true);
+        const { data, error } = await optionsService.getAvailableSymbols();
+        
+        if (error) {
+          throw error;
+        }
+        
+        if (data && data.length > 0) {
+          setAvailableSymbols(data);
+          setSelectedSymbol(data[0]); // Set first symbol as default
+        }
+      } catch (err) {
+        console.error('Error fetching available symbols:', err);
+        // Fallback to default symbols if API fails
+        const fallbackSymbols = ['SPY', 'QQQ', 'AAPL', 'TSLA'];
+        setAvailableSymbols(fallbackSymbols);
+        setSelectedSymbol(fallbackSymbols[0]);
+      } finally {
+        setIsLoadingSymbols(false);
+      }
+    };
+
+    fetchAvailableSymbols();
+  }, []);
+
+  // Fetch options data when selected symbol changes
   useEffect(() => {
     const fetchOptionsData = async () => {
+      if (!selectedSymbol) return;
+      
       try {
         setIsLoading(true);
         setError(null);
-        const { data, error } = await optionsService.getOptionsData();
+        const { data, error } = await optionsService.getOptionsData(selectedSymbol);
 
         if (error) {
           throw error;
@@ -44,14 +79,14 @@ export function Options({ theme }: OptionsProps) {
         }
       } catch (err) {
         console.error('Error fetching options data:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load options data');
+        setError(err instanceof Error ? err.message : `Failed to load options data for ${selectedSymbol}`);
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchOptionsData();
-  }, []);
+  }, [selectedSymbol]);
 
   const uniqueExpiryDates = optionsData 
     ? Array.from(new Set(optionsData.quotes.map(q => q.expiry)))
@@ -219,20 +254,46 @@ export function Options({ theme }: OptionsProps) {
           <div className="flex items-center justify-between">
             <div>
               <h1 className={`text-2xl font-bold ${themes[theme].text}`}>
-                Options Trading Analysis
+                Options Trading Analysis - {selectedSymbol}
               </h1>
               <p className={`text-sm ${themes[theme].text} opacity-75 mt-1`}>
                 Advanced options chain analysis and surface visualization
               </p>
             </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <label className={`text-sm font-medium ${themes[theme].text}`}>
+                  Symbol:
+                </label>
+                <select
+                  value={selectedSymbol}
+                  onChange={(e) => setSelectedSymbol(e.target.value)}
+                  disabled={isLoadingSymbols || isLoading}
+                  className={`px-3 py-2 rounded-md text-sm ${themes[theme].input} ${themes[theme].text} ${
+                    (isLoadingSymbols || isLoading) ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                >
+                  {availableSymbols.map(symbol => (
+                    <option key={symbol} value={symbol}>
+                      {symbol}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {(isLoadingSymbols || isLoading) && (
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
+              )}
+            </div>
           </div>
         </div>
 
-        {isLoading && (
+        {(isLoading || isLoadingSymbols) && (
           <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
             <div className="p-6 text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-              <p className={`${themes[theme].text}`}>Loading options data...</p>
+              <p className={`${themes[theme].text}`}>
+                {isLoadingSymbols ? 'Loading available symbols...' : `Loading options data for ${selectedSymbol}...`}
+              </p>
             </div>
           </div>
         )}
@@ -247,7 +308,7 @@ export function Options({ theme }: OptionsProps) {
               </div>
               <p className={`${themes[theme].text} mb-4`}>{error}</p>
               <button
-                onClick={() => window.location.reload()}
+                onClick={() => setSelectedSymbol(selectedSymbol)} // Trigger re-fetch
                 className={`px-4 py-2 rounded-md ${themes[theme].primary}`}
               >
                 Retry
@@ -256,12 +317,12 @@ export function Options({ theme }: OptionsProps) {
           </div>
         )}
 
-        {!isLoading && !error && optionsData && (
+        {!isLoading && !isLoadingSymbols && !error && optionsData && (
           <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
           <div className="p-6">
             <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center mb-6">
               <h2 className={`text-xl font-bold ${themes[theme].text}`}>
-                Option Chain
+                Option Chain - {selectedSymbol}
               </h2>
               <select
                 value={selectedExpiry}
@@ -325,11 +386,11 @@ export function Options({ theme }: OptionsProps) {
         </div>
         )}
 
-        {!isLoading && !error && optionsData && (
+        {!isLoading && !isLoadingSymbols && !error && optionsData && (
           <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
           <div className="p-6">
             <h2 className={`text-xl font-bold mb-6 ${themes[theme].text}`}>
-              Option Surface Visualization
+              Option Surface Visualization - {selectedSymbol}
             </h2>
             <div ref={surfaceChartRef} style={{ height: '600px' }} />
           </div>
