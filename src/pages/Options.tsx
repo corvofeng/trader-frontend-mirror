@@ -353,11 +353,11 @@ export function Options({ theme }: OptionsProps) {
                     <th className={`px-4 py-2 ${themes[theme].text} text-right`}>Volume</th>
                     <th className={`px-4 py-2 ${themes[theme].text} text-right`}>OI</th>
                     <th className={`px-4 py-2 ${themes[theme].text} text-right`}>IV</th>
-                    <th className={`px-4 py-2 ${themes[theme].text} text-right`}>Bid</th>
-                    <th className={`px-4 py-2 ${themes[theme].text} text-right border-r border-gray-200`}>Ask</th>
+                    <th className={`px-4 py-2 ${themes[theme].text} text-right`}>Price</th>
+                    <th className={`px-4 py-2 ${themes[theme].text} text-right border-r border-gray-200`}>Intrinsic</th>
                     <th className={`px-4 py-2 ${themes[theme].text} text-center`}>Price</th>
-                    <th className={`px-4 py-2 ${themes[theme].text} text-right border-l border-gray-200`}>Bid</th>
-                    <th className={`px-4 py-2 ${themes[theme].text} text-right`}>Ask</th>
+                    <th className={`px-4 py-2 ${themes[theme].text} text-right border-l border-gray-200`}>Price</th>
+                    <th className={`px-4 py-2 ${themes[theme].text} text-right`}>Intrinsic</th>
                     <th className={`px-4 py-2 ${themes[theme].text} text-right`}>IV</th>
                     <th className={`px-4 py-2 ${themes[theme].text} text-right`}>OI</th>
                     <th className={`px-4 py-2 ${themes[theme].text} text-right`}>Volume</th>
@@ -365,14 +365,37 @@ export function Options({ theme }: OptionsProps) {
                 </thead>
                 <tbody className={`divide-y ${themes[theme].border}`}>
                   {quotesByExpiry.map((quote: OptionQuote) => (
+                    // Calculate current underlying price (using mid-point of all strikes as approximation)
+                    const underlyingPrice = optionsData ? 
+                      optionsData.quotes.reduce((sum, q) => sum + q.strike, 0) / optionsData.quotes.length : 
+                      quote.strike;
+                    
+                    // Calculate intrinsic values
+                    const callIntrinsic = Math.max(0, underlyingPrice - quote.strike);
+                    const putIntrinsic = Math.max(0, quote.strike - underlyingPrice);
+                    
+                    // Calculate time values
+                    const callTimeValue = Math.max(0, quote.callPrice - callIntrinsic);
+                    const putTimeValue = Math.max(0, quote.putPrice - putIntrinsic);
+
                     <tr key={quote.strike} className={themes[theme].cardHover}>
                       <td className={`px-4 py-2 text-right ${themes[theme].text}`}>{quote.callVolume.toLocaleString()}</td>
                       <td className={`px-4 py-2 text-right ${themes[theme].text}`}>{quote.callOpenInterest.toLocaleString()}</td>
-                      <td className={`px-4 py-2 text-right ${themes[theme].text}`}>{(quote.callImpliedVol * 100).toFixed(1)}%</td>
-                      <td className={`px-4 py-2 text-right ${themes[theme].text}`}>{(quote.callPrice * 0.99).toFixed(2)}</td>
+                        <td className={`px-4 py-2 text-right ${themes[theme].text}`}>
+                          <div className="font-medium">${quote.callPrice.toFixed(2)}</div>
+                          <div className="text-xs opacity-60">TV: ${callTimeValue.toFixed(2)}</div>
+                        </td>
+                        <td className={`px-4 py-2 text-right ${themes[theme].text} border-r border-gray-200`}>
+                          ${callIntrinsic.toFixed(2)}
+                        </td>
                       <td className={`px-4 py-2 text-right ${themes[theme].text} border-r border-gray-200`}>{(quote.callPrice * 1.01).toFixed(2)}</td>
-                      <td className={`px-4 py-2 text-center font-medium ${themes[theme].text}`}>{quote.strike.toFixed(2)}</td>
-                      <td className={`px-4 py-2 text-right ${themes[theme].text} border-l border-gray-200`}>{(quote.putPrice * 0.99).toFixed(2)}</td>
+                        <td className={`px-4 py-2 text-right ${themes[theme].text} border-l border-gray-200`}>
+                          <div className="font-medium">${quote.putPrice.toFixed(2)}</div>
+                          <div className="text-xs opacity-60">TV: ${putTimeValue.toFixed(2)}</div>
+                        </td>
+                        <td className={`px-4 py-2 text-right ${themes[theme].text}`}>
+                          ${putIntrinsic.toFixed(2)}
+                        </td>
                       <td className={`px-4 py-2 text-right ${themes[theme].text}`}>{(quote.putPrice * 1.01).toFixed(2)}</td>
                       <td className={`px-4 py-2 text-right ${themes[theme].text}`}>{(quote.putImpliedVol * 100).toFixed(1)}%</td>
                       <td className={`px-4 py-2 text-right ${themes[theme].text}`}>{quote.putOpenInterest.toLocaleString()}</td>
