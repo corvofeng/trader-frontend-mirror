@@ -1,5 +1,5 @@
 import { mockUser, mockHoldings, tradeIdCounter, MOCK_STOCKS, MOCK_STOCK_CONFIGS, generateMockTrades, generateMockOperations, DEMO_STOCK_DATA } from './mockData';
-import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, StockData, StockPrice, Operation, OperationService, TrendData, StockConfigService, StockConfig, UploadService, UploadResponse, AnalysisService, StockAnalysis, PortfolioAnalysis } from '../types';
+import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, StockData, StockPrice, Operation, OperationService, TrendData, StockConfigService, StockConfig, UploadService, UploadResponse, AnalysisService, StockAnalysis, PortfolioAnalysis, OptionsService, OptionsData } from '../types';
 import { format, subDays, addMinutes, startOfDay, endOfDay, parseISO } from 'date-fns';
 
 function generateDemoStockData(): StockData[] {
@@ -787,3 +787,93 @@ export const analysisService: AnalysisService = {
     return analysisService.getPortfolioAnalysisByUuid(uuid);
   }
 };
+
+export const optionsService: OptionsService = {
+  getOptionsData: async (symbol?: string) => {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Generate realistic options data
+    const basePrice = 150 + Math.random() * 100; // Random base price between 150-250
+    const expiryDates = [30, 60, 90].map(days => {
+      const date = new Date();
+      date.setDate(date.getDate() + days);
+      return date.toISOString();
+    });
+    
+    const strikes = [];
+    for (let i = -5; i <= 5; i++) {
+      strikes.push(Math.round((basePrice + i * 10) / 5) * 5); // Round to nearest 5
+    }
+    
+    const quotes = expiryDates.flatMap(expiry => 
+      strikes.map(strike => {
+        const timeToExpiry = (new Date(expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24 * 365);
+        const moneyness = strike / basePrice;
+        
+        // Simple Black-Scholes approximation for realistic pricing
+        const volatility = 0.2 + Math.random() * 0.3;
+        const riskFreeRate = 0.05;
+        
+        const d1 = (Math.log(basePrice / strike) + (riskFreeRate + 0.5 * volatility * volatility) * timeToExpiry) / (volatility * Math.sqrt(timeToExpiry));
+        const d2 = d1 - volatility * Math.sqrt(timeToExpiry);
+        
+        const callPrice = Math.max(0.01, basePrice * normalCDF(d1) - strike * Math.exp(-riskFreeRate * timeToExpiry) * normalCDF(d2));
+        const putPrice = Math.max(0.01, strike * Math.exp(-riskFreeRate * timeToExpiry) * normalCDF(-d2) - basePrice * normalCDF(-d1));
+        
+        return {
+          expiry,
+          strike,
+          callPrice: Math.round(callPrice * 100) / 100,
+          putPrice: Math.round(putPrice * 100) / 100,
+          callVolume: Math.floor(Math.random() * 1000 + 100),
+          putVolume: Math.floor(Math.random() * 800 + 50),
+          callOpenInterest: Math.floor(Math.random() * 5000 + 500),
+          putOpenInterest: Math.floor(Math.random() * 4000 + 300),
+          callImpliedVol: volatility + (Math.random() - 0.5) * 0.1,
+          putImpliedVol: volatility + (Math.random() - 0.5) * 0.1
+        };
+      })
+    );
+    
+    const surface = expiryDates.flatMap(expiry =>
+      strikes.flatMap(strike => [
+        {
+          expiry,
+          strike,
+          type: 'call' as const,
+          value: quotes.find(q => q.expiry === expiry && q.strike === strike)?.callPrice || 0
+        },
+        {
+          expiry,
+          strike,
+          type: 'put' as const,
+          value: quotes.find(q => q.expiry === expiry && q.strike === strike)?.putPrice || 0
+        }
+      ])
+    );
+    
+    return { data: { quotes, surface }, error: null };
+  }
+};
+
+// Helper function for normal cumulative distribution
+function normalCDF(x: number): number {
+  return 0.5 * (1 + erf(x / Math.sqrt(2)));
+}
+
+// Error function approximation
+function erf(x: number): number {
+  const a1 =  0.254829592;
+  const a2 = -0.284496736;
+  const a3 =  1.421413741;
+  const a4 = -1.453152027;
+  const a5 =  1.061405429;
+  const p  =  0.3275911;
+  
+  const sign = x < 0 ? -1 : 1;
+  x = Math.abs(x);
+  
+  const t = 1.0 / (1.0 + p * x);
+  const y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
+  
+  return sign * y;

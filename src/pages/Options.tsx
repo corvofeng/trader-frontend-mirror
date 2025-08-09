@@ -3,11 +3,10 @@ import * as echarts from 'echarts';
 import 'echarts-gl';
 import { format } from 'date-fns';
 import { Theme, themes } from '../lib/theme';
-import { MOCK_OPTION_DATA } from '../lib/services/mock/mockData';
+import { optionsService } from '../lib/services';
 import { useCurrency } from '../lib/context/CurrencyContext';
-import { InternalLink } from '../components/common/InternalLink';
 import { RelatedLinks } from '../components/common/RelatedLinks';
-import type { OptionQuote } from '../lib/services/mock/mockData';
+import type { OptionQuote, OptionsData } from '../lib/services/types';
 
 interface OptionsProps {
   theme: Theme;
@@ -17,15 +16,52 @@ export function Options({ theme }: OptionsProps) {
   const surfaceChartRef = useRef<HTMLDivElement>(null);
   const chartInstanceRef = useRef<echarts.ECharts | null>(null);
   const isMountedRef = useRef(true);
-  const [selectedExpiry, setSelectedExpiry] = useState(MOCK_OPTION_DATA.quotes[0].expiry);
+  const [optionsData, setOptionsData] = useState<OptionsData | null>(null);
+  const [selectedExpiry, setSelectedExpiry] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { getThemedColors } = useCurrency();
 
-  const uniqueExpiryDates = Array.from(new Set(MOCK_OPTION_DATA.quotes.map(q => q.expiry)))
-    .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+  useEffect(() => {
+    const fetchOptionsData = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const { data, error } = await optionsService.getOptionsData();
+        
+        if (error) {
+          throw error;
+        }
+        
+        if (data) {
+          setOptionsData(data);
+          // Set the first expiry date as default
+          const uniqueExpiryDates = Array.from(new Set(data.quotes.map(q => q.expiry)))
+            .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+          if (uniqueExpiryDates.length > 0) {
+            setSelectedExpiry(uniqueExpiryDates[0]);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching options data:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load options data');
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-  const quotesByExpiry = MOCK_OPTION_DATA.quotes.filter(q => q.expiry === selectedExpiry)
-    .sort((a, b) => a.strike - b.strike);
+    fetchOptionsData();
+  }, []);
+
+  const uniqueExpiryDates = optionsData 
+    ? Array.from(new Set(optionsData.quotes.map(q => q.expiry)))
+        .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())
+    : [];
+
+  const quotesByExpiry = optionsData && selectedExpiry
+    ? optionsData.quotes.filter(q => q.expiry === selectedExpiry)
+        .sort((a, b) => a.strike - b.strike)
+    : [];
 
   useEffect(() => {
     // Set mounted flag
@@ -55,19 +91,21 @@ export function Options({ theme }: OptionsProps) {
     const isDark = theme === 'dark';
 
     // Prepare data for the 3D surface
-    const strikes = Array.from(new Set(MOCK_OPTION_DATA.surface.map(p => p.strike))).sort((a, b) => a - b);
-    const expiries = Array.from(new Set(MOCK_OPTION_DATA.surface.map(p => p.expiry))).sort();
+    if (!optionsData) return;
+    
+    const strikes = Array.from(new Set(optionsData.surface.map(p => p.strike))).sort((a, b) => a - b);
+    const expiries = Array.from(new Set(optionsData.surface.map(p => p.expiry))).sort();
     
     const callData = strikes.map((strike, i) => 
       expiries.map((expiry, j) => {
-        const point = MOCK_OPTION_DATA.surface.find(p => p.strike === strike && p.expiry === expiry && p.type === 'call');
+        const point = optionsData.surface.find(p => p.strike === strike && p.expiry === expiry && p.type === 'call');
         return [i, j, point?.value || 0];
       })
     ).flat();
 
     const putData = strikes.map((strike, i) => 
       expiries.map((expiry, j) => {
-        const point = MOCK_OPTION_DATA.surface.find(p => p.strike === strike && p.expiry === expiry && p.type === 'put');
+        const point = optionsData.surface.find(p => p.strike === strike && p.expiry === expiry && p.type === 'put');
         return [i, j, point?.value || 0];
       })
     ).flat();
@@ -172,7 +210,7 @@ export function Options({ theme }: OptionsProps) {
     return () => {
       window.removeEventListener('resize', handleResize);
     };
-  }, [theme]);
+  }, [theme, optionsData]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -187,17 +225,39 @@ export function Options({ theme }: OptionsProps) {
                 Advanced options chain analysis and surface visualization
               </p>
             </div>
-            <InternalLink
-              to="/journal?tab=trades"
-              className={`px-4 py-2 rounded-md ${themes[theme].secondary} text-sm font-medium`}
-              title="Create options trading plans in your journal"
-            >
-              Create Options Plan
-            </InternalLink>
           </div>
         </div>
 
-        <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
+        {isLoading && (
+          <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
+            <div className="p-6 text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+              <p className={`${themes[theme].text}`}>Loading options data...</p>
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
+            <div className="p-6 text-center">
+              <div className="text-red-500 mb-4">
+                <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <p className={`${themes[theme].text} mb-4`}>{error}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className={`px-4 py-2 rounded-md ${themes[theme].primary}`}
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!isLoading && !error && optionsData && (
+          <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
           <div className="p-6">
             <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center mb-6">
               <h2 className={`text-xl font-bold ${themes[theme].text}`}>
@@ -263,20 +323,18 @@ export function Options({ theme }: OptionsProps) {
             </div>
           </div>
         </div>
+        )}
 
-        <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
+        {!isLoading && !error && optionsData && (
+          <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
           <div className="p-6">
             <h2 className={`text-xl font-bold mb-6 ${themes[theme].text}`}>
               Option Surface Visualization
             </h2>
-            {isLoading && (
-              <div className="absolute inset-0 flex items-center justify-center bg-white/5 backdrop-blur-sm rounded-lg z-10">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-              </div>
-            )}
             <div ref={surfaceChartRef} style={{ height: '600px' }} />
           </div>
         </div>
+        )}
 
         <RelatedLinks 
           theme={theme} 

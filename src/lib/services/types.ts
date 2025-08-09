@@ -287,4 +287,35 @@ export interface Services {
   operationService: OperationService;
   analysisService: AnalysisService;
   uploadService: UploadService;
+  optionsService: OptionsService;
+}
+
+// Options Service Types
+export interface OptionQuote {
+  expiry: string;
+  strike: number;
+  callPrice: number;
+  putPrice: number;
+  callVolume: number;
+  putVolume: number;
+  callOpenInterest: number;
+  putOpenInterest: number;
+  callImpliedVol: number;
+  putImpliedVol: number;
+}
+
+export interface OptionSurfacePoint {
+  expiry: string;
+  strike: number;
+  type: 'call' | 'put';
+  value: number;
+}
+
+export interface OptionsData {
+  quotes: OptionQuote[];
+  surface: OptionSurfacePoint[];
+}
+
+export interface OptionsService {
+  getOptionsData: (symbol?: string) => Promise<ServiceResponse<OptionsData>>;
 }

@@ -1,4 +1,5 @@
 import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, UploadService, AnalysisService } from './types';
+import type { OptionsService } from './types';
 import * as mockServices from './mock';
 import * as prodServices from './prod';
 
@@ -16,5 +17,6 @@ export const {
   operationService,
   stockConfigService,
   analysisService,
-  uploadService
+  uploadService,
+  optionsService
 } = services;

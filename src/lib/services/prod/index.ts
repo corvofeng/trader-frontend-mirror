@@ -1,4 +1,5 @@
 import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, OperationService, StockConfigService, StockConfig, UploadService, UploadResponse, AnalysisService } from '../types';
+import type { OptionsService } from '../types';
 import type { Trade } from '../types';
 
 export const authService: AuthService = {
@@ -450,6 +451,23 @@ export const analysisService: AnalysisService = {
       return { data, error: null };
     } catch (error) {
       console.error('Error refreshing shared portfolio analysis:', error);
+      return { data: null, error: error as Error };
+    }
+  }
+};
+
+export const optionsService: OptionsService = {
+  getOptionsData: async (symbol?: string) => {
+    try {
+      const queryParam = symbol ? `?symbol=${encodeURIComponent(symbol)}` : '';
+      const response = await fetch(`/api/options${queryParam}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch options data');
+      }
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error fetching options data:', error);
       return { data: null, error: error as Error };
     }
   }
