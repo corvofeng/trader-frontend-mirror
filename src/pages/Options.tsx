@@ -28,7 +28,7 @@ export function Options({ theme }: OptionsProps) {
         setIsLoading(true);
         setError(null);
         const { data, error } = await optionsService.getOptionsData();
-        console.log(data);
+
         if (error) {
           throw error;
         }
