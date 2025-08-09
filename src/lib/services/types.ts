@@ -296,6 +296,7 @@ export interface OptionQuote {
   strike: number;
   callPrice: number;
   putPrice: number;
+  underlyingPrice: number;
   callVolume: number;
   putVolume: number;
   callOpenInterest: number;

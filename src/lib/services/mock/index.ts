@@ -875,6 +875,7 @@ export const optionsService: OptionsService = {
         return {
           expiry,
           strike,
+          underlyingPrice: basePrice,
           callPrice: Math.round(callPrice * 100) / 100,
           putPrice: Math.round(putPrice * 100) / 100,
           callVolume: Math.floor((Math.random() * 1000 + 100) * volumeMultiplier),
