@@ -877,3 +877,4 @@ function erf(x: number): number {
   const y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
   
   return sign * y;
+}
