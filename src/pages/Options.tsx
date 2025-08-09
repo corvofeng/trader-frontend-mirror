@@ -364,7 +364,7 @@ export function Options({ theme }: OptionsProps) {
                   </tr>
                 </thead>
                 <tbody className={`divide-y ${themes[theme].border}`}>
-                  {quotesByExpiry.map((quote: OptionQuote) => (
+                  {quotesByExpiry.map((quote: OptionQuote) => {
                     // Calculate current underlying price (using mid-point of all strikes as approximation)
                     const underlyingPrice = optionsData ? 
                       optionsData.quotes.reduce((sum, q) => sum + q.strike, 0) / optionsData.quotes.length : 
@@ -378,6 +378,7 @@ export function Options({ theme }: OptionsProps) {
                     const callTimeValue = Math.max(0, quote.callPrice - callIntrinsic);
                     const putTimeValue = Math.max(0, quote.putPrice - putIntrinsic);
 
+                    return (
                     <tr key={quote.strike} className={themes[theme].cardHover}>
                       <td className={`px-4 py-2 text-right ${themes[theme].text}`}>{quote.callVolume.toLocaleString()}</td>
                       <td className={`px-4 py-2 text-right ${themes[theme].text}`}>{quote.callOpenInterest.toLocaleString()}</td>
@@ -401,7 +402,8 @@ export function Options({ theme }: OptionsProps) {
                       <td className={`px-4 py-2 text-right ${themes[theme].text}`}>{quote.putOpenInterest.toLocaleString()}</td>
                       <td className={`px-4 py-2 text-right ${themes[theme].text}`}>{quote.putVolume.toLocaleString()}</td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
