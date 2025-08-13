@@ -97,6 +97,46 @@ export function Options({ theme }: OptionsProps) {
         .sort((a, b) => a.strike - b.strike)
     : [];
 
+  // 找到时间价值最大的期权合约作为平值合约
+  const getAtTheMoneyStrike = (quotes: OptionQuote[]): number => {
+    if (quotes.length === 0) return 0;
+    
+    let maxTimeValue = 0;
+    let atmStrike = quotes[0].strike;
+    
+    quotes.forEach(quote => {
+      const callTimeValue = quote.callTimeValue || 0;
+      const putTimeValue = quote.putTimeValue || 0;
+      const totalTimeValue = callTimeValue + putTimeValue;
+      
+      if (totalTimeValue > maxTimeValue) {
+        maxTimeValue = totalTimeValue;
+        atmStrike = quote.strike;
+      }
+    });
+    
+    return atmStrike;
+  };
+
+  const atmStrike = getAtTheMoneyStrike(quotesByExpiry);
+
+  // 获取期权状态标识
+  const getOptionStatus = (strike: number, isCall: boolean) => {
+    if (strike === atmStrike) {
+      return { label: 'ATM', color: 'text-blue-600 bg-blue-100 dark:text-blue-400 dark:bg-blue-900' };
+    } else if (isCall) {
+      // Call期权：执行价格低于平值为价内(ITM)，高于平值为价外(OTM)
+      return strike < atmStrike 
+        ? { label: 'ITM', color: 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-900' }
+        : { label: 'OTM', color: 'text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-700' };
+    } else {
+      // Put期权：执行价格高于平值为价内(ITM)，低于平值为价外(OTM)
+      return strike > atmStrike 
+        ? { label: 'ITM', color: 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-900' }
+        : { label: 'OTM', color: 'text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-700' };
+    }
+  };
+
   useEffect(() => {
     // Set mounted flag
     isMountedRef.current = true;
@@ -364,11 +404,19 @@ export function Options({ theme }: OptionsProps) {
                 </thead>
                 <tbody className={`divide-y ${themes[theme].border}`}>
                   {quotesByExpiry.map((quote: OptionQuote) => {
+                    const callStatus = getOptionStatus(quote.strike, true);
+                    const putStatus = getOptionStatus(quote.strike, false);
+                    
                     return (
                     <tr key={quote.strike} className={themes[theme].cardHover}>
                         {/* Call Options - 从右到左排列 */}
                         <td className={`px-3 py-3 text-right ${themes[theme].text} text-sm`}>
-                          {(quote.callImpliedVol * 100).toFixed(1)}%
+                          <div className="flex flex-col items-end">
+                            <span>{(quote.callImpliedVol * 100).toFixed(1)}%</span>
+                            <span className={`text-xs px-1 py-0.5 rounded ${callStatus.color} mt-1`}>
+                              {callStatus.label}
+                            </span>
+                          </div>
                         </td>
                         <td className={`px-3 py-3 text-right ${themes[theme].text} text-sm`}>
                           {formatCurrency(quote.callIntrinsicValue || 0, currencyConfig)}
@@ -422,7 +470,12 @@ export function Options({ theme }: OptionsProps) {
                           {formatCurrency(quote.putIntrinsicValue || 0, currencyConfig)}
                         </td>
                         <td className={`px-3 py-3 text-left ${themes[theme].text} text-sm`}>
-                          {(quote.putImpliedVol * 100).toFixed(1)}%
+                          <div className="flex flex-col items-start">
+                            <span>{(quote.putImpliedVol * 100).toFixed(1)}%</span>
+                            <span className={`text-xs px-1 py-0.5 rounded ${putStatus.color} mt-1`}>
+                              {putStatus.label}
+                            </span>
+                          </div>
                         </td>
                     </tr>
                     );
