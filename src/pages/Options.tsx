@@ -338,28 +338,28 @@ export function Options({ theme }: OptionsProps) {
 
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className={themes[theme].background}>
+                <thead className={`${themes[theme].background}`}>
                   <tr>
-                    <th colSpan={5} className="text-center px-4 py-2 border-b border-r border-gray-200">
-                      <span className={`${themes[theme].text}`}>Calls</span>
+                    <th colSpan={4} className={`text-center px-4 py-2 border-b border-r ${themes[theme].border} ${themes[theme].text}`}>
+                      Calls
                     </th>
-                    <th className={`px-4 py-2 border-b ${themes[theme].text} text-center`}>Strike</th>
-                    <th colSpan={5} className="text-center px-4 py-2 border-b border-l border-gray-200">
-                      <span className={`${themes[theme].text}`}>Puts</span>
+                    <th className={`px-4 py-2 border-b ${themes[theme].border} ${themes[theme].text} text-center font-bold`}>
+                      标的行权价格
+                    </th>
+                    <th colSpan={4} className={`text-center px-4 py-2 border-b border-l ${themes[theme].border} ${themes[theme].text}`}>
+                      Puts
                     </th>
                   </tr>
                   <tr>
-                    <th className={`px-4 py-2 ${themes[theme].text} text-right`}>Volume</th>
-                    <th className={`px-4 py-2 ${themes[theme].text} text-right`}>OI</th>
-                    <th className={`px-4 py-2 ${themes[theme].text} text-right`}>IV</th>
-                    <th className={`px-4 py-2 ${themes[theme].text} text-right`}>Price</th>
-                    <th className={`px-4 py-2 ${themes[theme].text} text-right border-r border-gray-200`}>Intrinsic</th>
-                    <th className={`px-4 py-2 ${themes[theme].text} text-center`}>Price</th>
-                    <th className={`px-4 py-2 ${themes[theme].text} text-right border-l border-gray-200`}>Price</th>
-                    <th className={`px-4 py-2 ${themes[theme].text} text-right`}>Intrinsic</th>
-                    <th className={`px-4 py-2 ${themes[theme].text} text-right`}>IV</th>
-                    <th className={`px-4 py-2 ${themes[theme].text} text-right`}>OI</th>
-                    <th className={`px-4 py-2 ${themes[theme].text} text-right`}>Volume</th>
+                    <th className={`px-3 py-2 ${themes[theme].text} text-right text-sm`}>隐含波动率</th>
+                    <th className={`px-3 py-2 ${themes[theme].text} text-right text-sm`}>内在价值</th>
+                    <th className={`px-3 py-2 ${themes[theme].text} text-right text-sm`}>时间价值</th>
+                    <th className={`px-3 py-2 ${themes[theme].text} text-right text-sm border-r ${themes[theme].border}`}>最新价</th>
+                    <th className={`px-4 py-2 ${themes[theme].text} text-center font-bold`}>行权价</th>
+                    <th className={`px-3 py-2 ${themes[theme].text} text-left text-sm border-l ${themes[theme].border}`}>最新价</th>
+                    <th className={`px-3 py-2 ${themes[theme].text} text-left text-sm`}>时间价值</th>
+                    <th className={`px-3 py-2 ${themes[theme].text} text-left text-sm`}>内在价值</th>
+                    <th className={`px-3 py-2 ${themes[theme].text} text-left text-sm`}>隐含波动率</th>
                   </tr>
                 </thead>
                 <tbody className={`divide-y ${themes[theme].border}`}>
@@ -388,52 +388,65 @@ export function Options({ theme }: OptionsProps) {
 
                     return (
                     <tr key={quote.strike} className={themes[theme].cardHover}>
-                      <td className={`px-4 py-2 text-right ${themes[theme].text}`}>{quote.callVolume.toLocaleString()}</td>
-                      <td className={`px-4 py-2 text-right ${themes[theme].text}`}>{quote.callOpenInterest.toLocaleString()}</td>
-                        <td className={`px-4 py-2 text-right ${themes[theme].text}`}>
-                          <div className="font-medium">
-                            {quote.callUrl ? (
-                              <a 
-                                href={quote.callUrl} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="text-blue-600 hover:text-blue-800 hover:underline"
-                              >
-                                {formatCurrency(callContractValue, currencyConfig)}
-                              </a>
-                            ) : (
-                              formatCurrency(callContractValue, currencyConfig)
-                            )}
-                          </div>
-                          <div className="text-xs opacity-60">TV: {formatCurrency(callTimeContractValue, currencyConfig)}</div>
+                        {/* Call Options - 从右到左排列 */}
+                        <td className={`px-3 py-3 text-right ${themes[theme].text} text-sm`}>
+                          {(quote.callImpliedVol * 100).toFixed(1)}%
                         </td>
-                        <td className={`px-4 py-2 text-right ${themes[theme].text} border-r border-gray-200`}>
+                        <td className={`px-3 py-3 text-right ${themes[theme].text} text-sm`}>
                           {formatCurrency(callIntrinsicValue, currencyConfig)}
                         </td>
-                      <td className={`px-4 py-2 text-center font-bold ${themes[theme].text}`}>{quote.strike.toFixed(2)}</td>
-                        <td className={`px-4 py-2 text-right ${themes[theme].text} border-l border-gray-200`}>
-                          <div className="font-medium">
-                            {quote.putUrl ? (
-                              <a 
-                                href={quote.putUrl} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="text-blue-600 hover:text-blue-800 hover:underline"
-                              >
-                                {formatCurrency(putContractValue, currencyConfig)}
-                              </a>
-                            ) : (
-                              formatCurrency(putContractValue, currencyConfig)
-                            )}
-                          </div>
-                          <div className="text-xs opacity-60">TV: {formatCurrency(putTimeContractValue, currencyConfig)}</div>
+                        <td className={`px-3 py-3 text-right ${themes[theme].text} text-sm`}>
+                          {formatCurrency(callTimeContractValue, currencyConfig)}
                         </td>
-                        <td className={`px-4 py-2 text-right ${themes[theme].text}`}>
+                        <td className={`px-3 py-3 text-right ${themes[theme].text} border-r ${themes[theme].border}`}>
+                          {quote.callUrl ? (
+                            <a 
+                              href={quote.callUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                            >
+                              {formatCurrency(callContractValue, currencyConfig)}
+                            </a>
+                          ) : (
+                            <span className="font-medium">
+                              {formatCurrency(callContractValue, currencyConfig)}
+                            </span>
+                          )}
+                        </td>
+                        
+                        {/* Strike Price - 中心位置 */}
+                        <td className={`px-4 py-3 text-center font-bold ${themes[theme].text} bg-opacity-50 ${themes[theme].background}`}>
+                          {formatCurrency(quote.strike, currencyConfig)}
+                        </td>
+                        
+                        {/* Put Options - 从左到右排列 */}
+                        <td className={`px-3 py-3 text-left ${themes[theme].text} border-l ${themes[theme].border}`}>
+                          {quote.putUrl ? (
+                            <a 
+                              href={quote.putUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                            >
+                              {formatCurrency(putContractValue, currencyConfig)}
+                            </a>
+                          ) : (
+                            <span className="font-medium">
+                              {formatCurrency(putContractValue, currencyConfig)}
+                            </span>
+                          )}
+                        </td>
+                        <td className={`px-3 py-3 text-left ${themes[theme].text} text-sm`}>
+                          {formatCurrency(putTimeContractValue, currencyConfig)}
+                        </td>
+                        <td className={`px-3 py-3 text-left ${themes[theme].text} text-sm`}>
                           {formatCurrency(putIntrinsicValue, currencyConfig)}
                         </td>
-                      <td className={`px-4 py-2 text-right ${themes[theme].text}`}>{(quote.putImpliedVol * 100).toFixed(1)}%</td>
-                      <td className={`px-4 py-2 text-right ${themes[theme].text}`}>{quote.putOpenInterest.toLocaleString()}</td>
-                      <td className={`px-4 py-2 text-right ${themes[theme].text}`}>{quote.putVolume.toLocaleString()}</td>
+                        <td className={`px-3 py-3 text-left ${themes[theme].text} text-sm`}>
+                          {(quote.putImpliedVol * 100).toFixed(1)}%
+                          {formatCurrency(callIntrinsicValue, currencyConfig)}
+                        </td>
                     </tr>
                     );
                   })}
