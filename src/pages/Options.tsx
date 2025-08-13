@@ -364,28 +364,6 @@ export function Options({ theme }: OptionsProps) {
                 </thead>
                 <tbody className={`divide-y ${themes[theme].border}`}>
                   {quotesByExpiry.map((quote: OptionQuote) => {
-                    // Calculate current underlying price (using mid-point of all strikes as approximation)
-                    const underlyingPrice = optionsData ? 
-                      optionsData.quotes.reduce((sum, q) => sum + q.strike, 0) / optionsData.quotes.length : 
-                      quote.strike;
-                    
-                    // Calculate intrinsic values
-                    const callIntrinsic = Math.max(0, underlyingPrice - quote.strike);
-                    const putIntrinsic = Math.max(0, quote.strike - underlyingPrice);
-                    
-                    // Calculate time values
-                    const callTimeValue = Math.max(0, quote.callPrice - callIntrinsic);
-                    const putTimeValue = Math.max(0, quote.putPrice - putIntrinsic);
-                    
-                    // Calculate contract values (price * multiplier)
-                    const contractMultiplier = quote.contractMultiplier || 100;
-                    const callContractValue = quote.callPrice * contractMultiplier;
-                    const putContractValue = quote.putPrice * contractMultiplier;
-                    const callIntrinsicValue = callIntrinsic * contractMultiplier;
-                    const putIntrinsicValue = putIntrinsic * contractMultiplier;
-                    const callTimeContractValue = callTimeValue * contractMultiplier;
-                    const putTimeContractValue = putTimeValue * contractMultiplier;
-
                     return (
                     <tr key={quote.strike} className={themes[theme].cardHover}>
                         {/* Call Options - 从右到左排列 */}
@@ -393,10 +371,10 @@ export function Options({ theme }: OptionsProps) {
                           {(quote.callImpliedVol * 100).toFixed(1)}%
                         </td>
                         <td className={`px-3 py-3 text-right ${themes[theme].text} text-sm`}>
-                          {formatCurrency(callIntrinsicValue, currencyConfig)}
+                          {formatCurrency(quote.callIntrinsicValue || 0, currencyConfig)}
                         </td>
                         <td className={`px-3 py-3 text-right ${themes[theme].text} text-sm`}>
-                          {formatCurrency(callTimeContractValue, currencyConfig)}
+                          {formatCurrency(quote.callTimeValue || 0, currencyConfig)}
                         </td>
                         <td className={`px-3 py-3 text-right ${themes[theme].text} border-r ${themes[theme].border}`}>
                           {quote.callUrl ? (
@@ -406,11 +384,11 @@ export function Options({ theme }: OptionsProps) {
                               rel="noopener noreferrer"
                               className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
                             >
-                              {formatCurrency(callContractValue, currencyConfig)}
+                              {formatCurrency(quote.callPrice, currencyConfig)}
                             </a>
                           ) : (
                             <span className="font-medium">
-                              {formatCurrency(callContractValue, currencyConfig)}
+                              {formatCurrency(quote.callPrice, currencyConfig)}
                             </span>
                           )}
                         </td>
@@ -429,23 +407,22 @@ export function Options({ theme }: OptionsProps) {
                               rel="noopener noreferrer"
                               className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
                             >
-                              {formatCurrency(putContractValue, currencyConfig)}
+                              {formatCurrency(quote.putPrice, currencyConfig)}
                             </a>
                           ) : (
                             <span className="font-medium">
-                              {formatCurrency(putContractValue, currencyConfig)}
+                              {formatCurrency(quote.putPrice, currencyConfig)}
                             </span>
                           )}
                         </td>
                         <td className={`px-3 py-3 text-left ${themes[theme].text} text-sm`}>
-                          {formatCurrency(putTimeContractValue, currencyConfig)}
+                          {formatCurrency(quote.putTimeValue || 0, currencyConfig)}
                         </td>
                         <td className={`px-3 py-3 text-left ${themes[theme].text} text-sm`}>
-                          {formatCurrency(putIntrinsicValue, currencyConfig)}
+                          {formatCurrency(quote.putIntrinsicValue || 0, currencyConfig)}
                         </td>
                         <td className={`px-3 py-3 text-left ${themes[theme].text} text-sm`}>
                           {(quote.putImpliedVol * 100).toFixed(1)}%
-                          {formatCurrency(callIntrinsicValue, currencyConfig)}
                         </td>
                     </tr>
                     );

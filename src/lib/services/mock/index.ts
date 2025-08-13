@@ -877,13 +877,16 @@ export const optionsService: OptionsService = {
           strike,
           callPrice: Math.round(callPrice * 100) / 100,
           putPrice: Math.round(putPrice * 100) / 100,
+          callIntrinsicValue: Math.max(0, (basePrice - strike) * 100),
+          callTimeValue: Math.max(0, (callPrice - Math.max(0, basePrice - strike)) * 100),
+          putIntrinsicValue: Math.max(0, (strike - basePrice) * 100),
+          putTimeValue: Math.max(0, (putPrice - Math.max(0, strike - basePrice)) * 100),
           callVolume: Math.floor((Math.random() * 1000 + 100) * volumeMultiplier),
           putVolume: Math.floor((Math.random() * 800 + 50) * volumeMultiplier),
           callOpenInterest: Math.floor((Math.random() * 5000 + 500) * volumeMultiplier),
           putOpenInterest: Math.floor((Math.random() * 4000 + 300) * volumeMultiplier),
           callImpliedVol: volatility + (Math.random() - 0.5) * 0.1,
           putImpliedVol: volatility + (Math.random() - 0.5) * 0.1,
-          contractMultiplier: 100,
           callUrl: `https://finance.yahoo.com/quote/${targetSymbol}${new Date(expiry).getFullYear().toString().slice(-2)}${String(new Date(expiry).getMonth() + 1).padStart(2, '0')}${String(new Date(expiry).getDate()).padStart(2, '0')}C${String(strike).replace('.', '')}`,
           putUrl: `https://finance.yahoo.com/quote/${targetSymbol}${new Date(expiry).getFullYear().toString().slice(-2)}${String(new Date(expiry).getMonth() + 1).padStart(2, '0')}${String(new Date(expiry).getDate()).padStart(2, '0')}P${String(strike).replace('.', '')}`
         };

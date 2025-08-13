@@ -296,6 +296,10 @@ export interface OptionQuote {
   strike: number;
   callPrice: number;
   putPrice: number;
+  callIntrinsicValue?: number;
+  callTimeValue?: number;
+  putIntrinsicValue?: number;
+  putTimeValue?: number;
   callVolume: number;
   putVolume: number;
   callOpenInterest: number;
@@ -304,7 +308,6 @@ export interface OptionQuote {
   putImpliedVol: number;
   callUrl?: string;
   putUrl?: string;
-  contractMultiplier?: number; // 合约乘数，默认100
 }
 
 export interface OptionSurfacePoint {
