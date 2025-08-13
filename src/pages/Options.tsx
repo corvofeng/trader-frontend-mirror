@@ -5,8 +5,8 @@ import { format } from 'date-fns';
 import { Theme, themes } from '../lib/theme';
 import { optionsService } from '../lib/services';
 import { useCurrency } from '../lib/context/CurrencyContext';
+import { formatCurrency } from '../lib/types';
 import { RelatedLinks } from '../components/common/RelatedLinks';
-import type { OptionQuote, OptionsData } from '../lib/services/types';
 
 interface OptionsProps {
   theme: Theme;
@@ -23,8 +23,7 @@ export function Options({ theme }: OptionsProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingSymbols, setIsLoadingSymbols] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { getThemedColors } = useCurrency();
-
+  const { getThemedColors, currencyConfig } = useCurrency();
   // Fetch available symbols on component mount
   useEffect(() => {
     const fetchAvailableSymbols = async () => {
@@ -377,27 +376,61 @@ export function Options({ theme }: OptionsProps) {
                     // Calculate time values
                     const callTimeValue = Math.max(0, quote.callPrice - callIntrinsic);
                     const putTimeValue = Math.max(0, quote.putPrice - putIntrinsic);
+                    
+                    // Calculate contract values (price * multiplier)
+                    const contractMultiplier = quote.contractMultiplier || 100;
+                    const callContractValue = quote.callPrice * contractMultiplier;
+                    const putContractValue = quote.putPrice * contractMultiplier;
+                    const callIntrinsicValue = callIntrinsic * contractMultiplier;
+                    const putIntrinsicValue = putIntrinsic * contractMultiplier;
+                    const callTimeContractValue = callTimeValue * contractMultiplier;
+                    const putTimeContractValue = putTimeValue * contractMultiplier;
 
                     return (
                     <tr key={quote.strike} className={themes[theme].cardHover}>
                       <td className={`px-4 py-2 text-right ${themes[theme].text}`}>{quote.callVolume.toLocaleString()}</td>
                       <td className={`px-4 py-2 text-right ${themes[theme].text}`}>{quote.callOpenInterest.toLocaleString()}</td>
                         <td className={`px-4 py-2 text-right ${themes[theme].text}`}>
-                          <div className="font-medium">${quote.callPrice.toFixed(2)}</div>
-                          <div className="text-xs opacity-60">TV: ${callTimeValue.toFixed(2)}</div>
+                          <div className="font-medium">
+                            {quote.callUrl ? (
+                              <a 
+                                href={quote.callUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-800 hover:underline"
+                              >
+                                {formatCurrency(callContractValue, currencyConfig)}
+                              </a>
+                            ) : (
+                              formatCurrency(callContractValue, currencyConfig)
+                            )}
+                          </div>
+                          <div className="text-xs opacity-60">TV: {formatCurrency(callTimeContractValue, currencyConfig)}</div>
                         </td>
                         <td className={`px-4 py-2 text-right ${themes[theme].text} border-r border-gray-200`}>
-                          ${callIntrinsic.toFixed(2)}
+                          {formatCurrency(callIntrinsicValue, currencyConfig)}
                         </td>
-                      <td className={`px-4 py-2 text-right ${themes[theme].text} border-r border-gray-200`}>{(quote.callPrice * 1.01).toFixed(2)}</td>
+                      <td className={`px-4 py-2 text-center font-bold ${themes[theme].text}`}>{quote.strike.toFixed(2)}</td>
                         <td className={`px-4 py-2 text-right ${themes[theme].text} border-l border-gray-200`}>
-                          <div className="font-medium">${quote.putPrice.toFixed(2)}</div>
-                          <div className="text-xs opacity-60">TV: ${putTimeValue.toFixed(2)}</div>
+                          <div className="font-medium">
+                            {quote.putUrl ? (
+                              <a 
+                                href={quote.putUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-800 hover:underline"
+                              >
+                                {formatCurrency(putContractValue, currencyConfig)}
+                              </a>
+                            ) : (
+                              formatCurrency(putContractValue, currencyConfig)
+                            )}
+                          </div>
+                          <div className="text-xs opacity-60">TV: {formatCurrency(putTimeContractValue, currencyConfig)}</div>
                         </td>
                         <td className={`px-4 py-2 text-right ${themes[theme].text}`}>
-                          ${putIntrinsic.toFixed(2)}
+                          {formatCurrency(putIntrinsicValue, currencyConfig)}
                         </td>
-                      <td className={`px-4 py-2 text-right ${themes[theme].text}`}>{(quote.putPrice * 1.01).toFixed(2)}</td>
                       <td className={`px-4 py-2 text-right ${themes[theme].text}`}>{(quote.putImpliedVol * 100).toFixed(1)}%</td>
                       <td className={`px-4 py-2 text-right ${themes[theme].text}`}>{quote.putOpenInterest.toLocaleString()}</td>
                       <td className={`px-4 py-2 text-right ${themes[theme].text}`}>{quote.putVolume.toLocaleString()}</td>

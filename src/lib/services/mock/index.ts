@@ -882,7 +882,10 @@ export const optionsService: OptionsService = {
           callOpenInterest: Math.floor((Math.random() * 5000 + 500) * volumeMultiplier),
           putOpenInterest: Math.floor((Math.random() * 4000 + 300) * volumeMultiplier),
           callImpliedVol: volatility + (Math.random() - 0.5) * 0.1,
-          putImpliedVol: volatility + (Math.random() - 0.5) * 0.1
+          putImpliedVol: volatility + (Math.random() - 0.5) * 0.1,
+          contractMultiplier: 100,
+          callUrl: `https://finance.yahoo.com/quote/${targetSymbol}${new Date(expiry).getFullYear().toString().slice(-2)}${String(new Date(expiry).getMonth() + 1).padStart(2, '0')}${String(new Date(expiry).getDate()).padStart(2, '0')}C${String(strike).replace('.', '')}`,
+          putUrl: `https://finance.yahoo.com/quote/${targetSymbol}${new Date(expiry).getFullYear().toString().slice(-2)}${String(new Date(expiry).getMonth() + 1).padStart(2, '0')}${String(new Date(expiry).getDate()).padStart(2, '0')}P${String(strike).replace('.', '')}`
         };
       })
     );

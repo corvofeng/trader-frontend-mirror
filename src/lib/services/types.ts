@@ -302,6 +302,9 @@ export interface OptionQuote {
   putOpenInterest: number;
   callImpliedVol: number;
   putImpliedVol: number;
+  callUrl?: string;
+  putUrl?: string;
+  contractMultiplier?: number; // 合约乘数，默认100
 }
 
 export interface OptionSurfacePoint {
