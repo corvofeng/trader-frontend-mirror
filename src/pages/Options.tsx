@@ -615,7 +615,7 @@ export function Options({ theme }: OptionsProps) {
                         {/* Call Options - 从右到左排列 */}
                         <td className={`px-3 py-3 text-right ${themes[theme].text} text-sm`}>
                           <div className="flex flex-col items-end">
-                            <span>{(quote.callImpliedVol * 100).toFixed(1)}%</span>
+                            <span>{quote.callImpliedVol.toFixed(1)}%</span>
                             <span className={`text-xs px-1 py-0.5 rounded ${callStatus.color} mt-1`}>
                               {callStatus.label}
                             </span>
@@ -674,7 +674,7 @@ export function Options({ theme }: OptionsProps) {
                         </td>
                         <td className={`px-3 py-3 text-left ${themes[theme].text} text-sm`}>
                           <div className="flex flex-col items-start">
-                            <span>{(quote.putImpliedVol * 100).toFixed(1)}%</span>
+                            <span>{quote.putImpliedVol.toFixed(1)}%</span>
                             <span className={`text-xs px-1 py-0.5 rounded ${putStatus.color} mt-1`}>
                               {putStatus.label}
                             </span>
