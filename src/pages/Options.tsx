@@ -692,6 +692,32 @@ export function Options({ theme }: OptionsProps) {
 
         {!isLoading && !isLoadingSymbols && !error && optionsData && (
           <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
+            <div className="p-6">
+              <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center mb-6">
+                <h2 className={`text-xl font-bold ${themes[theme].text}`}>
+                  平值Call期权时间价值趋势 - {selectedSymbol}
+                </h2>
+                <div className="flex items-center gap-2">
+                  <label className={`text-sm font-medium ${themes[theme].text}`}>
+                    时间显示:
+                  </label>
+                  <select
+                    value={timeDisplayMode}
+                    onChange={(e) => setTimeDisplayMode(e.target.value as 'days' | 'percentage')}
+                    className={`px-3 py-2 rounded-md text-sm ${themes[theme].input} ${themes[theme].text}`}
+                  >
+                    <option value="days">按天数</option>
+                    <option value="percentage">按比例</option>
+                  </select>
+                </div>
+              </div>
+              <div ref={timeValueChartRef} style={{ height: '400px' }} />
+            </div>
+          </div>
+        )}
+
+        {!isLoading && !isLoadingSymbols && !error && optionsData && (
+          <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
           <div className="p-6">
             <h2 className={`text-xl font-bold mb-6 ${themes[theme].text}`}>
               Option Surface Visualization - {selectedSymbol}
