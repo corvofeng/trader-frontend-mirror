@@ -43,6 +43,16 @@ export function Options({ theme }: OptionsProps) {
   const chartInstanceRef = useRef<echarts.ECharts | null>(null);
   const timeValueChartInstanceRef = useRef<echarts.ECharts | null>(null);
   const isMountedRef = useRef(true);
+  
+  // 期权计算器状态 - 移到顶部避免初始化错误
+  const [showCalculator, setShowCalculator] = useState(false);
+  const [optionPositions, setOptionPositions] = useState<OptionPosition[]>([]);
+  const [stockPositions, setStockPositions] = useState<StockPosition[]>([]);
+  const [cashPositions, setCashPositions] = useState<CashPosition[]>([]);
+  const [currentStockPrice, setCurrentStockPrice] = useState<number>(450);
+  const profitChartRef = useRef<HTMLDivElement>(null);
+  const profitChartInstance = useRef<echarts.ECharts | null>(null);
+  
   const [availableSymbols, setAvailableSymbols] = useState<string[]>([]);
   const [selectedSymbol, setSelectedSymbol] = useState<string>('SPY');
   const [optionsData, setOptionsData] = useState<OptionsData | null>(null);
@@ -329,15 +339,6 @@ export function Options({ theme }: OptionsProps) {
       }
     };
   }, [optionPositions, stockPositions, cashPositions, currentStockPrice, theme, showCalculator]);
-
-  // 期权计算器状态
-  const [showCalculator, setShowCalculator] = useState(false);
-  const [optionPositions, setOptionPositions] = useState<OptionPosition[]>([]);
-  const [stockPositions, setStockPositions] = useState<StockPosition[]>([]);
-  const [cashPositions, setCashPositions] = useState<CashPosition[]>([]);
-  const [currentStockPrice, setCurrentStockPrice] = useState<number>(450);
-  const profitChartRef = useRef<HTMLDivElement>(null);
-  const profitChartInstance = useRef<echarts.ECharts | null>(null);
 
   // Fetch available symbols on component mount
   useEffect(() => {
