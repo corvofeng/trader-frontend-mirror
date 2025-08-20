@@ -8,6 +8,7 @@ import { optionsService } from '../lib/services';
 import { useCurrency } from '../lib/context/CurrencyContext';
 import { formatCurrency } from '../lib/types';
 import { RelatedLinks } from '../components/common/RelatedLinks';
+import { OptionsCalculatorModal } from './options/OptionsCalculatorModal';
 
 interface OptionsProps {
   theme: Theme;
@@ -62,6 +63,7 @@ export function Options({ theme }: OptionsProps) {
   const [error, setError] = useState<string | null>(null);
   const [timeDisplayMode, setTimeDisplayMode] = useState<'days' | 'percentage'>('days');
   const { getThemedColors, currencyConfig } = useCurrency();
+  const [showCalculatorModal, setShowCalculatorModal] = useState(false);
   
   // 期权计算器函数
   const addOptionPosition = () => {
@@ -1062,6 +1064,12 @@ export function Options({ theme }: OptionsProps) {
               >
                 {showCalculator ? '隐藏计算器' : '显示计算器'}
               </button>
+              <button
+                onClick={() => setShowCalculatorModal(true)}
+                className={`px-4 py-2 rounded-md ${themes[theme].secondary}`}
+              >
+                打开计算器
+              </button>
             </div>
           </div>
 
@@ -1295,6 +1303,16 @@ export function Options({ theme }: OptionsProps) {
           )}
         </div>
       </div>
+
+      {/* 期权计算器弹窗 */}
+      {showCalculatorModal && (
+        <OptionsCalculatorModal
+          theme={theme}
+          optionsData={optionsData}
+          selectedSymbol={selectedSymbol}
+          onClose={() => setShowCalculatorModal(false)}
+        />
+      )}
     </div>
   );
 }
