@@ -760,6 +760,7 @@ export function Options({ theme }: OptionsProps) {
         )}
 
         <RelatedLinks 
+          theme={theme}
           currentPath="/options" 
           maxItems={4}
         />
