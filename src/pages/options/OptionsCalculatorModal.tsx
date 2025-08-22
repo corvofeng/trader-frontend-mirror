@@ -60,6 +60,43 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
   const [strategyName, setStrategyName] = useState('');
   const [savedStrategies, setSavedStrategies] = useState<Strategy[]>([]);
 
+  // 计算当前股价（基于期权内在价值）
+  const calculateCurrentStockPrice = (): number => {
+    if (!optionsData || optionsData.quotes.length === 0) return 450;
+    
+    // 找到平值合约（时间价值最大的合约）
+    let maxTimeValue = 0;
+    let atmQuote = null;
+    
+    optionsData.quotes.forEach(quote => {
+      const callTimeValue = quote.callTimeValue || 0;
+      const putTimeValue = quote.putTimeValue || 0;
+      const totalTimeValue = callTimeValue + putTimeValue;
+      
+      if (totalTimeValue > maxTimeValue) {
+        maxTimeValue = totalTimeValue;
+        atmQuote = quote;
+      }
+    });
+    
+    if (!atmQuote) return 450;
+    
+    // 使用Call期权的内在价值和行权价计算当前股价
+    // 当前股价 = 行权价 + Call内在价值
+    const callIntrinsicValue = (atmQuote.callIntrinsicValue || 0) / 100; // 转换为每股价值
+    const estimatedStockPrice = atmQuote.strike + callIntrinsicValue;
+    
+    return estimatedStockPrice;
+  };
+
+  // 初始化当前股价
+  useEffect(() => {
+    if (optionsData) {
+      const calculatedPrice = calculateCurrentStockPrice();
+      setCurrentStockPrice(calculatedPrice);
+    }
+  }, [optionsData]);
+
   // 从cookie加载保存的策略
   useEffect(() => {
     const savedStrategiesData = document.cookie
@@ -500,7 +537,11 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
                       <td className={`px-3 py-3 text-center ${themes[theme].text}`}>
                         <button
                           onClick={() => selectOptionFromChain(quote, 'call', 'buy')}
-                          className={`px-2 py-1 rounded text-xs ${themes[theme].secondary} hover:${themes[theme].primary}`}
+                          className={`px-3 py-2 rounded-md text-sm font-bold transition-all duration-200 ${
+                            theme === 'dark' 
+                              ? 'bg-green-800 text-green-100 hover:bg-green-700 shadow-lg hover:shadow-xl' 
+                              : 'bg-green-100 text-green-800 hover:bg-green-200 shadow-md hover:shadow-lg'
+                          }`}
                         >
                           {formatCurrency(quote.callPrice, currencyConfig)}
                         </button>
@@ -508,7 +549,11 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
                       <td className={`px-3 py-3 text-center ${themes[theme].text} border-r ${themes[theme].border}`}>
                         <button
                           onClick={() => selectOptionFromChain(quote, 'call', 'sell')}
-                          className={`px-2 py-1 rounded text-xs ${themes[theme].secondary} hover:${themes[theme].primary}`}
+                          className={`px-3 py-2 rounded-md text-sm font-bold transition-all duration-200 ${
+                            theme === 'dark' 
+                              ? 'bg-red-800 text-red-100 hover:bg-red-700 shadow-lg hover:shadow-xl' 
+                              : 'bg-red-100 text-red-800 hover:bg-red-200 shadow-md hover:shadow-lg'
+                          }`}
                         >
                           {formatCurrency(quote.callPrice, currencyConfig)}
                         </button>
@@ -523,7 +568,11 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
                       <td className={`px-3 py-3 text-center ${themes[theme].text} border-l ${themes[theme].border}`}>
                         <button
                           onClick={() => selectOptionFromChain(quote, 'put', 'buy')}
-                          className={`px-2 py-1 rounded text-xs ${themes[theme].secondary} hover:${themes[theme].primary}`}
+                          className={`px-3 py-2 rounded-md text-sm font-bold transition-all duration-200 ${
+                            theme === 'dark' 
+                              ? 'bg-green-800 text-green-100 hover:bg-green-700 shadow-lg hover:shadow-xl' 
+                              : 'bg-green-100 text-green-800 hover:bg-green-200 shadow-md hover:shadow-lg'
+                          }`}
                         >
                           {formatCurrency(quote.putPrice, currencyConfig)}
                         </button>
@@ -531,7 +580,11 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
                       <td className={`px-3 py-3 text-center ${themes[theme].text}`}>
                         <button
                           onClick={() => selectOptionFromChain(quote, 'put', 'sell')}
-                          className={`px-2 py-1 rounded text-xs ${themes[theme].secondary} hover:${themes[theme].primary}`}
+                          className={`px-3 py-2 rounded-md text-sm font-bold transition-all duration-200 ${
+                            theme === 'dark' 
+                              ? 'bg-red-800 text-red-100 hover:bg-red-700 shadow-lg hover:shadow-xl' 
+                              : 'bg-red-100 text-red-800 hover:bg-red-200 shadow-md hover:shadow-lg'
+                          }`}
                         >
                           {formatCurrency(quote.putPrice, currencyConfig)}
                         </button>
