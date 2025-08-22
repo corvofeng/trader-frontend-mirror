@@ -763,7 +763,7 @@ export function Options({ theme }: OptionsProps) {
           currentPath="/options" 
           maxItems={4}
         />
-
+        
         {/* 期权收益计算器 */}
         <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
           <div className="p-6 border-b border-gray-200">
