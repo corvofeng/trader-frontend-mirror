@@ -904,6 +904,9 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
         {/* 期权选择器弹窗 */}
         {showOptionSelector && <OptionSelector />}
       </div>
+
+      {/* 期权选择器弹窗 */}
+      {showOptionSelector && <OptionSelector />}
     </div>
   );
 }
