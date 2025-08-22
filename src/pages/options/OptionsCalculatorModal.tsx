@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as echarts from 'echarts';
-import { X, Calculator, Plus, Minus, Save, FolderOpen, Trash2, Camera, Download } from 'lucide-react';
+import { X, Calculator, Plus, Minus, Save, FolderOpen, Trash2, Camera, Download, Eye } from 'lucide-react';
 import { Theme, themes } from '../../lib/theme';
 import { useCurrency } from '../../lib/context/CurrencyContext';
 import { formatCurrency } from '../../lib/types';
@@ -59,12 +59,73 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
   const [selectedPositionId, setSelectedPositionId] = useState<string>('');
   const [strategyName, setStrategyName] = useState('');
   const [savedStrategies, setSavedStrategies] = useState<Strategy[]>([]);
+  const [showScreenshotPreview, setShowScreenshotPreview] = useState(false);
+  const [screenshotDataUrl, setScreenshotDataUrl] = useState<string>('');
 
   // 截图功能
   const captureChart = () => {
     if (!profitChartInstance.current) return;
     
     try {
+      // 创建包含策略信息的完整截图
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      
+      // 设置画布尺寸
+      canvas.width = 1200;
+      canvas.height = 800;
+      
+      // 设置背景色
+      ctx.fillStyle = theme === 'dark' ? '#1f2937' : '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // 添加标题
+      ctx.fillStyle = theme === 'dark' ? '#e5e7eb' : '#111827';
+      ctx.font = 'bold 24px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${selectedSymbol} 期权策略分析`, canvas.width / 2, 40);
+      
+      // 添加时间戳
+      ctx.font = '14px Arial';
+      ctx.fillText(`生成时间: ${new Date().toLocaleString()}`, canvas.width / 2, 65);
+      
+      // 添加策略信息
+      let yPosition = 100;
+      ctx.font = 'bold 16px Arial';
+      ctx.textAlign = 'left';
+      ctx.fillText('策略组成:', 50, yPosition);
+      
+      yPosition += 25;
+      ctx.font = '14px Arial';
+      
+      // 期权仓位信息
+      if (optionPositions.length > 0) {
+        ctx.fillText('期权仓位:', 70, yPosition);
+        yPosition += 20;
+        optionPositions.forEach((pos, index) => {
+          const positionText = `${index + 1}. ${pos.action === 'buy' ? '买入' : '卖出'} ${pos.type.toUpperCase()} ${formatCurrency(pos.strike, currencyConfig)} @ ${formatCurrency(pos.premium, currencyConfig)} x${pos.quantity}`;
+          ctx.fillText(positionText, 90, yPosition);
+          yPosition += 18;
+        });
+      }
+      
+      // 股票仓位信息
+      if (stockPositions.length > 0) {
+        yPosition += 10;
+        ctx.fillText('股票仓位:', 70, yPosition);
+        yPosition += 20;
+        stockPositions.forEach((pos, index) => {
+          const positionText = `${index + 1}. ${pos.action === 'buy' ? '持有' : '做空'} ${pos.quantity}股 @ ${formatCurrency(pos.price, currencyConfig)}`;
+          ctx.fillText(positionText, 90, yPosition);
+          yPosition += 18;
+        });
+      }
+      
+      // 添加当前股价
+      yPosition += 10;
+      ctx.fillText(`当前股价: ${formatCurrency(currentStockPrice, currencyConfig)}`, 70, yPosition);
+      
       // 获取图表的base64数据
       const chartDataUrl = profitChartInstance.current.getDataURL({
         type: 'png',
@@ -72,20 +133,42 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
         backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff'
       });
       
-      // 创建下载链接
-      const link = document.createElement('a');
-      link.download = `options-strategy-${selectedSymbol}-${new Date().toISOString().split('T')[0]}.png`;
-      link.href = chartDataUrl;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      // 将图表添加到画布
+      const chartImg = new Image();
+      chartImg.onload = () => {
+        // 在画布下方绘制图表
+        const chartY = yPosition + 30;
+        const chartHeight = canvas.height - chartY - 20;
+        const chartWidth = canvas.width - 100;
+        
+        ctx.drawImage(chartImg, 50, chartY, chartWidth, chartHeight);
+        
+        // 生成最终的截图数据
+        const finalDataUrl = canvas.toDataURL('image/png');
+        setScreenshotDataUrl(finalDataUrl);
+        setShowScreenshotPreview(true);
+      };
+      chartImg.src = chartDataUrl;
       
-      // 显示成功提示
-      alert('策略盈亏图已保存到下载文件夹');
     } catch (error) {
       console.error('截图失败:', error);
       alert('截图失败，请重试');
     }
+  };
+  
+  // 下载截图
+  const downloadScreenshot = () => {
+    if (!screenshotDataUrl) return;
+    
+    const link = document.createElement('a');
+    link.download = `options-strategy-${selectedSymbol}-${new Date().toISOString().split('T')[0]}.png`;
+    link.href = screenshotDataUrl;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    setShowScreenshotPreview(false);
+    alert('策略分析图已保存到下载文件夹');
   };
 
   // 记录期权选择时间
@@ -995,14 +1078,16 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
           <div className={`${themes[theme].background} rounded-lg p-4`}>
             <div className="flex justify-between items-center mb-4">
               <h3 className={`text-lg font-semibold ${themes[theme].text}`}>到期盈亏图</h3>
-              <button
-                onClick={captureChart}
-                className={`inline-flex items-center px-3 py-2 rounded-md ${themes[theme].secondary}`}
-                title="截图保存策略分析"
-              >
-                <Camera className="w-4 h-4 mr-2" />
-                截图保存
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={captureChart}
+                  className={`inline-flex items-center px-3 py-2 rounded-md ${themes[theme].secondary}`}
+                  title="生成策略分析截图"
+                >
+                  <Camera className="w-4 h-4 mr-2" />
+                  生成截图
+                </button>
+              </div>
             </div>
             <div ref={profitChartRef} style={{ height: '400px' }} />
           </div>
@@ -1035,6 +1120,53 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
 
         {/* 期权选择器弹窗 */}
         {showOptionSelector && <OptionSelector />}
+        
+        {/* 截图预览弹窗 */}
+        {showScreenshotPreview && (
+          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-60 p-4">
+            <div className={`${themes[theme].card} rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto`}>
+              <div className="p-6 border-b border-gray-200">
+                <div className="flex justify-between items-center">
+                  <h3 className={`text-xl font-bold ${themes[theme].text}`}>
+                    策略分析截图预览
+                  </h3>
+                  <button
+                    onClick={() => setShowScreenshotPreview(false)}
+                    className={`p-2 rounded-md ${themes[theme].secondary}`}
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+              
+              <div className="p-6">
+                <div className="text-center mb-4">
+                  <img 
+                    src={screenshotDataUrl} 
+                    alt="策略分析截图" 
+                    className="max-w-full h-auto border rounded-lg shadow-lg"
+                  />
+                </div>
+                
+                <div className="flex justify-center gap-4">
+                  <button
+                    onClick={() => setShowScreenshotPreview(false)}
+                    className={`px-4 py-2 rounded-md ${themes[theme].secondary}`}
+                  >
+                    取消
+                  </button>
+                  <button
+                    onClick={downloadScreenshot}
+                    className={`inline-flex items-center px-4 py-2 rounded-md ${themes[theme].primary}`}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    保存截图
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

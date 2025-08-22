@@ -759,7 +759,7 @@ export function Options({ theme }: OptionsProps) {
         </div>
         )}
 
-        {/* 期权收益计算器 - 移到期权链下方 */}
+        {/* 期权收益计算器 - 移到期权链下方，时间价值趋势上方 */}
         <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
           <div className="p-6 border-b border-gray-200">
             <div className="flex justify-between items-center">
