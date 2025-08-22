@@ -60,33 +60,124 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
   const [strategyName, setStrategyName] = useState('');
   const [savedStrategies, setSavedStrategies] = useState<Strategy[]>([]);
 
+  // 记录期权选择时间
+  const [lastOptionSelectionTime, setLastOptionSelectionTime] = useState<string>('');
+
   // 计算当前股价（基于期权内在价值）
   const calculateCurrentStockPrice = (): number => {
     if (!optionsData || optionsData.quotes.length === 0) return 450;
     
-    // 找到平值合约（时间价值最大的合约）
-    let maxTimeValue = 0;
-    let atmQuote = null;
+    // 找到有内在价值的期权来推算当前股价
+    let bestEstimate = 450; // 默认值
     
-    optionsData.quotes.forEach(quote => {
-      const callTimeValue = quote.callTimeValue || 0;
-      const putTimeValue = quote.putTimeValue || 0;
-      const totalTimeValue = callTimeValue + putTimeValue;
-      
-      if (totalTimeValue > maxTimeValue) {
-        maxTimeValue = totalTimeValue;
-        atmQuote = quote;
+    // 优先使用Call期权的内在价值推算
+    for (const quote of optionsData.quotes) {
+      const callIntrinsicValue = quote.callIntrinsicValue || 0;
+      if (callIntrinsicValue > 0) {
+        // 当前股价 = 行权价 + Call内在价值/100
+        bestEstimate = quote.strike + (callIntrinsicValue / 100);
+        break;
       }
-    });
+    }
     
-    if (!atmQuote) return 450;
+    // 如果没有Call内在价值，尝试使用Put期权
+    if (bestEstimate === 450) {
+      for (const quote of optionsData.quotes) {
+        const putIntrinsicValue = quote.putIntrinsicValue || 0;
+        if (putIntrinsicValue > 0) {
+          // 当前股价 = 行权价 - Put内在价值/100
+          bestEstimate = quote.strike - (putIntrinsicValue / 100);
+          break;
+        }
+      }
+    }
     
-    // 使用Call期权的内在价值和行权价计算当前股价
-    // 当前股价 = 行权价 + Call内在价值
-    const callIntrinsicValue = (atmQuote.callIntrinsicValue || 0) / 100; // 转换为每股价值
-    const estimatedStockPrice = atmQuote.strike + callIntrinsicValue;
+    // 如果都没有内在价值，找到时间价值最大的合约作为平值
+    if (bestEstimate === 450) {
+      let maxTimeValue = 0;
+      let atmStrike = 450;
+      
+      optionsData.quotes.forEach(quote => {
+        const callTimeValue = quote.callTimeValue || 0;
+        const putTimeValue = quote.putTimeValue || 0;
+        const totalTimeValue = callTimeValue + putTimeValue;
+        
+        if (totalTimeValue > maxTimeValue) {
+          maxTimeValue = totalTimeValue;
+          atmStrike = quote.strike;
+        }
+      });
+      
+      bestEstimate = atmStrike;
+    }
     
-    return estimatedStockPrice;
+    return bestEstimate;
+  };
+
+  // 从cookie加载上次选择的到期日
+  useEffect(() => {
+    const savedTime = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('lastOptionSelectionTime='))
+      ?.split('=')[1];
+    
+    if (savedTime) {
+      setLastOptionSelectionTime(decodeURIComponent(savedTime));
+    }
+  }, []);
+
+  // 保存期权选择时间到cookie
+  const saveOptionSelectionTime = (expiry: string) => {
+    setLastOptionSelectionTime(expiry);
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + 30);
+    document.cookie = `lastOptionSelectionTime=${encodeURIComponent(expiry)}; expires=${expiryDate.toUTCString()}; path=/`;
+  };
+
+  // ESC键关闭期权选择器
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (showOptionSelector) {
+          setShowOptionSelector(false);
+          setSelectedPositionId('');
+        }
+      }
+    };
+    
+    document.addEventListener('keydown', handleKeyDown);
+    
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showOptionSelector]);
+
+  // 从期权链选择期权
+  const selectOptionFromChain = (quote: OptionQuote, type: 'call' | 'put', action: 'buy' | 'sell') => {
+    // 保存选择时间
+    saveOptionSelectionTime(quote.expiry);
+    
+    if (!selectedPositionId) {
+      // 创建新仓位
+      const newPosition: OptionPosition = {
+        id: Date.now().toString(),
+        type,
+        action,
+        strike: quote.strike,
+        premium: type === 'call' ? quote.callPrice : quote.putPrice,
+        quantity: 1,
+        expiry: quote.expiry
+      };
+      setOptionPositions([...optionPositions, newPosition]);
+    } else {
+      // 更新现有仓位
+      updateOptionPosition(selectedPositionId, 'type', type);
+      updateOptionPosition(selectedPositionId, 'strike', quote.strike);
+      updateOptionPosition(selectedPositionId, 'premium', type === 'call' ? quote.callPrice : quote.putPrice);
+      updateOptionPosition(selectedPositionId, 'expiry', quote.expiry);
+    }
+    setShowOptionSelector(false);
+    setSelectedPositionId('');
   };
 
   // 初始化当前股价
@@ -230,30 +321,6 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
   };
 
   // 从期权链选择期权
-  const selectOptionFromChain = (quote: OptionQuote, type: 'call' | 'put', action: 'buy' | 'sell') => {
-    if (!selectedPositionId) {
-      // 创建新仓位
-      const newPosition: OptionPosition = {
-        id: Date.now().toString(),
-        type,
-        action,
-        strike: quote.strike,
-        premium: type === 'call' ? quote.callPrice : quote.putPrice,
-        quantity: 1,
-        expiry: quote.expiry
-      };
-      setOptionPositions([...optionPositions, newPosition]);
-    } else {
-      // 更新现有仓位
-      updateOptionPosition(selectedPositionId, 'type', type);
-      updateOptionPosition(selectedPositionId, 'strike', quote.strike);
-      updateOptionPosition(selectedPositionId, 'premium', type === 'call' ? quote.callPrice : quote.putPrice);
-      updateOptionPosition(selectedPositionId, 'expiry', quote.expiry);
-    }
-    setShowOptionSelector(false);
-    setSelectedPositionId('');
-  };
-
   // 计算期权到期时的盈亏
   const calculateOptionProfit = (position: OptionPosition, stockPrice: number): number => {
     const { type, action, strike, premium, quantity } = position;
@@ -471,7 +538,13 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
   const OptionSelector = () => {
     if (!optionsData) return null;
 
-    const [selectedExpiry, setSelectedExpiry] = useState(uniqueExpiryDates[0] || '');
+    // 使用上次选择的时间，如果没有则使用第一个
+    const [selectedExpiry, setSelectedExpiry] = useState(() => {
+      if (lastOptionSelectionTime && uniqueExpiryDates.includes(lastOptionSelectionTime)) {
+        return lastOptionSelectionTime;
+      }
+      return uniqueExpiryDates[0] || '';
+    });
     
     const quotesByExpiry = optionsData.quotes
       .filter(q => q.expiry === selectedExpiry)
@@ -495,7 +568,10 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
             <div className="mt-4">
               <select
                 value={selectedExpiry}
-                onChange={(e) => setSelectedExpiry(e.target.value)}
+                onChange={(e) => {
+                  setSelectedExpiry(e.target.value);
+                  saveOptionSelectionTime(e.target.value);
+                }}
                 className={`px-3 py-2 rounded-md ${themes[theme].input} ${themes[theme].text}`}
               >
                 {uniqueExpiryDates.map(date => (
