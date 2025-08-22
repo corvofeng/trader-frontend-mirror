@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as echarts from 'echarts';
-import { X, Calculator, Plus, Minus, Save, FolderOpen, Trash2 } from 'lucide-react';
+import { X, Calculator, Plus, Minus, Save, FolderOpen, Trash2, Camera, Download } from 'lucide-react';
 import { Theme, themes } from '../../lib/theme';
 import { useCurrency } from '../../lib/context/CurrencyContext';
 import { formatCurrency } from '../../lib/types';
@@ -59,6 +59,34 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
   const [selectedPositionId, setSelectedPositionId] = useState<string>('');
   const [strategyName, setStrategyName] = useState('');
   const [savedStrategies, setSavedStrategies] = useState<Strategy[]>([]);
+
+  // 截图功能
+  const captureChart = () => {
+    if (!profitChartInstance.current) return;
+    
+    try {
+      // 获取图表的base64数据
+      const chartDataUrl = profitChartInstance.current.getDataURL({
+        type: 'png',
+        pixelRatio: 2,
+        backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff'
+      });
+      
+      // 创建下载链接
+      const link = document.createElement('a');
+      link.download = `options-strategy-${selectedSymbol}-${new Date().toISOString().split('T')[0]}.png`;
+      link.href = chartDataUrl;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // 显示成功提示
+      alert('策略盈亏图已保存到下载文件夹');
+    } catch (error) {
+      console.error('截图失败:', error);
+      alert('截图失败，请重试');
+    }
+  };
 
   // 记录期权选择时间
   const [lastOptionSelectionTime, setLastOptionSelectionTime] = useState<string>('');
@@ -965,7 +993,17 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
 
           {/* 盈亏图表 */}
           <div className={`${themes[theme].background} rounded-lg p-4`}>
-            <h3 className={`text-lg font-semibold ${themes[theme].text} mb-4`}>到期盈亏图</h3>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className={`text-lg font-semibold ${themes[theme].text}`}>到期盈亏图</h3>
+              <button
+                onClick={captureChart}
+                className={`inline-flex items-center px-3 py-2 rounded-md ${themes[theme].secondary}`}
+                title="截图保存策略分析"
+              >
+                <Camera className="w-4 h-4 mr-2" />
+                截图保存
+              </button>
+            </div>
             <div ref={profitChartRef} style={{ height: '400px' }} />
           </div>
 

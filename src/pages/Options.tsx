@@ -759,33 +759,32 @@ export function Options({ theme }: OptionsProps) {
         </div>
         )}
 
+        {/* 期权收益计算器 - 移到期权链下方 */}
+        <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center space-x-3">
+                <Calculator className="w-6 h-6 text-purple-500" />
+                <h2 className={`text-xl font-bold ${themes[theme].text}`}>
+                  期权收益计算器
+                </h2>
+              </div>
+              <button
+                onClick={() => setShowCalculatorModal(true)}
+                className={`px-4 py-2 rounded-md ${themes[theme].primary}`}
+              >
+                打开计算器
+              </button>
+            </div>
+          </div>
+        </div>
+
         <RelatedLinks 
           theme={theme}
           currentPath="/options" 
           maxItems={4}
         />
       </div>
-
-      {/* 期权收益计算器 - 移到页面上方 */}
-      <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-3">
-              <Calculator className="w-6 h-6 text-purple-500" />
-              <h2 className={`text-xl font-bold ${themes[theme].text}`}>
-                期权收益计算器
-              </h2>
-            </div>
-            <button
-              onClick={() => setShowCalculatorModal(true)}
-              className={`px-4 py-2 rounded-md ${themes[theme].primary}`}
-            >
-              打开计算器
-            </button>
-          </div>
-        </div>
-      </div>
-
       {/* 期权计算器弹窗 */}
       {showCalculatorModal && (
         <OptionsCalculatorModal
