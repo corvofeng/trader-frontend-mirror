@@ -613,10 +613,10 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
                       <td className={`px-3 py-3 text-center ${themes[theme].text}`}>
                         <button
                           onClick={() => selectOptionFromChain(quote, 'call', 'buy')}
-                          className={`px-4 py-3 rounded-lg text-base font-bold transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 ${
+                          className={`px-6 py-4 rounded-xl text-lg font-bold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-110 ${
                             theme === 'dark' 
-                              ? 'bg-green-700 text-green-50 hover:bg-green-600 border-2 border-green-500' 
-                              : 'bg-green-50 text-green-900 hover:bg-green-100 border-2 border-green-300'
+                              ? 'bg-green-800 text-green-50 hover:bg-green-700 border-3 border-green-400 hover:border-green-300' 
+                              : 'bg-green-100 text-green-900 hover:bg-green-200 border-3 border-green-400 hover:border-green-500'
                           }`}
                         >
                           {formatCurrency(quote.callPrice, currencyConfig)}
@@ -625,10 +625,10 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
                       <td className={`px-3 py-3 text-center ${themes[theme].text} border-r ${themes[theme].border}`}>
                         <button
                           onClick={() => selectOptionFromChain(quote, 'call', 'sell')}
-                          className={`px-4 py-3 rounded-lg text-base font-bold transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 ${
+                          className={`px-6 py-4 rounded-xl text-lg font-bold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-110 ${
                             theme === 'dark' 
-                              ? 'bg-red-700 text-red-50 hover:bg-red-600 border-2 border-red-500' 
-                              : 'bg-red-50 text-red-900 hover:bg-red-100 border-2 border-red-300'
+                              ? 'bg-red-800 text-red-50 hover:bg-red-700 border-3 border-red-400 hover:border-red-300' 
+                              : 'bg-red-100 text-red-900 hover:bg-red-200 border-3 border-red-400 hover:border-red-500'
                           }`}
                         >
                           {formatCurrency(quote.callPrice, currencyConfig)}
@@ -644,10 +644,10 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
                       <td className={`px-3 py-3 text-center ${themes[theme].text} border-l ${themes[theme].border}`}>
                         <button
                           onClick={() => selectOptionFromChain(quote, 'put', 'buy')}
-                          className={`px-4 py-3 rounded-lg text-base font-bold transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 ${
+                          className={`px-6 py-4 rounded-xl text-lg font-bold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-110 ${
                             theme === 'dark' 
-                              ? 'bg-green-700 text-green-50 hover:bg-green-600 border-2 border-green-500' 
-                              : 'bg-green-50 text-green-900 hover:bg-green-100 border-2 border-green-300'
+                              ? 'bg-green-800 text-green-50 hover:bg-green-700 border-3 border-green-400 hover:border-green-300' 
+                              : 'bg-green-100 text-green-900 hover:bg-green-200 border-3 border-green-400 hover:border-green-500'
                           }`}
                         >
                           {formatCurrency(quote.putPrice, currencyConfig)}
@@ -656,10 +656,10 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
                       <td className={`px-3 py-3 text-center ${themes[theme].text}`}>
                         <button
                           onClick={() => selectOptionFromChain(quote, 'put', 'sell')}
-                          className={`px-4 py-3 rounded-lg text-base font-bold transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 ${
+                          className={`px-6 py-4 rounded-xl text-lg font-bold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-110 ${
                             theme === 'dark' 
-                              ? 'bg-red-700 text-red-50 hover:bg-red-600 border-2 border-red-500' 
-                              : 'bg-red-50 text-red-900 hover:bg-red-100 border-2 border-red-300'
+                              ? 'bg-red-800 text-red-50 hover:bg-red-700 border-3 border-red-400 hover:border-red-300' 
+                              : 'bg-red-100 text-red-900 hover:bg-red-200 border-3 border-red-400 hover:border-red-500'
                           }`}
                         >
                           {formatCurrency(quote.putPrice, currencyConfig)}
