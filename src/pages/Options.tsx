@@ -38,26 +38,6 @@ interface CashPosition {
   interestRate: number;
 }
 
-interface OptionsData {
-  quotes: OptionQuote[];
-  surface: any[];
-}
-
-interface OptionQuote {
-  strike: number;
-  expiry: string;
-  callPrice: number;
-  putPrice: number;
-  callImpliedVol: number;
-  putImpliedVol: number;
-  callTimeValue?: number;
-  putTimeValue?: number;
-  callIntrinsicValue?: number;
-  putIntrinsicValue?: number;
-  callUrl?: string;
-  putUrl?: string;
-}
-
 export function Options({ theme }: OptionsProps) {
   const surfaceChartRef = useRef<HTMLDivElement>(null);
   const timeValueChartRef = useRef<HTMLDivElement>(null);
@@ -85,6 +65,283 @@ export function Options({ theme }: OptionsProps) {
   const { getThemedColors, currencyConfig } = useCurrency();
   const [showCalculatorModal, setShowCalculatorModal] = useState(false);
   
+  // 期权计算器函数
+  const addOptionPosition = () => {
+    const newPosition: OptionPosition = {
+      id: Date.now().toString(),
+      type: 'call',
+      action: 'buy',
+      strike: currentStockPrice,
+      premium: 10,
+      quantity: 1,
+      expiry: uniqueExpiryDates[0] || ''
+    };
+    setOptionPositions([...optionPositions, newPosition]);
+  };
+
+  const addStockPosition = () => {
+    const newPosition: StockPosition = {
+      id: Date.now().toString(),
+      action: 'buy',
+      price: currentStockPrice,
+      quantity: 100
+    };
+    setStockPositions([...stockPositions, newPosition]);
+  };
+
+  const addCashPosition = () => {
+    const newPosition: CashPosition = {
+      id: Date.now().toString(),
+      type: 'margin',
+      amount: 10000,
+      interestRate: 5.0
+    };
+    setCashPositions([...cashPositions, newPosition]);
+  };
+
+  const removeOptionPosition = (id: string) => {
+    setOptionPositions(optionPositions.filter(p => p.id !== id));
+  };
+
+  const removeStockPosition = (id: string) => {
+    setStockPositions(stockPositions.filter(p => p.id !== id));
+  };
+
+  const removeCashPosition = (id: string) => {
+    setCashPositions(cashPositions.filter(p => p.id !== id));
+  };
+
+  const updateOptionPosition = (id: string, field: keyof OptionPosition, value: any) => {
+    setOptionPositions(optionPositions.map(p => 
+      p.id === id ? { ...p, [field]: value } : p
+    ));
+  };
+
+  const updateStockPosition = (id: string, field: keyof StockPosition, value: any) => {
+    setStockPositions(stockPositions.map(p => 
+      p.id === id ? { ...p, [field]: value } : p
+    ));
+  };
+
+  const updateCashPosition = (id: string, field: keyof CashPosition, value: any) => {
+    setCashPositions(cashPositions.map(p => 
+      p.id === id ? { ...p, [field]: value } : p
+    ));
+  };
+
+  // 计算期权到期时的盈亏
+  const calculateOptionProfit = (position: OptionPosition, stockPrice: number): number => {
+    const { type, action, strike, premium, quantity } = position;
+    let optionValue = 0;
+    
+    if (type === 'call') {
+      optionValue = Math.max(0, stockPrice - strike);
+    } else {
+      optionValue = Math.max(0, strike - stockPrice);
+    }
+    
+    const multiplier = action === 'buy' ? 1 : -1;
+    const premiumCost = action === 'buy' ? -premium : premium;
+    
+    return (optionValue * multiplier + premiumCost) * quantity;
+  };
+
+  // 计算股票盈亏
+  const calculateStockProfit = (position: StockPosition, stockPrice: number): number => {
+    const { action, price, quantity } = position;
+    const multiplier = action === 'buy' ? 1 : -1;
+    return (stockPrice - price) * multiplier * quantity;
+  };
+
+  // 计算现金/保证金收益
+  const calculateCashProfit = (position: CashPosition): number => {
+    // 简化计算，假设年化利率
+    return position.amount * (position.interestRate / 100) * (30 / 365); // 假设30天
+  };
+
+  // 计算总盈亏
+  const calculateTotalProfit = (stockPrice: number): number => {
+    let total = 0;
+    
+    optionPositions.forEach(pos => {
+      total += calculateOptionProfit(pos, stockPrice);
+    });
+    
+    stockPositions.forEach(pos => {
+      total += calculateStockProfit(pos, stockPrice);
+    });
+    
+    cashPositions.forEach(pos => {
+      total += calculateCashProfit(pos);
+    });
+    
+    return total;
+  };
+
+  // 更新盈亏图表
+  useEffect(() => {
+    if (!profitChartRef.current || !showCalculator) return;
+    
+    if (profitChartInstance.current) {
+      profitChartInstance.current.dispose();
+    }
+    
+    const chart = echarts.init(profitChartRef.current);
+    profitChartInstance.current = chart;
+    
+    const isDark = theme === 'dark';
+    const themedColors = getThemedColors(theme);
+    
+    // 生成股价范围数据
+    const minPrice = currentStockPrice * 0.7;
+    const maxPrice = currentStockPrice * 1.3;
+    const priceStep = (maxPrice - minPrice) / 100;
+    
+    const priceRange: number[] = [];
+    const profitData: number[] = [];
+    
+    for (let price = minPrice; price <= maxPrice; price += priceStep) {
+      priceRange.push(price);
+      profitData.push(calculateTotalProfit(price));
+    }
+    
+    // 找到盈亏平衡点
+    const breakEvenPoints: number[] = [];
+    for (let i = 1; i < profitData.length; i++) {
+      if ((profitData[i-1] <= 0 && profitData[i] >= 0) || 
+          (profitData[i-1] >= 0 && profitData[i] <= 0)) {
+        breakEvenPoints.push(priceRange[i]);
+      }
+    }
+    
+    const option = {
+      title: {
+        text: '期权策略盈亏图',
+        left: 'center',
+        textStyle: {
+          color: isDark ? '#e5e7eb' : '#111827'
+        }
+      },
+      tooltip: {
+        trigger: 'axis',
+        formatter: (params: any) => {
+          const price = params[0].axisValue;
+          const profit = params[0].value;
+          return `股价: ${formatCurrency(price, currencyConfig)}<br/>
+                  盈亏: ${profit >= 0 ? '+' : ''}${formatCurrency(profit, currencyConfig)}`;
+        }
+      },
+      grid: {
+        left: '10%',
+        right: '10%',
+        bottom: '15%',
+        top: '15%'
+      },
+      xAxis: {
+        type: 'value',
+        name: '股价',
+        nameLocation: 'middle',
+        nameGap: 30,
+        axisLabel: {
+          color: isDark ? '#e5e7eb' : '#111827',
+          formatter: (value: number) => formatCurrency(value, currencyConfig)
+        },
+        nameTextStyle: {
+          color: isDark ? '#e5e7eb' : '#111827'
+        }
+      },
+      yAxis: {
+        type: 'value',
+        name: '盈亏',
+        nameLocation: 'middle',
+        nameGap: 50,
+        axisLabel: {
+          color: isDark ? '#e5e7eb' : '#111827',
+          formatter: (value: number) => formatCurrency(value, currencyConfig)
+        },
+        nameTextStyle: {
+          color: isDark ? '#e5e7eb' : '#111827'
+        },
+        splitLine: {
+          lineStyle: {
+            color: isDark ? '#374151' : '#f3f4f6'
+          }
+        }
+      },
+      series: [
+        {
+          name: '盈亏',
+          type: 'line',
+          data: priceRange.map((price, index) => [price, profitData[index]]),
+          lineStyle: {
+            color: themedColors.chart.upColor,
+            width: 3
+          },
+          areaStyle: {
+            color: {
+              type: 'linear',
+              x: 0,
+              y: 0,
+              x2: 0,
+              y2: 1,
+              colorStops: [
+                {
+                  offset: 0,
+                  color: themedColors.chart.upColor + '40'
+                },
+                {
+                  offset: 1,
+                  color: themedColors.chart.upColor + '10'
+                }
+              ]
+            }
+          },
+          markLine: {
+            data: [
+              {
+                yAxis: 0,
+                lineStyle: {
+                  color: isDark ? '#6b7280' : '#9ca3af',
+                  type: 'dashed'
+                },
+                label: {
+                  formatter: '盈亏平衡线'
+                }
+              },
+              {
+                xAxis: currentStockPrice,
+                lineStyle: {
+                  color: themedColors.chart.downColor,
+                  type: 'dashed'
+                },
+                label: {
+                  formatter: '当前股价'
+                }
+              }
+            ]
+          }
+        }
+      ]
+    };
+    
+    chart.setOption(option);
+    
+    const handleResize = () => {
+      if (profitChartInstance.current) {
+        profitChartInstance.current.resize();
+      }
+    };
+    
+    window.addEventListener('resize', handleResize);
+    
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (profitChartInstance.current) {
+        profitChartInstance.current.dispose();
+      }
+    };
+  }, [optionPositions, stockPositions, cashPositions, currentStockPrice, theme, showCalculator]);
+
   // Fetch available symbols on component mount
   useEffect(() => {
     const fetchAvailableSymbols = async () => {
@@ -791,24 +1048,25 @@ export function Options({ theme }: OptionsProps) {
           maxItems={4}
         />
 
-        {/* 期权收益计算器入口 */}
+        {/* 期权收益计算器 */}
         <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
-          <div className="p-6">
+          <div className="p-6 border-b border-gray-200">
             <div className="flex justify-between items-center">
               <div className="flex items-center space-x-3">
                 <Calculator className="w-6 h-6 text-purple-500" />
-                <div>
-                  <h2 className={`text-xl font-bold ${themes[theme].text}`}>
-                    期权收益计算器
-                  </h2>
-                  <p className={`text-sm ${themes[theme].text} opacity-75`}>
-                    构建期权策略并分析盈亏情况
-                  </p>
-                </div>
+                <h2 className={`text-xl font-bold ${themes[theme].text}`}>
+                  期权收益计算器
+                </h2>
               </div>
               <button
+                onClick={() => setShowCalculator(!showCalculator)}
+                className={`px-4 py-2 rounded-md ${themes[theme].primary}`}
+              >
+                {showCalculator ? '隐藏计算器' : '显示计算器'}
+              </button>
+              <button
                 onClick={() => setShowCalculatorModal(true)}
-                className={`px-6 py-3 rounded-md ${themes[theme].primary} font-medium`}
+                className={`px-4 py-2 rounded-md ${themes[theme].secondary}`}
               >
                 打开计算器
               </button>
@@ -825,20 +1083,236 @@ export function Options({ theme }: OptionsProps) {
                     <label className={`block text-sm font-medium ${themes[theme].text} mb-2`}>
                       当前股价
                     </label>
+                    <input
+                      type="number"
+                      value={currentStockPrice}
+                      onChange={(e) => setCurrentStockPrice(Number(e.target.value))}
+                      className={`w-full px-3 py-2 rounded-md ${themes[theme].input} ${themes[theme].text}`}
+                      step="0.01"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 期权仓位 */}
+              <div className={`${themes[theme].background} rounded-lg p-4`}>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className={`text-lg font-semibold ${themes[theme].text}`}>期权仓位</h3>
+                  <button
+                    onClick={addOptionPosition}
+                    className={`inline-flex items-center px-3 py-2 rounded-md ${themes[theme].secondary}`}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    添加期权
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  {optionPositions.map((position) => (
+                    <div key={position.id} className={`${themes[theme].card} rounded-lg p-4 border ${themes[theme].border}`}>
+                      <div className="grid grid-cols-2 md:grid-cols-7 gap-3 items-center">
+                        <select
+                          value={position.type}
+                          onChange={(e) => updateOptionPosition(position.id, 'type', e.target.value)}
+                          className={`px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
+                        >
+                          <option value="call">Call</option>
+                          <option value="put">Put</option>
+                        </select>
+                        <select
+                          value={position.action}
+                          onChange={(e) => updateOptionPosition(position.id, 'action', e.target.value)}
+                          className={`px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
+                        >
+                          <option value="buy">买入</option>
+                          <option value="sell">卖出</option>
+                        </select>
+                        <input
+                          type="number"
+                          placeholder="行权价"
+                          value={position.strike}
+                          onChange={(e) => updateOptionPosition(position.id, 'strike', Number(e.target.value))}
+                          className={`px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
+                          step="0.01"
+                        />
+                        <input
+                          type="number"
+                          placeholder="权利金"
+                          value={position.premium}
+                          onChange={(e) => updateOptionPosition(position.id, 'premium', Number(e.target.value))}
+                          className={`px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
+                          step="0.01"
+                        />
+                        <input
+                          type="number"
+                          placeholder="数量"
+                          value={position.quantity}
+                          onChange={(e) => updateOptionPosition(position.id, 'quantity', Number(e.target.value))}
+                          className={`px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
+                        />
+                        <select
+                          value={position.expiry}
+                          onChange={(e) => updateOptionPosition(position.id, 'expiry', e.target.value)}
+                          className={`px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
+                        >
+                          {uniqueExpiryDates.map(date => (
+                            <option key={date} value={date}>
+                              {format(new Date(date), 'MM-dd')}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={() => removeOptionPosition(position.id)}
+                          className={`p-1 rounded ${themes[theme].secondary}`}
+                        >
+                          <Minus className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 股票仓位 */}
+              <div className={`${themes[theme].background} rounded-lg p-4`}>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className={`text-lg font-semibold ${themes[theme].text}`}>股票仓位 (Covered Call / Cash Secured Put)</h3>
+                  <button
+                    onClick={addStockPosition}
+                    className={`inline-flex items-center px-3 py-2 rounded-md ${themes[theme].secondary}`}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    添加股票
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  {stockPositions.map((position) => (
+                    <div key={position.id} className={`${themes[theme].card} rounded-lg p-4 border ${themes[theme].border}`}>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 items-center">
+                        <select
+                          value={position.action}
+                          onChange={(e) => updateStockPosition(position.id, 'action', e.target.value)}
+                          className={`px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
+                        >
+                          <option value="buy">持有</option>
+                          <option value="sell">做空</option>
+                        </select>
+                        <input
+                          type="number"
+                          placeholder="成本价"
+                          value={position.price}
+                          onChange={(e) => updateStockPosition(position.id, 'price', Number(e.target.value))}
+                          className={`px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
+                          step="0.01"
+                        />
+                        <input
+                          type="number"
+                          placeholder="数量"
+                          value={position.quantity}
+                          onChange={(e) => updateStockPosition(position.id, 'quantity', Number(e.target.value))}
+                          className={`px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
+                        />
+                        <button
+                          onClick={() => removeStockPosition(position.id)}
+                          className={`p-1 rounded ${themes[theme].secondary}`}
+                        >
+                          <Minus className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 现金/保证金仓位 */}
+              <div className={`${themes[theme].background} rounded-lg p-4`}>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className={`text-lg font-semibold ${themes[theme].text}`}>现金/保证金</h3>
+                  <button
+                    onClick={addCashPosition}
+                    className={`inline-flex items-center px-3 py-2 rounded-md ${themes[theme].secondary}`}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    添加现金
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  {cashPositions.map((position) => (
+                    <div key={position.id} className={`${themes[theme].card} rounded-lg p-4 border ${themes[theme].border}`}>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 items-center">
+                        <input
+                          type="number"
+                          placeholder="金额"
+                          value={position.amount}
+                          onChange={(e) => updateCashPosition(position.id, 'amount', Number(e.target.value))}
+                          className={`px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
+                        />
+                        <input
+                          type="number"
+                          placeholder="年化利率(%)"
+                          value={position.interestRate}
+                          onChange={(e) => updateCashPosition(position.id, 'interestRate', Number(e.target.value))}
+                          className={`px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
+                          step="0.1"
+                        />
+                        <button
+                          onClick={() => removeCashPosition(position.id)}
+                          className={`p-1 rounded ${themes[theme].secondary}`}
+                        >
+                          <Minus className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 盈亏图表 */}
+              <div className={`${themes[theme].background} rounded-lg p-4`}>
+                <div className="flex items-center space-x-3 mb-4">
+                  <BarChart3 className="w-5 h-5 text-green-500" />
+                  <h3 className={`text-lg font-semibold ${themes[theme].text}`}>到期盈亏图</h3>
+                </div>
+                <div ref={profitChartRef} style={{ height: '400px' }} />
+              </div>
+
+              {/* 策略摘要 */}
+              <div className={`${themes[theme].background} rounded-lg p-4`}>
+                <h3 className={`text-lg font-semibold ${themes[theme].text} mb-4`}>策略摘要</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="text-center">
+                    <p className={`text-lg font-semibold ${themes[theme].text}`}>
+                      {formatCurrency(calculateTotalProfit(currentStockPrice), currencyConfig)}
+                    </p>
+                    <p className={`text-sm ${themes[theme].text} opacity-75`}>当前盈亏</p>
+                  </div>
+                  <div className="text-center">
+                    <p className={`text-lg font-semibold ${themes[theme].text}`}>
+                      {formatCurrency(calculateTotalProfit(currentStockPrice * 1.1), currencyConfig)}
+                    </p>
+                    <p className={`text-sm ${themes[theme].text} opacity-75`}>股价上涨10%</p>
+                  </div>
+                  <div className="text-center">
+                    <p className={`text-lg font-semibold ${themes[theme].text}`}>
+                      {formatCurrency(calculateTotalProfit(currentStockPrice * 0.9), currencyConfig)}
+                    </p>
+                    <p className={`text-sm ${themes[theme].text} opacity-75`}>股价下跌10%</p>
                   </div>
                 </div>
               </div>
             </div>
           )}
         </div>
-
-        {showCalculatorModal && (
-          <OptionsCalculatorModal
-            theme={theme}
-            onClose={() => setShowCalculatorModal(false)}
-          />
-        )}
       </div>
+
+      {/* 期权计算器弹窗 */}
+      {showCalculatorModal && (
+        <OptionsCalculatorModal
+          theme={theme}
+          optionsData={optionsData}
+          selectedSymbol={selectedSymbol}
+          onClose={() => setShowCalculatorModal(false)}
+        />
+      )}
     </div>
   );
 }

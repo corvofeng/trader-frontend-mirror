@@ -60,41 +60,6 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
   const [strategyName, setStrategyName] = useState('');
   const [savedStrategies, setSavedStrategies] = useState<Strategy[]>([]);
 
-  // 计算当前股价（基于期权内在价值）
-  const calculateCurrentStockPrice = (): number => {
-    if (!optionsData || optionsData.quotes.length === 0) return 450;
-    
-    // 找到时间价值最大的期权合约（平值合约）
-    let maxTimeValue = 0;
-    let atmQuote = optionsData.quotes[0];
-    
-    optionsData.quotes.forEach(quote => {
-      const callTimeValue = quote.callTimeValue || 0;
-      const putTimeValue = quote.putTimeValue || 0;
-      const totalTimeValue = callTimeValue + putTimeValue;
-      
-      if (totalTimeValue > maxTimeValue) {
-        maxTimeValue = totalTimeValue;
-        atmQuote = quote;
-      }
-    });
-    
-    // 基于Call期权的内在价值和行权价计算股价
-    // 股价 = 行权价 + Call内在价值
-    const callIntrinsicValue = atmQuote.callIntrinsicValue || 0;
-    const estimatedStockPrice = atmQuote.strike + (callIntrinsicValue / 100); // 内在价值可能是以分为单位
-    
-    return estimatedStockPrice > 0 ? estimatedStockPrice : atmQuote.strike;
-  };
-
-  // 初始化当前股价
-  React.useEffect(() => {
-    if (optionsData) {
-      const calculatedPrice = calculateCurrentStockPrice();
-      setCurrentStockPrice(calculatedPrice);
-    }
-  }, [optionsData]);
-
   // 从cookie加载保存的策略
   useEffect(() => {
     const savedStrategiesData = document.cookie
@@ -535,7 +500,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
                       <td className={`px-3 py-3 text-center ${themes[theme].text}`}>
                         <button
                           onClick={() => selectOptionFromChain(quote, 'call', 'buy')}
-                          className={`px-2 py-1 rounded text-xs bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900 dark:text-green-100 dark:hover:bg-green-800 font-medium`}
+                          className={`px-2 py-1 rounded text-xs ${themes[theme].secondary} hover:${themes[theme].primary}`}
                         >
                           {formatCurrency(quote.callPrice, currencyConfig)}
                         </button>
@@ -543,7 +508,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
                       <td className={`px-3 py-3 text-center ${themes[theme].text} border-r ${themes[theme].border}`}>
                         <button
                           onClick={() => selectOptionFromChain(quote, 'call', 'sell')}
-                          className={`px-2 py-1 rounded text-xs bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-900 dark:text-red-100 dark:hover:bg-red-800 font-medium`}
+                          className={`px-2 py-1 rounded text-xs ${themes[theme].secondary} hover:${themes[theme].primary}`}
                         >
                           {formatCurrency(quote.callPrice, currencyConfig)}
                         </button>
@@ -558,7 +523,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
                       <td className={`px-3 py-3 text-center ${themes[theme].text} border-l ${themes[theme].border}`}>
                         <button
                           onClick={() => selectOptionFromChain(quote, 'put', 'buy')}
-                          className={`px-2 py-1 rounded text-xs bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900 dark:text-green-100 dark:hover:bg-green-800 font-medium`}
+                          className={`px-2 py-1 rounded text-xs ${themes[theme].secondary} hover:${themes[theme].primary}`}
                         >
                           {formatCurrency(quote.putPrice, currencyConfig)}
                         </button>
@@ -566,7 +531,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
                       <td className={`px-3 py-3 text-center ${themes[theme].text}`}>
                         <button
                           onClick={() => selectOptionFromChain(quote, 'put', 'sell')}
-                          className={`px-2 py-1 rounded text-xs bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-900 dark:text-red-100 dark:hover:bg-red-800 font-medium`}
+                          className={`px-2 py-1 rounded text-xs ${themes[theme].secondary} hover:${themes[theme].primary}`}
                         >
                           {formatCurrency(quote.putPrice, currencyConfig)}
                         </button>
