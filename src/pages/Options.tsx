@@ -38,6 +38,26 @@ interface CashPosition {
   interestRate: number;
 }
 
+interface OptionsData {
+  quotes: OptionQuote[];
+  surface: any[];
+}
+
+interface OptionQuote {
+  strike: number;
+  expiry: string;
+  callPrice: number;
+  putPrice: number;
+  callImpliedVol: number;
+  putImpliedVol: number;
+  callTimeValue?: number;
+  putTimeValue?: number;
+  callIntrinsicValue?: number;
+  putIntrinsicValue?: number;
+  callUrl?: string;
+  putUrl?: string;
+}
+
 export function Options({ theme }: OptionsProps) {
   const surfaceChartRef = useRef<HTMLDivElement>(null);
   const timeValueChartRef = useRef<HTMLDivElement>(null);
@@ -804,8 +824,21 @@ export function Options({ theme }: OptionsProps) {
                   <div>
                     <label className={`block text-sm font-medium ${themes[theme].text} mb-2`}>
                       当前股价
-        />
-      )}
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {showCalculatorModal && (
+          <OptionsCalculatorModal
+            theme={theme}
+            onClose={() => setShowCalculatorModal(false)}
+          />
+        )}
+      </div>
     </div>
   );
 }
