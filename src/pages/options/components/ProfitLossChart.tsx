@@ -344,6 +344,20 @@ export function ProfitLossChart({ theme, positions, currentPrice }: ProfitLossCh
           }
         }
       },
+      dataZoom: [
+        {
+          type: 'inside',
+          start: 50,
+          end: 100
+        },
+        {
+          show: true,
+          type: 'slider',
+          top: '90%',
+          start: 50,
+          end: 100
+        }
+      ],
       series: [
         {
           name: '盈亏',
