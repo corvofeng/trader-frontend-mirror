@@ -885,7 +885,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
                   borderWidth: 2
                 },
                 label: {
-                  show: true,
+                  show: false,
                   position: calculateTotalProfit(currentStockPrice) >= 0 ? 'top' : 'bottom',
                   formatter: () => {
                     return `当前股价\n${formatCurrency(currentStockPrice, currencyConfig)}\n${calculateTotalProfit(currentStockPrice) >= 0 ? '+' : ''}${formatCurrency(calculateTotalProfit(currentStockPrice), currencyConfig)}`;
