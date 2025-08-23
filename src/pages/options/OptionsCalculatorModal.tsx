@@ -707,13 +707,34 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
           color: isDark ? '#e5e7eb' : '#111827'
         },
         formatter: (params: any) => {
-          const [price, profit] = params.data;
-          // 确保数值有效
-          if (isNaN(price) || isNaN(profit)) {
-            return '数据无效';
+          // 确保params是有效的对象且包含必要的数据
+          if (!params || typeof params !== 'object') {
+            return '';
           }
-          return `股价: ${formatCurrency(price, currencyConfig)}<br/>
-                  盈亏: ${profit >= 0 ? '+' : ''}${formatCurrency(profit, currencyConfig)}`;
+          
+          // 如果params是数组，取第一个元素
+          const param = Array.isArray(params) ? params[0] : params;
+          if (!param || !param.data) {
+            return '';
+          }
+          
+          const [price, profit] = param.data;
+          if (typeof price !== 'number' || typeof profit !== 'number') {
+            return '';
+          }
+          
+          const formattedPrice = formatCurrency(price, currencyConfig);
+          const formattedProfit = formatCurrency(Math.abs(profit), currencyConfig);
+          const profitSign = profit >= 0 ? '+' : '-';
+          
+          return `
+            <div style="font-size: 14px;">
+              <div style="font-weight: bold; margin-bottom: 4px;">股价: ${formattedPrice}</div>
+              <div style="color: ${profit >= 0 ? regionalColors.upColor : regionalColors.downColor}; font-weight: bold;">
+                盈亏: ${profitSign}${formattedProfit}
+              </div>
+            </div>
+          `;
         }
       },
       grid: {
