@@ -707,31 +707,26 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
           color: isDark ? '#e5e7eb' : '#111827'
         },
         formatter: (params: any) => {
-          // 确保params是有效的对象且包含必要的数据
-          if (!params || typeof params !== 'object') {
-            return '';
-          }
+          // 确保params是数组格式
+          const dataParams = Array.isArray(params) ? params : [params];
+          const param = dataParams[0];
           
-          // 如果params是数组，取第一个元素
-          const param = Array.isArray(params) ? params[0] : params;
-          if (!param || !param.data) {
-            return '';
-          }
+          if (!param || !param.data) return '';
           
           const [price, profit] = param.data;
-          if (typeof price !== 'number' || typeof profit !== 'number') {
+          if (typeof price !== 'number' || typeof profit !== 'number') return '';
+          
+          // 只有当存在有效仓位且有非零数据时才显示tooltip
+          if (!hasValidPositions || (profit === 0 && price === currentPrice)) {
             return '';
           }
-          
-          const formattedPrice = formatCurrency(price, currencyConfig);
-          const formattedProfit = formatCurrency(Math.abs(profit), currencyConfig);
-          const profitSign = profit >= 0 ? '+' : '-';
-          
+
           return `
-            <div style="font-size: 14px;">
-              <div style="font-weight: bold; margin-bottom: 4px;">股价: ${formattedPrice}</div>
-              <div style="color: ${profit >= 0 ? themedColors.chart.upColor : themedColors.chart.downColor}; font-weight: bold;">
-                盈亏: ${profitSign}${formattedProfit}
+            <div style="padding: 8px;">
+              <div style="font-weight: bold; margin-bottom: 4px;">盈亏详情</div>
+              <div>股价: ${formatCurrency(price, currencyConfig)}</div>
+              <div style="color: ${profit >= 0 ? regionalColors.upColor : regionalColors.downColor}">
+                盈亏: ${profit >= 0 ? '+' : ''}${formatCurrency(Math.abs(profit), currencyConfig)}
               </div>
             </div>
           `;
