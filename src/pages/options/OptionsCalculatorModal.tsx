@@ -49,6 +49,7 @@ interface Strategy {
 export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onClose }: OptionsCalculatorModalProps) {
   const profitChartRef = useRef<HTMLDivElement>(null);
   const profitChartInstance = useRef<echarts.ECharts | null>(null);
+  const isMountedRef = useRef(true);
   const { getThemedColors, currencyConfig } = useCurrency();
   
   const [optionPositions, setOptionPositions] = useState<OptionPosition[]>([]);
@@ -745,14 +746,13 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
               {
                 yAxis: 0,
                 lineStyle: {
-                  color: isDark ? '#6b7280' : '#9ca3af',
+                  color: '#f59e0b',
                   type: 'dashed',
                   width: 2
                 },
                 label: {
                   formatter: '盈亏平衡线',
-                  color: isDark ? '#e5e7eb' : '#111827',
-                  fontSize: 12
+                  color: isDark ? '#e5e7eb' : '#111827'
                 }
               }
             ]
@@ -762,28 +762,13 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
               coord: [point.price, point.profit],
               name: point.label,
               itemStyle: {
-                color: point.color,
-                borderColor: '#ffffff',
-                borderWidth: 2
+                color: point.color
               },
               label: {
-                show: true,
-                position: point.profit >= 0 ? 'top' : 'bottom',
-                formatter: (params: any) => {
-                  const profit = params.data.coord[1];
-                  return `${params.name}\n${profit >= 0 ? '+' : ''}${formatCurrency(profit, currencyConfig)}`;
-                },
+                formatter: `{b}\n${formatCurrency(point.price, currencyConfig)}\n${formatCurrency(point.profit, currencyConfig)}`,
                 color: isDark ? '#e5e7eb' : '#111827',
-                fontSize: 10,
-                fontWeight: 'bold',
-                backgroundColor: isDark ? 'rgba(55, 65, 81, 0.9)' : 'rgba(255, 255, 255, 0.9)',
-                borderColor: point.color,
-                borderWidth: 1,
-                borderRadius: 4,
-                padding: [4, 8]
-              },
-              symbol: 'circle',
-              symbolSize: 8
+                fontSize: 10
+              }
             }))
           }
         }
@@ -794,7 +779,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
     
     // 设置初始视图居中显示当前股价
     setTimeout(() => {
-      if (chart) {
+      if (chart && isMountedRef.current) {
         try {
           // 计算当前股价在数据中的位置百分比
           const currentPriceIndex = priceRange.findIndex(price => price >= currentStockPrice);
