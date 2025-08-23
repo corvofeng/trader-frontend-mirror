@@ -740,15 +740,61 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
           emphasis: {
             focus: 'series'
           },
+          markLine: {
+            data: [
+              {
+                yAxis: 0,
+                lineStyle: {
+                  color: isDark ? '#6b7280' : '#9ca3af',
+                  type: 'dashed',
+                  width: 2
+                },
+                label: {
                   formatter: '盈亏平衡线',
                   color: isDark ? '#e5e7eb' : '#111827',
+                  fontSize: 12
+                }
+              }
+            ]
+          },
+          markPoint: {
+            data: keyPoints.map(point => ({
+              coord: [point.price, point.profit],
+              name: point.label,
+              itemStyle: {
+                color: point.color,
+                borderColor: '#ffffff',
+                borderWidth: 2
+              },
+              label: {
+                show: true,
+                position: point.profit >= 0 ? 'top' : 'bottom',
+                formatter: (params: any) => {
+                  const profit = params.data.coord[1];
+                  return `${params.name}\n${profit >= 0 ? '+' : ''}${formatCurrency(profit, currencyConfig)}`;
+                },
+                color: isDark ? '#e5e7eb' : '#111827',
+                fontSize: 10,
+                fontWeight: 'bold',
+                backgroundColor: isDark ? 'rgba(55, 65, 81, 0.9)' : 'rgba(255, 255, 255, 0.9)',
+                borderColor: point.color,
+                borderWidth: 1,
+                borderRadius: 4,
+                padding: [4, 8]
+              },
+              symbol: 'circle',
+              symbolSize: 8
+            }))
+          }
+        }
+      ]
     };
     
     chart.setOption(option);
     
     // 设置初始视图居中显示当前股价
     setTimeout(() => {
-      if (chart && isMountedRef.current) {
+      if (chart) {
         try {
           // 计算当前股价在数据中的位置百分比
           const currentPriceIndex = priceRange.findIndex(price => price >= currentStockPrice);
