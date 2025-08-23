@@ -725,6 +725,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
       },
       dataZoom: [
         {
+          type: 'inside',
           start: 25,
           end: 75,
           zoomOnMouseWheel: true,
@@ -808,9 +809,14 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
           name: '盈亏',
           type: 'line',
           data: filteredData,
+          symbol: hasValidPositions && hasNonZeroData ? 'circle' : 'none',
+          symbolSize: 4,
           lineStyle: {
             color: themedColors.chart.upColor,
             width: 3
+          },
+          itemStyle: {
+            color: themedColors.chart.upColor
           },
           areaStyle: {
             color: {
@@ -835,6 +841,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
             focus: 'series'
           },
           markLine: {
+            silent: true,
             data: [
               {
                 yAxis: 0,
@@ -851,45 +858,141 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
               }
             ]
           },
-          markPoint: {
-            data: markers,
+          markPoint: hasValidPositions && hasNonZeroData ? {
+            data: [
+              // 当前股价点
+              {
+                coord: [currentStockPrice, calculateTotalProfit(currentStockPrice)],
+                name: '当前股价',
+                itemStyle: { 
+                  color: '#ef4444',
+                  borderColor: '#ffffff',
+                  borderWidth: 2
+                },
+                label: {
+                  show: true,
+                  position: calculateTotalProfit(currentStockPrice) >= 0 ? 'top' : 'bottom',
+                  formatter: () => {
+                    const profit = calculateTotalProfit(currentStockPrice);
+                    return `当前股价\n${formatCurrency(currentStockPrice, currencyConfig)}\n${profit >= 0 ? '+' : ''}${formatCurrency(profit, currencyConfig)}`;
+                  },
+                  color: isDark ? '#e5e7eb' : '#111827',
+                  fontSize: 11,
+                  fontWeight: 'bold',
+                  backgroundColor: isDark ? '#374151dd' : '#ffffffdd',
+                  borderColor: '#ef4444',
+                  borderWidth: 1,
+                  borderRadius: 4,
+                  padding: [4, 8]
+                }
+              },
+              // 行权价点
+              ...Array.from(new Set(optionPositions.map(p => p.strike)))
+                .filter(strike => strike && !isNaN(strike) && strike > 0)
+                .map(strike => {
+                  const profit = calculateTotalProfit(strike);
+                  return {
+                    coord: [strike, profit],
+                    name: `行权价${formatCurrency(strike, currencyConfig)}`,
+                    itemStyle: { 
+                      color: '#9333ea',
+                      borderColor: '#ffffff',
+                      borderWidth: 2
+                    },
+                    label: {
+                      show: true,
+                      position: profit >= 0 ? 'top' : 'bottom',
+                      formatter: () => {
+                        return `行权价\n${formatCurrency(strike, currencyConfig)}\n${profit >= 0 ? '+' : ''}${formatCurrency(profit, currencyConfig)}`;
+                      },
+                      color: isDark ? '#e5e7eb' : '#111827',
+                      fontSize: 10,
+                      fontWeight: 'bold',
+                      backgroundColor: isDark ? '#374151dd' : '#ffffffdd',
+                      borderColor: '#9333ea',
+                      borderWidth: 1,
+                      borderRadius: 4,
+                      padding: [4, 8]
+                    }
+                  };
+                }),
+              // 盈亏平衡点
+              ...breakEvenPoints.map((point, index) => ({
+                coord: [point.price, 0],
+                name: `盈亏平衡点${index + 1}`,
+                itemStyle: { 
+                  color: '#f59e0b',
+                  borderColor: '#ffffff',
+                  borderWidth: 2
+                },
+                label: {
+                  show: true,
+                  position: 'top',
+                  formatter: () => {
+                    return `盈亏平衡点\n${formatCurrency(point.price, currencyConfig)}\n${formatCurrency(0, currencyConfig)}`;
+                  },
+                  color: isDark ? '#e5e7eb' : '#111827',
+                  fontSize: 10,
+                  fontWeight: 'bold',
+                  backgroundColor: isDark ? '#374151dd' : '#ffffffdd',
+                  borderColor: '#f59e0b',
+                  borderWidth: 1,
+                  borderRadius: 4,
+                  padding: [4, 8]
+                }
+              })),
+              // 极值点
+              ...extremePoints.map(point => ({
+                coord: [point.price, point.profit],
+                name: point.type === 'max' ? '最大盈利' : '最大亏损',
+                itemStyle: { 
+                  color: point.type === 'max' ? themedColors.chart.upColor : themedColors.chart.downColor,
+                  borderColor: '#ffffff',
+                  borderWidth: 2
+                },
+                label: {
+                  show: true,
+                  position: point.type === 'max' ? 'top' : 'bottom',
+                  formatter: () => {
+                    return `${point.type === 'max' ? '最大盈利' : '最大亏损'}\n${formatCurrency(point.price, currencyConfig)}\n${point.profit >= 0 ? '+' : ''}${formatCurrency(point.profit, currencyConfig)}`;
+                  },
+                  color: isDark ? '#e5e7eb' : '#111827',
+                  fontSize: 10,
+                  fontWeight: 'bold',
+                  backgroundColor: isDark ? '#374151dd' : '#ffffffdd',
+                  borderColor: point.type === 'max' ? themedColors.chart.upColor : themedColors.chart.downColor,
+                  borderWidth: 1,
+                  borderRadius: 4,
+                  padding: [4, 8]
+                }
+              }))
+            ],
             symbol: 'circle',
-            symbolSize: 8,
-            label: {
-              show: true,
-              fontSize: 10,
-              fontWeight: 'bold'
-            }
-          }
+            symbolSize: 8
+          } : undefined
         }
       ]
     };
     
     chart.setOption(option);
     
-    // 设置初始视图居中显示当前股价
-    setTimeout(() => {
-      if (chart && isMountedRef.current) {
-        try {
-          // 计算当前股价在数据中的位置百分比
-          const currentPriceIndex = priceRange.findIndex(price => price >= currentStockPrice);
-          const centerPercentage = currentPriceIndex > 0 ? (currentPriceIndex / priceRange.length) * 100 : 50;
-          
-          // 设置缩放范围，以当前股价为中心
-          const zoomRange = 30; // 显示范围的一半
-          const startPercent = Math.max(0, centerPercentage - zoomRange);
-          const endPercent = Math.min(100, centerPercentage + zoomRange);
-          
-          chart.dispatchAction({
-            type: 'dataZoom',
-            start: startPercent,
-            end: endPercent
-          });
-        } catch (e) {
-          console.error('Error setting initial zoom:', e);
+    // 设置初始视图居中显示当前股价（只有在有数据时）
+    if (hasValidPositions && hasNonZeroData) {
+      setTimeout(() => {
+        if (chart && isMountedRef.current) {
+          try {
+            // 设置缩放范围，以当前股价为中心显示±25%
+            chart.dispatchAction({
+              type: 'dataZoom',
+              start: 25,
+              end: 75
+            });
+          } catch (e) {
+            console.error('Error setting initial zoom:', e);
+          }
         }
-      }
-    }, 100);
+      }, 100);
+    }
     
     const handleResize = () => {
       if (profitChartInstance.current) {
