@@ -707,9 +707,9 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
           color: isDark ? '#e5e7eb' : '#111827'
         },
         formatter: (params: any) => {
-          // 确保params是数组格式
-          const dataParams = Array.isArray(params) ? params : [params];
-          const param = dataParams[0];
+          // 将params转换为数组格式以避免迭代错误
+          const paramsArray = Array.isArray(params) ? params : [params];
+          const param = paramsArray[0];
           
           if (!param || !param.data) return '';
           
