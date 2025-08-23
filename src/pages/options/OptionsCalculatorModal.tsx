@@ -325,7 +325,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
 
     const strategy: Strategy = {
       name: strategyName,
-    const { data: profitLossData, markers } = generateProfitLossData();
+      optionPositions,
       stockPositions,
       cashPositions,
       currentStockPrice,
@@ -603,16 +603,6 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
       });
     }
     
-    // 计算显示范围，以当前股价为中心
-    const range = currentStockPrice * 0.3; // 显示±30%范围
-    const minDisplayPrice = currentStockPrice - range;
-    const maxDisplayPrice = currentStockPrice + range;
-    
-    // 过滤数据到显示范围内
-    const filteredData = profitLossData.filter(([price, _]) => 
-      price >= minDisplayPrice && price <= maxDisplayPrice
-    );
-
     const option = {
       title: {
         text: `${selectedSymbol} 期权策略盈亏图`,
@@ -648,42 +638,6 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
           xAxisIndex: 0,
           start: 20,
           end: 80,
-      dataZoom: [
-        {
-          type: 'slider',
-          show: true,
-          xAxisIndex: 0,
-          start: 0,
-          end: 100,
-          height: 30,
-          bottom: 60,
-          handleStyle: {
-            color: isDark ? '#4b5563' : '#d1d5db'
-          },
-          textStyle: {
-            color: isDark ? '#e5e7eb' : '#111827'
-          },
-          borderColor: isDark ? '#4b5563' : '#d1d5db',
-          fillerColor: isDark ? '#374151' : '#f3f4f6',
-          dataBackground: {
-            lineStyle: {
-              color: isDark ? '#6b7280' : '#9ca3af'
-            },
-            areaStyle: {
-              color: isDark ? '#374151' : '#f9fafb'
-            }
-          }
-        },
-        {
-          type: 'inside',
-          xAxisIndex: 0,
-          start: 0,
-          end: 100,
-          zoomOnMouseWheel: true,
-          moveOnMouseMove: true,
-          moveOnMouseWheel: false
-        }
-      ],
           zoomOnMouseWheel: true,
           moveOnMouseMove: true,
           moveOnMouseWheel: true
@@ -712,8 +666,6 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
       xAxis: {
         type: 'value',
         name: '股价',
-        min: minDisplayPrice,
-        max: maxDisplayPrice,
         nameLocation: 'middle',
         nameGap: 30,
         axisLabel: {
@@ -765,7 +717,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
           lineStyle: {
             color: themedColors.chart.upColor,
             width: 3
-          data: filteredData,
+          },
           areaStyle: {
             color: {
               type: 'linear',
@@ -785,67 +737,11 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
               ]
             }
           },
-          markPoint: {
-            data: markers,
-            symbol: 'circle',
-            symbolSize: 8,
-            label: {
-              show: true,
-              fontSize: 10,
-              fontWeight: 'bold'
-            }
-          }
           emphasis: {
             focus: 'series'
           },
-          markLine: {
-            data: [
-              {
-                yAxis: 0,
-                lineStyle: {
-                  color: isDark ? '#6b7280' : '#9ca3af',
-                  type: 'dashed',
-                  width: 2
-                },
-                label: {
                   formatter: '盈亏平衡线',
                   color: isDark ? '#e5e7eb' : '#111827',
-                  fontSize: 12
-                }
-              }
-            ]
-          },
-          markPoint: {
-            data: keyPoints.map(point => ({
-              coord: [point.price, point.profit],
-              name: point.label,
-              itemStyle: {
-                color: point.color,
-                borderColor: '#ffffff',
-                borderWidth: 2
-              },
-              label: {
-                show: true,
-                position: point.profit >= 0 ? 'top' : 'bottom',
-                formatter: (params: any) => {
-                  const profit = params.data.coord[1];
-                  return `${params.name}\n${profit >= 0 ? '+' : ''}${formatCurrency(profit, currencyConfig)}`;
-                },
-                color: isDark ? '#e5e7eb' : '#111827',
-                fontSize: 10,
-                fontWeight: 'bold',
-                backgroundColor: isDark ? 'rgba(55, 65, 81, 0.9)' : 'rgba(255, 255, 255, 0.9)',
-                borderColor: point.color,
-                borderWidth: 1,
-                borderRadius: 4,
-                padding: [4, 8]
-              },
-              symbol: 'circle',
-              symbolSize: 8
-            }))
-          }
-        }
-      ]
     };
     
     chart.setOption(option);
