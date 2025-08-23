@@ -976,23 +976,29 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
     
     chart.setOption(option);
     
-    // 设置初始视图居中显示当前股价（只有在有数据时）
-    if (hasValidPositions && hasNonZeroData) {
-      setTimeout(() => {
-        if (chart && isMountedRef.current) {
-          try {
-            // 设置缩放范围，以当前股价为中心显示±25%
-            chart.dispatchAction({
-              type: 'dataZoom',
-              start: 25,
-              end: 75
-            });
-          } catch (e) {
-            console.error('Error setting initial zoom:', e);
-          }
+    // 设置初始视图居中显示当前股价
+    setTimeout(() => {
+      if (chart && isMountedRef.current) {
+        try {
+          // 计算当前股价在数据中的位置百分比
+          const currentPriceIndex = priceRange.findIndex(price => price >= currentStockPrice);
+          const centerPercentage = currentPriceIndex > 0 ? (currentPriceIndex / priceRange.length) * 100 : 50;
+          
+          // 设置缩放范围，以当前股价为中心
+          const zoomRange = 30; // 显示范围的一半
+          const startPercent = Math.max(0, centerPercentage - zoomRange);
+          const endPercent = Math.min(100, centerPercentage + zoomRange);
+          
+          chart.dispatchAction({
+            type: 'dataZoom',
+            start: startPercent,
+            end: endPercent
+          });
+        } catch (e) {
+          console.error('Error setting initial zoom:', e);
         }
-      }, 100);
-    }
+      }
+    }, 100);
     
     const handleResize = () => {
       if (profitChartInstance.current) {
