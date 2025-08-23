@@ -792,12 +792,6 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
             focus: 'series'
           },
           markLine: {
-            silent: true,
-            lineStyle: {
-              color: isDark ? '#6b7280' : '#9ca3af',
-              type: 'dashed',
-              width: 2
-            },
             data: [
               {
                 yAxis: 0,
