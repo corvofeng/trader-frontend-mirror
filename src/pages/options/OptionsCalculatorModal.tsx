@@ -680,7 +680,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
           start: 0,
           end: 100,
           height: 30,
-            bottom: '25%',
+          bottom: '25%',
           handleStyle: {
             color: isDark ? '#4b5563' : '#d1d5db'
           },
