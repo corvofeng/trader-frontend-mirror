@@ -874,7 +874,10 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
                 label: {
                   formatter: '盈亏平衡线',
                   color: isDark ? '#e5e7eb' : '#111827',
-                  fontSize: 12
+              // 确保params始终是数组
+              const paramsArray = Array.isArray(params) ? params : [params];
+              
+              if (!paramsArray || paramsArray.length === 0) {
                 }
               }
             ]
@@ -1531,7 +1534,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
                 </div>
               </div>
               
-              <div className="p-6">
+              const param = paramsArray[0];
                 <div className="text-center mb-4">
                   <img 
                     src={screenshotDataUrl} 
