@@ -67,7 +67,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
     if (!profitChartInstance.current) return;
     
     try {
-      // 创建包含策略信息的完整截图
+      // 创建包含完整策略信息的高质量截图
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
@@ -373,7 +373,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
       id: Date.now().toString(),
       type: 'call',
       action: 'buy',
-      strike: currentStockPrice,
+      strike: currentStockPrice || 450,
       premium: 10,
       quantity: 1,
       expiry: uniqueExpiryDates[0] || ''
@@ -385,7 +385,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
     const newPosition: StockPosition = {
       id: Date.now().toString(),
       action: 'buy',
-      price: currentStockPrice,
+      price: currentStockPrice || 450,
       quantity: 100
     };
     setStockPositions([...stockPositions, newPosition]);
@@ -435,6 +435,12 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
   // 计算期权到期时的盈亏
   const calculateOptionProfit = (position: OptionPosition, stockPrice: number): number => {
     const { type, action, strike, premium, quantity } = position;
+    
+    // 验证输入参数
+    if (!strike || !premium || !quantity || isNaN(strike) || isNaN(premium) || isNaN(quantity)) {
+      return 0;
+    }
+    
     let optionValue = 0;
     
     if (type === 'call') {
@@ -452,18 +458,34 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
   // 计算股票盈亏
   const calculateStockProfit = (position: StockPosition, stockPrice: number): number => {
     const { action, price, quantity } = position;
+    
+    // 验证输入参数
+    if (!price || !quantity || isNaN(price) || isNaN(quantity)) {
+      return 0;
+    }
+    
     const multiplier = action === 'buy' ? 1 : -1;
     return (stockPrice - price) * multiplier * quantity;
   };
 
   // 计算现金/保证金收益
   const calculateCashProfit = (position: CashPosition): number => {
+    // 验证输入参数
+    if (!position.amount || !position.interestRate || isNaN(position.amount) || isNaN(position.interestRate)) {
+      return 0;
+    }
+    
     // 简化计算，假设年化利率
     return position.amount * (position.interestRate / 100) * (30 / 365); // 假设30天
   };
 
   // 计算总盈亏
   const calculateTotalProfit = (stockPrice: number): number => {
+    // 验证股价输入
+    if (!stockPrice || isNaN(stockPrice) || stockPrice <= 0) {
+      return 0;
+    }
+    
     let total = 0;
     
     optionPositions.forEach(pos => {
@@ -495,9 +517,14 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
     const isDark = theme === 'dark';
     const themedColors = getThemedColors(theme);
     
-    // 生成股价范围数据
-    const minPrice = currentStockPrice * 0.7;
-    const maxPrice = currentStockPrice * 1.3;
+    // 验证当前股价
+    if (!currentStockPrice || isNaN(currentStockPrice) || currentStockPrice <= 0) {
+      return;
+    }
+    
+    // 生成股价范围数据 - 扩大范围以便更好地观察策略
+    const minPrice = currentStockPrice * 0.5;
+    const maxPrice = currentStockPrice * 1.5;
     const priceStep = (maxPrice - minPrice) / 100;
     
     const priceRange: number[] = [];
@@ -505,7 +532,8 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
     
     for (let price = minPrice; price <= maxPrice; price += priceStep) {
       priceRange.push(price);
-      profitData.push(calculateTotalProfit(price));
+      const profit = calculateTotalProfit(price);
+      profitData.push(isNaN(profit) ? 0 : profit);
     }
     
     // 找到盈亏平衡点
@@ -527,6 +555,11 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
       },
       tooltip: {
         trigger: 'axis',
+        backgroundColor: isDark ? '#374151' : '#ffffff',
+        borderColor: isDark ? '#4b5563' : '#e5e7eb',
+        textStyle: {
+          color: isDark ? '#e5e7eb' : '#111827'
+        },
         formatter: (params: any) => {
           const price = params[0].axisValue;
           const profit = params[0].value;
@@ -538,7 +571,39 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
         left: '10%',
         right: '10%',
         bottom: '15%',
-        top: '15%'
+        top: '15%',
+        containLabel: true
+      },
+      dataZoom: [
+        {
+          type: 'inside',
+          xAxisIndex: 0,
+          start: 20,
+          end: 80,
+          zoomOnMouseWheel: true,
+          moveOnMouseMove: true,
+          moveOnMouseWheel: true
+        },
+        {
+          type: 'slider',
+          xAxisIndex: 0,
+          start: 20,
+          end: 80,
+          height: 20,
+          bottom: 40,
+          handleStyle: {
+            color: themedColors.chart.upColor
+          },
+          textStyle: {
+            color: isDark ? '#e5e7eb' : '#111827'
+          },
+          borderColor: isDark ? '#4b5563' : '#e5e7eb',
+          fillerColor: themedColors.chart.upColor + '40'
+        }
+      ],
+      brush: {
+        toolbox: ['rect', 'polygon', 'lineX', 'lineY', 'keep', 'clear'],
+        xAxisIndex: 0
       },
       xAxis: {
         type: 'value',
@@ -551,6 +616,16 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
         },
         nameTextStyle: {
           color: isDark ? '#e5e7eb' : '#111827'
+        },
+        axisLine: {
+          lineStyle: {
+            color: isDark ? '#4b5563' : '#d1d5db'
+          }
+        },
+        splitLine: {
+          lineStyle: {
+            color: isDark ? '#374151' : '#f3f4f6'
+          }
         }
       },
       yAxis: {
@@ -564,6 +639,11 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
         },
         nameTextStyle: {
           color: isDark ? '#e5e7eb' : '#111827'
+        },
+        axisLine: {
+          lineStyle: {
+            color: isDark ? '#4b5563' : '#d1d5db'
+          }
         },
         splitLine: {
           lineStyle: {
@@ -599,6 +679,9 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
               ]
             }
           },
+          emphasis: {
+            focus: 'series'
+          },
           markLine: {
             data: [
               {
@@ -608,7 +691,8 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
                   type: 'dashed'
                 },
                 label: {
-                  formatter: '盈亏平衡线'
+                  formatter: '盈亏平衡线',
+                  color: isDark ? '#e5e7eb' : '#111827'
                 }
               },
               {
@@ -618,7 +702,8 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
                   type: 'dashed'
                 },
                 label: {
-                  formatter: '当前股价'
+                  formatter: '当前股价',
+                  color: isDark ? '#e5e7eb' : '#111827'
                 }
               }
             ]
@@ -628,6 +713,30 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
     };
     
     chart.setOption(option);
+    
+    // 设置初始视图居中显示当前股价
+    setTimeout(() => {
+      if (chart && !isDisposed.current) {
+        try {
+          // 计算当前股价在数据中的位置百分比
+          const currentPriceIndex = priceRange.findIndex(price => price >= currentStockPrice);
+          const centerPercentage = currentPriceIndex > 0 ? (currentPriceIndex / priceRange.length) * 100 : 50;
+          
+          // 设置缩放范围，以当前股价为中心
+          const zoomRange = 30; // 显示范围的一半
+          const startPercent = Math.max(0, centerPercentage - zoomRange);
+          const endPercent = Math.min(100, centerPercentage + zoomRange);
+          
+          chart.dispatchAction({
+            type: 'dataZoom',
+            start: startPercent,
+            end: endPercent
+          });
+        } catch (e) {
+          console.error('Error setting initial zoom:', e);
+        }
+      }
+    }, 100);
     
     const handleResize = () => {
       if (profitChartInstance.current) {
@@ -926,7 +1035,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
                     <input
                       type="number"
                       placeholder="行权价"
-                      value={position.strike}
+                      value={position.strike || ''}
                       onChange={(e) => updateOptionPosition(position.id, 'strike', Number(e.target.value))}
                       className={`px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
                       step="0.01"
@@ -934,7 +1043,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
                     <input
                       type="number"
                       placeholder="权利金"
-                      value={position.premium}
+                      value={position.premium || ''}
                       onChange={(e) => updateOptionPosition(position.id, 'premium', Number(e.target.value))}
                       className={`px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
                       step="0.01"
@@ -942,7 +1051,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
                     <input
                       type="number"
                       placeholder="数量"
-                      value={position.quantity}
+                      value={position.quantity || ''}
                       onChange={(e) => updateOptionPosition(position.id, 'quantity', Number(e.target.value))}
                       className={`px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
                     />
@@ -1007,7 +1116,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
                     <input
                       type="number"
                       placeholder="成本价"
-                      value={position.price}
+                      value={position.price || ''}
                       onChange={(e) => updateStockPosition(position.id, 'price', Number(e.target.value))}
                       className={`px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
                       step="0.01"
@@ -1015,7 +1124,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
                     <input
                       type="number"
                       placeholder="数量"
-                      value={position.quantity}
+                      value={position.quantity || ''}
                       onChange={(e) => updateStockPosition(position.id, 'quantity', Number(e.target.value))}
                       className={`px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
                     />
@@ -1050,14 +1159,14 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
                     <input
                       type="number"
                       placeholder="金额"
-                      value={position.amount}
+                      value={position.amount || ''}
                       onChange={(e) => updateCashPosition(position.id, 'amount', Number(e.target.value))}
                       className={`px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
                     />
                     <input
                       type="number"
                       placeholder="年化利率(%)"
-                      value={position.interestRate}
+                      value={position.interestRate || ''}
                       onChange={(e) => updateCashPosition(position.id, 'interestRate', Number(e.target.value))}
                       className={`px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
                       step="0.1"
@@ -1089,7 +1198,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
                 </button>
               </div>
             </div>
-            <div ref={profitChartRef} style={{ height: '400px' }} />
+            <div ref={profitChartRef} style={{ height: '500px' }} />
           </div>
 
           {/* 策略摘要 */}
@@ -1098,19 +1207,19 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="text-center">
                 <p className={`text-lg font-semibold ${themes[theme].text}`}>
-                  {formatCurrency(calculateTotalProfit(currentStockPrice), currencyConfig)}
+                  {formatCurrency(calculateTotalProfit(currentStockPrice || 450), currencyConfig)}
                 </p>
                 <p className={`text-sm ${themes[theme].text} opacity-75`}>当前盈亏</p>
               </div>
               <div className="text-center">
                 <p className={`text-lg font-semibold ${themes[theme].text}`}>
-                  {formatCurrency(calculateTotalProfit(currentStockPrice * 1.1), currencyConfig)}
+                  {formatCurrency(calculateTotalProfit((currentStockPrice || 450) * 1.1), currencyConfig)}
                 </p>
                 <p className={`text-sm ${themes[theme].text} opacity-75`}>股价上涨10%</p>
               </div>
               <div className="text-center">
                 <p className={`text-lg font-semibold ${themes[theme].text}`}>
-                  {formatCurrency(calculateTotalProfit(currentStockPrice * 0.9), currencyConfig)}
+                  {formatCurrency(calculateTotalProfit((currentStockPrice || 450) * 0.9), currencyConfig)}
                 </p>
                 <p className={`text-sm ${themes[theme].text} opacity-75`}>股价下跌10%</p>
               </div>
