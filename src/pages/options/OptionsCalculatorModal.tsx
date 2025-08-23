@@ -791,23 +791,11 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
           emphasis: {
             focus: 'series'
           },
-              bottom: '8%',
+          markLine: {
             data: [
-              markPoint: {
-                data: getKeyPointMarkers(),
-                symbol: 'circle',
-                symbolSize: 8,
-                emphasis: {
-                  scale: 1.2
-                }
-              },
               {
                 yAxis: 0,
                 lineStyle: {
-      
-      // 只有当用户选择了期权或股票时才显示标记
-      const hasPositions = positions.some(pos => pos.quantity !== 0);
-      if (!hasPositions) return [];
                   color: isDark ? '#6b7280' : '#9ca3af',
                   type: 'dashed',
                   width: 2
