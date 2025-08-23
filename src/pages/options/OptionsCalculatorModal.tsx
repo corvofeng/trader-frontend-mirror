@@ -673,40 +673,20 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
         containLabel: true
       },
       dataZoom: [
-        {
-          type: 'slider',
-          show: true,
-          xAxisIndex: 0,
-          start: 0,
-          end: 100,
-          height: 30,
-          bottom: '25%',
-          handleStyle: {
-            color: isDark ? '#4b5563' : '#d1d5db'
-          },
-          textStyle: {
-            color: isDark ? '#e5e7eb' : '#111827'
-          },
-          borderColor: isDark ? '#4b5563' : '#d1d5db',
-          fillerColor: isDark ? '#374151' : '#f3f4f6',
-          dataBackground: {
-            lineStyle: {
-              color: isDark ? '#6b7280' : '#9ca3af'
-            },
-            areaStyle: {
-              color: isDark ? '#374151' : '#f9fafb'
-            }
-          }
-        },
-        {
-          type: 'inside',
-          xAxisIndex: 0,
-          start: 0,
-          end: 100,
-          zoomOnMouseWheel: true,
-          moveOnMouseMove: true,
-          moveOnMouseWheel: false
-        }
+
+            {
+      type: 'inside',
+      start: 50,
+      end: 100
+    },
+    {
+      show: true,
+      type: 'slider',
+      top: '90%',
+      start: 50,
+      end: 100
+    }
+  
       ],
       brush: {
         toolbox: ['rect', 'polygon', 'lineX', 'lineY', 'keep', 'clear'],
