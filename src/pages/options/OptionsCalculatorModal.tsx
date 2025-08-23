@@ -740,33 +740,19 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
         containLabel: true
       },
       dataZoom: [
-        {
-          type: 'inside',
-          start: 25,
-          end: 75,
-          zoomOnMouseWheel: true,
-          moveOnMouseMove: true,
-          moveOnMouseWheel: false
-        },
-        {
-          show: true,
-          type: 'slider',
-          top: '90%',
-          bottom: '5%', // 调整位置避免覆盖
-          height: 20, // 减小高度
-          start: 25,
-          end: 75,
-          handleSize: 15, // 减小手柄大小
-          textStyle: {
-            color: isDark ? '#e5e7eb' : '#111827',
-            fontSize: 10
-          },
-          borderColor: isDark ? '#4b5563' : '#d1d5db',
-          fillerColor: isDark ? '#374151' : '#f3f4f6',
-          handleStyle: {
-            color: isDark ? '#6b7280' : '#9ca3af'
-          }
-        }
+            {
+      type: 'inside',
+      start: 50,
+      end: 100
+    },
+    {
+      show: true,
+      type: 'slider',
+      top: '90%',
+      start: 50,
+      end: 100
+    },
+
       ],
       brush: {
         toolbox: ['rect', 'polygon', 'lineX', 'lineY', 'keep', 'clear'],
