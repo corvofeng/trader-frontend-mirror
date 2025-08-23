@@ -545,6 +545,64 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
       }
     }
     
+    // 计算关键点位的盈亏
+    const currentProfit = calculateTotalProfit(currentStockPrice);
+    const keyPoints = [
+      {
+        price: currentStockPrice,
+        profit: currentProfit,
+        label: '当前股价',
+        color: themedColors.chart.downColor
+      }
+    ];
+    
+    // 添加期权行权价关键点
+    const uniqueStrikes = Array.from(new Set(optionPositions.map(p => p.strike)))
+      .filter(strike => strike && !isNaN(strike) && strike > 0)
+      .sort((a, b) => a - b);
+    
+    uniqueStrikes.forEach(strike => {
+      const profit = calculateTotalProfit(strike);
+      keyPoints.push({
+        price: strike,
+        profit,
+        label: `行权价 ${formatCurrency(strike, currencyConfig)}`,
+        color: '#9333ea'
+      });
+    });
+    
+    // 添加盈亏平衡点
+    breakEvenPoints.forEach((price, index) => {
+      keyPoints.push({
+        price,
+        profit: 0,
+        label: `盈亏平衡点 ${index + 1}`,
+        color: '#f59e0b'
+      });
+    });
+    
+    // 添加最大盈利和最大亏损点
+    const maxProfitIndex = profitData.indexOf(Math.max(...profitData));
+    const minProfitIndex = profitData.indexOf(Math.min(...profitData));
+    
+    if (maxProfitIndex >= 0 && profitData[maxProfitIndex] > 0) {
+      keyPoints.push({
+        price: priceRange[maxProfitIndex],
+        profit: profitData[maxProfitIndex],
+        label: '最大盈利',
+        color: themedColors.chart.upColor
+      });
+    }
+    
+    if (minProfitIndex >= 0 && profitData[minProfitIndex] < 0) {
+      keyPoints.push({
+        price: priceRange[minProfitIndex],
+        profit: profitData[minProfitIndex],
+        label: '最大亏损',
+        color: themedColors.chart.downColor
+      });
+    }
+    
     const option = {
       title: {
         text: `${selectedSymbol} 期权策略盈亏图`,
@@ -688,25 +746,45 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
                 yAxis: 0,
                 lineStyle: {
                   color: isDark ? '#6b7280' : '#9ca3af',
-                  type: 'dashed'
+                  type: 'dashed',
+                  width: 2
                 },
                 label: {
                   formatter: '盈亏平衡线',
-                  color: isDark ? '#e5e7eb' : '#111827'
-                }
-              },
-              {
-                xAxis: currentStockPrice,
-                lineStyle: {
-                  color: themedColors.chart.downColor,
-                  type: 'dashed'
-                },
-                label: {
-                  formatter: '当前股价',
-                  color: isDark ? '#e5e7eb' : '#111827'
+                  color: isDark ? '#e5e7eb' : '#111827',
+                  fontSize: 12
                 }
               }
             ]
+          },
+          markPoint: {
+            data: keyPoints.map(point => ({
+              coord: [point.price, point.profit],
+              name: point.label,
+              itemStyle: {
+                color: point.color,
+                borderColor: '#ffffff',
+                borderWidth: 2
+              },
+              label: {
+                show: true,
+                position: point.profit >= 0 ? 'top' : 'bottom',
+                formatter: (params: any) => {
+                  const profit = params.data.coord[1];
+                  return `${params.name}\n${profit >= 0 ? '+' : ''}${formatCurrency(profit, currencyConfig)}`;
+                },
+                color: isDark ? '#e5e7eb' : '#111827',
+                fontSize: 10,
+                fontWeight: 'bold',
+                backgroundColor: isDark ? 'rgba(55, 65, 81, 0.9)' : 'rgba(255, 255, 255, 0.9)',
+                borderColor: point.color,
+                borderWidth: 1,
+                borderRadius: 4,
+                padding: [4, 8]
+              },
+              symbol: 'circle',
+              symbolSize: 8
+            }))
           }
         }
       ]
@@ -716,7 +794,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
     
     // 设置初始视图居中显示当前股价
     setTimeout(() => {
-      if (chart && !isDisposed.current) {
+      if (chart && isMountedRef.current) {
         try {
           // 计算当前股价在数据中的位置百分比
           const currentPriceIndex = priceRange.findIndex(price => price >= currentStockPrice);
