@@ -764,7 +764,10 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
         {
           name: '盈亏',
           type: 'line',
-          data: filteredData,
+          data: profitLossData.map((value, index) => {
+            // 确保数据有效性
+            return isNaN(value) ? 0 : value;
+          }),
           lineStyle: {
             color: themedColors.chart.upColor,
             width: 3
@@ -811,12 +814,18 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
           markPoint: {
             data: markers,
             symbol: 'circle',
-            symbolSize: 8,
-            label: {
-              show: true,
-              fontSize: 10,
-              fontWeight: 'bold'
-            }
+            data: keyPoints
+              .filter(point => !isNaN(point.price) && !isNaN(point.profit))
+              .map(point => ({
+                coord: [point.price, point.profit],
+                name: point.label,
+                itemStyle: { color: point.color },
+                label: {
+                  show: true,
+                  fontSize: 10,
+                  fontWeight: 'bold'
+                }
+              }))
           }
         }
       ]
@@ -1308,9 +1317,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
                 </button>
               </div>
             </div>
-            <div className="relative">
-              <div ref={profitChartRef} style={{ height: '500px', paddingBottom: '80px' }} />
-            </div>
+            <div ref={profitChartRef} style={{ height: '500px' }} />
           </div>
 
           {/* 策略摘要 */}
