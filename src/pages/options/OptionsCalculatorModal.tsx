@@ -730,7 +730,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
           return `
             <div style="font-size: 14px;">
               <div style="font-weight: bold; margin-bottom: 4px;">股价: ${formattedPrice}</div>
-              <div style="color: ${profit >= 0 ? regionalColors.upColor : regionalColors.downColor}; font-weight: bold;">
+              <div style="color: ${profit >= 0 ? themedColors.chart.upColor : themedColors.chart.downColor}; font-weight: bold;">
                 盈亏: ${profitSign}${formattedProfit}
               </div>
             </div>
@@ -873,11 +873,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
                 },
                 label: {
                   formatter: '盈亏平衡线',
-                  color: isDark ? '#e5e7eb' : '#111827',
-              // 确保params始终是数组
-              const paramsArray = Array.isArray(params) ? params : [params];
-              
-              if (!paramsArray || paramsArray.length === 0) {
+                  color: isDark ? '#e5e7eb' : '#111827'
                 }
               }
             ]
@@ -941,7 +937,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
                   };
                 }),
               // 盈亏平衡点
-              ...breakEvenPoints.map((point, index) => ({
+              ...calculatedBreakEvenPoints.map((point, index) => ({
                 coord: [point.price, 0],
                 name: `盈亏平衡点${index + 1}`,
                 itemStyle: { 
@@ -1534,7 +1530,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
                 </div>
               </div>
               
-              const param = paramsArray[0];
+              <div className="p-6">
                 <div className="text-center mb-4">
                   <img 
                     src={screenshotDataUrl} 
