@@ -63,6 +63,34 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
   const [showScreenshotPreview, setShowScreenshotPreview] = useState(false);
   const [screenshotDataUrl, setScreenshotDataUrl] = useState<string>('');
 
+  // 生成盈亏数据
+  const generateProfitLossData = () => {
+    if (!currentStockPrice || isNaN(currentStockPrice) || currentStockPrice <= 0) {
+      return { data: [], markers: [] };
+    }
+    
+    const minPrice = currentStockPrice * 0.5;
+    const maxPrice = currentStockPrice * 1.5;
+    const priceStep = (maxPrice - minPrice) / 100;
+    
+    const data: [number, number][] = [];
+    const markers: any[] = [];
+    
+    for (let price = minPrice; price <= maxPrice; price += priceStep) {
+      const profit = calculateTotalProfit(price);
+      data.push([price, isNaN(profit) ? 0 : profit]);
+    }
+    
+    // 添加关键点标记
+    markers.push({
+      coord: [currentStockPrice, calculateTotalProfit(currentStockPrice)],
+      name: '当前股价',
+      itemStyle: { color: '#ef4444' }
+    });
+    
+    return { data, markers };
+  };
+
   // 截图功能
   const captureChart = () => {
     if (!profitChartInstance.current) return;
@@ -604,6 +632,17 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
       });
     }
     
+    // 计算显示范围，以当前股价为中心
+    const range = currentStockPrice * 0.3; // 显示±30%范围
+    const minDisplayPrice = currentStockPrice - range;
+    const maxDisplayPrice = currentStockPrice + range;
+    
+    // 过滤数据到显示范围内
+    const { data: profitLossData, markers } = generateProfitLossData();
+    const filteredData = profitLossData.filter(([price, _]) => 
+      price >= minDisplayPrice && price <= maxDisplayPrice
+    );
+
     const option = {
       title: {
         text: `${selectedSymbol} 期权策略盈亏图`,
@@ -635,29 +674,38 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
       },
       dataZoom: [
         {
-          type: 'inside',
-          xAxisIndex: 0,
-          start: 20,
-          end: 80,
-          zoomOnMouseWheel: true,
-          moveOnMouseMove: true,
-          moveOnMouseWheel: true
-        },
-        {
           type: 'slider',
+          show: true,
           xAxisIndex: 0,
-          start: 20,
-          end: 80,
-          height: 20,
-          bottom: 40,
+          start: 0,
+          end: 100,
+          height: 30,
+          bottom: 60,
           handleStyle: {
-            color: themedColors.chart.upColor
+            color: isDark ? '#4b5563' : '#d1d5db'
           },
           textStyle: {
             color: isDark ? '#e5e7eb' : '#111827'
           },
-          borderColor: isDark ? '#4b5563' : '#e5e7eb',
-          fillerColor: themedColors.chart.upColor + '40'
+          borderColor: isDark ? '#4b5563' : '#d1d5db',
+          fillerColor: isDark ? '#374151' : '#f3f4f6',
+          dataBackground: {
+            lineStyle: {
+              color: isDark ? '#6b7280' : '#9ca3af'
+            },
+            areaStyle: {
+              color: isDark ? '#374151' : '#f9fafb'
+            }
+          }
+        },
+        {
+          type: 'inside',
+          xAxisIndex: 0,
+          start: 0,
+          end: 100,
+          zoomOnMouseWheel: true,
+          moveOnMouseMove: true,
+          moveOnMouseWheel: false
         }
       ],
       brush: {
@@ -667,6 +715,8 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
       xAxis: {
         type: 'value',
         name: '股价',
+        min: minDisplayPrice,
+        max: maxDisplayPrice,
         nameLocation: 'middle',
         nameGap: 30,
         axisLabel: {
@@ -714,7 +764,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
         {
           name: '盈亏',
           type: 'line',
-          data: priceRange.map((price, index) => [price, profitData[index]]),
+          data: filteredData,
           lineStyle: {
             color: themedColors.chart.upColor,
             width: 3
@@ -746,30 +796,27 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
               {
                 yAxis: 0,
                 lineStyle: {
-                  color: '#f59e0b',
+                  color: isDark ? '#6b7280' : '#9ca3af',
                   type: 'dashed',
                   width: 2
                 },
                 label: {
                   formatter: '盈亏平衡线',
-                  color: isDark ? '#e5e7eb' : '#111827'
+                  color: isDark ? '#e5e7eb' : '#111827',
+                  fontSize: 12
                 }
               }
             ]
           },
           markPoint: {
-            data: keyPoints.map(point => ({
-              coord: [point.price, point.profit],
-              name: point.label,
-              itemStyle: {
-                color: point.color
-              },
-              label: {
-                formatter: `{b}\n${formatCurrency(point.price, currencyConfig)}\n${formatCurrency(point.profit, currencyConfig)}`,
-                color: isDark ? '#e5e7eb' : '#111827',
-                fontSize: 10
-              }
-            }))
+            data: markers,
+            symbol: 'circle',
+            symbolSize: 8,
+            label: {
+              show: true,
+              fontSize: 10,
+              fontWeight: 'bold'
+            }
           }
         }
       ]
