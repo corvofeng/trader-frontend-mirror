@@ -11,7 +11,7 @@ interface ProfitLossChartProps {
   currentPrice: number;
 }
 
-export function ProfitLossChart({ theme, positions, currentPrice }: ProfitLossChartProps) {
+export function ProfitLossChart2({ theme, positions, currentPrice }: ProfitLossChartProps) {
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstanceRef = useRef<echarts.ECharts | null>(null);
   const { currencyConfig, getThemedColors } = useCurrency();
