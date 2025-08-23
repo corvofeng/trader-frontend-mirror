@@ -679,7 +679,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
     const maxDisplayPrice = currentStockPrice + range;
     
     // 过滤数据到显示范围内
-    const { data: profitLossData, markers, breakEvenPoints, extremePoints } = generateProfitLossData();
+    const { data: profitLossData, markers, breakEvenPoints: calculatedBreakEvenPoints, extremePoints } = generateProfitLossData();
     const filteredData = profitLossData.filter(([price, _]) => 
       price >= minDisplayPrice && price <= maxDisplayPrice
     );
