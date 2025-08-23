@@ -801,6 +801,11 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
             data: [
               {
                 yAxis: 0,
+                lineStyle: {
+                  color: isDark ? '#6b7280' : '#9ca3af',
+                  type: 'dashed',
+                  width: 2
+                },
                 label: {
                   formatter: '盈亏平衡线',
                   color: isDark ? '#e5e7eb' : '#111827',
