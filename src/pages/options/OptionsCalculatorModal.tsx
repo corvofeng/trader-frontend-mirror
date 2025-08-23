@@ -66,19 +66,60 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
   // 生成盈亏数据
   const generateProfitLossData = () => {
     if (!currentStockPrice || isNaN(currentStockPrice) || currentStockPrice <= 0) {
-      return { data: [], markers: [] };
+      return { data: [], markers: [], breakEvenPoints: [], extremePoints: [] };
     }
     
     const minPrice = currentStockPrice * 0.5;
     const maxPrice = currentStockPrice * 1.5;
-    const priceStep = (maxPrice - minPrice) / 100;
+    const priceStep = (maxPrice - minPrice) / 200; // 增加数据点精度
     
     const data: [number, number][] = [];
     const markers: any[] = [];
+    const breakEvenPoints: { price: number; profit: number }[] = [];
+    const extremePoints: { price: number; profit: number; type: 'max' | 'min' }[] = [];
+    
+    let previousProfit = 0;
+    let maxProfit = -Infinity;
+    let minProfit = Infinity;
+    let maxProfitPrice = 0;
+    let minProfitPrice = 0;
     
     for (let price = minPrice; price <= maxPrice; price += priceStep) {
       const profit = calculateTotalProfit(price);
-      data.push([price, isNaN(profit) ? 0 : profit]);
+      const validProfit = isNaN(profit) ? 0 : profit;
+      data.push([price, validProfit]);
+      
+      // 寻找盈亏平衡点（零点）
+      if (data.length > 1) {
+        const currentProfit = validProfit;
+        if ((previousProfit <= 0 && currentProfit >= 0) || 
+            (previousProfit >= 0 && currentProfit <= 0)) {
+          // 使用线性插值找到更精确的零点
+          const prevPrice = price - priceStep;
+          const zeroPrice = prevPrice + (price - prevPrice) * Math.abs(previousProfit) / (Math.abs(previousProfit) + Math.abs(currentProfit));
+          breakEvenPoints.push({ price: zeroPrice, profit: 0 });
+        }
+      }
+      
+      // 记录最大最小值
+      if (validProfit > maxProfit) {
+        maxProfit = validProfit;
+        maxProfitPrice = price;
+      }
+      if (validProfit < minProfit) {
+        minProfit = validProfit;
+        minProfitPrice = price;
+      }
+      
+      previousProfit = validProfit;
+    }
+    
+    // 添加极值点（只有当盈亏超过阈值时）
+    if (maxProfit > 10) {
+      extremePoints.push({ price: maxProfitPrice, profit: maxProfit, type: 'max' });
+    }
+    if (minProfit < -10) {
+      extremePoints.push({ price: minProfitPrice, profit: minProfit, type: 'min' });
     }
     
     // 添加关键点标记
@@ -88,7 +129,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
       itemStyle: { color: '#ef4444' }
     });
     
-    return { data, markers };
+    return { data, markers, breakEvenPoints, extremePoints };
   };
 
   // 截图功能
@@ -638,29 +679,39 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
     const maxDisplayPrice = currentStockPrice + range;
     
     // 过滤数据到显示范围内
-    const { data: profitLossData, markers } = generateProfitLossData();
+    const { data: profitLossData, markers, breakEvenPoints, extremePoints } = generateProfitLossData();
     const filteredData = profitLossData.filter(([price, _]) => 
       price >= minDisplayPrice && price <= maxDisplayPrice
     );
+    
+    // 检查是否有有效的仓位数据
+    const hasValidPositions = optionPositions.length > 0 || stockPositions.length > 0;
+    const hasNonZeroData = filteredData.some(([_, profit]) => Math.abs(profit) > 0.01);
 
     const option = {
       title: {
-        text: `${selectedSymbol} 期权策略盈亏图`,
+        text: hasValidPositions 
+          ? `${selectedSymbol} 期权策略盈亏图`
+          : `${selectedSymbol} 期权策略盈亏图 - 请添加期权或股票仓位`,
         left: 'center',
         textStyle: {
           color: isDark ? '#e5e7eb' : '#111827'
         }
       },
       tooltip: {
-        trigger: 'axis',
+        show: hasValidPositions && hasNonZeroData,
+        trigger: 'item',
         backgroundColor: isDark ? '#374151' : '#ffffff',
         borderColor: isDark ? '#4b5563' : '#e5e7eb',
         textStyle: {
           color: isDark ? '#e5e7eb' : '#111827'
         },
         formatter: (params: any) => {
-          const price = params[0].axisValue;
-          const profit = params[0].value;
+          const [price, profit] = params.data;
+          // 确保数值有效
+          if (isNaN(price) || isNaN(profit)) {
+            return '数据无效';
+          }
           return `股价: ${formatCurrency(price, currencyConfig)}<br/>
                   盈亏: ${profit >= 0 ? '+' : ''}${formatCurrency(profit, currencyConfig)}`;
         }
@@ -668,24 +719,38 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
       grid: {
         left: '10%',
         right: '10%',
-        bottom: '15%',
+        bottom: '30%', // 增加底部空间
         top: '15%',
         containLabel: true
       },
       dataZoom: [
 
             {
-      type: 'inside',
-      start: 50,
+          start: 25,
+          end: 75,
+          zoomOnMouseWheel: true,
+          moveOnMouseMove: true,
+          moveOnMouseWheel: false
       end: 100
     },
     {
       show: true,
       type: 'slider',
       top: '90%',
-      start: 50,
-      end: 100
-    }
+          bottom: '5%', // 调整位置避免覆盖
+          height: 20, // 减小高度
+          start: 25,
+          end: 75,
+          handleSize: 15, // 减小手柄大小
+          textStyle: {
+            color: isDark ? '#e5e7eb' : '#111827',
+            fontSize: 10
+          },
+          borderColor: isDark ? '#4b5563' : '#d1d5db',
+          fillerColor: isDark ? '#374151' : '#f3f4f6',
+          handleStyle: {
+            color: isDark ? '#6b7280' : '#9ca3af'
+          }
   
       ],
       brush: {
@@ -745,9 +810,14 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
           name: '盈亏',
           type: 'line',
           data: filteredData,
+          symbol: hasValidPositions && hasNonZeroData ? 'circle' : 'none',
+          symbolSize: 4,
           lineStyle: {
             color: themedColors.chart.upColor,
             width: 3
+          },
+          itemStyle: {
+            color: themedColors.chart.upColor
           },
           areaStyle: {
             color: {
@@ -772,6 +842,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
             focus: 'series'
           },
           markLine: {
+            silent: true,
             data: [
               {
                 yAxis: 0,
@@ -788,45 +859,141 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
               }
             ]
           },
-          markPoint: {
-            data: markers,
+          markPoint: hasValidPositions && hasNonZeroData ? {
+            data: [
+              // 当前股价点
+              {
+                coord: [currentStockPrice, calculateTotalProfit(currentStockPrice)],
+                name: '当前股价',
+                itemStyle: { 
+                  color: '#ef4444',
+                  borderColor: '#ffffff',
+                  borderWidth: 2
+                },
+                label: {
+                  show: true,
+                  position: calculateTotalProfit(currentStockPrice) >= 0 ? 'top' : 'bottom',
+                  formatter: () => {
+                    const profit = calculateTotalProfit(currentStockPrice);
+                    return `当前股价\n${formatCurrency(currentStockPrice, currencyConfig)}\n${profit >= 0 ? '+' : ''}${formatCurrency(profit, currencyConfig)}`;
+                  },
+                  color: isDark ? '#e5e7eb' : '#111827',
+                  fontSize: 11,
+                  fontWeight: 'bold',
+                  backgroundColor: isDark ? '#374151dd' : '#ffffffdd',
+                  borderColor: '#ef4444',
+                  borderWidth: 1,
+                  borderRadius: 4,
+                  padding: [4, 8]
+                }
+              },
+              // 行权价点
+              ...Array.from(new Set(optionPositions.map(p => p.strike)))
+                .filter(strike => strike && !isNaN(strike) && strike > 0)
+                .map(strike => {
+                  const profit = calculateTotalProfit(strike);
+                  return {
+                    coord: [strike, profit],
+                    name: `行权价${formatCurrency(strike, currencyConfig)}`,
+                    itemStyle: { 
+                      color: '#9333ea',
+                      borderColor: '#ffffff',
+                      borderWidth: 2
+                    },
+                    label: {
+                      show: true,
+                      position: profit >= 0 ? 'top' : 'bottom',
+                      formatter: () => {
+                        return `行权价\n${formatCurrency(strike, currencyConfig)}\n${profit >= 0 ? '+' : ''}${formatCurrency(profit, currencyConfig)}`;
+                      },
+                      color: isDark ? '#e5e7eb' : '#111827',
+                      fontSize: 10,
+                      fontWeight: 'bold',
+                      backgroundColor: isDark ? '#374151dd' : '#ffffffdd',
+                      borderColor: '#9333ea',
+                      borderWidth: 1,
+                      borderRadius: 4,
+                      padding: [4, 8]
+                    }
+                  };
+                }),
+              // 盈亏平衡点
+              ...breakEvenPoints.map((point, index) => ({
+                coord: [point.price, 0],
+                name: `盈亏平衡点${index + 1}`,
+                itemStyle: { 
+                  color: '#f59e0b',
+                  borderColor: '#ffffff',
+                  borderWidth: 2
+                },
+                label: {
+                  show: true,
+                  position: 'top',
+                  formatter: () => {
+                    return `盈亏平衡点\n${formatCurrency(point.price, currencyConfig)}\n${formatCurrency(0, currencyConfig)}`;
+                  },
+                  color: isDark ? '#e5e7eb' : '#111827',
+                  fontSize: 10,
+                  fontWeight: 'bold',
+                  backgroundColor: isDark ? '#374151dd' : '#ffffffdd',
+                  borderColor: '#f59e0b',
+                  borderWidth: 1,
+                  borderRadius: 4,
+                  padding: [4, 8]
+                }
+              })),
+              // 极值点
+              ...extremePoints.map(point => ({
+                coord: [point.price, point.profit],
+                name: point.type === 'max' ? '最大盈利' : '最大亏损',
+                itemStyle: { 
+                  color: point.type === 'max' ? themedColors.chart.upColor : themedColors.chart.downColor,
+                  borderColor: '#ffffff',
+                  borderWidth: 2
+                },
+                label: {
+                  show: true,
+                  position: point.type === 'max' ? 'top' : 'bottom',
+                  formatter: () => {
+                    return `${point.type === 'max' ? '最大盈利' : '最大亏损'}\n${formatCurrency(point.price, currencyConfig)}\n${point.profit >= 0 ? '+' : ''}${formatCurrency(point.profit, currencyConfig)}`;
+                  },
+                  color: isDark ? '#e5e7eb' : '#111827',
+                  fontSize: 10,
+                  fontWeight: 'bold',
+                  backgroundColor: isDark ? '#374151dd' : '#ffffffdd',
+                  borderColor: point.type === 'max' ? themedColors.chart.upColor : themedColors.chart.downColor,
+                  borderWidth: 1,
+                  borderRadius: 4,
+                  padding: [4, 8]
+                }
+              }))
+            ],
             symbol: 'circle',
-            symbolSize: 8,
-            label: {
-              show: true,
-              fontSize: 10,
-              fontWeight: 'bold'
-            }
-          }
+            symbolSize: 8
+          } : undefined
         }
       ]
     };
     
     chart.setOption(option);
     
-    // 设置初始视图居中显示当前股价
-    setTimeout(() => {
-      if (chart && isMountedRef.current) {
-        try {
-          // 计算当前股价在数据中的位置百分比
-          const currentPriceIndex = priceRange.findIndex(price => price >= currentStockPrice);
-          const centerPercentage = currentPriceIndex > 0 ? (currentPriceIndex / priceRange.length) * 100 : 50;
-          
-          // 设置缩放范围，以当前股价为中心
-          const zoomRange = 30; // 显示范围的一半
-          const startPercent = Math.max(0, centerPercentage - zoomRange);
-          const endPercent = Math.min(100, centerPercentage + zoomRange);
-          
-          chart.dispatchAction({
-            type: 'dataZoom',
-            start: startPercent,
-            end: endPercent
-          });
-        } catch (e) {
-          console.error('Error setting initial zoom:', e);
+    // 设置初始视图居中显示当前股价（只有在有数据时）
+    if (hasValidPositions && hasNonZeroData) {
+      setTimeout(() => {
+        if (chart && isMountedRef.current) {
+          try {
+            // 设置缩放范围，以当前股价为中心显示±25%
+            chart.dispatchAction({
+              type: 'dataZoom',
+              start: 25,
+              end: 75
+            });
+          } catch (e) {
+            console.error('Error setting initial zoom:', e);
+          }
         }
-      }
-    }, 100);
+      }, 100);
+    }
     
     const handleResize = () => {
       if (profitChartInstance.current) {
