@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { Briefcase, LayoutGrid, History, Upload, Activity, BookOpen, Settings } from 'lucide-react';
 import { TradeForm, TradeList, StockSearch } from '../features/trading';
 import { Portfolio } from '../features/portfolio';
 import { OperationsView } from './journal/features/operations/OperationsView';
