@@ -2,12 +2,12 @@ import React from 'react';
 import { format } from 'date-fns';
 import { TrendingUp, BarChart3, RefreshCw } from 'lucide-react';
 import { Line } from 'react-chartjs-2';
-import { Theme, themes } from '../../../../../lib/theme';
-import { stockService } from '../../../../../lib/services';
-import type { TrendData } from '../../../../../lib/services/types';
-import type { CurrencyConfig } from '../../../../../lib/types';
-import { formatCurrency } from '../../../../../lib/types';
-import { useCurrency } from '../../../../../lib/context/CurrencyContext';
+import { Theme, themes } from '../../../shared/constants/theme';
+import { stockService } from '../../../lib/services';
+import type { TrendData } from '../../../lib/services/types';
+import type { CurrencyConfig } from '../../../shared/types';
+import { formatCurrency } from '../../../shared/constants/currency';
+import { useCurrency } from '../../../lib/context/CurrencyContext';
 
 interface PortfolioTrendProps {
   trendData: TrendData[];

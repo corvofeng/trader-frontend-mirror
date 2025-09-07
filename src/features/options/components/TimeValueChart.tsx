@@ -3,7 +3,7 @@ import * as echarts from 'echarts';
 import { format, differenceInDays } from 'date-fns';
 import { Theme, themes } from '../../../lib/theme';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
-import { formatCurrency } from '../../../lib/types';
+import { formatCurrency } from '../../../shared/constants/currency';
 import type { OptionsData } from '../../../lib/services/types';
 
 interface TimeValueChartProps {

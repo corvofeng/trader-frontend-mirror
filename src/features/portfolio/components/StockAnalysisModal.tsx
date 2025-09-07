@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { X, RefreshCw, TrendingUp, TrendingDown, Minus, Target, Shield, Brain, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
-import { Theme, themes } from '../../../../../lib/theme';
-import { analysisService } from '../../../../../lib/services';
-import type { StockAnalysis } from '../../../../../lib/services/types';
-import { formatCurrency } from '../../../../../lib/types';
-import { useCurrency } from '../../../../../lib/context/CurrencyContext';
+import { Theme, themes } from '../../../shared/constants/theme';
+import { analysisService } from '../../../lib/services';
+import type { StockAnalysis } from '../../../lib/services/types';
+import { formatCurrency } from '../../../shared/constants/currency';
+import { useCurrency } from '../../../lib/context/CurrencyContext';
 import toast from 'react-hot-toast';
 
 interface StockAnalysisModalProps {

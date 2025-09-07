@@ -17,8 +17,8 @@ import {
   PieChart
 } from 'lucide-react';
 import { Theme, themes } from '../../../../lib/theme';
-import { formatCurrency } from '../../../../lib/types';
-import { useCurrency } from '../../../../lib/context/CurrencyContext';
+import { formatCurrency } from '../../../shared/constants/currency';
+import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { optionsService, authService } from '../../../../lib/services';
 import type { OptionsPortfolioData, OptionsPosition, OptionsStrategy } from '../../../../lib/services/types';
 import toast from 'react-hot-toast';

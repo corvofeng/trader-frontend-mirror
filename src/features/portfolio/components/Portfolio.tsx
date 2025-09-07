@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { format, subDays } from 'date-fns';
 import { ArrowUpCircle, ArrowDownCircle, Calendar, Filter, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, BarChart2, Briefcase, ExternalLink } from 'lucide-react';
 import { Theme, themes } from '../../../shared/constants/theme';
-import { formatCurrency } from '../../../shared/utils/format';
+import { formatCurrency } from '../../../shared/constants/currency';
 import type { Holding, Trade, TrendData } from '../../../lib/services/types';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement } from 'chart.js';
 import { Pie } from 'react-chartjs-2';

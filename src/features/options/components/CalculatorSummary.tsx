@@ -1,6 +1,6 @@
 import React from 'react';
 import { Theme, themes } from '../../../lib/theme';
-import { formatCurrency } from '../../../lib/types';
+import { formatCurrency } from '../../../shared/constants/currency';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import type { Position } from './PositionManager';
 
