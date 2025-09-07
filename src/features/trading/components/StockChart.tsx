@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createChart, ColorType, IChartApi, ISeriesApi, CrosshairMode, LineStyle, PriceScaleMode } from 'lightweight-charts';
 import { format } from 'date-fns';
-import { Theme, themes } from '../../../../../lib/theme';
-import { stockService, authService, portfolioService } from '../../../../../lib/services';
-import { formatCurrency } from '../../../../../lib/types';
+import { Theme, themes } from '../../../shared/constants/theme';
+import { stockService, authService, portfolioService } from '../../../lib/services';
+import { formatCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../../../lib/context/CurrencyContext';
 import { ChevronDown, ChevronUp, ZoomIn, ZoomOut, RefreshCw, Lock, Unlock, Maximize2, Minimize2, Grid, LineChart, CandlestickChart, BarChart } from 'lucide-react';
 import type { StockData, Trade, Stock } from '../../../../../lib/services/types';

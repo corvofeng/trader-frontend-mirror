@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { RefreshCw, TrendingUp, TrendingDown, PieChart, Shield, Target, AlertTriangle, ChevronDown, ChevronUp, FileText } from 'lucide-react';
-import { Theme, themes } from '../../../lib/theme';
-import { analysisService, authService } from '../../../../../lib/services';
+import { Theme, themes } from '../../../shared/constants/theme';
+import { analysisService, authService } from '../../../lib/services';
 import type { PortfolioAnalysis } from '../../../../../lib/services/types';
 import { formatCurrency } from '../../../../../lib/types';
 import { useCurrency } from '../../../../../lib/context/CurrencyContext';
