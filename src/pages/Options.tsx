@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
-import { Theme } from '../lib/theme';
-import { OptionsHeader } from './options/components/OptionsHeader';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { BarChart2, TrendingUp, Briefcase, Calculator } from 'lucide-react';
+import { Theme, themes } from '../lib/theme';
 import { OptionsChain } from './options/components/OptionsChain';
 import { OptionsCalculatorCard } from './options/components/OptionsCalculatorCard';
 import { TimeValueChart } from './options/components/TimeValueChart';
 import { VolatilitySurface } from './options/components/VolatilitySurface';
-import { RelatedLinks } from '../components/common/RelatedLinks';
 import { OptionsCalculatorModal } from './options/OptionsCalculatorModal';
+import { OptionsPortfolio } from './options/features/portfolio/OptionsPortfolio';
+import { OptionsTradePlans } from './options/features/trading/OptionsTradePlans';
+import { RelatedLinks } from '../components/common/RelatedLinks';
 import { optionsService } from '../lib/services';
 import type { OptionsData } from '../lib/services/types';
 
@@ -14,7 +17,17 @@ interface OptionsProps {
   theme: Theme;
 }
 
+type OptionsTab = 'data' | 'portfolio' | 'trading';
+
 export function Options({ theme }: OptionsProps) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<OptionsTab>(() => {
+    const params = new URLSearchParams(location.search);
+    const tab = params.get('tab') as OptionsTab;
+    return tab && ['data', 'portfolio', 'trading'].includes(tab) ? tab : 'data';
+  });
+
   const [availableSymbols, setAvailableSymbols] = useState<string[]>([]);
   const [selectedSymbol, setSelectedSymbol] = useState<string>('SPY');
   const [optionsData, setOptionsData] = useState<OptionsData | null>(null);
@@ -23,6 +36,13 @@ export function Options({ theme }: OptionsProps) {
   const [isLoadingSymbols, setIsLoadingSymbols] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCalculatorModal, setShowCalculatorModal] = useState(false);
+
+  const handleTabChange = (newTab: OptionsTab) => {
+    setActiveTab(newTab);
+    const params = new URLSearchParams(location.search);
+    params.set('tab', newTab);
+    navigate(`/options?${params.toString()}`, { replace: true });
+  };
 
   // Fetch available symbols on component mount
   React.useEffect(() => {
@@ -53,10 +73,10 @@ export function Options({ theme }: OptionsProps) {
     fetchAvailableSymbols();
   }, []);
 
-  // Fetch options data when selected symbol changes
+  // Fetch options data when selected symbol changes (only for data tab)
   React.useEffect(() => {
     const fetchOptionsData = async () => {
-      if (!selectedSymbol) return;
+      if (!selectedSymbol || activeTab !== 'data') return;
       
       try {
         setIsLoading(true);
@@ -85,82 +105,170 @@ export function Options({ theme }: OptionsProps) {
     };
 
     fetchOptionsData();
-  }, [selectedSymbol]);
+  }, [selectedSymbol, activeTab]);
+
+  const tabs = [
+    { id: 'data' as OptionsTab, name: 'Options Data', icon: BarChart2 },
+    { id: 'portfolio' as OptionsTab, name: 'Portfolio', icon: Briefcase },
+    { id: 'trading' as OptionsTab, name: 'Trade Plans', icon: TrendingUp },
+  ];
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="space-y-6">
-        <OptionsHeader
-          theme={theme}
-          selectedSymbol={selectedSymbol}
-          availableSymbols={availableSymbols}
-          isLoading={isLoading || isLoadingSymbols}
-          onSymbolChange={setSelectedSymbol}
-        />
-
-        {(isLoading || isLoadingSymbols) && (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-            <p className="text-gray-600">
-              {isLoadingSymbols ? 'Loading available symbols...' : `Loading options data for ${selectedSymbol}...`}
-            </p>
-          </div>
-        )}
-
-        {error && (
-          <div className="text-center py-12">
-            <div className="text-red-500 mb-4">
-              <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-              </svg>
+        {/* Header */}
+        <div className={`${themes[theme].card} rounded-lg p-4`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className={`text-2xl font-bold ${themes[theme].text}`}>
+                Options Trading Analysis
+              </h1>
+              <p className={`text-sm ${themes[theme].text} opacity-75 mt-1`}>
+                Advanced options analysis and trading tools
+              </p>
             </div>
-            <p className="text-gray-600 mb-4">{error}</p>
-            <button
-              onClick={() => setSelectedSymbol(selectedSymbol)} // Trigger re-fetch
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-            >
-              Retry
-            </button>
+            {activeTab === 'data' && (
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <label className={`text-sm font-medium ${themes[theme].text}`}>
+                    Symbol:
+                  </label>
+                  <select
+                    value={selectedSymbol}
+                    onChange={(e) => setSelectedSymbol(e.target.value)}
+                    disabled={isLoading || isLoadingSymbols}
+                    className={`px-3 py-2 rounded-md text-sm ${themes[theme].input} ${themes[theme].text} ${
+                      isLoading || isLoadingSymbols ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    {availableSymbols.map(symbol => (
+                      <option key={symbol} value={symbol}>
+                        {symbol}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {(isLoading || isLoadingSymbols) && (
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Tab Navigation */}
+        <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+          <div className="flex space-x-2 min-w-max sm:min-w-0">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => handleTabChange(tab.id)}
+                  className={`inline-flex items-center px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 whitespace-nowrap ${
+                    activeTab === tab.id
+                      ? themes[theme].primary
+                      : themes[theme].secondary
+                  }`}
+                >
+                  <Icon className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">{tab.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === 'data' && (
+          <div className="space-y-6">
+            {(isLoading || isLoadingSymbols) && (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                <p className="text-gray-600">
+                  {isLoadingSymbols ? 'Loading available symbols...' : `Loading options data for ${selectedSymbol}...`}
+                </p>
+              </div>
+            )}
+
+            {error && (
+              <div className="text-center py-12">
+                <div className="text-red-500 mb-4">
+                  <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                </div>
+                <p className="text-gray-600 mb-4">{error}</p>
+                <button
+                  onClick={() => setSelectedSymbol(selectedSymbol)} // Trigger re-fetch
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {!isLoading && !isLoadingSymbols && !error && optionsData && (
+              <>
+                <OptionsChain
+                  theme={theme}
+                  optionsData={optionsData}
+                  selectedSymbol={selectedSymbol}
+                  selectedExpiry={selectedExpiry}
+                  onExpiryChange={setSelectedExpiry}
+                />
+
+                <OptionsCalculatorCard
+                  theme={theme}
+                  onOpenCalculator={() => setShowCalculatorModal(true)}
+                />
+
+                <TimeValueChart
+                  theme={theme}
+                  optionsData={optionsData}
+                  selectedSymbol={selectedSymbol}
+                />
+
+                <VolatilitySurface
+                  theme={theme}
+                  optionsData={optionsData}
+                  selectedSymbol={selectedSymbol}
+                />
+              </>
+            )}
+
+            <RelatedLinks 
+              theme={theme}
+              currentPath="/options?tab=data" 
+              maxItems={4}
+            />
           </div>
         )}
 
-        {!isLoading && !isLoadingSymbols && !error && optionsData && (
-          <>
-            <OptionsChain
+        {activeTab === 'portfolio' && (
+          <div className="space-y-6">
+            <OptionsPortfolio theme={theme} />
+            <RelatedLinks 
               theme={theme}
-              optionsData={optionsData}
-              selectedSymbol={selectedSymbol}
-              selectedExpiry={selectedExpiry}
-              onExpiryChange={setSelectedExpiry}
+              currentPath="/options?tab=portfolio" 
+              maxItems={4}
             />
-
-            <OptionsCalculatorCard
-              theme={theme}
-              onOpenCalculator={() => setShowCalculatorModal(true)}
-            />
-
-            <TimeValueChart
-              theme={theme}
-              optionsData={optionsData}
-              selectedSymbol={selectedSymbol}
-            />
-
-            <VolatilitySurface
-              theme={theme}
-              optionsData={optionsData}
-              selectedSymbol={selectedSymbol}
-            />
-          </>
+          </div>
         )}
 
-        <RelatedLinks 
-          theme={theme}
-          currentPath="/options" 
-          maxItems={4}
-        />
+        {activeTab === 'trading' && (
+          <div className="space-y-6">
+            <OptionsTradePlans theme={theme} selectedSymbol={selectedSymbol} />
+            <RelatedLinks 
+              theme={theme}
+              currentPath="/options?tab=trading" 
+              maxItems={4}
+            />
+          </div>
+        )}
       </div>
 
-      {/* 期权计算器弹窗 */}
+      {/* Options Calculator Modal */}
       {showCalculatorModal && (
         <OptionsCalculatorModal
           theme={theme}
