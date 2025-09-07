@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import type { CurrencyConfig, RegionalColorConfig } from '../types';
-import { currencyConfigs, getThemeColors } from '../theme';
-import { regionalColorConfigs } from '../types';
+import type { CurrencyConfig, RegionalColorConfig } from '../../shared/types';
+import { getThemeColors } from '../theme';
+import { currencyConfigs, regionalColorConfigs } from '../../shared/constants';
 import { currencyService } from '../services';
 import type { Theme } from '../theme';
 

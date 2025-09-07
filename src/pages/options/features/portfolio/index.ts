@@ -1,1 +1,0 @@
-export { OptionsPortfolio } from './OptionsPortfolio';

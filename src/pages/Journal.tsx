@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { TradeForm, TradeList, StockSearch } from './journal/features/trading';
-import { Portfolio } from './journal/features/portfolio';
+import { TradeForm, TradeList, StockSearch } from '../features/trading';
+import { Portfolio } from '../features/portfolio';
 import { OperationsView } from './journal/features/operations/OperationsView';
 import { UploadPage } from './journal/features/upload';
-import { Settings, LayoutGrid, History, BookOpen, Briefcase, Activity, Upload } from 'lucide-react';
+import { RelatedLinks } from '../shared/components';
 import { Theme, themes } from '../lib/theme';
 import { portfolioService } from '../lib/services';
 import { StockChart } from './journal/features/trading/components/StockChart';

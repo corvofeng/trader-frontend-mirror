@@ -2,8 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TrendingUp, CandlestickChart as ChartCandle, BarChart2, Sun, Moon, DollarSign, ArrowUpCircle, ArrowDownCircle, Briefcase, Sigma } from 'lucide-react';
 import { AnimatedChart } from './landing/features/chart';
-import { InternalLink } from '../components/common/InternalLink';
-import { RelatedLinks } from '../components/common/RelatedLinks';
+import { InternalLink, RelatedLinks } from '../shared/components';
 import { Theme, themes } from '../lib/theme';
 
 interface LandingProps {

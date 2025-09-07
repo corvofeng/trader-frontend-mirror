@@ -1,24 +1,4 @@
-import type { CurrencyConfig, RegionalColorConfig } from '../shared/types';
-import { regionalColorConfigs, currencyConfigs } from '../shared/constants';
-
-export type Theme = 'light' | 'dark' | 'blue';
-
-export interface ThemeColors {
-  primary: string;
-  secondary: string;
-  background: string;
-  text: string;
-  card: string;
-  cardHover: string;
-  input: string;
-  border: string;
-  chart: {
-    upColor: string;
-    downColor: string;
-    gridColor: string;
-    crosshairColor: string;
-  };
-}
+import type { Theme, ThemeColors, RegionalColorConfig } from '../types';
 
 export function getThemeColors(theme: Theme, regionalColors: RegionalColorConfig): ThemeColors {
   const baseTheme = getBaseTheme(theme);
@@ -86,7 +66,6 @@ function getBaseTheme(theme: Theme): ThemeColors {
   return baseThemes[theme];
 }
 
-// 保持向后兼容的默认主题（使用美国配色）
 export const themes: Record<Theme, ThemeColors> = {
   light: getBaseTheme('light'),
   dark: getBaseTheme('dark'),
