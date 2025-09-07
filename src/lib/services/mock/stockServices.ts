@@ -1,4 +1,4 @@
-import { mockUser, mockHoldings, tradeIdCounter, MOCK_STOCKS, MOCK_STOCK_CONFIGS, generateMockTrades, generateMockOperations, DEMO_STOCK_DATA } from './mockData';
+import { mockUser, mockHoldings, tradeIdCounter, MOCK_STOCKS, MOCK_STOCK_CONFIGS, generateMockTrades, generateMockOperations, DEMO_STOCK_DATA, generateMockStockData } from './mockData';
 import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, StockData, StockPrice, Operation, OperationService, TrendData, StockConfigService, StockConfig, UploadService, UploadResponse, AnalysisService, StockAnalysis, PortfolioAnalysis } from '../types';
 import { format, subDays, addMinutes, startOfDay, endOfDay, parseISO } from 'date-fns';
 
@@ -100,7 +100,8 @@ export const stockService: StockService = {
 
   getStockData: async (symbol: string) => {
     await new Promise(resolve => setTimeout(resolve, 1000));
-    return { data: DEMO_STOCK_DATA, error: null };
+    const stockData = generateMockStockData(symbol, 252);
+    return { data: stockData, error: null };
   },
 
   getCurrentPrice: async (symbol: string) => {

@@ -222,6 +222,43 @@ export const DEMO_STOCK_DATA = MOCK_STOCKS.map(stock => ({
   last_updated: new Date().toISOString()
 }));
 
+export function generateMockStockData(symbol: string, days: number = 252): any[] {
+  const data = [];
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+  
+  let currentPrice = 100 + Math.random() * 400; // Starting price
+  
+  for (let i = 0; i < days; i++) {
+    const date = new Date(startDate);
+    date.setDate(startDate.getDate() + i);
+    
+    // Generate realistic price movements
+    const dailyChange = (Math.random() - 0.5) * 0.04; // ±2% daily change
+    const open = currentPrice;
+    const close = open * (1 + dailyChange);
+    
+    // Generate high and low based on open and close
+    const minPrice = Math.min(open, close);
+    const maxPrice = Math.max(open, close);
+    const high = maxPrice + Math.random() * (maxPrice * 0.02);
+    const low = minPrice - Math.random() * (minPrice * 0.02);
+    
+    data.push({
+      date: date.toISOString().split('T')[0], // YYYY-MM-DD format
+      open: parseFloat(open.toFixed(2)),
+      high: parseFloat(high.toFixed(2)),
+      low: parseFloat(low.toFixed(2)),
+      close: parseFloat(close.toFixed(2)),
+      volume: Math.floor(Math.random() * 10000000) + 1000000
+    });
+    
+    currentPrice = close;
+  }
+  
+  return data;
+}
+
 export const tradeIdCounter = {
   currentId: 1000,
   getNextId: function() {
