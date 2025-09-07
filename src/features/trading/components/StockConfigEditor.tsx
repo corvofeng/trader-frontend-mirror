@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Save, X, Plus, Tag, FolderOpen } from 'lucide-react';
-import { Theme, themes } from '../../../../../lib/theme';
+import { Theme, themes } from '../../../shared/constants/theme';
 import { stockConfigService } from '../../../../../lib/services';
 import type { StockConfig } from '../../../../../lib/services/types';
 import { STOCK_CATEGORIES } from '../../../../../lib/services/mock/mockData';

@@ -5,7 +5,7 @@ import { Theme, themes } from '../../../shared/constants/theme';
 import type { Holding, StockConfig } from '../../../../../lib/services/types';
 import { formatCurrency } from '../../../shared/constants/currency';
 import type { CurrencyConfig } from '../../../shared/types';
-import { useCurrency } from '../../../../../lib/context/CurrencyContext';
+import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { stockConfigService } from '../../../../../lib/services';
 
 interface PortfolioHeatmapProps {
