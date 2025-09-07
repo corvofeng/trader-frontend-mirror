@@ -410,6 +410,7 @@ export const optionsService: OptionsService = {
   getOptionsPortfolio: async (userId: string) => {
     await new Promise(resolve => setTimeout(resolve, 800));
     const portfolioData = generateMockOptionsPortfolio();
+    console.log(portfolioData);
     return { data: portfolioData, error: null };
   },
 
