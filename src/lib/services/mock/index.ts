@@ -800,6 +800,282 @@ const AVAILABLE_OPTIONS_SYMBOLS = [
   'GOOGL', // Alphabet Inc.
 ];
 
+// 支持的期权策略列表
+const AVAILABLE_STRATEGIES = [
+  'Long Call',
+  'Long Put', 
+  'Covered Call',
+  'Protective Put',
+  'Bull Call Spread',
+  'Bear Put Spread',
+  'Iron Condor',
+  'Butterfly Spread',
+  'Straddle',
+  'Strangle'
+];
+
+// Mock期权持仓数据
+const generateMockOptionsPortfolio = (): import('../types').OptionsPortfolioData => {
+  const positions: import('../types').OptionsPosition[] = [
+    {
+      id: '1',
+      symbol: 'SPY',
+      strategy: 'Long Call',
+      type: 'call',
+      strike: 450,
+      expiry: '2024-03-15',
+      quantity: 10,
+      premium: 5.50,
+      currentValue: 7.20,
+      profitLoss: 1700,
+      profitLossPercentage: 30.91,
+      impliedVolatility: 0.18,
+      delta: 0.65,
+      gamma: 0.02,
+      theta: -0.05,
+      vega: 0.12,
+      status: 'open',
+      openDate: '2024-01-15T10:30:00Z',
+      notes: '看好市场短期上涨'
+    },
+    {
+      id: '2',
+      symbol: 'QQQ',
+      strategy: 'Protective Put',
+      type: 'put',
+      strike: 380,
+      expiry: '2024-02-16',
+      quantity: 5,
+      premium: 8.30,
+      currentValue: 6.10,
+      profitLoss: -1100,
+      profitLossPercentage: -26.51,
+      impliedVolatility: 0.22,
+      delta: -0.35,
+      gamma: 0.015,
+      theta: -0.08,
+      vega: 0.15,
+      status: 'open',
+      openDate: '2024-01-10T14:20:00Z',
+      notes: '为现有QQQ持仓购买保护'
+    },
+    {
+      id: '3',
+      symbol: 'AAPL',
+      strategy: 'Bull Call Spread',
+      type: 'spread',
+      strike: 175,
+      expiry: '2024-04-19',
+      quantity: 8,
+      premium: 2.50,
+      currentValue: 4.80,
+      profitLoss: 1840,
+      profitLossPercentage: 92.00,
+      impliedVolatility: 0.25,
+      delta: 0.45,
+      gamma: 0.018,
+      theta: -0.03,
+      vega: 0.08,
+      status: 'open',
+      openDate: '2024-01-05T09:15:00Z',
+      notes: '牛市价差策略'
+    },
+    {
+      id: '4',
+      symbol: 'TSLA',
+      strategy: 'Iron Condor',
+      type: 'spread',
+      strike: 250,
+      expiry: '2024-02-16',
+      quantity: 3,
+      premium: 4.20,
+      currentValue: 2.80,
+      profitLoss: -420,
+      profitLossPercentage: -33.33,
+      impliedVolatility: 0.45,
+      delta: 0.05,
+      gamma: 0.008,
+      theta: 0.02,
+      vega: -0.05,
+      status: 'open',
+      openDate: '2024-01-20T11:45:00Z',
+      notes: '中性策略，收取时间价值'
+    },
+    {
+      id: '5',
+      symbol: 'MSFT',
+      strategy: 'Covered Call',
+      type: 'call',
+      strike: 380,
+      expiry: '2024-05-17',
+      quantity: 12,
+      premium: 6.80,
+      currentValue: 8.90,
+      profitLoss: 2520,
+      profitLossPercentage: 30.88,
+      impliedVolatility: 0.20,
+      delta: 0.55,
+      gamma: 0.012,
+      theta: -0.04,
+      vega: 0.10,
+      status: 'open',
+      openDate: '2024-01-08T15:30:00Z',
+      notes: '对现有MSFT持仓卖出看涨期权'
+    }
+  ];
+
+  // 按到期日分组
+  const expiryGroups = positions.reduce((groups, position) => {
+    const expiry = position.expiry;
+    const existing = groups.find(g => g.expiry === expiry);
+    
+    if (existing) {
+      existing.positions.push(position);
+      existing.totalValue += position.currentValue * position.quantity * 100;
+      existing.totalCost += position.premium * position.quantity * 100;
+      existing.profitLoss += position.profitLoss;
+    } else {
+      const daysToExpiry = Math.ceil((new Date(expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      groups.push({
+        expiry,
+        daysToExpiry,
+        positions: [position],
+        totalValue: position.currentValue * position.quantity * 100,
+        totalCost: position.premium * position.quantity * 100,
+        profitLoss: position.profitLoss
+      });
+    }
+    
+    return groups;
+  }, [] as import('../types').OptionsPortfolioData['expiryGroups']);
+
+  // 按策略分组
+  const strategies = positions.reduce((strategies, position) => {
+    const strategyName = position.strategy;
+    const existing = strategies.find(s => s.name === strategyName);
+    
+    if (existing) {
+      existing.positions.push(position);
+      existing.totalCost += position.premium * position.quantity * 100;
+      existing.currentValue += position.currentValue * position.quantity * 100;
+      existing.profitLoss += position.profitLoss;
+    } else {
+      const totalCost = position.premium * position.quantity * 100;
+      const currentValue = position.currentValue * position.quantity * 100;
+      const profitLoss = position.profitLoss;
+      
+      strategies.push({
+        id: strategyName.toLowerCase().replace(/\s+/g, '_'),
+        name: strategyName,
+        description: getStrategyDescription(strategyName),
+        category: getStrategyCategory(strategyName),
+        riskLevel: getStrategyRiskLevel(strategyName),
+        positions: [position],
+        totalCost,
+        currentValue,
+        profitLoss,
+        profitLossPercentage: totalCost > 0 ? (profitLoss / totalCost) * 100 : 0,
+        maxRisk: calculateMaxRisk(strategyName, [position]),
+        maxReward: calculateMaxReward(strategyName, [position])
+      });
+    }
+    
+    return strategies;
+  }, [] as import('../types').OptionsStrategy[]);
+
+  // 更新策略的盈亏百分比
+  strategies.forEach(strategy => {
+    strategy.profitLossPercentage = strategy.totalCost > 0 ? (strategy.profitLoss / strategy.totalCost) * 100 : 0;
+  });
+
+  const totalValue = positions.reduce((sum, pos) => sum + (pos.currentValue * pos.quantity * 100), 0);
+  const totalCost = positions.reduce((sum, pos) => sum + (pos.premium * pos.quantity * 100), 0);
+  const totalProfitLoss = positions.reduce((sum, pos) => sum + pos.profitLoss, 0);
+  const totalProfitLossPercentage = totalCost > 0 ? (totalProfitLoss / totalCost) * 100 : 0;
+
+  return {
+    strategies,
+    totalValue,
+    totalCost,
+    totalProfitLoss,
+    totalProfitLossPercentage,
+    expiryGroups: expiryGroups.sort((a, b) => a.daysToExpiry - b.daysToExpiry)
+  };
+};
+
+function getStrategyDescription(strategy: string): string {
+  const descriptions: Record<string, string> = {
+    'Long Call': '买入看涨期权，看好标的上涨',
+    'Long Put': '买入看跌期权，看空标的下跌',
+    'Covered Call': '持有标的同时卖出看涨期权',
+    'Protective Put': '持有标的同时买入看跌期权保护',
+    'Bull Call Spread': '牛市看涨价差，限制风险和收益',
+    'Bear Put Spread': '熊市看跌价差，看空标的',
+    'Iron Condor': '铁鹰策略，中性策略收取时间价值',
+    'Butterfly Spread': '蝶式价差，赌标的价格不变',
+    'Straddle': '跨式组合，赌标的大幅波动',
+    'Strangle': '宽跨式组合，赌标的波动'
+  };
+  return descriptions[strategy] || '自定义期权策略';
+}
+
+function getStrategyCategory(strategy: string): 'bullish' | 'bearish' | 'neutral' | 'volatility' {
+  const categories: Record<string, 'bullish' | 'bearish' | 'neutral' | 'volatility'> = {
+    'Long Call': 'bullish',
+    'Long Put': 'bearish',
+    'Covered Call': 'neutral',
+    'Protective Put': 'neutral',
+    'Bull Call Spread': 'bullish',
+    'Bear Put Spread': 'bearish',
+    'Iron Condor': 'neutral',
+    'Butterfly Spread': 'neutral',
+    'Straddle': 'volatility',
+    'Strangle': 'volatility'
+  };
+  return categories[strategy] || 'neutral';
+}
+
+function getStrategyRiskLevel(strategy: string): 'low' | 'medium' | 'high' {
+  const riskLevels: Record<string, 'low' | 'medium' | 'high'> = {
+    'Long Call': 'medium',
+    'Long Put': 'medium',
+    'Covered Call': 'low',
+    'Protective Put': 'low',
+    'Bull Call Spread': 'low',
+    'Bear Put Spread': 'low',
+    'Iron Condor': 'medium',
+    'Butterfly Spread': 'medium',
+    'Straddle': 'high',
+    'Strangle': 'high'
+  };
+  return riskLevels[strategy] || 'medium';
+}
+
+function calculateMaxRisk(strategy: string, positions: import('../types').OptionsPosition[]): number {
+  // 简化的风险计算，实际应根据具体策略计算
+  return positions.reduce((sum, pos) => sum + (pos.premium * pos.quantity * 100), 0);
+}
+
+function calculateMaxReward(strategy: string, positions: import('../types').OptionsPosition[]): number {
+  // 简化的收益计算，实际应根据具体策略计算
+  const riskMultipliers: Record<string, number> = {
+    'Long Call': Infinity,
+    'Long Put': 10,
+    'Covered Call': 2,
+    'Protective Put': 1.5,
+    'Bull Call Spread': 3,
+    'Bear Put Spread': 3,
+    'Iron Condor': 2,
+    'Butterfly Spread': 4,
+    'Straddle': Infinity,
+    'Strangle': Infinity
+  };
+  
+  const multiplier = riskMultipliers[strategy] || 2;
+  const totalCost = positions.reduce((sum, pos) => sum + (pos.premium * pos.quantity * 100), 0);
+  
+  return multiplier === Infinity ? Infinity : totalCost * multiplier;
+}
 export const optionsService: OptionsService = {
   getOptionsData: async (symbol?: string) => {
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -916,6 +1192,17 @@ export const optionsService: OptionsService = {
   getAvailableSymbols: async () => {
     await new Promise(resolve => setTimeout(resolve, 300));
     return { data: AVAILABLE_OPTIONS_SYMBOLS, error: null };
+  },
+
+  getOptionsPortfolio: async (userId: string) => {
+    await new Promise(resolve => setTimeout(resolve, 800));
+    const portfolioData = generateMockOptionsPortfolio();
+    return { data: portfolioData, error: null };
+  },
+
+  getAvailableStrategies: async () => {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    return { data: AVAILABLE_STRATEGIES, error: null };
   }
 };
 

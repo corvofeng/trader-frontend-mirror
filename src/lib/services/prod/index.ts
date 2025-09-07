@@ -484,5 +484,33 @@ export const optionsService: OptionsService = {
       console.error('Error fetching available symbols:', error);
       return { data: null, error: error as Error };
     }
+  },
+
+  getOptionsPortfolio: async (userId: string) => {
+    try {
+      const response = await fetch(`/api/options/portfolio/${userId}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch options portfolio');
+      }
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error fetching options portfolio:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  getAvailableStrategies: async () => {
+    try {
+      const response = await fetch('/api/options/strategies');
+      if (!response.ok) {
+        throw new Error('Failed to fetch available strategies');
+      }
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error fetching available strategies:', error);
+      return { data: null, error: error as Error };
+    }
   }
 };

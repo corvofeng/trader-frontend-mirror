@@ -322,7 +322,63 @@ export interface OptionsData {
   surface: OptionSurfacePoint[];
 }
 
+// Options Portfolio Types
+export interface OptionsPosition {
+  id: string;
+  symbol: string;
+  strategy: string;
+  type: 'call' | 'put' | 'spread' | 'straddle' | 'strangle' | 'iron_condor' | 'butterfly';
+  strike: number;
+  expiry: string;
+  quantity: number;
+  premium: number;
+  currentValue: number;
+  profitLoss: number;
+  profitLossPercentage: number;
+  impliedVolatility: number;
+  delta: number;
+  gamma: number;
+  theta: number;
+  vega: number;
+  status: 'open' | 'closed' | 'expired';
+  openDate: string;
+  closeDate?: string;
+  notes?: string;
+}
+
+export interface OptionsStrategy {
+  id: string;
+  name: string;
+  description: string;
+  category: 'bullish' | 'bearish' | 'neutral' | 'volatility';
+  riskLevel: 'low' | 'medium' | 'high';
+  positions: OptionsPosition[];
+  totalCost: number;
+  currentValue: number;
+  profitLoss: number;
+  profitLossPercentage: number;
+  maxRisk: number;
+  maxReward: number;
+}
+
+export interface OptionsPortfolioData {
+  strategies: OptionsStrategy[];
+  totalValue: number;
+  totalCost: number;
+  totalProfitLoss: number;
+  totalProfitLossPercentage: number;
+  expiryGroups: Array<{
+    expiry: string;
+    daysToExpiry: number;
+    positions: OptionsPosition[];
+    totalValue: number;
+    totalCost: number;
+    profitLoss: number;
+  }>;
+}
 export interface OptionsService {
   getOptionsData: (symbol?: string) => Promise<ServiceResponse<OptionsData>>;
   getAvailableSymbols: () => Promise<ServiceResponse<string[]>>;
+  getOptionsPortfolio: (userId: string) => Promise<ServiceResponse<OptionsPortfolioData>>;
+  getAvailableStrategies: () => Promise<ServiceResponse<string[]>>;
 }
