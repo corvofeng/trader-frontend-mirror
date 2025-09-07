@@ -2,13 +2,11 @@ import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { BarChart2, TrendingUp, Briefcase, Calculator } from 'lucide-react';
 import { Theme, themes } from '../lib/theme';
-import { 
-  OptionsChain, 
-  TimeValueChart, 
-  VolatilitySurface,
-  OptionsPortfolio,
-  OptionsTradePlans
-} from '../features/options';
+import { OptionsChain } from '../features/options/components/OptionsChain';
+import { TimeValueChart } from '../features/options/components/TimeValueChart';
+import { VolatilitySurface } from '../features/options/components/VolatilitySurface';
+import { OptionsPortfolio } from '../features/options/components/OptionsPortfolio';
+import { OptionsTradePlans } from '../features/options/components/OptionsTradePlans';
 import { OptionsCalculatorCard } from '../features/options/components/OptionsCalculatorCard';
 import { OptionsCalculatorModal } from './options/OptionsCalculatorModal';
 import { RelatedLinks } from '../shared/components';
