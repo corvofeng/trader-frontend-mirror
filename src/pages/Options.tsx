@@ -4,12 +4,12 @@ import { BarChart2, TrendingUp, Briefcase, Calculator } from 'lucide-react';
 import { Theme, themes } from '../lib/theme';
 import { 
   OptionsChain, 
-  OptionsCalculatorCard, 
   TimeValueChart, 
   VolatilitySurface,
   OptionsPortfolio,
   OptionsTradePlans
 } from '../features/options';
+import { OptionsCalculatorCard } from '../features/options/components/OptionsCalculatorCard';
 import { OptionsCalculatorModal } from './options/OptionsCalculatorModal';
 import { RelatedLinks } from '../shared/components';
 import { optionsService } from '../lib/services';
