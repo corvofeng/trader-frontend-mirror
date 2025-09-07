@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Home, BarChart2, TrendingUp, Upload, Settings, Activity, BookOpen, Sigma } from 'lucide-react';
-import { Theme, themes } from '../../lib/theme';
+import { Theme, themes } from '../../../lib/theme';
 
 interface SiteMapProps {
   theme: Theme;

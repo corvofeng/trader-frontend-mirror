@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { TrendingUp, TrendingDown, Plus, Calendar, Target, DollarSign, FileText } from 'lucide-react';
-import { Theme, themes } from '../../../../lib/theme';
+import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../../lib/types';
 import { useCurrency } from '../../../../lib/context/CurrencyContext';
 

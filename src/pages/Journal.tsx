@@ -7,7 +7,7 @@ import { UploadPage } from './journal/features/upload';
 import { RelatedLinks } from '../shared/components';
 import { Theme, themes } from '../lib/theme';
 import { portfolioService } from '../lib/services';
-import { StockChart } from './journal/features/trading/components/StockChart';
+import { StockChart } from '../features/trading/components/StockChart';
 import type { Stock, Holding, Trade } from '../lib/services/types';
 
 interface JournalProps {
