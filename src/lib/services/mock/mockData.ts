@@ -210,6 +210,18 @@ export const mockHoldings = [
   }
 ];
 
+export const DEMO_STOCK_DATA = MOCK_STOCKS.map(stock => ({
+  stock_code: stock.stock_code,
+  stock_name: stock.stock_name,
+  current_price: 100 + Math.random() * 400,
+  daily_change: (Math.random() - 0.5) * 20,
+  daily_change_percentage: (Math.random() - 0.5) * 10,
+  volume: Math.floor(Math.random() * 10000000),
+  market_cap: Math.floor(Math.random() * 1000000000000),
+  pe_ratio: 10 + Math.random() * 30,
+  last_updated: new Date().toISOString()
+}));
+
 export const tradeIdCounter = {
   currentId: 1000,
   getNextId: function() {
