@@ -6,7 +6,7 @@ import { Theme, themes } from '../../../shared/constants/theme';
 import { stockService } from '../../../lib/services';
 import type { TrendData } from '../../../lib/services/types';
 import type { CurrencyConfig } from '../../../shared/types';
-import { formatCurrency } from '../../../shared/constants/currency';
+import { formatCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 
 interface PortfolioTrendProps {
