@@ -16,11 +16,11 @@ import {
   BarChart3,
   PieChart
 } from 'lucide-react';
-import { Theme, themes } from '../../../../lib/theme';
+import { Theme, themes } from '../../../shared/constants/theme';
 import { formatCurrency } from '../../../shared/constants/currency';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
-import { optionsService, authService } from '../../../../lib/services';
-import type { OptionsPortfolioData, OptionsPosition, OptionsStrategy } from '../../../../lib/services/types';
+import { optionsService, authService } from '../../../lib/services';
+import type { OptionsPortfolioData, OptionsPosition, OptionsStrategy } from '../../../lib/services/types';
 import toast from 'react-hot-toast';
 
 interface OptionsPortfolioProps {

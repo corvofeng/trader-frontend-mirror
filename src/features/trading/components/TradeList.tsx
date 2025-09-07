@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { ArrowUpCircle, ArrowDownCircle, DollarSign, Calendar, BarChart2, ClipboardCheck, Check, X, Clock, Edit2, Save, ListFilter, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
-import { authService, tradeService } from '../../../../../lib/services';
+import { authService, tradeService } from '../../../lib/services';
 import { Theme, themes } from '../../../../../lib/theme';
-import type { Trade } from '../../../../../lib/services/types';
+import type { Trade } from '../../../lib/services/types';
 import toast from 'react-hot-toast';
 
 interface TradeListProps {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search } from 'lucide-react';
-import { stockService } from '../../../../../lib/services';
-import type { Stock } from '../../../../../lib/services/types';
+import { stockService } from '../../../lib/services';
+import type { Stock } from '../../../lib/services/types';
 import toast from 'react-hot-toast';
 
 interface StockSearchProps {
