@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { TrendingUp, TrendingDown, Plus, Calendar, Target, DollarSign, FileText } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
-import { formatCurrency } from '../../../shared/constants/currency';
+import { formatCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 
 interface OptionsTradePlansProps {

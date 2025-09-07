@@ -5,7 +5,7 @@ import { authService, tradeService } from '../../../lib/services';
 import { Theme, themes } from '../../../lib/theme';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import type { Stock } from '../../../lib/services/types';
-import { formatCurrency } from '../../../shared/constants/currency';
+import { formatCurrency } from '../../../shared/utils/format';
 import { StockChart } from './StockChart';
 import { StockConfigEditor } from './StockConfigEditor';
 

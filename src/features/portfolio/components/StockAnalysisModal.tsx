@@ -3,7 +3,7 @@ import { X, RefreshCw, TrendingUp, TrendingDown, Minus, Target, Shield, Brain, A
 import { Theme, themes } from '../../../shared/constants/theme';
 import { analysisService } from '../../../lib/services';
 import type { StockAnalysis } from '../../../lib/services/types';
-import { formatCurrency } from '../../../shared/constants/currency';
+import { formatCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import toast from 'react-hot-toast';
 

@@ -17,7 +17,7 @@ import {
   PieChart
 } from 'lucide-react';
 import { Theme, themes } from '../../../shared/constants/theme';
-import { formatCurrency } from '../../../shared/constants/currency';
+import { formatCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { optionsService, authService } from '../../../lib/services';
 import type { OptionsPortfolioData, OptionsPosition, OptionsStrategy } from '../../../lib/services/types';

@@ -2,7 +2,7 @@ import React from 'react';
 import { format } from 'date-fns';
 import { Theme, themes } from '../../../lib/theme';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
-import { formatCurrency } from '../../../shared/constants/currency';
+import { formatCurrency } from '../../../shared/utils/format';
 import type { OptionsData, OptionQuote } from '../../../lib/services/types';
 
 interface OptionsChainProps {

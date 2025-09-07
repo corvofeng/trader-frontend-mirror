@@ -3,7 +3,7 @@ import * as echarts from 'echarts';
 import { Filter, X } from 'lucide-react';
 import { Theme, themes } from '../../../shared/constants/theme';
 import type { Holding, StockConfig } from '../../../lib/services/types';
-import { formatCurrency } from '../../../shared/constants/currency';
+import { formatCurrency } from '../../../shared/utils/format';
 import type { CurrencyConfig } from '../../../shared/types';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { stockConfigService } from '../../../lib/services';
