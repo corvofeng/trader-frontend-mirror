@@ -11,13 +11,14 @@ import { OptionsCalculatorCard } from '../features/options/components/OptionsCal
 import { OptionsCalculatorModal } from './options/OptionsCalculatorModal';
 import { RelatedLinks } from '../shared/components';
 import { optionsService } from '../lib/services';
+import { OptionsPortfolioManagement } from '../features/options/components/OptionsPortfolioManagement';
 import type { OptionsData } from '../lib/services/types';
 
 interface OptionsProps {
   theme: Theme;
 }
 
-type OptionsTab = 'data' | 'portfolio' | 'trading';
+type OptionsTab = 'data' | 'portfolio' | 'trading' | 'management';
 
 export function Options({ theme }: OptionsProps) {
   const location = useLocation();
@@ -25,7 +26,7 @@ export function Options({ theme }: OptionsProps) {
   const [activeTab, setActiveTab] = useState<OptionsTab>(() => {
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab') as OptionsTab;
-    return tab && ['data', 'portfolio', 'trading'].includes(tab) ? tab : 'data';
+    return tab && ['data', 'portfolio', 'trading', 'management'].includes(tab) ? tab : 'data';
   });
 
   const [availableSymbols, setAvailableSymbols] = useState<string[]>([]);
@@ -111,6 +112,7 @@ export function Options({ theme }: OptionsProps) {
     { id: 'data' as OptionsTab, name: 'Options Data', icon: BarChart2 },
     { id: 'portfolio' as OptionsTab, name: 'Portfolio', icon: Briefcase },
     { id: 'trading' as OptionsTab, name: 'Trade Plans', icon: TrendingUp },
+    { id: 'management' as OptionsTab, name: 'Portfolio Management', icon: Calculator },
   ];
 
   return (
@@ -262,6 +264,17 @@ export function Options({ theme }: OptionsProps) {
             <RelatedLinks 
               theme={theme}
               currentPath="/options?tab=trading" 
+              maxItems={4}
+            />
+          </div>
+        )}
+
+        {activeTab === 'management' && (
+          <div className="space-y-6">
+            <OptionsPortfolioManagement theme={theme} />
+            <RelatedLinks 
+              theme={theme}
+              currentPath="/options?tab=management" 
               maxItems={4}
             />
           </div>
