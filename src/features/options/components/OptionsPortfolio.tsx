@@ -369,92 +369,263 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
 
                   {expandedGroups.includes(group.expiry) && (
                     <div className="px-4 pb-4">
-                      <div className="overflow-x-auto">
-                        <table className="w-full">
-                          <thead className={`${themes[theme].card}`}>
-                            <tr>
-                              <th className={`px-4 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
-                                合约
-                              </th>
-                              <th className={`px-4 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
-                                策略
-                              </th>
-                              <th className={`px-4 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
-                                数量
-                              </th>
-                              <th className={`px-4 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
-                                权利金
-                              </th>
-                              <th className={`px-4 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
-                                当前价值
-                              </th>
-                              <th className={`px-4 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
-                                盈亏
-                              </th>
-                              <th className={`px-4 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
-                                希腊字母
-                              </th>
-                              <th className={`px-4 py-3 text-center text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
-                                状态
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className={`divide-y ${themes[theme].border}`}>
-                            {group.positions.map((position) => (
-                              <tr key={position.id} className={themes[theme].cardHover}>
-                                <td className="px-4 py-4">
-                                  <div className="flex items-center gap-2">
-                                    {getTypeIcon(position.type)}
+                      {/* 按策略分组显示 */}
+                      <div className="space-y-4">
+                        {/* 构建组合策略 */}
+                        {(() => {
+                          const strategiesInGroup = new Map<string, OptionsPosition[]>();
+                          const singleLegPositions: OptionsPosition[] = [];
+                          
+                          group.positions.forEach(position => {
+                            const isComplexStrategy = ['Bull Call Spread', 'Bear Put Spread', 'Iron Condor', 'Butterfly Spread', 'Straddle', 'Strangle'].includes(position.strategy);
+                            
+                            if (isComplexStrategy) {
+                              if (!strategiesInGroup.has(position.strategy)) {
+                                strategiesInGroup.set(position.strategy, []);
+                              }
+                              strategiesInGroup.get(position.strategy)!.push(position);
+                            } else {
+                              singleLegPositions.push(position);
+                            }
+                          });
+                          
+                          return (
+                            <>
+                              {/* 构建组合策略 */}
+                              {strategiesInGroup.size > 0 && (
+                                <div>
+                                  <h4 className={`text-md font-semibold ${themes[theme].text} mb-3 flex items-center gap-2`}>
+                                    <Target className="w-5 h-5 text-purple-500" />
+                                    构建组合策略
+                                  </h4>
+                                  <div className="space-y-3">
+                                    {Array.from(strategiesInGroup.entries()).map(([strategyName, positions]) => {
+                                      const strategyTotalCost = positions.reduce((sum, pos) => sum + pos.premium * pos.quantity * 100, 0);
+                                      const strategyCurrentValue = positions.reduce((sum, pos) => sum + pos.currentValue * pos.quantity * 100, 0);
+                                      const strategyProfitLoss = positions.reduce((sum, pos) => sum + pos.profitLoss, 0);
+                                      const strategyProfitLossPercentage = strategyTotalCost > 0 ? (strategyProfitLoss / strategyTotalCost) * 100 : 0;
+                                      
+                                      return (
+                                        <div key={strategyName} className={`${themes[theme].card} rounded-lg p-4 border ${themes[theme].border}`}>
+                                          <div className="flex justify-between items-center mb-3">
+                                            <div className="flex items-center gap-2">
+                                              <Target className="w-4 h-4 text-purple-500" />
+                                              <span className={`font-semibold ${themes[theme].text}`}>{strategyName}</span>
+                                              <span className={`px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100`}>
+                                                {positions.length} 腿
+                                              </span>
+                                            </div>
+                                            <div className="text-right">
+                                              <div className={`text-sm font-medium ${strategyProfitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                {strategyProfitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(strategyProfitLoss), currencyConfig)}
+                                              </div>
+                                              <div className={`text-xs ${strategyProfitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                ({strategyProfitLossPercentage >= 0 ? '+' : ''}{strategyProfitLossPercentage.toFixed(2)}%)
+                                              </div>
+                                            </div>
+                                          </div>
+                                          
+                                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+                                            <div className="text-center">
+                                              <p className={`text-xs ${themes[theme].text} opacity-75`}>总成本</p>
+                                              <p className={`text-sm font-medium ${themes[theme].text}`}>
+                                                {formatCurrency(strategyTotalCost, currencyConfig)}
+                                              </p>
+                                            </div>
+                                            <div className="text-center">
+                                              <p className={`text-xs ${themes[theme].text} opacity-75`}>当前价值</p>
+                                              <p className={`text-sm font-medium ${themes[theme].text}`}>
+                                                {formatCurrency(strategyCurrentValue, currencyConfig)}
+                                              </p>
+                                            </div>
+                                            <div className="text-center">
+                                              <p className={`text-xs ${themes[theme].text} opacity-75`}>持仓数量</p>
+                                              <p className={`text-sm font-medium ${themes[theme].text}`}>
+                                                {positions.reduce((sum, pos) => sum + pos.quantity, 0)} 手
+                                              </p>
+                                            </div>
+                                          </div>
+                                          
+                                          <div className="space-y-2">
+                                            {positions.map((position) => (
+                                              <div key={position.id} className={`${themes[theme].background} rounded p-2 flex justify-between items-center`}>
+                                                <div className="flex items-center gap-2">
+                                                  {getTypeIcon(position.type)}
+                                                  <span className={`text-sm ${themes[theme].text}`}>
+                                                    {position.symbol} {position.strike} {position.type.toUpperCase()}
+                                                  </span>
+                                                  <span className={`text-xs ${themes[theme].text} opacity-75`}>
+                                                    x{position.quantity}
+                                                  </span>
+                                                </div>
+                                                <div className="text-right">
+                                                  <div className={`text-sm font-medium ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                    {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* 单腿期权 - 左右分栏显示 */}
+                              {singleLegPositions.length > 0 && (
+                                <div>
+                                  <h4 className={`text-md font-semibold ${themes[theme].text} mb-3 flex items-center gap-2`}>
+                                    <TrendingUp className="w-5 h-5 text-blue-500" />
+                                    单腿期权持仓
+                                  </h4>
+                                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    {/* Call期权 */}
                                     <div>
-                                      <div className={`text-sm font-medium ${themes[theme].text}`}>
-                                        {position.symbol} {position.strike} {position.type.toUpperCase()}
+                                      <div className="flex items-center gap-2 mb-3">
+                                        <TrendingUp className="w-4 h-4 text-green-500" />
+                                        <h5 className={`text-sm font-semibold ${themes[theme].text}`}>
+                                          Call期权 ({singleLegPositions.filter(p => p.type === 'call').length})
+                                        </h5>
                                       </div>
-                                      <div className={`text-xs ${themes[theme].text} opacity-75`}>
-                                        IV: {(position.impliedVolatility * 100).toFixed(1)}%
+                                      <div className="space-y-2">
+                                        {singleLegPositions
+                                          .filter(position => position.type === 'call')
+                                          .sort((a, b) => a.strike - b.strike)
+                                          .map((position) => (
+                                            <div key={position.id} className={`${themes[theme].background} rounded-lg p-3 border-l-4 border-green-500`}>
+                                              <div className="flex justify-between items-start mb-2">
+                                                <div>
+                                                  <div className={`text-sm font-medium ${themes[theme].text}`}>
+                                                    {position.symbol} {position.strike} CALL
+                                                  </div>
+                                                  <div className={`text-xs ${themes[theme].text} opacity-75`}>
+                                                    {position.strategy} • {position.quantity} 手
+                                                  </div>
+                                                </div>
+                                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(position.status)}`}>
+                                                  {position.status === 'open' ? '持仓中' : 
+                                                   position.status === 'closed' ? '已平仓' : '已到期'}
+                                                </span>
+                                              </div>
+                                              <div className="grid grid-cols-2 gap-4 text-xs">
+                                                <div>
+                                                  <span className={`${themes[theme].text} opacity-75`}>权利金: </span>
+                                                  <span className={`font-medium ${themes[theme].text}`}>
+                                                    {formatCurrency(position.premium, currencyConfig)}
+                                                  </span>
+                                                </div>
+                                                <div>
+                                                  <span className={`${themes[theme].text} opacity-75`}>当前价值: </span>
+                                                  <span className={`font-medium ${themes[theme].text}`}>
+                                                    {formatCurrency(position.currentValue, currencyConfig)}
+                                                  </span>
+                                                </div>
+                                                <div>
+                                                  <span className={`${themes[theme].text} opacity-75`}>盈亏: </span>
+                                                  <span className={`font-medium ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                    {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
+                                                  </span>
+                                                </div>
+                                                <div>
+                                                  <span className={`${themes[theme].text} opacity-75`}>Delta: </span>
+                                                  <span className={`font-medium ${themes[theme].text}`}>
+                                                    {position.delta.toFixed(3)}
+                                                  </span>
+                                                </div>
+                                              </div>
+                                              {position.notes && (
+                                                <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+                                                  <p className={`text-xs ${themes[theme].text} opacity-75`}>{position.notes}</p>
+                                                </div>
+                                              )}
+                                            </div>
+                                          ))}
+                                        {singleLegPositions.filter(p => p.type === 'call').length === 0 && (
+                                          <div className={`${themes[theme].background} rounded-lg p-4 text-center border-2 border-dashed ${themes[theme].border}`}>
+                                            <TrendingUp className={`w-8 h-8 mx-auto mb-2 ${themes[theme].text} opacity-40`} />
+                                            <p className={`text-sm ${themes[theme].text} opacity-75`}>暂无Call期权持仓</p>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Put期权 */}
+                                    <div>
+                                      <div className="flex items-center gap-2 mb-3">
+                                        <TrendingDown className="w-4 h-4 text-red-500" />
+                                        <h5 className={`text-sm font-semibold ${themes[theme].text}`}>
+                                          Put期权 ({singleLegPositions.filter(p => p.type === 'put').length})
+                                        </h5>
+                                      </div>
+                                      <div className="space-y-2">
+                                        {singleLegPositions
+                                          .filter(position => position.type === 'put')
+                                          .sort((a, b) => b.strike - a.strike)
+                                          .map((position) => (
+                                            <div key={position.id} className={`${themes[theme].background} rounded-lg p-3 border-l-4 border-red-500`}>
+                                              <div className="flex justify-between items-start mb-2">
+                                                <div>
+                                                  <div className={`text-sm font-medium ${themes[theme].text}`}>
+                                                    {position.symbol} {position.strike} PUT
+                                                  </div>
+                                                  <div className={`text-xs ${themes[theme].text} opacity-75`}>
+                                                    {position.strategy} • {position.quantity} 手
+                                                  </div>
+                                                </div>
+                                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(position.status)}`}>
+                                                  {position.status === 'open' ? '持仓中' : 
+                                                   position.status === 'closed' ? '已平仓' : '已到期'}
+                                                </span>
+                                              </div>
+                                              <div className="grid grid-cols-2 gap-4 text-xs">
+                                                <div>
+                                                  <span className={`${themes[theme].text} opacity-75`}>权利金: </span>
+                                                  <span className={`font-medium ${themes[theme].text}`}>
+                                                    {formatCurrency(position.premium, currencyConfig)}
+                                                  </span>
+                                                </div>
+                                                <div>
+                                                  <span className={`${themes[theme].text} opacity-75`}>当前价值: </span>
+                                                  <span className={`font-medium ${themes[theme].text}`}>
+                                                    {formatCurrency(position.currentValue, currencyConfig)}
+                                                  </span>
+                                                </div>
+                                                <div>
+                                                  <span className={`${themes[theme].text} opacity-75`}>盈亏: </span>
+                                                  <span className={`font-medium ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                    {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
+                                                  </span>
+                                                </div>
+                                                <div>
+                                                  <span className={`${themes[theme].text} opacity-75`}>Delta: </span>
+                                                  <span className={`font-medium ${themes[theme].text}`}>
+                                                    {position.delta.toFixed(3)}
+                                                  </span>
+                                                </div>
+                                              </div>
+                                              {position.notes && (
+                                                <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+                                                  <p className={`text-xs ${themes[theme].text} opacity-75`}>{position.notes}</p>
+                                                </div>
+                                              )}
+                                            </div>
+                                          ))}
+                                        {singleLegPositions.filter(p => p.type === 'put').length === 0 && (
+                                          <div className={`${themes[theme].background} rounded-lg p-4 text-center border-2 border-dashed ${themes[theme].border}`}>
+                                            <TrendingDown className={`w-8 h-8 mx-auto mb-2 ${themes[theme].text} opacity-40`} />
+                                            <p className={`text-sm ${themes[theme].text} opacity-75`}>暂无Put期权持仓</p>
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                   </div>
-                                </td>
-                                <td className="px-4 py-4">
-                                  <span className={`text-sm ${themes[theme].text}`}>
-                                    {position.strategy}
-                                  </span>
-                                </td>
-                                <td className={`px-4 py-4 text-right text-sm ${themes[theme].text}`}>
-                                  {position.quantity}
-                                </td>
-                                <td className={`px-4 py-4 text-right text-sm ${themes[theme].text}`}>
-                                  {formatCurrency(position.premium, currencyConfig)}
-                                </td>
-                                <td className={`px-4 py-4 text-right text-sm ${themes[theme].text}`}>
-                                  {formatCurrency(position.currentValue, currencyConfig)}
-                                </td>
-                                <td className={`px-4 py-4 text-right text-sm font-medium ${
-                                  position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'
-                                }`}>
-                                  <div>
-                                    {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
-                                  </div>
-                                  <div className="text-xs">
-                                    ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
-                                  </div>
-                                </td>
-                                <td className={`px-4 py-4 text-right text-xs ${themes[theme].text}`}>
-                                  <div>Δ: {position.delta.toFixed(3)}</div>
-                                  <div>Θ: {position.theta.toFixed(3)}</div>
-                                  <div>Γ: {position.gamma.toFixed(3)}</div>
-                                  <div>ν: {position.vega.toFixed(3)}</div>
-                                </td>
-                                <td className="px-4 py-4 text-center">
-                                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(position.status)}`}>
-                                    {position.status === 'open' ? '持仓中' : 
-                                     position.status === 'closed' ? '已平仓' : '已到期'}
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
                   )}
