@@ -31,11 +31,17 @@ interface OptionsPortfolioManagementProps {
   theme: Theme;
 }
 
+interface PositionSelection {
+  positionId: string;
+  selectedQuantity: number;
+  maxQuantity: number;
+}
+
 interface CustomStrategy {
   id: string;
   name: string;
   description: string;
-  positions: OptionsPosition[];
+  positions: Array<OptionsPosition & { selectedQuantity: number }>;
   createdAt: string;
   isCustom: true;
 }
@@ -220,7 +226,7 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
   const [newStrategyDescription, setNewStrategyDescription] = useState('');
   const [editingStrategy, setEditingStrategy] = useState<string | null>(null);
   const [copiedStrategy, setCopiedStrategy] = useState<string | null>(null);
-  const [selectedPositions, setSelectedPositions] = useState<Set<string>>(new Set());
+  const [selectedPositions, setSelectedPositions] = useState<Map<string, PositionSelection>>(new Map());
   const [availableMonths, setAvailableMonths] = useState<Date[]>([]);
   const [isSavingStrategy, setIsSavingStrategy] = useState(false);
   const { currencyConfig } = useCurrency();
@@ -296,7 +302,7 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
     }
     
     // Clear selections when changing months
-    setSelectedPositions(new Set());
+    setSelectedPositions(new Map());
   };
 
   const handleCreateCustomStrategy = async () => {
@@ -310,10 +316,31 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
       return;
     }
 
+    // 验证所有选择的数量都大于0
+    const hasInvalidQuantity = Array.from(selectedPositions.values()).some(
+      selection => selection.selectedQuantity <= 0
+    );
+    
+    if (hasInvalidQuantity) {
+      toast.error('所有选择的期权数量必须大于0');
+      return;
+    }
     setIsSavingStrategy(true);
     
     try {
-      const selectedPositionsList = positions.filter(pos => selectedPositions.has(pos.id));
+      const selectedPositionsList = Array.from(selectedPositions.entries()).map(([positionId, selection]) => {
+        const position = positions.find(pos => pos.id === positionId);
+        if (!position) throw new Error(`Position ${positionId} not found`);
+        
+        return {
+          ...position,
+          selectedQuantity: selection.selectedQuantity,
+          // 重新计算基于选择数量的盈亏
+          profitLoss: (position.profitLoss / position.quantity) * selection.selectedQuantity,
+          // 保持原始数量信息以便后续参考
+          originalQuantity: position.quantity
+        };
+      });
       
       const newStrategy: CustomStrategy = {
         id: `custom-${Date.now()}`,
@@ -335,7 +362,7 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
       setNewStrategyName('');
       setNewStrategyDescription('');
       setShowAddStrategy(false);
-      setSelectedPositions(new Set());
+      setSelectedPositions(new Map());
       toast.success('策略创建并保存成功');
     } catch (error) {
       console.error('Error saving strategy:', error);
@@ -372,8 +399,9 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
         strike: pos.strike,
         expiry: pos.expiry,
         quantity: pos.quantity,
+        selectedQuantity: pos.quantity, // 推荐策略使用建议数量
         premium: pos.estimatedPremium,
-        currentValue: pos.estimatedPremium, // Assume current value equals premium for new positions
+        currentValue: pos.estimatedPremium,
         profitLoss: 0,
         profitLossPercentage: 0,
         impliedVolatility: 0.20,
@@ -395,26 +423,51 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
     toast.success(`已添加策略: ${strategy.name}`);
   };
 
-  const togglePositionSelection = (positionId: string) => {
+  const togglePositionSelection = (positionId: string, maxQuantity: number) => {
     setSelectedPositions(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(positionId)) {
-        newSet.delete(positionId);
+      const newMap = new Map(prev);
+      if (newMap.has(positionId)) {
+        newMap.delete(positionId);
       } else {
-        newSet.add(positionId);
+        newMap.set(positionId, {
+          positionId,
+          selectedQuantity: 1, // 默认选择1手
+          maxQuantity
+        });
       }
-      return newSet;
+      return newMap;
+    });
+  };
+
+  const updateSelectedQuantity = (positionId: string, quantity: number) => {
+    setSelectedPositions(prev => {
+      const newMap = new Map(prev);
+      const selection = newMap.get(positionId);
+      if (selection) {
+        newMap.set(positionId, {
+          ...selection,
+          selectedQuantity: Math.max(1, Math.min(quantity, selection.maxQuantity))
+        });
+      }
+      return newMap;
     });
   };
 
   const selectAllPositions = () => {
     const monthPositions = getPositionsForMonth(currentMonth);
-    const allIds = new Set(monthPositions.map(pos => pos.id));
-    setSelectedPositions(allIds);
+    const allSelections = new Map<string, PositionSelection>();
+    monthPositions.forEach(pos => {
+      allSelections.set(pos.id, {
+        positionId: pos.id,
+        selectedQuantity: 1, // 默认选择1手
+        maxQuantity: pos.quantity
+      });
+    });
+    setSelectedPositions(allSelections);
   };
 
   const clearAllSelections = () => {
-    setSelectedPositions(new Set());
+    setSelectedPositions(new Map());
   };
 
   const getStatusColor = (status: OptionsPosition['status']) => {
@@ -654,15 +707,31 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
                       >
                         <td className="px-4 py-4">
                           <button
-                            onClick={() => togglePositionSelection(position.id)}
+                            onClick={() => togglePositionSelection(position.id, position.quantity)}
                             className={`p-1 rounded ${themes[theme].secondary}`}
                           >
-                            {isSelected ? (
+                            {selectedPositions.has(position.id) ? (
                               <CheckSquare className="w-5 h-5 text-blue-600" />
                             ) : (
                               <Square className="w-5 h-5" />
                             )}
                           </button>
+                          {selectedPositions.has(position.id) && (
+                            <div className="mt-2">
+                              <input
+                                type="number"
+                                min="1"
+                                max={position.quantity}
+                                value={selectedPositions.get(position.id)?.selectedQuantity || 1}
+                                onChange={(e) => updateSelectedQuantity(position.id, parseInt(e.target.value) || 1)}
+                                className={`w-16 px-2 py-1 rounded text-xs ${themes[theme].input} ${themes[theme].text}`}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <div className={`text-xs ${themes[theme].text} opacity-60 mt-1`}>
+                                / {position.quantity}
+                              </div>
+                            </div>
+                          )}
                         </td>
                         <td className="px-4 py-4">
                           <div className="flex items-center gap-2">
@@ -773,22 +842,52 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
                 <h4 className={`text-sm font-medium ${themes[theme].text} mb-2`}>
                   已选择的期权持仓 ({selectedPositions.size} 个):
                 </h4>
-                <div className="space-y-2 max-h-32 overflow-y-auto">
-                  {positions
-                    .filter(pos => selectedPositions.has(pos.id))
-                    .map(position => (
-                      <div key={position.id} className={`${themes[theme].card} rounded p-2 flex justify-between items-center text-sm`}>
-                        <div className="flex items-center gap-2">
-                          {getTypeIcon(position.type)}
-                          <span className={themes[theme].text}>
-                            {position.symbol} {position.strike} {position.type.toUpperCase()} x{position.quantity}
+                <div className="space-y-3 max-h-48 overflow-y-auto">
+                  {Array.from(selectedPositions.entries()).map(([positionId, selection]) => {
+                    const position = positions.find(pos => pos.id === positionId);
+                    if (!position) return null;
+                    
+                    const adjustedProfitLoss = (position.profitLoss / position.quantity) * selection.selectedQuantity;
+                    
+                    return (
+                      <div key={position.id} className={`${themes[theme].card} rounded p-3 border ${themes[theme].border}`}>
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex items-center gap-2">
+                            {getTypeIcon(position.type)}
+                            <span className={`text-sm font-medium ${themes[theme].text}`}>
+                              {position.symbol} {position.strike} {position.type.toUpperCase()}
+                            </span>
+                          </div>
+                          <span className={`text-sm ${adjustedProfitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {adjustedProfitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(adjustedProfitLoss), currencyConfig)}
                           </span>
                         </div>
-                        <span className={`${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
-                        </span>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <label className={`text-xs ${themes[theme].text} opacity-75`}>
+                              数量:
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              max={selection.maxQuantity}
+                              value={selection.selectedQuantity}
+                              onChange={(e) => updateSelectedQuantity(positionId, parseInt(e.target.value) || 1)}
+                              className={`w-16 px-2 py-1 rounded text-xs ${themes[theme].input} ${themes[theme].text}`}
+                            />
+                            <span className={`text-xs ${themes[theme].text} opacity-75`}>
+                              / {selection.maxQuantity} 手
+                            </span>
+                          </div>
+                          <div className="text-xs">
+                            <span className={`${themes[theme].text} opacity-75`}>
+                              成本: {formatCurrency(position.premium * selection.selectedQuantity * 100, currencyConfig)}
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                    ))}
+                    );
+                  })}
                 </div>
               </div>
               
@@ -961,11 +1060,32 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
                             <div className="flex items-center gap-2">
                               {getTypeIcon(position.type)}
                               <span className={themes[theme].text}>
-                                {position.symbol} {position.strike} {position.type.toUpperCase()} x{position.quantity}
+                                {position.symbol} {position.strike} {position.type.toUpperCase()} x{position.selectedQuantity}
+                                {position.selectedQuantity !== position.quantity && (
+                                  <span className="opacity-60 ml-1">
+                                    (原{position.quantity}手)
+                                  </span>
+                                )}
+                                {position.selectedQuantity !== position.quantity && (
+                                  <span className="opacity-60 ml-1">
+                                    (原{position.quantity}手)
+                                  </span>
+                                )}
                               </span>
                             </div>
-                            <span className={`${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
+                            <div className="text-right">
+                              <div className={`${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
+                              </div>
+                              <div className={`text-xs ${themes[theme].text} opacity-60`}>
+                                成本: {formatCurrency(position.premium * position.selectedQuantity * 100, currencyConfig)}
+                              </div>
+                            </div>
+                              </div>
+                              <div className={`text-xs ${themes[theme].text} opacity-60`}>
+                                成本: {formatCurrency(position.premium * position.selectedQuantity * 100, currencyConfig)}
+                              </div>
+                            </div>
                             </span>
                           </div>
                         ))}
