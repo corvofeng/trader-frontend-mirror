@@ -381,4 +381,17 @@ export interface OptionsService {
   getAvailableSymbols: () => Promise<ServiceResponse<string[]>>;
   getOptionsPortfolio: (userId: string) => Promise<ServiceResponse<OptionsPortfolioData>>;
   getAvailableStrategies: () => Promise<ServiceResponse<string[]>>;
+  saveCustomStrategy: (strategy: CustomOptionsStrategy) => Promise<ServiceResponse<CustomOptionsStrategy>>;
+  deleteCustomStrategy: (strategyId: string) => Promise<ServiceResponse<void>>;
+  getCustomStrategies: (userId: string) => Promise<ServiceResponse<CustomOptionsStrategy[]>>;
+}
+
+export interface CustomOptionsStrategy {
+  id: string;
+  userId: string;
+  name: string;
+  description: string;
+  positions: OptionsPosition[];
+  createdAt: string;
+  updatedAt: string;
 }

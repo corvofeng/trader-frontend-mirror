@@ -1,4 +1,5 @@
 import type { OptionsService, OptionsData, OptionsPortfolioData, OptionsPosition, OptionsStrategy } from '../types';
+import type { CustomOptionsStrategy } from '../types';
 
 // 支持的期权标的列表
 const AVAILABLE_OPTIONS_SYMBOLS = [
@@ -25,6 +26,9 @@ const AVAILABLE_STRATEGIES = [
   'Straddle',
   'Strangle'
 ];
+
+// 存储自定义策略的内存数据库
+const customStrategiesStore = new Map<string, CustomOptionsStrategy>();
 
 // Mock期权持仓数据
 const generateMockOptionsPortfolio = (): OptionsPortfolioData => {
@@ -417,6 +421,41 @@ export const optionsService: OptionsService = {
   getAvailableStrategies: async () => {
     await new Promise(resolve => setTimeout(resolve, 300));
     return { data: AVAILABLE_STRATEGIES, error: null };
+  },
+
+  saveCustomStrategy: async (strategy: Omit<CustomOptionsStrategy, 'id' | 'createdAt' | 'updatedAt'>) => {
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
+    
+    const newStrategy: CustomOptionsStrategy = {
+      ...strategy,
+      id: `strategy-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    
+    customStrategiesStore.set(newStrategy.id, newStrategy);
+    return { data: newStrategy, error: null };
+  },
+
+  deleteCustomStrategy: async (strategyId: string) => {
+    await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API delay
+    
+    if (!customStrategiesStore.has(strategyId)) {
+      return { data: null, error: new Error('Strategy not found') };
+    }
+    
+    customStrategiesStore.delete(strategyId);
+    return { data: null, error: null };
+  },
+
+  getCustomStrategies: async (userId: string) => {
+    await new Promise(resolve => setTimeout(resolve, 800)); // Simulate API delay
+    
+    const userStrategies = Array.from(customStrategiesStore.values())
+      .filter(strategy => strategy.userId === userId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    
+    return { data: userStrategies, error: null };
   }
 };
 
