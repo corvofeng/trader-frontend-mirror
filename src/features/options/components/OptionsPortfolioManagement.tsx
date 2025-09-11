@@ -1,30 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { format, differenceInDays, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
+import { format, differenceInDays } from 'date-fns';
 import { 
   Calendar, 
-  Plus, 
-  Trash2, 
   ChevronLeft, 
   ChevronRight, 
-  Target, 
-  TrendingUp, 
+  Plus, 
+  Save, 
+  X, 
+  Check,
+  Target,
+  TrendingUp,
   TrendingDown,
   Activity,
   Shield,
-  Lightbulb,
-  Copy,
-  Check,
-  Edit2,
-  Save,
-  X,
-  CheckSquare,
-  Square
+  Trash2,
+  Edit2
 } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
-import { optionsService } from '../../../lib/services';
-import type { OptionsPosition, OptionsStrategy } from '../../../lib/services/types';
+import { optionsService, authService } from '../../../lib/services';
+import type { OptionsPortfolioData, OptionsPosition, CustomOptionsStrategy } from '../../../lib/services/types';
 import toast from 'react-hot-toast';
 
 interface OptionsPortfolioManagementProps {
@@ -32,242 +28,56 @@ interface OptionsPortfolioManagementProps {
 }
 
 interface PositionSelection {
-  positionId: string;
+  position: OptionsPosition;
+  isSelected: boolean;
   selectedQuantity: number;
-  maxQuantity: number;
-}
-
-interface CustomStrategy {
-  id: string;
-  name: string;
-  description: string;
-  positions: Array<OptionsPosition & { selectedQuantity: number }>;
-  createdAt: string;
-  isCustom: true;
-}
-
-interface RecommendedStrategy {
-  id: string;
-  name: string;
-  description: string;
-  category: 'bullish' | 'bearish' | 'neutral' | 'volatility';
-  riskLevel: 'low' | 'medium' | 'high';
-  suggestedPositions: Array<{
-    symbol: string;
-    type: 'call' | 'put';
-    action: 'buy' | 'sell';
-    strike: number;
-    expiry: string;
-    quantity: number;
-    estimatedPremium: number;
-  }>;
-  expectedReturn: number;
-  maxRisk: number;
-  reasoning: string;
 }
 
 const DEMO_USER_ID = 'mock-user-id';
 
-// Mock recommended strategies based on current market conditions
-const generateRecommendedStrategies = (currentPositions: OptionsPosition[]): RecommendedStrategy[] => {
-  const symbols = Array.from(new Set(currentPositions.map(p => p.symbol)));
-  const recommendations: RecommendedStrategy[] = [];
-
-  // Generate recommendations for each symbol
-  symbols.forEach(symbol => {
-    const symbolPositions = currentPositions.filter(p => p.symbol === symbol);
-    const hasCallPositions = symbolPositions.some(p => p.type === 'call');
-    const hasPutPositions = symbolPositions.some(p => p.type === 'put');
-
-    // Recommend protective strategies if only long positions exist
-    if (hasCallPositions && !hasPutPositions) {
-      recommendations.push({
-        id: `protective-put-${symbol}`,
-        name: `${symbol} 保护性看跌期权`,
-        description: `为您的${symbol}看涨持仓添加保护性看跌期权，降低下行风险`,
-        category: 'neutral',
-        riskLevel: 'low',
-        suggestedPositions: [
-          {
-            symbol,
-            type: 'put',
-            action: 'buy',
-            strike: 380,
-            expiry: '2024-03-15',
-            quantity: 5,
-            estimatedPremium: 8.50
-          }
-        ],
-        expectedReturn: 5.2,
-        maxRisk: 4250,
-        reasoning: '当前持有看涨期权，建议添加保护性看跌期权以对冲下行风险'
-      });
-    }
-
-    // Recommend covered call if no call positions
-    if (!hasCallPositions) {
-      recommendations.push({
-        id: `covered-call-${symbol}`,
-        name: `${symbol} 备兑看涨期权`,
-        description: `卖出${symbol}看涨期权获取权利金收入`,
-        category: 'neutral',
-        riskLevel: 'low',
-        suggestedPositions: [
-          {
-            symbol,
-            type: 'call',
-            action: 'sell',
-            strike: 460,
-            expiry: '2024-02-16',
-            quantity: 3,
-            estimatedPremium: 12.30
-          }
-        ],
-        expectedReturn: 8.7,
-        maxRisk: 0,
-        reasoning: '通过卖出虚值看涨期权获取额外收入，适合中性市场预期'
-      });
-    }
-  });
-
-  // Add general market strategies
-  recommendations.push(
-    {
-      id: 'iron-condor-spy',
-      name: 'SPY 铁鹰策略',
-      description: '中性策略，适合低波动市场环境',
-      category: 'neutral',
-      riskLevel: 'medium',
-      suggestedPositions: [
-        {
-          symbol: 'SPY',
-          type: 'put',
-          action: 'buy',
-          strike: 440,
-          expiry: '2024-03-15',
-          quantity: 2,
-          estimatedPremium: 3.20
-        },
-        {
-          symbol: 'SPY',
-          type: 'put',
-          action: 'sell',
-          strike: 450,
-          expiry: '2024-03-15',
-          quantity: 2,
-          estimatedPremium: 5.80
-        },
-        {
-          symbol: 'SPY',
-          type: 'call',
-          action: 'sell',
-          strike: 470,
-          expiry: '2024-03-15',
-          quantity: 2,
-          estimatedPremium: 6.10
-        },
-        {
-          symbol: 'SPY',
-          type: 'call',
-          action: 'buy',
-          strike: 480,
-          expiry: '2024-03-15',
-          quantity: 2,
-          estimatedPremium: 3.50
-        }
-      ],
-      expectedReturn: 12.4,
-      maxRisk: 1560,
-      reasoning: '当前市场波动率较低，铁鹰策略可以收取时间价值'
-    },
-    {
-      id: 'bull-call-spread-qqq',
-      name: 'QQQ 牛市看涨价差',
-      description: '看好科技股短期上涨的有限风险策略',
-      category: 'bullish',
-      riskLevel: 'medium',
-      suggestedPositions: [
-        {
-          symbol: 'QQQ',
-          type: 'call',
-          action: 'buy',
-          strike: 380,
-          expiry: '2024-04-19',
-          quantity: 5,
-          estimatedPremium: 15.20
-        },
-        {
-          symbol: 'QQQ',
-          type: 'call',
-          action: 'sell',
-          strike: 400,
-          expiry: '2024-04-19',
-          quantity: 5,
-          estimatedPremium: 8.90
-        }
-      ],
-      expectedReturn: 18.5,
-      maxRisk: 3150,
-      reasoning: '科技股基本面强劲，适合构建牛市价差策略'
-    }
-  );
-
-  return recommendations;
-};
-
 export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagementProps) {
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [positions, setPositions] = useState<OptionsPosition[]>([]);
-  const [customStrategies, setCustomStrategies] = useState<CustomStrategy[]>([]);
-  const [recommendedStrategies, setRecommendedStrategies] = useState<RecommendedStrategy[]>([]);
+  const [portfolioData, setPortfolioData] = useState<OptionsPortfolioData | null>(null);
+  const [customStrategies, setCustomStrategies] = useState<CustomOptionsStrategy[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [showAddStrategy, setShowAddStrategy] = useState(false);
-  const [newStrategyName, setNewStrategyName] = useState('');
-  const [newStrategyDescription, setNewStrategyDescription] = useState('');
-  const [editingStrategy, setEditingStrategy] = useState<string | null>(null);
-  const [copiedStrategy, setCopiedStrategy] = useState<string | null>(null);
+  const [isLoadingStrategies, setIsLoadingStrategies] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState<string>('');
+  const [availableMonths, setAvailableMonths] = useState<string[]>([]);
   const [selectedPositions, setSelectedPositions] = useState<Map<string, PositionSelection>>(new Map());
-  const [availableMonths, setAvailableMonths] = useState<Date[]>([]);
-  const [isSavingStrategy, setIsSavingStrategy] = useState(false);
+  const [showCreateStrategy, setShowCreateStrategy] = useState(false);
+  const [strategyName, setStrategyName] = useState('');
+  const [strategyDescription, setStrategyDescription] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
   const { currencyConfig } = useCurrency();
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        const { data, error } = await optionsService.getOptionsPortfolio(DEMO_USER_ID);
-        if (error) throw error;
+        const { data: { user } } = await authService.getUser();
         
+        const userId = user?.id || DEMO_USER_ID;
+        const { data, error } = await optionsService.getOptionsPortfolio(userId);
+        
+        if (error) throw error;
         if (data) {
-          // Flatten all positions from strategies
-          const allPositions = data.strategies.flatMap(strategy => strategy.positions);
-          setPositions(allPositions);
+          setPortfolioData(data);
           
-          // Calculate available months based on positions
+          // 计算可用月份（仅包含有持仓的月份）
           const months = new Set<string>();
-          allPositions.forEach(position => {
-            const expiryDate = new Date(position.expiry);
-            const monthKey = format(startOfMonth(expiryDate), 'yyyy-MM');
-            months.add(monthKey);
+          data.expiryGroups.forEach(group => {
+            if (group.positions.length > 0) {
+              const monthKey = format(new Date(group.expiry), 'yyyy-MM');
+              months.add(monthKey);
+            }
           });
           
-          const sortedMonths = Array.from(months)
-            .map(monthKey => new Date(monthKey + '-01'))
-            .sort((a, b) => a.getTime() - b.getTime());
-          
+          const sortedMonths = Array.from(months).sort();
           setAvailableMonths(sortedMonths);
           
-          // Set current month to the first available month if current month has no positions
+          // 设置当前月份为最近的有持仓的月份
           if (sortedMonths.length > 0) {
-            const currentMonthKey = format(startOfMonth(currentMonth), 'yyyy-MM');
-            if (!months.has(currentMonthKey)) {
-              setCurrentMonth(sortedMonths[0]);
-            }
+            setCurrentMonth(sortedMonths[0]);
           }
-          
-          // Generate recommendations based on current positions
-          const recommendations = generateRecommendedStrategies(allPositions);
-          setRecommendedStrategies(recommendations);
         }
       } catch (error) {
         console.error('Error fetching portfolio data:', error);
@@ -280,194 +90,186 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
     fetchData();
   }, []);
 
-  const getPositionsForMonth = (month: Date) => {
-    const monthStart = startOfMonth(month);
-    const monthEnd = endOfMonth(month);
+  useEffect(() => {
+    const fetchCustomStrategies = async () => {
+      try {
+        setIsLoadingStrategies(true);
+        const { data: { user } } = await authService.getUser();
+        
+        const userId = user?.id || DEMO_USER_ID;
+        const { data, error } = await optionsService.getCustomStrategies(userId);
+        
+        if (error) throw error;
+        if (data) {
+          setCustomStrategies(data);
+        }
+      } catch (error) {
+        console.error('Error fetching custom strategies:', error);
+      } finally {
+        setIsLoadingStrategies(false);
+      }
+    };
+
+    fetchCustomStrategies();
+  }, []);
+
+  const getCurrentMonthPositions = () => {
+    if (!portfolioData || !currentMonth) return [];
     
-    return positions.filter(position => {
-      const expiryDate = new Date(position.expiry);
-      return expiryDate >= monthStart && expiryDate <= monthEnd;
-    });
+    return portfolioData.expiryGroups
+      .filter(group => {
+        const groupMonth = format(new Date(group.expiry), 'yyyy-MM');
+        return groupMonth === currentMonth;
+      })
+      .flatMap(group => group.positions)
+      .sort((a, b) => new Date(a.expiry).getTime() - new Date(b.expiry).getTime());
   };
 
   const navigateMonth = (direction: 'prev' | 'next') => {
-    const currentIndex = availableMonths.findIndex(month => 
-      format(month, 'yyyy-MM') === format(currentMonth, 'yyyy-MM')
-    );
-    
+    const currentIndex = availableMonths.indexOf(currentMonth);
     if (direction === 'prev' && currentIndex > 0) {
       setCurrentMonth(availableMonths[currentIndex - 1]);
+      setSelectedPositions(new Map()); // 清空选择
     } else if (direction === 'next' && currentIndex < availableMonths.length - 1) {
       setCurrentMonth(availableMonths[currentIndex + 1]);
+      setSelectedPositions(new Map()); // 清空选择
+    }
+  };
+
+  const handlePositionSelect = (position: OptionsPosition, isSelected: boolean) => {
+    const newSelections = new Map(selectedPositions);
+    
+    if (isSelected) {
+      newSelections.set(position.id, {
+        position,
+        isSelected: true,
+        selectedQuantity: 1 // 默认选择1个合约
+      });
+    } else {
+      newSelections.delete(position.id);
     }
     
-    // Clear selections when changing months
+    setSelectedPositions(newSelections);
+  };
+
+  const handleQuantityChange = (positionId: string, quantity: number) => {
+    const selection = selectedPositions.get(positionId);
+    if (selection) {
+      const maxQuantity = selection.position.quantity;
+      const validQuantity = Math.max(1, Math.min(quantity, maxQuantity));
+      
+      setSelectedPositions(new Map(selectedPositions.set(positionId, {
+        ...selection,
+        selectedQuantity: validQuantity
+      })));
+    }
+  };
+
+  const handleSelectAll = () => {
+    const positions = getCurrentMonthPositions();
+    const newSelections = new Map<string, PositionSelection>();
+    
+    positions.forEach(position => {
+      newSelections.set(position.id, {
+        position,
+        isSelected: true,
+        selectedQuantity: 1
+      });
+    });
+    
+    setSelectedPositions(newSelections);
+  };
+
+  const handleClearAll = () => {
     setSelectedPositions(new Map());
   };
 
-  const handleCreateCustomStrategy = async () => {
-    if (!newStrategyName.trim()) {
+  const getSelectedPositionsArray = () => {
+    return Array.from(selectedPositions.values()).filter(selection => selection.isSelected);
+  };
+
+  const calculateStrategyMetrics = () => {
+    const selections = getSelectedPositionsArray();
+    const totalCost = selections.reduce((sum, selection) => {
+      return sum + (selection.position.premium * selection.selectedQuantity * 100);
+    }, 0);
+    
+    const currentValue = selections.reduce((sum, selection) => {
+      return sum + (selection.position.currentValue * selection.selectedQuantity * 100);
+    }, 0);
+    
+    const profitLoss = currentValue - totalCost;
+    
+    return { totalCost, currentValue, profitLoss };
+  };
+
+  const handleCreateStrategy = async () => {
+    if (!strategyName.trim()) {
       toast.error('请输入策略名称');
       return;
     }
-
-    if (selectedPositions.size === 0) {
+    
+    const selections = getSelectedPositionsArray();
+    if (selections.length === 0) {
       toast.error('请至少选择一个期权持仓');
       return;
     }
 
-    // 验证所有选择的数量都大于0
-    const hasInvalidQuantity = Array.from(selectedPositions.values()).some(
-      selection => selection.selectedQuantity <= 0
-    );
-    
-    if (hasInvalidQuantity) {
-      toast.error('所有选择的期权数量必须大于0');
-      return;
-    }
-    setIsSavingStrategy(true);
-    
+    setIsSaving(true);
     try {
-      const selectedPositionsList = Array.from(selectedPositions.entries()).map(([positionId, selection]) => {
-        const position = positions.find(pos => pos.id === positionId);
-        if (!position) throw new Error(`Position ${positionId} not found`);
-        
-        return {
-          ...position,
-          selectedQuantity: selection.selectedQuantity,
-          // 重新计算基于选择数量的盈亏
-          profitLoss: (position.profitLoss / position.quantity) * selection.selectedQuantity,
-          // 保持原始数量信息以便后续参考
-          originalQuantity: position.quantity
-        };
+      const { data: { user } } = await authService.getUser();
+      const userId = user?.id || DEMO_USER_ID;
+
+      // 创建策略的期权持仓数据
+      const strategyPositions = selections.map(selection => ({
+        ...selection.position,
+        quantity: selection.selectedQuantity, // 使用选择的数量
+        selectedQuantity: selection.selectedQuantity,
+        profitLoss: (selection.position.currentValue - selection.position.premium) * selection.selectedQuantity * 100,
+        profitLossPercentage: selection.position.premium > 0 
+          ? (((selection.position.currentValue - selection.position.premium) / selection.position.premium) * 100)
+          : 0
+      }));
+
+      const { data, error } = await optionsService.saveCustomStrategy({
+        userId,
+        name: strategyName,
+        description: strategyDescription,
+        positions: strategyPositions
       });
-      
-      const newStrategy: CustomStrategy = {
-        id: `custom-${Date.now()}`,
-        name: newStrategyName.trim(),
-        description: newStrategyDescription.trim() || '自定义期权策略',
-        positions: selectedPositionsList,
-        createdAt: new Date().toISOString(),
-        isCustom: true
-      };
 
-      // TODO: 这里应该调用后端API保存策略
-      // const { error } = await optionsService.saveCustomStrategy(newStrategy);
-      // if (error) throw error;
-
-      // 模拟API调用延迟
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      setCustomStrategies(prev => [...prev, newStrategy]);
-      setNewStrategyName('');
-      setNewStrategyDescription('');
-      setShowAddStrategy(false);
-      setSelectedPositions(new Map());
-      toast.success('策略创建并保存成功');
+      if (error) throw error;
+      if (data) {
+        setCustomStrategies(prev => [data, ...prev]);
+        toast.success('策略创建成功');
+        
+        // 重置表单
+        setStrategyName('');
+        setStrategyDescription('');
+        setSelectedPositions(new Map());
+        setShowCreateStrategy(false);
+      }
     } catch (error) {
-      console.error('Error saving strategy:', error);
-      toast.error('保存策略失败，请重试');
+      console.error('Error creating strategy:', error);
+      toast.error('创建策略失败');
     } finally {
-      setIsSavingStrategy(false);
+      setIsSaving(false);
     }
   };
 
-  const handleDeleteCustomStrategy = async (strategyId: string) => {
+  const handleDeleteStrategy = async (strategyId: string) => {
+    if (!confirm('确定要删除这个策略吗？')) return;
+    
     try {
-      // TODO: 这里应该调用后端API删除策略
-      // const { error } = await optionsService.deleteCustomStrategy(strategyId);
-      // if (error) throw error;
-
+      const { error } = await optionsService.deleteCustomStrategy(strategyId);
+      if (error) throw error;
+      
       setCustomStrategies(prev => prev.filter(s => s.id !== strategyId));
-      toast.success('策略已删除');
+      toast.success('策略删除成功');
     } catch (error) {
       console.error('Error deleting strategy:', error);
       toast.error('删除策略失败');
     }
-  };
-
-  const handleCopyRecommendedStrategy = (strategy: RecommendedStrategy) => {
-    const customStrategy: CustomStrategy = {
-      id: `custom-${Date.now()}`,
-      name: strategy.name,
-      description: strategy.description,
-      positions: strategy.suggestedPositions.map((pos, index) => ({
-        id: `pos-${Date.now()}-${index}`,
-        symbol: pos.symbol,
-        strategy: strategy.name,
-        type: pos.type,
-        strike: pos.strike,
-        expiry: pos.expiry,
-        quantity: pos.quantity,
-        selectedQuantity: pos.quantity, // 推荐策略使用建议数量
-        premium: pos.estimatedPremium,
-        currentValue: pos.estimatedPremium,
-        profitLoss: 0,
-        profitLossPercentage: 0,
-        impliedVolatility: 0.20,
-        delta: pos.type === 'call' ? 0.5 : -0.5,
-        gamma: 0.02,
-        theta: -0.05,
-        vega: 0.12,
-        status: 'open',
-        openDate: new Date().toISOString(),
-        notes: strategy.reasoning
-      })),
-      createdAt: new Date().toISOString(),
-      isCustom: true
-    };
-
-    setCustomStrategies(prev => [...prev, customStrategy]);
-    setCopiedStrategy(strategy.id);
-    setTimeout(() => setCopiedStrategy(null), 2000);
-    toast.success(`已添加策略: ${strategy.name}`);
-  };
-
-  const togglePositionSelection = (positionId: string, maxQuantity: number) => {
-    setSelectedPositions(prev => {
-      const newMap = new Map(prev);
-      if (newMap.has(positionId)) {
-        newMap.delete(positionId);
-      } else {
-        newMap.set(positionId, {
-          positionId,
-          selectedQuantity: 1, // 默认选择1手
-          maxQuantity
-        });
-      }
-      return newMap;
-    });
-  };
-
-  const updateSelectedQuantity = (positionId: string, quantity: number) => {
-    setSelectedPositions(prev => {
-      const newMap = new Map(prev);
-      const selection = newMap.get(positionId);
-      if (selection) {
-        newMap.set(positionId, {
-          ...selection,
-          selectedQuantity: Math.max(1, Math.min(quantity, selection.maxQuantity))
-        });
-      }
-      return newMap;
-    });
-  };
-
-  const selectAllPositions = () => {
-    const monthPositions = getPositionsForMonth(currentMonth);
-    const allSelections = new Map<string, PositionSelection>();
-    monthPositions.forEach(pos => {
-      allSelections.set(pos.id, {
-        positionId: pos.id,
-        selectedQuantity: 1, // 默认选择1手
-        maxQuantity: pos.quantity
-      });
-    });
-    setSelectedPositions(allSelections);
-  };
-
-  const clearAllSelections = () => {
-    setSelectedPositions(new Map());
   };
 
   const getStatusColor = (status: OptionsPosition['status']) => {
@@ -509,722 +311,496 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
     }
   };
 
-  const getCategoryColor = (category: RecommendedStrategy['category']) => {
-    switch (category) {
-      case 'bullish':
-        return 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-900';
-      case 'bearish':
-        return 'text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-900';
-      case 'neutral':
-        return 'text-blue-600 bg-blue-100 dark:text-blue-400 dark:bg-blue-900';
-      case 'volatility':
-        return 'text-purple-600 bg-purple-100 dark:text-purple-400 dark:bg-purple-900';
-      default:
-        return 'text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-700';
-    }
+  const getDaysToExpiryColor = (days: number) => {
+    if (days <= 7) return 'text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-900';
+    if (days <= 30) return 'text-yellow-600 bg-yellow-100 dark:text-yellow-400 dark:bg-yellow-900';
+    return 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-900';
   };
-
-  const getRiskLevelColor = (riskLevel: RecommendedStrategy['riskLevel']) => {
-    switch (riskLevel) {
-      case 'low':
-        return 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-900';
-      case 'medium':
-        return 'text-yellow-600 bg-yellow-100 dark:text-yellow-400 dark:bg-yellow-900';
-      case 'high':
-        return 'text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-900';
-      default:
-        return 'text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-700';
-    }
-  };
-
-  const monthPositions = getPositionsForMonth(currentMonth);
-  const monthTotal = monthPositions.reduce((sum, pos) => sum + pos.currentValue * pos.quantity * 100, 0);
-  const monthProfitLoss = monthPositions.reduce((sum, pos) => sum + pos.profitLoss, 0);
-
-  const currentMonthIndex = availableMonths.findIndex(month => 
-    format(month, 'yyyy-MM') === format(currentMonth, 'yyyy-MM')
-  );
 
   if (isLoading) {
     return (
       <div className={`${themes[theme].card} rounded-lg shadow-md p-8`}>
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className={`${themes[theme].text}`}>正在加载期权组合管理...</p>
+          <p className={`${themes[theme].text}`}>正在加载投资组合管理...</p>
         </div>
       </div>
     );
   }
 
+  if (!portfolioData || availableMonths.length === 0) {
+    return (
+      <div className={`${themes[theme].card} rounded-lg shadow-md p-8`}>
+        <div className="text-center">
+          <Calendar className={`w-12 h-12 mx-auto mb-4 ${themes[theme].text} opacity-40`} />
+          <p className={`text-lg font-medium ${themes[theme].text}`}>暂无期权持仓</p>
+          <p className={`text-sm ${themes[theme].text} opacity-75`}>
+            您还没有任何期权持仓可以管理
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const currentMonthPositions = getCurrentMonthPositions();
+  const selectedArray = getSelectedPositionsArray();
+  const strategyMetrics = calculateStrategyMetrics();
+
   return (
     <div className="space-y-6">
-      {/* Monthly Portfolio View */}
+      {/* 月度导航 */}
       <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
         <div className="p-6 border-b border-gray-200">
-          <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Calendar className="w-6 h-6 text-blue-500" />
               <h2 className={`text-xl font-bold ${themes[theme].text}`}>
-                期权持仓月度视图
+                期权投资组合管理
               </h2>
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => navigateMonth('prev')}
-                disabled={currentMonthIndex <= 0}
-                className={`p-2 rounded-md ${themes[theme].secondary} ${
-                  currentMonthIndex <= 0 ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-              <span className={`px-4 py-2 font-semibold ${themes[theme].text}`}>
-                {format(currentMonth, 'yyyy年MM月')}
-              </span>
-              <button
-                onClick={() => navigateMonth('next')}
-                disabled={currentMonthIndex >= availableMonths.length - 1}
-                className={`p-2 rounded-md ${themes[theme].secondary} ${
-                  currentMonthIndex >= availableMonths.length - 1 ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-          
-          {availableMonths.length > 0 && (
-            <div className="mt-4">
-              <p className={`text-sm ${themes[theme].text} opacity-75`}>
-                可用月份: {availableMonths.map(month => format(month, 'yyyy年MM月')).join(', ')}
-              </p>
-            </div>
-          )}
-        </div>
-
-        <div className="p-6">
-          {/* Month Summary */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className={`${themes[theme].background} rounded-lg p-4 text-center`}>
-              <h3 className={`text-sm font-medium ${themes[theme].text} opacity-75`}>本月持仓数量</h3>
-              <p className={`text-2xl font-bold ${themes[theme].text} mt-1`}>
-                {monthPositions.length}
-              </p>
-            </div>
-            <div className={`${themes[theme].background} rounded-lg p-4 text-center`}>
-              <h3 className={`text-sm font-medium ${themes[theme].text} opacity-75`}>本月持仓价值</h3>
-              <p className={`text-2xl font-bold ${themes[theme].text} mt-1`}>
-                {formatCurrency(monthTotal, currencyConfig)}
-              </p>
-            </div>
-            <div className={`${themes[theme].background} rounded-lg p-4 text-center`}>
-              <h3 className={`text-sm font-medium ${themes[theme].text} opacity-75`}>本月盈亏</h3>
-              <p className={`text-2xl font-bold mt-1 ${monthProfitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {monthProfitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(monthProfitLoss), currencyConfig)}
-              </p>
-            </div>
-          </div>
-
-          {/* Position Selection Controls */}
-          {monthPositions.length > 0 && (
-            <div className="mb-6">
-              <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-                <div className="flex items-center gap-2">
-                  <span className={`text-sm font-medium ${themes[theme].text}`}>
-                    选择期权组成策略:
-                  </span>
-                  <span className={`text-sm ${themes[theme].text} opacity-75`}>
-                    已选择 {selectedPositions.size} 个持仓
-                  </span>
+            
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => navigateMonth('prev')}
+                  disabled={availableMonths.indexOf(currentMonth) === 0}
+                  className={`p-2 rounded-md ${themes[theme].secondary} ${
+                    availableMonths.indexOf(currentMonth) === 0 ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                
+                <div className="text-center min-w-[120px]">
+                  <div className={`text-lg font-semibold ${themes[theme].text}`}>
+                    {currentMonth ? format(new Date(currentMonth + '-01'), 'yyyy年MM月') : ''}
+                  </div>
+                  <div className={`text-xs ${themes[theme].text} opacity-60`}>
+                    {currentMonthPositions.length} 个持仓
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={selectAllPositions}
-                    className={`px-3 py-1 rounded-md text-sm ${themes[theme].secondary}`}
-                  >
-                    全选
-                  </button>
-                  <button
-                    onClick={clearAllSelections}
-                    className={`px-3 py-1 rounded-md text-sm ${themes[theme].secondary}`}
-                  >
-                    清空
-                  </button>
-                  {selectedPositions.size > 0 && (
-                    <button
-                      onClick={() => setShowAddStrategy(true)}
-                      className={`px-3 py-1 rounded-md text-sm ${themes[theme].primary}`}
-                    >
-                      创建策略
-                    </button>
-                  )}
-                </div>
+                
+                <button
+                  onClick={() => navigateMonth('next')}
+                  disabled={availableMonths.indexOf(currentMonth) === availableMonths.length - 1}
+                  className={`p-2 rounded-md ${themes[theme].secondary} ${
+                    availableMonths.indexOf(currentMonth) === availableMonths.length - 1 ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className={`text-sm ${themes[theme].text} opacity-75`}>
+                可用月份: {availableMonths.map(month => format(new Date(month + '-01'), 'MM月')).join(', ')}
               </div>
             </div>
-          )}
+          </div>
+        </div>
 
-          {/* Monthly Positions */}
-          {monthPositions.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className={`${themes[theme].background}`}>
-                  <tr>
-                    <th className={`px-4 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
-                      选择
-                    </th>
-                    <th className={`px-4 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
-                      合约
-                    </th>
-                    <th className={`px-4 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
-                      策略
-                    </th>
-                    <th className={`px-4 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
-                      到期日
-                    </th>
-                    <th className={`px-4 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
-                      数量
-                    </th>
-                    <th className={`px-4 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
-                      当前价值
-                    </th>
-                    <th className={`px-4 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
-                      盈亏
-                    </th>
-                    <th className={`px-4 py-3 text-center text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
-                      状态
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className={`divide-y ${themes[theme].border}`}>
-                  {monthPositions.map((position) => {
-                    const daysToExpiry = Math.ceil((new Date(position.expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-                    const isSelected = selectedPositions.has(position.id);
-                    
-                    return (
-                      <tr 
-                        key={position.id} 
-                        className={`${themes[theme].cardHover} ${isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
-                      >
-                        <td className="px-4 py-4">
-                          <button
-                            onClick={() => togglePositionSelection(position.id, position.quantity)}
-                            className={`p-1 rounded ${themes[theme].secondary}`}
-                          >
-                            {selectedPositions.has(position.id) ? (
-                              <CheckSquare className="w-5 h-5 text-blue-600" />
-                            ) : (
-                              <Square className="w-5 h-5" />
-                            )}
-                          </button>
-                          {selectedPositions.has(position.id) && (
-                            <div className="mt-2">
-                              <input
-                                type="number"
-                                min="1"
-                                max={position.quantity}
-                                value={selectedPositions.get(position.id)?.selectedQuantity || 1}
-                                onChange={(e) => updateSelectedQuantity(position.id, parseInt(e.target.value) || 1)}
-                                className={`w-16 px-2 py-1 rounded text-xs ${themes[theme].input} ${themes[theme].text}`}
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                              <div className={`text-xs ${themes[theme].text} opacity-60 mt-1`}>
-                                / {position.quantity}
-                              </div>
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="flex items-center gap-2">
-                            {getTypeIcon(position.type)}
-                            <div>
-                              <div className={`text-sm font-medium ${themes[theme].text}`}>
-                                {position.symbol} {position.strike} {position.type.toUpperCase()}
-                              </div>
-                              <div className={`text-xs ${themes[theme].text} opacity-75`}>
-                                IV: {(position.impliedVolatility * 100).toFixed(1)}%
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-4">
-                          <span className={`text-sm ${themes[theme].text}`}>
-                            {position.strategy}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4 text-right">
-                          <div>
-                            <div className={`text-sm ${themes[theme].text}`}>
-                              {format(new Date(position.expiry), 'MM-dd')}
-                            </div>
-                            <div className={`text-xs ${
-                              daysToExpiry <= 7 ? 'text-red-600' : 
-                              daysToExpiry <= 30 ? 'text-yellow-600' : 'text-green-600'
-                            }`}>
-                              {daysToExpiry > 0 ? `${daysToExpiry}天` : '已到期'}
-                            </div>
-                          </div>
-                        </td>
-                        <td className={`px-4 py-4 text-right text-sm ${themes[theme].text}`}>
-                          {position.quantity}
-                        </td>
-                        <td className={`px-4 py-4 text-right text-sm ${themes[theme].text}`}>
-                          {formatCurrency(position.currentValue * position.quantity * 100, currencyConfig)}
-                        </td>
-                        <td className={`px-4 py-4 text-right text-sm font-medium ${
-                          position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'
-                        }`}>
-                          <div>
-                            {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
-                          </div>
-                          <div className="text-xs">
-                            ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
-                          </div>
-                        </td>
-                        <td className="px-4 py-4 text-center">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(position.status)}`}>
-                            {position.status === 'open' ? '持仓中' : 
-                             position.status === 'closed' ? '已平仓' : '已到期'}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+        {/* 月度持仓表格 */}
+        <div className="p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className={`text-lg font-semibold ${themes[theme].text}`}>
+              {currentMonth ? format(new Date(currentMonth + '-01'), 'yyyy年MM月') : ''} 持仓
+            </h3>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleSelectAll}
+                className={`px-3 py-1 rounded-md text-sm ${themes[theme].secondary}`}
+              >
+                全选
+              </button>
+              <button
+                onClick={handleClearAll}
+                className={`px-3 py-1 rounded-md text-sm ${themes[theme].secondary}`}
+              >
+                清空
+              </button>
+              {selectedArray.length > 0 && (
+                <button
+                  onClick={() => setShowCreateStrategy(true)}
+                  className={`px-3 py-1 rounded-md text-sm ${themes[theme].primary}`}
+                >
+                  创建策略 ({selectedArray.length})
+                </button>
+              )}
             </div>
-          ) : (
-            <div className="text-center py-12">
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className={`${themes[theme].background}`}>
+                <tr>
+                  <th className={`px-4 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
+                    选择
+                  </th>
+                  <th className={`px-4 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
+                    合约
+                  </th>
+                  <th className={`px-4 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
+                    到期日
+                  </th>
+                  <th className={`px-4 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
+                    持仓数量
+                  </th>
+                  <th className={`px-4 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
+                    选择数量
+                  </th>
+                  <th className={`px-4 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
+                    权利金
+                  </th>
+                  <th className={`px-4 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
+                    当前价值
+                  </th>
+                  <th className={`px-4 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
+                    盈亏
+                  </th>
+                  <th className={`px-4 py-3 text-center text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
+                    状态
+                  </th>
+                </tr>
+              </thead>
+              <tbody className={`divide-y ${themes[theme].border}`}>
+                {currentMonthPositions.map((position) => {
+                  const selection = selectedPositions.get(position.id);
+                  const isSelected = selection?.isSelected || false;
+                  const selectedQuantity = selection?.selectedQuantity || 1;
+                  const daysToExpiry = Math.ceil((new Date(position.expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                  
+                  return (
+                    <tr 
+                      key={position.id} 
+                      className={`${themes[theme].cardHover} ${
+                        isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                      }`}
+                    >
+                      <td className="px-4 py-4">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => handlePositionSelect(position, e.target.checked)}
+                          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                        />
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-2">
+                          {getTypeIcon(position.type)}
+                          <div>
+                            <div className={`text-sm font-medium ${themes[theme].text}`}>
+                              {position.symbol} {position.strike} {position.type.toUpperCase()}
+                            </div>
+                            <div className={`text-xs ${themes[theme].text} opacity-75`}>
+                              {position.strategy}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div>
+                          <div className={`text-sm ${themes[theme].text}`}>
+                            {format(new Date(position.expiry), 'MM-dd')}
+                          </div>
+                          <div className={`text-xs px-1 py-0.5 rounded ${getDaysToExpiryColor(daysToExpiry)}`}>
+                            {daysToExpiry > 0 ? `${daysToExpiry}天` : '已到期'}
+                          </div>
+                        </div>
+                      </td>
+                      <td className={`px-4 py-4 text-right text-sm ${themes[theme].text}`}>
+                        {position.quantity}
+                      </td>
+                      <td className="px-4 py-4 text-right">
+                        {isSelected ? (
+                          <div className="flex flex-col items-end gap-1">
+                            <input
+                              type="number"
+                              min="1"
+                              max={position.quantity}
+                              value={selectedQuantity}
+                              onChange={(e) => handleQuantityChange(position.id, parseInt(e.target.value) || 1)}
+                              className={`w-16 px-2 py-1 rounded text-sm text-center ${themes[theme].input} ${themes[theme].text}`}
+                            />
+                            <div className={`text-xs ${themes[theme].text} opacity-60`}>
+                              成本: {formatCurrency(position.premium * selectedQuantity * 100, currencyConfig)}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className={`text-sm ${themes[theme].text} opacity-50`}>-</span>
+                        )}
+                      </td>
+                      <td className={`px-4 py-4 text-right text-sm ${themes[theme].text}`}>
+                        {formatCurrency(position.premium, currencyConfig)}
+                      </td>
+                      <td className={`px-4 py-4 text-right text-sm ${themes[theme].text}`}>
+                        {formatCurrency(position.currentValue, currencyConfig)}
+                      </td>
+                      <td className={`px-4 py-4 text-right text-sm font-medium ${
+                        position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        <div>
+                          {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
+                        </div>
+                        <div className="text-xs">
+                          ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(position.status)}`}>
+                          {position.status === 'open' ? '持仓中' : 
+                           position.status === 'closed' ? '已平仓' : '已到期'}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {currentMonthPositions.length === 0 && (
+            <div className="text-center py-8">
               <Calendar className={`w-12 h-12 mx-auto mb-4 ${themes[theme].text} opacity-40`} />
               <p className={`text-lg font-medium ${themes[theme].text}`}>
-                {format(currentMonth, 'yyyy年MM月')}无期权持仓
-              </p>
-              <p className={`text-sm ${themes[theme].text} opacity-75`}>
-                {availableMonths.length > 0 ? '选择其他月份查看持仓情况' : '您还没有任何期权持仓'}
+                {currentMonth ? format(new Date(currentMonth + '-01'), 'yyyy年MM月') : ''} 暂无持仓
               </p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Custom Strategies Management */}
-      <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <Target className="w-6 h-6 text-purple-500" />
-              <h2 className={`text-xl font-bold ${themes[theme].text}`}>
-                自定义策略组合
-              </h2>
+      {/* 策略创建面板 */}
+      {showCreateStrategy && selectedArray.length > 0 && (
+        <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex justify-between items-center">
+              <h3 className={`text-lg font-semibold ${themes[theme].text}`}>
+                创建自定义策略
+              </h3>
+              <button
+                onClick={() => setShowCreateStrategy(false)}
+                className={`p-2 rounded-md ${themes[theme].secondary}`}
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <button
-              onClick={() => setShowAddStrategy(!showAddStrategy)}
-              disabled={selectedPositions.size === 0}
-              className={`inline-flex items-center px-4 py-2 rounded-md ${
-                selectedPositions.size > 0 ? themes[theme].primary : themes[theme].secondary + ' opacity-50 cursor-not-allowed'
-              }`}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              创建策略 {selectedPositions.size > 0 && `(${selectedPositions.size})`}
-            </button>
+          </div>
+
+          <div className="p-6 space-y-6">
+            {/* 策略基本信息 */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className={`block text-sm font-medium ${themes[theme].text} mb-2`}>
+                  策略名称 *
+                </label>
+                <input
+                  type="text"
+                  value={strategyName}
+                  onChange={(e) => setStrategyName(e.target.value)}
+                  className={`w-full px-3 py-2 rounded-md ${themes[theme].input} ${themes[theme].text}`}
+                  placeholder="输入策略名称"
+                />
+              </div>
+              <div>
+                <label className={`block text-sm font-medium ${themes[theme].text} mb-2`}>
+                  策略描述
+                </label>
+                <input
+                  type="text"
+                  value={strategyDescription}
+                  onChange={(e) => setStrategyDescription(e.target.value)}
+                  className={`w-full px-3 py-2 rounded-md ${themes[theme].input} ${themes[theme].text}`}
+                  placeholder="输入策略描述"
+                />
+              </div>
+            </div>
+
+            {/* 策略摘要 */}
+            <div className={`${themes[theme].background} rounded-lg p-4`}>
+              <h4 className={`text-md font-semibold ${themes[theme].text} mb-3`}>策略摘要</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="text-center">
+                  <p className={`text-lg font-bold ${themes[theme].text}`}>
+                    {formatCurrency(strategyMetrics.totalCost, currencyConfig)}
+                  </p>
+                  <p className={`text-sm ${themes[theme].text} opacity-75`}>总成本</p>
+                </div>
+                <div className="text-center">
+                  <p className={`text-lg font-bold ${themes[theme].text}`}>
+                    {formatCurrency(strategyMetrics.currentValue, currencyConfig)}
+                  </p>
+                  <p className={`text-sm ${themes[theme].text} opacity-75`}>当前价值</p>
+                </div>
+                <div className="text-center">
+                  <p className={`text-lg font-bold ${
+                    strategyMetrics.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {strategyMetrics.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(strategyMetrics.profitLoss), currencyConfig)}
+                  </p>
+                  <p className={`text-sm ${themes[theme].text} opacity-75`}>总盈亏</p>
+                </div>
+              </div>
+            </div>
+
+            {/* 选择的期权预览 */}
+            <div>
+              <h4 className={`text-md font-semibold ${themes[theme].text} mb-3`}>
+                包含的期权持仓 ({selectedArray.length})
+              </h4>
+              <div className="space-y-2">
+                {selectedArray.map((selection) => {
+                  const position = selection.position;
+                  const adjustedCost = position.premium * selection.selectedQuantity * 100;
+                  const adjustedValue = position.currentValue * selection.selectedQuantity * 100;
+                  const adjustedProfitLoss = adjustedValue - adjustedCost;
+                  
+                  return (
+                    <div key={position.id} className={`${themes[theme].background} rounded-lg p-3 border ${themes[theme].border}`}>
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          {getTypeIcon(position.type)}
+                          <div>
+                            <div className={`text-sm font-medium ${themes[theme].text}`}>
+                              {position.symbol} {position.strike} {position.type.toUpperCase()}
+                            </div>
+                            <div className={`text-xs ${themes[theme].text} opacity-75`}>
+                              到期: {format(new Date(position.expiry), 'MM-dd')} • 
+                              数量: {selection.selectedQuantity}/{position.quantity}
+                              {selection.selectedQuantity !== position.quantity && (
+                                <span className="ml-1 text-blue-600">
+                                  (原始: {position.quantity})
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className={`text-sm font-medium ${
+                            adjustedProfitLoss >= 0 ? 'text-green-600' : 'text-red-600'
+                          }`}>
+                            {adjustedProfitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(adjustedProfitLoss), currencyConfig)}
+                          </div>
+                          <div className={`text-xs ${themes[theme].text} opacity-60`}>
+                            成本: {formatCurrency(adjustedCost, currencyConfig)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 保存按钮 */}
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowCreateStrategy(false)}
+                className={`px-4 py-2 rounded-md ${themes[theme].secondary}`}
+              >
+                取消
+              </button>
+              <button
+                onClick={handleCreateStrategy}
+                disabled={isSaving || !strategyName.trim() || selectedArray.length === 0}
+                className={`inline-flex items-center px-4 py-2 rounded-md ${themes[theme].primary} ${
+                  isSaving || !strategyName.trim() || selectedArray.length === 0 ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+              >
+                {isSaving ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                ) : (
+                  <Save className="w-4 h-4 mr-2" />
+                )}
+                保存策略
+              </button>
+            </div>
           </div>
         </div>
+      )}
 
-        {/* Add Strategy Form */}
-        {showAddStrategy && (
-          <div className="p-6 border-b border-gray-200">
-            <div className={`${themes[theme].background} rounded-lg p-4`}>
-              <h3 className={`text-lg font-semibold ${themes[theme].text} mb-4`}>
-                创建新策略
-              </h3>
-              
-              {/* Selected Positions Preview */}
-              <div className="mb-4">
-                <h4 className={`text-sm font-medium ${themes[theme].text} mb-2`}>
-                  已选择的期权持仓 ({selectedPositions.size} 个):
-                </h4>
-                <div className="space-y-3 max-h-48 overflow-y-auto">
-                  {Array.from(selectedPositions.entries()).map(([positionId, selection]) => {
-                    const position = positions.find(pos => pos.id === positionId);
-                    if (!position) return null;
-                    
-                    const adjustedProfitLoss = (position.profitLoss / position.quantity) * selection.selectedQuantity;
-                    
-                    return (
-                      <div key={position.id} className={`${themes[theme].card} rounded p-3 border ${themes[theme].border}`}>
-                        <div className="flex justify-between items-start mb-2">
-                          <div className="flex items-center gap-2">
-                            {getTypeIcon(position.type)}
-                            <span className={`text-sm font-medium ${themes[theme].text}`}>
-                              {position.symbol} {position.strike} {position.type.toUpperCase()}
-                            </span>
-                          </div>
-                          <span className={`text-sm ${adjustedProfitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {adjustedProfitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(adjustedProfitLoss), currencyConfig)}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <label className={`text-xs ${themes[theme].text} opacity-75`}>
-                              数量:
-                            </label>
-                            <input
-                              type="number"
-                              min="1"
-                              max={selection.maxQuantity}
-                              value={selection.selectedQuantity}
-                              onChange={(e) => updateSelectedQuantity(positionId, parseInt(e.target.value) || 1)}
-                              className={`w-16 px-2 py-1 rounded text-xs ${themes[theme].input} ${themes[theme].text}`}
-                            />
-                            <span className={`text-xs ${themes[theme].text} opacity-75`}>
-                              / {selection.maxQuantity} 手
-                            </span>
-                          </div>
-                          <div className="text-xs">
-                            <span className={`${themes[theme].text} opacity-75`}>
-                              成本: {formatCurrency(position.premium * selection.selectedQuantity * 100, currencyConfig)}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className={`block text-sm font-medium ${themes[theme].text} mb-1`}>
-                    策略名称 *
-                  </label>
-                  <input
-                    type="text"
-                    value={newStrategyName}
-                    onChange={(e) => setNewStrategyName(e.target.value)}
-                    className={`w-full px-3 py-2 rounded-md ${themes[theme].input} ${themes[theme].text}`}
-                    placeholder="输入策略名称"
-                    disabled={isSavingStrategy}
-                  />
-                </div>
-                <div>
-                  <label className={`block text-sm font-medium ${themes[theme].text} mb-1`}>
-                    策略描述
-                  </label>
-                  <textarea
-                    value={newStrategyDescription}
-                    onChange={(e) => setNewStrategyDescription(e.target.value)}
-                    className={`w-full px-3 py-2 rounded-md ${themes[theme].input} ${themes[theme].text}`}
-                    rows={3}
-                    placeholder="描述您的策略思路和目标"
-                    disabled={isSavingStrategy}
-                  />
-                </div>
-                <div className="flex justify-end gap-2">
-                  <button
-                    onClick={() => {
-                      setShowAddStrategy(false);
-                      setNewStrategyName('');
-                      setNewStrategyDescription('');
-                    }}
-                    disabled={isSavingStrategy}
-                    className={`px-4 py-2 rounded-md ${themes[theme].secondary} ${
-                      isSavingStrategy ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
-                  >
-                    取消
-                  </button>
-                  <button
-                    onClick={handleCreateCustomStrategy}
-                    disabled={isSavingStrategy || !newStrategyName.trim()}
-                    className={`px-4 py-2 rounded-md ${themes[theme].primary} ${
-                      isSavingStrategy || !newStrategyName.trim() ? 'opacity-50 cursor-not-allowed' : ''
-                    } inline-flex items-center`}
-                  >
-                    {isSavingStrategy ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        保存中...
-                      </>
-                    ) : (
-                      '创建策略'
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+      {/* 已保存的策略 */}
+      <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
+        <div className="p-6 border-b border-gray-200">
+          <h3 className={`text-lg font-semibold ${themes[theme].text}`}>
+            已保存的策略 ({customStrategies.length})
+          </h3>
+        </div>
 
-        {/* Custom Strategies List */}
         <div className="p-6">
-          {customStrategies.length > 0 ? (
+          {isLoadingStrategies ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+              <p className={`${themes[theme].text}`}>正在加载策略...</p>
+            </div>
+          ) : customStrategies.length === 0 ? (
+            <div className="text-center py-8">
+              <Target className={`w-12 h-12 mx-auto mb-4 ${themes[theme].text} opacity-40`} />
+              <p className={`text-lg font-medium ${themes[theme].text}`}>暂无保存的策略</p>
+              <p className={`text-sm ${themes[theme].text} opacity-75`}>
+                选择期权持仓创建您的第一个自定义策略
+              </p>
+            </div>
+          ) : (
             <div className="space-y-4">
               {customStrategies.map((strategy) => (
-                <div
-                  key={strategy.id}
-                  className={`${themes[theme].background} rounded-lg p-4 border ${themes[theme].border}`}
-                >
+                <div key={strategy.id} className={`${themes[theme].background} rounded-lg p-4 border ${themes[theme].border}`}>
                   <div className="flex justify-between items-start mb-3">
                     <div>
-                      <div className="flex items-center gap-2">
-                        {editingStrategy === strategy.id ? (
-                          <input
-                            type="text"
-                            value={strategy.name}
-                            onChange={(e) => {
-                              setCustomStrategies(prev => 
-                                prev.map(s => s.id === strategy.id ? { ...s, name: e.target.value } : s)
-                              );
-                            }}
-                            className={`text-lg font-semibold bg-transparent border-b-2 border-blue-500 ${themes[theme].text} focus:outline-none`}
-                          />
-                        ) : (
-                          <h3 className={`text-lg font-semibold ${themes[theme].text}`}>
-                            {strategy.name}
-                          </h3>
-                        )}
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100`}>
-                          自定义
-                        </span>
-                      </div>
-                      {editingStrategy === strategy.id ? (
-                        <textarea
-                          value={strategy.description}
-                          onChange={(e) => {
-                            setCustomStrategies(prev => 
-                              prev.map(s => s.id === strategy.id ? { ...s, description: e.target.value } : s)
-                            );
-                          }}
-                          className={`mt-2 w-full px-2 py-1 rounded border ${themes[theme].input} ${themes[theme].text}`}
-                          rows={2}
-                        />
-                      ) : (
-                        <p className={`text-sm ${themes[theme].text} opacity-75 mt-1`}>
-                          {strategy.description}
-                        </p>
-                      )}
+                      <h4 className={`text-lg font-semibold ${themes[theme].text}`}>
+                        {strategy.name}
+                      </h4>
+                      <p className={`text-sm ${themes[theme].text} opacity-75`}>
+                        {strategy.description}
+                      </p>
+                      <p className={`text-xs ${themes[theme].text} opacity-60 mt-1`}>
+                        创建时间: {new Date(strategy.createdAt).toLocaleString()}
+                      </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      {editingStrategy === strategy.id ? (
-                        <>
-                          <button
-                            onClick={() => {
-                              setEditingStrategy(null);
-                              toast.success('策略已更新');
-                            }}
-                            className={`p-2 rounded-md ${themes[theme].primary}`}
-                          >
-                            <Save className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => setEditingStrategy(null)}
-                            className={`p-2 rounded-md ${themes[theme].secondary}`}
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            onClick={() => setEditingStrategy(strategy.id)}
-                            className={`p-2 rounded-md ${themes[theme].secondary}`}
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteCustomStrategy(strategy.id)}
-                            className={`p-2 rounded-md ${themes[theme].secondary} text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20`}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </>
-                      )}
+                      <button
+                        onClick={() => handleDeleteStrategy(strategy.id)}
+                        className={`p-2 rounded-md ${themes[theme].secondary} text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
-                  
-                  <div className="space-y-3">
-                    <div className="text-sm">
-                      <p className={`${themes[theme].text} opacity-75`}>
-                        创建时间: {format(new Date(strategy.createdAt), 'yyyy-MM-dd HH:mm')}
-                      </p>
-                      <p className={`${themes[theme].text} opacity-75`}>
-                        持仓数量: {strategy.positions.length} 个
-                      </p>
-                    </div>
-                    
-                    {/* Strategy Positions */}
-                    <div>
-                      <h5 className={`text-sm font-medium ${themes[theme].text} mb-2`}>策略持仓:</h5>
-                      <div className="space-y-1">
-                        {strategy.positions.map(position => (
-                          <div key={position.id} className={`${themes[theme].card} rounded p-2 flex justify-between items-center text-sm`}>
+
+                  <div className="space-y-2">
+                    <h5 className={`text-sm font-medium ${themes[theme].text}`}>
+                      包含的期权 ({strategy.positions.length})
+                    </h5>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {strategy.positions.map((position) => (
+                        <div key={position.id} className={`${themes[theme].card} rounded p-2 border ${themes[theme].border}`}>
+                          <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                               {getTypeIcon(position.type)}
-                              <span className={themes[theme].text}>
-                                {position.symbol} {position.strike} {position.type.toUpperCase()} x{position.selectedQuantity}
-                                {position.selectedQuantity !== position.quantity && (
-                                  <span className="opacity-60 ml-1">
-                                    (原{position.quantity}手)
-                                  </span>
-                                )}
-                                {position.selectedQuantity !== position.quantity && (
-                                  <span className="opacity-60 ml-1">
-                                    (原{position.quantity}手)
+                              <span className={`text-sm ${themes[theme].text}`}>
+                                {position.symbol} {position.strike} {position.type.toUpperCase()}
+                              </span>
+                              <span className={`text-xs ${themes[theme].text} opacity-75`}>
+                                x{position.selectedQuantity || position.quantity}
+                                {position.selectedQuantity && position.selectedQuantity !== position.quantity && (
+                                  <span className="text-blue-600 ml-1">
+                                    (原始: {position.quantity})
                                   </span>
                                 )}
                               </span>
                             </div>
                             <div className="text-right">
-                              <div className={`${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
-                              </div>
                               <div className={`text-xs ${themes[theme].text} opacity-60`}>
-                                成本: {formatCurrency(position.premium * position.selectedQuantity * 100, currencyConfig)}
+                                {format(new Date(position.expiry), 'MM-dd')}
                               </div>
                             </div>
-                              </div>
-                              <div className={`text-xs ${themes[theme].text} opacity-60`}>
-                                成本: {formatCurrency(position.premium * position.selectedQuantity * 100, currencyConfig)}
-                              </div>
-                            </div>
-                            </span>
                           </div>
-                        ))}
-                      </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
               ))}
             </div>
-          ) : (
-            <div className="text-center py-12">
-              <Target className={`w-12 h-12 mx-auto mb-4 ${themes[theme].text} opacity-40`} />
-              <p className={`text-lg font-medium ${themes[theme].text}`}>暂无自定义策略</p>
-              <p className={`text-sm ${themes[theme].text} opacity-75`}>
-                在月度视图中选择期权持仓，然后点击"创建策略"开始构建您的期权组合
-              </p>
-            </div>
           )}
-        </div>
-      </div>
-
-      {/* Recommended Strategies */}
-      <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center gap-3">
-            <Lightbulb className="w-6 h-6 text-yellow-500" />
-            <h2 className={`text-xl font-bold ${themes[theme].text}`}>
-              推荐策略组合
-            </h2>
-          </div>
-          <p className={`text-sm ${themes[theme].text} opacity-75 mt-2`}>
-            基于您当前的持仓和市场条件生成的策略建议
-          </p>
-        </div>
-
-        <div className="p-6">
-          <div className="grid gap-6">
-            {recommendedStrategies.map((strategy) => (
-              <div
-                key={strategy.id}
-                className={`${themes[theme].background} rounded-lg p-6 border ${themes[theme].border}`}
-              >
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <h3 className={`text-lg font-semibold ${themes[theme].text}`}>
-                        {strategy.name}
-                      </h3>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getCategoryColor(strategy.category)}`}>
-                        {strategy.category === 'bullish' ? '看涨' :
-                         strategy.category === 'bearish' ? '看跌' :
-                         strategy.category === 'neutral' ? '中性' : '波动率'}
-                      </span>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRiskLevelColor(strategy.riskLevel)}`}>
-                        {strategy.riskLevel === 'low' ? '低风险' :
-                         strategy.riskLevel === 'medium' ? '中风险' : '高风险'}
-                      </span>
-                    </div>
-                    <p className={`text-sm ${themes[theme].text} opacity-75 mb-3`}>
-                      {strategy.description}
-                    </p>
-                    <p className={`text-sm ${themes[theme].text} mb-4`}>
-                      {strategy.reasoning}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => handleCopyRecommendedStrategy(strategy)}
-                    className={`inline-flex items-center px-3 py-2 rounded-md ${themes[theme].primary}`}
-                  >
-                    {copiedStrategy === strategy.id ? (
-                      <>
-                        <Check className="w-4 h-4 mr-2" />
-                        已添加
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-4 h-4 mr-2" />
-                        添加策略
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                  <div className={`${themes[theme].card} rounded-lg p-3 text-center`}>
-                    <p className={`text-xs ${themes[theme].text} opacity-75`}>预期收益</p>
-                    <p className={`text-lg font-semibold text-green-600`}>
-                      +{strategy.expectedReturn.toFixed(1)}%
-                    </p>
-                  </div>
-                  <div className={`${themes[theme].card} rounded-lg p-3 text-center`}>
-                    <p className={`text-xs ${themes[theme].text} opacity-75`}>最大风险</p>
-                    <p className={`text-lg font-semibold text-red-600`}>
-                      {formatCurrency(strategy.maxRisk, currencyConfig)}
-                    </p>
-                  </div>
-                  <div className={`${themes[theme].card} rounded-lg p-3 text-center`}>
-                    <p className={`text-xs ${themes[theme].text} opacity-75`}>持仓数量</p>
-                    <p className={`text-lg font-semibold ${themes[theme].text}`}>
-                      {strategy.suggestedPositions.length}
-                    </p>
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className={`text-sm font-medium ${themes[theme].text} mb-3`}>建议持仓:</h4>
-                  <div className="space-y-2">
-                    {strategy.suggestedPositions.map((position, index) => (
-                      <div
-                        key={index}
-                        className={`${themes[theme].card} rounded-lg p-3 flex justify-between items-center`}
-                      >
-                        <div className="flex items-center gap-3">
-                          {getTypeIcon(position.type)}
-                          <div>
-                            <span className={`text-sm font-medium ${themes[theme].text}`}>
-                              {position.action === 'buy' ? '买入' : '卖出'} {position.quantity} 手 
-                              {position.symbol} {position.strike} {position.type.toUpperCase()}
-                            </span>
-                            <div className={`text-xs ${themes[theme].text} opacity-75`}>
-                              到期: {format(new Date(position.expiry), 'yyyy-MM-dd')}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className={`text-sm font-medium ${themes[theme].text}`}>
-                            {formatCurrency(position.estimatedPremium, currencyConfig)}
-                          </p>
-                          <p className={`text-xs ${themes[theme].text} opacity-75`}>
-                            预估权利金
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
     </div>
