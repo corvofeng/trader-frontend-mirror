@@ -163,6 +163,26 @@ export interface OptionsPortfolioData {
   }>;
 }
 
+export interface OptionsService {
+  getOptionsData: (symbol?: string) => Promise<ServiceResponse<OptionsData>>;
+  getAvailableSymbols: () => Promise<ServiceResponse<string[]>>;
+  getOptionsPortfolio: (userId: string) => Promise<ServiceResponse<OptionsPortfolioData>>;
+  getAvailableStrategies: () => Promise<ServiceResponse<string[]>>;
+  saveCustomStrategy: (strategy: Omit<CustomOptionsStrategy, 'id' | 'createdAt' | 'updatedAt'>) => Promise<ServiceResponse<CustomOptionsStrategy>>;
+  deleteCustomStrategy: (strategyId: string) => Promise<ServiceResponse<void>>;
+  getCustomStrategies: (userId: string) => Promise<ServiceResponse<CustomOptionsStrategy[]>>;
+}
+
+export interface CustomOptionsStrategy {
+  id: string;
+  userId: string;
+  name: string;
+  description: string;
+  positions: OptionsPosition[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Analysis Types
 export interface StockAnalysis {
   stock_code: string;
