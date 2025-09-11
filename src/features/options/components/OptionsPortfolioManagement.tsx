@@ -874,5 +874,3 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
     </div>
   );
 }
-
-export { OptionsPortfolioManagement }
