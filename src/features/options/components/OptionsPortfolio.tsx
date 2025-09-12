@@ -77,7 +77,7 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
   const [viewMode, setViewMode] = useState<'expiry' | 'strategy' | 'grouped'>('grouped');
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'closed' | 'expired'>('all');
   const [sortBy, setSortBy] = useState<'expiry' | 'profitLoss' | 'symbol'>('expiry');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const { currencyConfig } = useCurrency();
 
   useEffect(() => {
