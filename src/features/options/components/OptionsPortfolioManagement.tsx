@@ -487,6 +487,7 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
                         <div className="flex items-center gap-2">
                           {getTypeIcon(position.type)}
                           <div>
+                            <div className="flex items-center gap-2 mb-1">
                             <div className={`text-sm font-medium ${themes[theme].text}`}>
                               {position.symbol} {position.strike} {position.type.toUpperCase()}
                             </div>
@@ -791,6 +792,18 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
                               <div className={`text-xs ${themes[theme].text} opacity-60`}>
                                 {format(new Date(position.expiry), 'MM-dd')}
                               </div>
+                              {(() => {
+                                const positionInfo = getPositionTypeInfo(position.position_type, position.type);
+                                return (
+                                  <div className="flex items-center gap-1">
+                                    {positionInfo.icon}
+                                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${positionInfo.color}`}>
+                                      {positionInfo.label}
+                                    </span>
+                                  </div>
+                                );
+                              })()}
+                              {position.strategy} • {getPositionTypeInfo(position.position_type, position.type).description}
                             </div>
                           </div>
                         </div>
