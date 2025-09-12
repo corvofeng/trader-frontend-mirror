@@ -118,7 +118,11 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
     })).filter(strategy => strategy.positions.length > 0);
   };
 
-    if (isCall && isBuy) {
+  const getPositionTypeInfo = (positionType: string, optionType: string) => {
+    const isLong = positionType === 'buy';
+    const isCall = optionType === 'call';
+    
+    if (isLong && isCall) {
       return {
         icon: <Shield className="w-4 h-4" />,
         label: '权利方',
