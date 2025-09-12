@@ -35,6 +35,41 @@ interface PositionSelection {
 
 const DEMO_USER_ID = 'mock-user-id';
 
+const getPositionTypeInfo = (positionType: string, optionType: string) => {
+  const isLong = positionType === 'long';
+  const isCall = optionType === 'call';
+  
+  if (isLong && isCall) {
+    return {
+      icon: <TrendingUp className="w-3 h-3" />,
+      label: '买入看涨',
+      color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100',
+      description: '看涨期权买方'
+    };
+  } else if (isLong && !isCall) {
+    return {
+      icon: <TrendingDown className="w-3 h-3" />,
+      label: '买入看跌',
+      color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100',
+      description: '看跌期权买方'
+    };
+  } else if (!isLong && isCall) {
+    return {
+      icon: <TrendingUp className="w-3 h-3" />,
+      label: '卖出看涨',
+      color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100',
+      description: '看涨期权卖方'
+    };
+  } else {
+    return {
+      icon: <TrendingDown className="w-3 h-3" />,
+      label: '卖出看跌',
+      color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100',
+      description: '看跌期权卖方'
+    };
+  }
+};
+
 export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagementProps) {
   const [portfolioData, setPortfolioData] = useState<OptionsPortfolioData | null>(null);
   const [customStrategies, setCustomStrategies] = useState<CustomOptionsStrategy[]>([]);
@@ -488,8 +523,9 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
                           {getTypeIcon(position.type)}
                           <div>
                             <div className="flex items-center gap-2 mb-1">
-                            <div className={`text-sm font-medium ${themes[theme].text}`}>
-                              {position.symbol} {position.strike} {position.type.toUpperCase()}
+                              <div className={`text-sm font-medium ${themes[theme].text}`}>
+                                {position.symbol} {position.strike} {position.type.toUpperCase()}
+                              </div>
                             </div>
                             <div className={`text-xs ${themes[theme].text} opacity-75`}>
                               {position.strategy}
