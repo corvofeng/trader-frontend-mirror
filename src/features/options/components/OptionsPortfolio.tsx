@@ -322,62 +322,228 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
 
                 <div className="p-6">
                   <div className="space-y-4">
-                    {filteredPositions.map((position) => {
-                      const positionInfo = getPositionTypeInfo(position.position_type, position.type);
-                      const daysToExpiry = Math.ceil((new Date(position.expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                    {(() => {
+                      const callPositions = filteredPositions.filter(pos => pos.type === 'call');
+                      const putPositions = filteredPositions.filter(pos => pos.type === 'put');
+                      const spreadPositions = filteredPositions.filter(pos => !['call', 'put'].includes(pos.type));
                       
                       return (
-                        <div 
-                          key={position.id} 
-                          className={`${themes[theme].background} rounded-lg p-4 border-l-4 ${positionInfo.borderColor}`}
-                        >
-                          <div className="flex justify-between items-start">
-                            <div className="flex items-start space-x-3">
-                              {getTypeIcon(position.type)}
+                        <div className="space-y-6">
+                          {/* Call和Put期权两列展示 */}
+                          {(callPositions.length > 0 || putPositions.length > 0) && (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                              {/* Call期权列 */}
                               <div>
-                                <div className="flex items-center gap-2 mb-1">
-                                  <div className={`text-sm font-medium ${themes[theme].text}`}>
-                                    {position.symbol} {position.strike} {position.type.toUpperCase()}
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    {positionInfo.icon}
-                                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${positionInfo.color}`}>
-                                      {positionInfo.label}
-                                    </span>
-                                  </div>
+                                <div className="flex items-center gap-2 mb-4">
+                                  <div className="w-4 h-4 bg-green-500 rounded"></div>
+                                  <h4 className={`text-lg font-semibold ${themes[theme].text}`}>
+                                    Call期权 ({callPositions.length})
+                                  </h4>
                                 </div>
-                                <div className={`text-xs ${themes[theme].text} opacity-75`}>
-                                  {position.strategy} • {positionInfo.description}
+                                <div className="space-y-3">
+                                  {callPositions.map((position) => {
+                                    const positionInfo = getPositionTypeInfo(position.position_type, position.type);
+                                    
+                                    return (
+                                      <div 
+                                        key={position.id} 
+                                        className={`${themes[theme].background} rounded-lg p-4 border-l-4 ${positionInfo.borderColor}`}
+                                      >
+                                        <div className="flex justify-between items-start">
+                                          <div className="flex items-start space-x-3">
+                                            {getTypeIcon(position.type)}
+                                            <div>
+                                              <div className="flex items-center gap-2 mb-1">
+                                                <div className={`text-sm font-medium ${themes[theme].text}`}>
+                                                  {position.symbol} {position.strike}
+                                                </div>
+                                                <div className="flex items-center gap-1">
+                                                  {positionInfo.icon}
+                                                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${positionInfo.color}`}>
+                                                    {positionInfo.label}
+                                                  </span>
+                                                </div>
+                                              </div>
+                                              <div className={`text-xs ${themes[theme].text} opacity-75`}>
+                                                {position.strategy} • {positionInfo.description}
+                                              </div>
+                                              <div className="flex items-center gap-3 mt-2 text-xs">
+                                                <span className={`${themes[theme].text} opacity-75`}>
+                                                  数量: {position.quantity}
+                                                </span>
+                                                <span className={`${themes[theme].text} opacity-75`}>
+                                                  权利金: {formatCurrency(position.premium, currencyConfig)}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <div className="text-right">
+                                            <div className={`text-sm font-bold ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                              {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
+                                            </div>
+                                            <div className={`text-xs ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                              ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
+                                            </div>
+                                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(position.status)} mt-1`}>
+                                              {position.status === 'open' ? '持仓中' : 
+                                               position.status === 'closed' ? '已平仓' : '已到期'}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                  {callPositions.length === 0 && (
+                                    <div className={`${themes[theme].background} rounded-lg p-6 text-center border-2 border-dashed ${themes[theme].border}`}>
+                                      <p className={`${themes[theme].text} opacity-75`}>
+                                        暂无Call期权持仓
+                                      </p>
+                                    </div>
+                                  )}
                                 </div>
-                                <div className="flex items-center gap-4 mt-2 text-sm">
-                                  <span className={`${themes[theme].text} opacity-75`}>
-                                    数量: {position.quantity}
-                                  </span>
-                                  <span className={`${themes[theme].text} opacity-75`}>
-                                    权利金: {formatCurrency(position.premium, currencyConfig)}
-                                  </span>
-                                  <span className={`${themes[theme].text} opacity-75`}>
-                                    当前价值: {formatCurrency(position.currentValue, currencyConfig)}
-                                  </span>
+                              </div>
+
+                              {/* Put期权列 */}
+                              <div>
+                                <div className="flex items-center gap-2 mb-4">
+                                  <div className="w-4 h-4 bg-red-500 rounded"></div>
+                                  <h4 className={`text-lg font-semibold ${themes[theme].text}`}>
+                                    Put期权 ({putPositions.length})
+                                  </h4>
+                                </div>
+                                <div className="space-y-3">
+                                  {putPositions.map((position) => {
+                                    const positionInfo = getPositionTypeInfo(position.position_type, position.type);
+                                    
+                                    return (
+                                      <div 
+                                        key={position.id} 
+                                        className={`${themes[theme].background} rounded-lg p-4 border-l-4 ${positionInfo.borderColor}`}
+                                      >
+                                        <div className="flex justify-between items-start">
+                                          <div className="flex items-start space-x-3">
+                                            {getTypeIcon(position.type)}
+                                            <div>
+                                              <div className="flex items-center gap-2 mb-1">
+                                                <div className={`text-sm font-medium ${themes[theme].text}`}>
+                                                  {position.symbol} {position.strike}
+                                                </div>
+                                                <div className="flex items-center gap-1">
+                                                  {positionInfo.icon}
+                                                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${positionInfo.color}`}>
+                                                    {positionInfo.label}
+                                                  </span>
+                                                </div>
+                                              </div>
+                                              <div className={`text-xs ${themes[theme].text} opacity-75`}>
+                                                {position.strategy} • {positionInfo.description}
+                                              </div>
+                                              <div className="flex items-center gap-3 mt-2 text-xs">
+                                                <span className={`${themes[theme].text} opacity-75`}>
+                                                  数量: {position.quantity}
+                                                </span>
+                                                <span className={`${themes[theme].text} opacity-75`}>
+                                                  权利金: {formatCurrency(position.premium, currencyConfig)}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <div className="text-right">
+                                            <div className={`text-sm font-bold ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                              {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
+                                            </div>
+                                            <div className={`text-xs ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                              ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
+                                            </div>
+                                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(position.status)} mt-1`}>
+                                              {position.status === 'open' ? '持仓中' : 
+                                               position.status === 'closed' ? '已平仓' : '已到期'}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                  {putPositions.length === 0 && (
+                                    <div className={`${themes[theme].background} rounded-lg p-6 text-center border-2 border-dashed ${themes[theme].border}`}>
+                                      <p className={`${themes[theme].text} opacity-75`}>
+                                        暂无Put期权持仓
+                                      </p>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </div>
-                            <div className="text-right">
-                              <div className={`text-lg font-bold ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
+                          )}
+
+                          {/* 复杂策略期权（价差、跨式等）单独展示 */}
+                          {spreadPositions.length > 0 && (
+                            <div>
+                              <div className="flex items-center gap-2 mb-4">
+                                <div className="w-4 h-4 bg-purple-500 rounded"></div>
+                                <h4 className={`text-lg font-semibold ${themes[theme].text}`}>
+                                  复杂策略 ({spreadPositions.length})
+                                </h4>
                               </div>
-                              <div className={`text-sm ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
+                              <div className="space-y-3">
+                                {spreadPositions.map((position) => {
+                                  const positionInfo = getPositionTypeInfo(position.position_type, position.type);
+                                  
+                                  return (
+                                    <div 
+                                      key={position.id} 
+                                      className={`${themes[theme].background} rounded-lg p-4 border-l-4 ${positionInfo.borderColor}`}
+                                    >
+                                      <div className="flex justify-between items-start">
+                                        <div className="flex items-start space-x-3">
+                                          {getTypeIcon(position.type)}
+                                          <div>
+                                            <div className="flex items-center gap-2 mb-1">
+                                              <div className={`text-sm font-medium ${themes[theme].text}`}>
+                                                {position.symbol} {position.strike} {position.type.toUpperCase()}
+                                              </div>
+                                              <div className="flex items-center gap-1">
+                                                {positionInfo.icon}
+                                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${positionInfo.color}`}>
+                                                  {positionInfo.label}
+                                                </span>
+                                              </div>
+                                            </div>
+                                            <div className={`text-xs ${themes[theme].text} opacity-75`}>
+                                              {position.strategy} • {positionInfo.description}
+                                            </div>
+                                            <div className="flex items-center gap-3 mt-2 text-xs">
+                                              <span className={`${themes[theme].text} opacity-75`}>
+                                                数量: {position.quantity}
+                                              </span>
+                                              <span className={`${themes[theme].text} opacity-75`}>
+                                                权利金: {formatCurrency(position.premium, currencyConfig)}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                        <div className="text-right">
+                                          <div className={`text-sm font-bold ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
+                                          </div>
+                                          <div className={`text-xs ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
+                                          </div>
+                                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(position.status)} mt-1`}>
+                                            {position.status === 'open' ? '持仓中' : 
+                                             position.status === 'closed' ? '已平仓' : '已到期'}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
-                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(position.status)} mt-2`}>
-                                {position.status === 'open' ? '持仓中' : 
-                                 position.status === 'closed' ? '已平仓' : '已到期'}
-                              </span>
                             </div>
-                          </div>
+                          )}
                         </div>
                       );
-                    })}
+                    })()}
                   </div>
                 </div>
               </div>
@@ -441,62 +607,301 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
 
                 <div className="p-6">
                   <div className="space-y-4">
-                    {filteredPositions.map((position) => {
-                      const positionInfo = getPositionTypeInfo(position.position_type, position.type);
-                      const daysToExpiry = Math.ceil((new Date(position.expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                    {(() => {
+                      const callPositions = filteredPositions.filter(pos => pos.type === 'call');
+                      const putPositions = filteredPositions.filter(pos => pos.type === 'put');
+                      const spreadPositions = filteredPositions.filter(pos => !['call', 'put'].includes(pos.type));
                       
                       return (
-                        <div 
-                          key={position.id} 
-                          className={`${themes[theme].background} rounded-lg p-4 border-l-4 ${positionInfo.borderColor}`}
-                        >
-                          <div className="flex justify-between items-start">
-                            <div className="flex items-start space-x-3">
-                              {getTypeIcon(position.type)}
+                        <div className="space-y-6">
+                          {/* Call和Put期权两列展示 */}
+                          {(callPositions.length > 0 || putPositions.length > 0) && (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                              {/* Call期权列 */}
                               <div>
-                                <div className="flex items-center gap-2 mb-1">
-                                  <div className={`text-sm font-medium ${themes[theme].text}`}>
-                                    {position.symbol} {position.strike} {position.type.toUpperCase()}
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    {positionInfo.icon}
-                                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${positionInfo.color}`}>
-                                      {positionInfo.label}
-                                    </span>
-                                  </div>
+                                <div className="flex items-center gap-2 mb-4">
+                                  <div className="w-4 h-4 bg-green-500 rounded"></div>
+                                  <h4 className={`text-lg font-semibold ${themes[theme].text}`}>
+                                    Call期权 ({callPositions.length})
+                                  </h4>
                                 </div>
-                                <div className={`text-xs ${themes[theme].text} opacity-75`}>
-                                  到期: {format(new Date(position.expiry), 'MM-dd')} • {positionInfo.description}
+                                <div className="space-y-3">
+                                  {callPositions.map((position) => {
+                                    const positionInfo = getPositionTypeInfo(position.position_type, position.type);
+                                    
+                                    return (
+                                      <div 
+                                        key={position.id} 
+                                        className={`${themes[theme].background} rounded-lg p-4 border-l-4 ${positionInfo.borderColor}`}
+                                      >
+                                        <div className="flex justify-between items-start">
+                                          <div className="flex items-start space-x-3">
+                                            {getTypeIcon(position.type)}
+                                            <div>
+                                              <div className="flex items-center gap-2 mb-1">
+                                                <div className={`text-sm font-medium ${themes[theme].text}`}>
+                                                  {position.symbol} {position.strike}
+                                                </div>
+                                                <div className="flex items-center gap-1">
+                                                  {positionInfo.icon}
+                                                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${positionInfo.color}`}>
+                                                    {positionInfo.label}
+                                                  </span>
+                                                </div>
+                                              </div>
+                                              <div className={`text-xs ${themes[theme].text} opacity-75`}>
+                                                到期: {format(new Date(position.expiry), 'MM-dd')} • {positionInfo.description}
+                                              </div>
+                                              <div className="flex items-center gap-3 mt-2 text-xs">
+                                                <span className={`${themes[theme].text} opacity-75`}>
+                                                  数量: {position.quantity}
+                                                </span>
+                                                <span className={`${themes[theme].text} opacity-75`}>
+                                                  权利金: {formatCurrency(position.premium, currencyConfig)}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <div className="text-right">
+                                            <div className={`text-sm font-bold ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                              {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
+                                            </div>
+                                            <div className={`text-xs ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                              ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
+                                            </div>
+                                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(position.status)} mt-1`}>
+                                              {position.status === 'open' ? '持仓中' : 
+                                               position.status === 'closed' ? '已平仓' : '已到期'}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                  {callPositions.length === 0 && (
+                                    <div className={`${themes[theme].background} rounded-lg p-6 text-center border-2 border-dashed ${themes[theme].border}`}>
+                                      <p className={`${themes[theme].text} opacity-75`}>
+                                        暂无Call期权持仓
+                                      </p>
+                                    </div>
+                                  )}
                                 </div>
-                                <div className="flex items-center gap-4 mt-2 text-sm">
-                                  <span className={`${themes[theme].text} opacity-75`}>
-                                    数量: {position.quantity}
-                                  </span>
-                                  <span className={`${themes[theme].text} opacity-75`}>
-                                    权利金: {formatCurrency(position.premium, currencyConfig)}
-                                  </span>
-                                  <span className={`${themes[theme].text} opacity-75`}>
-                                    当前价值: {formatCurrency(position.currentValue, currencyConfig)}
-                                  </span>
+                              </div>
+
+                              {/* Put期权列 */}
+                              <div>
+                                <div className="flex items-center gap-2 mb-4">
+                                  <div className="w-4 h-4 bg-red-500 rounded"></div>
+                                  <h4 className={`text-lg font-semibold ${themes[theme].text}`}>
+                                    Put期权 ({putPositions.length})
+                                  </h4>
+                                </div>
+                                <div className="space-y-3">
+                                  {putPositions.map((position) => {
+                                    const positionInfo = getPositionTypeInfo(position.position_type, position.type);
+                                    
+                                    return (
+                                      <div 
+                                        key={position.id} 
+                                        className={`${themes[theme].background} rounded-lg p-4 border-l-4 ${positionInfo.borderColor}`}
+                                      >
+                                        <div className="flex justify-between items-start">
+                                          <div className="flex items-start space-x-3">
+                                            {getTypeIcon(position.type)}
+                                            <div>
+                                              <div className="flex items-center gap-2 mb-1">
+                                                <div className={`text-sm font-medium ${themes[theme].text}`}>
+                                                  {position.symbol} {position.strike}
+                                                </div>
+                                                <div className="flex items-center gap-1">
+                                                  {positionInfo.icon}
+                                                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${positionInfo.color}`}>
+                                                    {positionInfo.label}
+                                                  </span>
+                                                </div>
+                                              </div>
+                                              <div className={`text-xs ${themes[theme].text} opacity-75`}>
+                                                到期: {format(new Date(position.expiry), 'MM-dd')} • {positionInfo.description}
+                                              </div>
+                                              <div className="flex items-center gap-3 mt-2 text-xs">
+                                                <span className={`${themes[theme].text} opacity-75`}>
+                                                  数量: {position.quantity}
+                                                </span>
+                                                <span className={`${themes[theme].text} opacity-75`}>
+                                                  权利金: {formatCurrency(position.premium, currencyConfig)}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <div className="text-right">
+                                            <div className={`text-sm font-bold ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                              {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
+                                            </div>
+                                            <div className={`text-xs ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                              ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
+                                            </div>
+                                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(position.status)} mt-1`}>
+                                              {position.status === 'open' ? '持仓中' : 
+                                               position.status === 'closed' ? '已平仓' : '已到期'}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                  {putPositions.length === 0 && (
+                                    <div className={`${themes[theme].background} rounded-lg p-6 text-center border-2 border-dashed ${themes[theme].border}`}>
+                                      <p className={`${themes[theme].text} opacity-75`}>
+                                        暂无Put期权持仓
+                                      </p>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </div>
-                            <div className="text-right">
-                              <div className={`text-lg font-bold ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
+                          )}
+
+                          {/* 复杂策略期权（价差、跨式等）单独展示 */}
+                          {spreadPositions.length > 0 && (
+                            <div>
+                              <div className="flex items-center gap-2 mb-4">
+                                <div className="w-4 h-4 bg-purple-500 rounded"></div>
+                                <h4 className={`text-lg font-semibold ${themes[theme].text}`}>
+                                  复杂策略 ({spreadPositions.length})
+                                </h4>
                               </div>
-                              <div className={`text-sm ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
+                              <div className="space-y-3">
+                                {spreadPositions.map((position) => {
+                                  const positionInfo = getPositionTypeInfo(position.position_type, position.type);
+                                  
+                                  return (
+                                    <div 
+                                      key={position.id} 
+                                      className={`${themes[theme].background} rounded-lg p-4 border-l-4 ${positionInfo.borderColor}`}
+                                    >
+                                      <div className="flex justify-between items-start">
+                                        <div className="flex items-start space-x-3">
+                                          {getTypeIcon(position.type)}
+                                          <div>
+                                            <div className="flex items-center gap-2 mb-1">
+                                              <div className={`text-sm font-medium ${themes[theme].text}`}>
+                                                {position.symbol} {position.strike} {position.type.toUpperCase()}
+                                              </div>
+                                              <div className="flex items-center gap-1">
+                                                {positionInfo.icon}
+                                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${positionInfo.color}`}>
+                                                  {positionInfo.label}
+                                                </span>
+                                              </div>
+                                            </div>
+                                            <div className={`text-xs ${themes[theme].text} opacity-75`}>
+                                              到期: {format(new Date(position.expiry), 'MM-dd')} • {positionInfo.description}
+                                            </div>
+                                            <div className="flex items-center gap-3 mt-2 text-xs">
+                                              <span className={`${themes[theme].text} opacity-75`}>
+                                                数量: {position.quantity}
+                                              </span>
+                                              <span className={`${themes[theme].text} opacity-75`}>
+                                                权利金: {formatCurrency(position.premium, currencyConfig)}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                        <div className="text-right">
+                                          <div className={`text-sm font-bold ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
+                                          </div>
+                                          <div className={`text-xs ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
+                                          </div>
+                                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(position.status)} mt-1`}>
+                                            {position.status === 'open' ? '持仓中' : 
+                                             position.status === 'closed' ? '已平仓' : '已到期'}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                                {putPositions.length === 0 && (
+                                  <div className={`${themes[theme].background} rounded-lg p-6 text-center border-2 border-dashed ${themes[theme].border}`}>
+                                    <p className={`${themes[theme].text} opacity-75`}>
+                                      暂无Put期权持仓
+                                    </p>
+                                  </div>
+                                )}
                               </div>
-                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(position.status)} mt-2`}>
-                                {position.status === 'open' ? '持仓中' : 
-                                 position.status === 'closed' ? '已平仓' : '已到期'}
-                              </span>
                             </div>
-                          </div>
+                          )}
+
+                          {/* 复杂策略期权（价差、跨式等）单独展示 */}
+                          {spreadPositions.length > 0 && (
+                            <div>
+                              <div className="flex items-center gap-2 mb-4">
+                                <div className="w-4 h-4 bg-purple-500 rounded"></div>
+                                <h4 className={`text-lg font-semibold ${themes[theme].text}`}>
+                                  复杂策略 ({spreadPositions.length})
+                                </h4>
+                              </div>
+                              <div className="space-y-3">
+                                {spreadPositions.map((position) => {
+                                  const positionInfo = getPositionTypeInfo(position.position_type, position.type);
+                                  
+                                  return (
+                                    <div 
+                                      key={position.id} 
+                                      className={`${themes[theme].background} rounded-lg p-4 border-l-4 ${positionInfo.borderColor}`}
+                                    >
+                                      <div className="flex justify-between items-start">
+                                        <div className="flex items-start space-x-3">
+                                          {getTypeIcon(position.type)}
+                                          <div>
+                                            <div className="flex items-center gap-2 mb-1">
+                                              <div className={`text-sm font-medium ${themes[theme].text}`}>
+                                                {position.symbol} {position.strike} {position.type.toUpperCase()}
+                                              </div>
+                                              <div className="flex items-center gap-1">
+                                                {positionInfo.icon}
+                                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${positionInfo.color}`}>
+                                                  {positionInfo.label}
+                                                </span>
+                                              </div>
+                                            </div>
+                                            <div className={`text-xs ${themes[theme].text} opacity-75`}>
+                                              到期: {format(new Date(position.expiry), 'MM-dd')} • {positionInfo.description}
+                                            </div>
+                                            <div className="flex items-center gap-3 mt-2 text-xs">
+                                              <span className={`${themes[theme].text} opacity-75`}>
+                                                数量: {position.quantity}
+                                              </span>
+                                              <span className={`${themes[theme].text} opacity-75`}>
+                                                权利金: {formatCurrency(position.premium, currencyConfig)}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                        <div className="text-right">
+                                          <div className={`text-sm font-bold ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
+                                          </div>
+                                          <div className={`text-xs ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
+                                          </div>
+                                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(position.status)} mt-1`}>
+                                            {position.status === 'open' ? '持仓中' : 
+                                             position.status === 'closed' ? '已平仓' : '已到期'}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
-                    })}
+                    })()}
                   </div>
                 </div>
               </div>
