@@ -585,11 +585,24 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
                                             <div key={position.id} className={`${themes[theme].background} rounded-lg p-3 border-l-4 border-red-500`}>
                                               <div className="flex justify-between items-start mb-2">
                                                 <div>
+                                                  <div className="flex items-center gap-2 mb-1">
                                                   <div className={`text-sm font-medium ${themes[theme].text}`}>
                                                     {position.symbol} {position.strike} PUT
                                                   </div>
+                                                    {(() => {
+                                                      const positionInfo = getPositionTypeInfo(position.position_type, position.type);
+                                                      return (
+                                                        <div className="flex items-center gap-1">
+                                                          {positionInfo.icon}
+                                                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${positionInfo.color}`}>
+                                                            {positionInfo.label}
+                                                          </span>
+                                                        </div>
+                                                      );
+                                                    })()}
+                                                  </div>
                                                   <div className={`text-xs ${themes[theme].text} opacity-75`}>
-                                                    {position.strategy} • {position.quantity} 手
+                                                    {position.strategy} • {position.quantity} 手 • {getPositionTypeInfo(position.position_type, position.type).description}
                                                   </div>
                                                 </div>
                                                 <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(position.status)}`}>
