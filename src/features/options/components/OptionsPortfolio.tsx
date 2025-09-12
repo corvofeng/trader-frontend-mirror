@@ -599,7 +599,7 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
                                                          </span>
                                                        </div>
                                                      );
-                                                   {position.strategy} • {position.quantity} 手 • {getPositionTypeInfo(position.position_type, position.type).description}
+                                                   })()}
                                                  </div>
                                                   <div className={`text-xs ${themes[theme].text} opacity-75`}>
                                                     {position.strategy} • {position.quantity} 手
