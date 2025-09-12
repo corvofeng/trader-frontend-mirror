@@ -118,6 +118,24 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
     })).filter(strategy => strategy.positions.length > 0);
   };
 
+  const getPositionTypeInfo = (positionType: 'buy' | 'sell', optionType: 'call' | 'put') => {
+    if (positionType === 'buy') {
+      return {
+        label: '权利方',
+        description: optionType === 'call' ? '有权买入标的' : '有权卖出标的',
+        color: 'text-blue-600 bg-blue-100 dark:text-blue-400 dark:bg-blue-900',
+        icon: <Shield className="w-3 h-3" />
+      };
+    } else {
+      return {
+        label: '义务方',
+        description: optionType === 'call' ? '有义务卖出标的' : '有义务买入标的',
+        color: 'text-orange-600 bg-orange-100 dark:text-orange-400 dark:bg-orange-900',
+        icon: <Target className="w-3 h-3" />
+      };
+    }
+  };
+
   const getStatusColor = (status: OptionsPosition['status']) => {
     switch (status) {
       case 'open':
