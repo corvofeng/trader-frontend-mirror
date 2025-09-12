@@ -118,7 +118,23 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
     })).filter(strategy => strategy.positions.length > 0);
   };
 
-  const getPositionTypeInfo = (positionType: 'buy' | 'sell', optionType: 'call' | 'put') => {
+    if (isCall && isBuy) {
+      return {
+        icon: <Shield className="w-4 h-4" />,
+        label: '权利方',
+        color: 'border-blue-500 bg-blue-50 dark:bg-blue-900/20',
+        textColor: 'text-blue-700 dark:text-blue-300',
+        description: '有权买入标的'
+      };
+    } else if (isCall && !isBuy) {
+      return {
+        icon: <Target className="w-4 h-4" />,
+        label: '义务方',
+        color: 'border-orange-500 bg-orange-50 dark:bg-orange-900/20',
+        textColor: 'text-orange-700 dark:text-orange-300',
+        description: '有义务卖出标的'
+      };
+    } else if (!isCall && isBuy) {
     if (positionType === 'buy') {
       return {
         label: '权利方',
@@ -126,12 +142,21 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
         color: 'text-blue-600 bg-blue-100 dark:text-blue-400 dark:bg-blue-900',
         icon: <Shield className="w-3 h-3" />
       };
-    } else {
+    } else if (!isCall && !isBuy) {
       return {
         label: '义务方',
         description: optionType === 'call' ? '有义务卖出标的' : '有义务买入标的',
         color: 'text-orange-600 bg-orange-100 dark:text-orange-400 dark:bg-orange-900',
         icon: <Target className="w-3 h-3" />
+      };
+    } else {
+      // 默认情况
+      return {
+        icon: <Shield className="w-4 h-4" />,
+        label: '未知',
+        color: 'border-gray-500 bg-gray-50 dark:bg-gray-900/20',
+        textColor: 'text-gray-700 dark:text-gray-300',
+        description: '未知权利义务'
       };
     }
   };
