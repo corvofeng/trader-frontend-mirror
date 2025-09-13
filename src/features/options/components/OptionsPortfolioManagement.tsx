@@ -9,10 +9,8 @@ import {
   X, 
   Check,
   Target,
-  TrendingUp,
   TrendingDown,
   Activity,
-  Shield,
   Trash2,
   Edit2
 } from 'lucide-react';
