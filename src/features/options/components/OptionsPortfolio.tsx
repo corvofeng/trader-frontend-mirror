@@ -74,7 +74,7 @@ const getPositionTypeInfo = (positionType: string, optionType: string) => {
 export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
   const [portfolioData, setPortfolioData] = useState<OptionsPortfolioData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'expiry' | 'strategy' | 'grouped'>('grouped');
+  const [viewMode, setViewMode] = useState<OptionsViewMode>('expiry');
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'closed' | 'expired'>('all');
   const [sortBy, setSortBy] = useState<'expiry' | 'profitLoss' | 'symbol'>('expiry');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
