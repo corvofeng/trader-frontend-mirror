@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { format, differenceInDays } from 'date-fns';
-import { 
+import { Calendar, TrendingUp, TrendingDown, Activity, Shield, Target, BarChart2, Layers, ChevronDown, ChevronUp } from 'lucide-react';
   Calendar, 
   ChevronLeft, 
   ChevronRight, 
@@ -18,11 +18,48 @@ import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { optionsService, authService } from '../../../lib/services';
-import type { OptionsPortfolioData, OptionsPosition } from '../../../lib/services/types';
+import type { OptionsPortfolioData, CustomOptionsStrategy, OptionsPosition } from '../../../lib/services/types';
 
 interface OptionsPortfolioProps {
   theme: Theme;
 }
+
+const DEMO_USER_ID = 'mock-user-id';
+
+const getPositionTypeInfo = (positionType: string, optionType: string) => {
+  const isLong = positionType === 'buy';
+  const isCall = optionType === 'call';
+  
+  if (isLong && isCall) {
+    return {
+      icon: <TrendingUp className="w-3 h-3" />,
+      label: '买入看涨',
+      color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100',
+      description: '看涨期权买方'
+    };
+  } else if (isLong && !isCall) {
+    return {
+      icon: <TrendingDown className="w-3 h-3" />,
+      label: '买入看跌',
+      color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100',
+      description: '看跌期权买方'
+    };
+  } else if (!isLong && isCall) {
+    return {
+      icon: <TrendingUp className="w-3 h-3" />,
+      label: '卖出看涨',
+      color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100',
+      description: '看涨期权卖方'
+    };
+  } else {
+    return {
+      icon: <TrendingDown className="w-3 h-3" />,
+      label: '卖出看跌',
+      color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100',
+      description: '看跌期权卖方'
+    };
+  }
+};
 
 const DEMO_USER_ID = 'mock-user-id';
 
@@ -73,11 +110,14 @@ const getPositionTypeInfo = (positionType: string, optionType: string) => {
 
 export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
   const [portfolioData, setPortfolioData] = useState<OptionsPortfolioData | null>(null);
+  const [customStrategies, setCustomStrategies] = useState<CustomOptionsStrategy[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingStrategies, setIsLoadingStrategies] = useState(false);
   const [viewMode, setViewMode] = useState<OptionsViewMode>('expiry');
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'closed' | 'expired'>('all');
   const [sortBy, setSortBy] = useState<'expiry' | 'profitLoss' | 'symbol'>('expiry');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [expandedStrategies, setExpandedStrategies] = useState<string[]>([]);
   const { currencyConfig } = useCurrency();
 
   useEffect(() => {
@@ -88,7 +128,7 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
         
         const userId = user?.id || DEMO_USER_ID;
         const { data, error } = await optionsService.getOptionsPortfolio(userId);
-        
+        const { data: { user } } = await authService.getUser();
         if (error) throw error;
         if (data) setPortfolioData(data);
       } catch (error) {
@@ -100,6 +140,37 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
 
     fetchData();
   }, []);
+
+  useEffect(() => {
+    const fetchCustomStrategies = async () => {
+      try {
+        setIsLoadingStrategies(true);
+        const { data: { user } } = await authService.getUser();
+        
+        const userId = user?.id || DEMO_USER_ID;
+        const { data, error } = await optionsService.getCustomStrategies(userId);
+        
+        if (error) throw error;
+        if (data) {
+          setCustomStrategies(data);
+        }
+      } catch (error) {
+        console.error('Error fetching custom strategies:', error);
+      } finally {
+        setIsLoadingStrategies(false);
+      }
+    };
+
+    fetchCustomStrategies();
+  }, []);
+
+  const toggleStrategyExpansion = (strategyId: string) => {
+    setExpandedStrategies(prev => 
+      prev.includes(strategyId) 
+        ? prev.filter(id => id !== strategyId)
+        : [...prev, strategyId]
+    );
+  };
 
   // 生成策略ID的逻辑
   const getStrategyId = (position: OptionsPosition, index: number): string => {
@@ -446,6 +517,159 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
                   <div className="flex items-center gap-2 mb-3">
                     <TrendingUp className="w-4 h-4 text-green-500" />
                     <h4 className={`text-md font-medium ${themes[theme].text}`}>
+            
+            {/* 自定义策略显示 */}
+            {customStrategies.length > 0 && (
+              <div className="mt-8">
+                <h3 className={`text-lg font-semibold ${themes[theme].text} mb-4 flex items-center gap-2`}>
+                  <Layers className="w-5 h-5 text-purple-500" />
+                  自定义策略 ({customStrategies.length})
+                </h3>
+                <div className="space-y-4">
+                  {customStrategies.map((strategy) => {
+                    const isExpanded = expandedStrategies.includes(strategy.id);
+                    const totalCost = strategy.positions.reduce((sum, pos) => 
+                      sum + (pos.premium * (pos.selectedQuantity || pos.quantity) * 100), 0);
+                    const currentValue = strategy.positions.reduce((sum, pos) => 
+                      sum + (pos.currentValue * (pos.selectedQuantity || pos.quantity) * 100), 0);
+                    const profitLoss = currentValue - totalCost;
+                    const profitLossPercentage = totalCost > 0 ? (profitLoss / totalCost) * 100 : 0;
+                    
+                    return (
+                      <div key={strategy.id} className={`${themes[theme].background} rounded-lg border ${themes[theme].border}`}>
+                        <div 
+                          className={`p-4 cursor-pointer ${themes[theme].cardHover}`}
+                          onClick={() => toggleStrategyExpansion(strategy.id)}
+                        >
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-2">
+                                {strategy.strategyCategory && (
+                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                    strategy.strategyCategory === 'bullish' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100' :
+                                    strategy.strategyCategory === 'bearish' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100' :
+                                    strategy.strategyCategory === 'volatility' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100' :
+                                    'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100'
+                                  }`}>
+                                    {strategy.strategyCategory === 'bullish' ? '看涨' :
+                                     strategy.strategyCategory === 'bearish' ? '看跌' :
+                                     strategy.strategyCategory === 'volatility' ? '波动率' : '中性'}
+                                  </span>
+                                )}
+                                {strategy.riskLevel && (
+                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                    strategy.riskLevel === 'low' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100' :
+                                    strategy.riskLevel === 'medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100' :
+                                    'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100'
+                                  }`}>
+                                    {strategy.riskLevel === 'low' ? '低风险' :
+                                     strategy.riskLevel === 'medium' ? '中风险' : '高风险'}
+                                  </span>
+                                )}
+                              </div>
+                              <div>
+                                <h4 className={`text-lg font-semibold ${themes[theme].text}`}>
+                                  {strategy.name}
+                                </h4>
+                                <p className={`text-sm ${themes[theme].text} opacity-75`}>
+                                  {strategy.description}
+                                </p>
+                                <p className={`text-xs ${themes[theme].text} opacity-60 mt-1`}>
+                                  {strategy.positions.length} 个期权 • 创建于 {new Date(strategy.createdAt).toLocaleDateString()}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                              <div className="text-right">
+                                <p className={`text-lg font-semibold ${
+                                  profitLoss >= 0 ? 'text-green-600' : 'text-red-600'
+                                }`}>
+                                  {profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(profitLoss), currencyConfig)}
+                                </p>
+                                <p className={`text-xs ${themes[theme].text} opacity-75`}>
+                                  ({profitLossPercentage >= 0 ? '+' : ''}{profitLossPercentage.toFixed(2)}%)
+                                </p>
+                                <p className={`text-xs ${themes[theme].text} opacity-60`}>
+                                  成本: {formatCurrency(totalCost, currencyConfig)}
+                                </p>
+                              </div>
+                              {isExpanded ? (
+                                <ChevronUp className={`w-5 h-5 ${themes[theme].text}`} />
+                              ) : (
+                                <ChevronDown className={`w-5 h-5 ${themes[theme].text}`} />
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {isExpanded && (
+                          <div className="px-4 pb-4">
+                            <div className="space-y-2">
+                              <h5 className={`text-sm font-medium ${themes[theme].text} mb-3`}>
+                                包含的期权持仓
+                              </h5>
+                              {strategy.positions.map((position) => {
+                                const adjustedCost = position.premium * (position.selectedQuantity || position.quantity) * 100;
+                                const adjustedValue = position.currentValue * (position.selectedQuantity || position.quantity) * 100;
+                                const adjustedProfitLoss = adjustedValue - adjustedCost;
+                                const positionInfo = getPositionTypeInfo(position.position_type, position.type);
+                                
+                                return (
+                                  <div key={position.id} className={`${themes[theme].card} rounded p-3 border ${themes[theme].border}`}>
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-3">
+                                        {getTypeIcon(position.type)}
+                                        <div>
+                                          <div className={`text-sm font-medium ${themes[theme].text}`}>
+                                            {position.symbol} {position.strike} {position.type.toUpperCase()}
+                                          </div>
+                                          <div className="flex items-center gap-2 mt-1">
+                                            <div className="flex items-center gap-1">
+                                              {positionInfo.icon}
+                                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${positionInfo.color}`}>
+                                                {positionInfo.label}
+                                              </span>
+                                            </div>
+                                            <span className={`text-xs ${themes[theme].text} opacity-75`}>
+                                              到期: {format(new Date(position.expiry), 'MM-dd')}
+                                            </span>
+                                          </div>
+                                          <div className={`text-xs ${themes[theme].text} opacity-60 mt-1`}>
+                                            数量: {position.selectedQuantity || position.quantity}
+                                            {position.selectedQuantity && position.selectedQuantity !== position.quantity && (
+                                              <span className="text-blue-600 ml-1">
+                                                (原始: {position.quantity})
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div className="text-right">
+                                        <div className={`text-sm font-medium ${
+                                          adjustedProfitLoss >= 0 ? 'text-green-600' : 'text-red-600'
+                                        }`}>
+                                          {adjustedProfitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(adjustedProfitLoss), currencyConfig)}
+                                        </div>
+                                        <div className={`text-xs ${themes[theme].text} opacity-60`}>
+                                          成本: {formatCurrency(adjustedCost, currencyConfig)}
+                                        </div>
+                                        <div className={`text-xs ${themes[theme].text} opacity-60`}>
+                                          当前: {formatCurrency(adjustedValue, currencyConfig)}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
                       Call期权 ({singleLegs.filter(p => p.type === 'call').length})
                     </h4>
                   </div>
@@ -1160,6 +1384,16 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
               </div>
             );
           })}
+        </div>
+      )}
+      
+      {/* 加载自定义策略的状态 */}
+      {isLoadingStrategies && (
+        <div className={`${themes[theme].card} rounded-lg p-6`}>
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <p className={`${themes[theme].text}`}>正在加载自定义策略...</p>
+          </div>
         </div>
       )}
     </div>

@@ -346,6 +346,7 @@ export interface OptionsPosition {
   openDate: string;
   closeDate?: string;
   notes?: string;
+  selectedQuantity?: number; // 在策略中选择的数量
 }
 
 export interface OptionsStrategy {
@@ -361,6 +362,10 @@ export interface OptionsStrategy {
   profitLossPercentage: number;
   maxRisk: number;
   maxReward: number;
+  strategyType?: string; // 策略类型ID
+  isPresetStrategy?: boolean; // 是否为预设策略
+  createdAt?: string; // 创建时间
+  updatedAt?: string; // 更新时间
 }
 
 export interface OptionsPortfolioData {
@@ -377,6 +382,7 @@ export interface OptionsPortfolioData {
     totalCost: number;
     profitLoss: number;
   }>;
+  customStrategies?: CustomOptionsStrategy[]; // 自定义策略列表
 }
 export interface OptionsService {
   getOptionsData: (symbol?: string) => Promise<ServiceResponse<OptionsData>>;
@@ -396,4 +402,18 @@ export interface CustomOptionsStrategy {
   positions: OptionsPosition[];
   createdAt: string;
   updatedAt: string;
+  strategyType?: string; // 策略类型ID
+  strategyCategory?: 'bullish' | 'bearish' | 'neutral' | 'volatility'; // 策略分类
+  riskLevel?: 'low' | 'medium' | 'high'; // 风险等级
+  isPresetStrategy?: boolean; // 是否为预设策略
+  presetStrategyInfo?: { // 预设策略信息
+    id: string;
+    name: string;
+    description: string;
+    category: 'bullish' | 'bearish' | 'neutral' | 'volatility';
+    minPositions: number;
+    maxPositions: number;
+    requiredTypes: string[];
+    requiredActions: string[];
+  };
 }

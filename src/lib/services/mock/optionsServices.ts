@@ -30,6 +30,87 @@ const AVAILABLE_STRATEGIES = [
 // 存储自定义策略的内存数据库
 const customStrategiesStore = new Map<string, CustomOptionsStrategy>();
 
+// 初始化一些示例自定义策略
+const initializeCustomStrategies = () => {
+  const sampleStrategy: CustomOptionsStrategy = {
+    id: 'sample-strategy-1',
+    userId: 'mock-user-id',
+    name: '示例牛市价差策略',
+    description: '买入低行权价Call，卖出高行权价Call的牛市策略',
+    strategyType: 'bull_call_spread',
+    strategyCategory: 'bullish',
+    riskLevel: 'low',
+    isPresetStrategy: true,
+    presetStrategyInfo: {
+      id: 'bull_call_spread',
+      name: '牛市看涨价差',
+      description: '买入低行权价看涨期权，卖出高行权价看涨期权',
+      category: 'bullish',
+      minPositions: 2,
+      maxPositions: 2,
+      requiredTypes: ['call', 'call'],
+      requiredActions: ['buy', 'sell']
+    },
+    positions: [
+      {
+        id: 'pos-1',
+        symbol: 'SPY',
+        strategy: '牛市看涨价差',
+        strategy_id: 'sample-strategy-1',
+        type: 'call',
+        position_type: 'buy',
+        strike: 440,
+        expiry: '2024-03-15',
+        quantity: 5,
+        selectedQuantity: 3, // 在策略中选择的数量
+        premium: 12.50,
+        currentValue: 15.20,
+        profitLoss: (15.20 - 12.50) * 3 * 100, // 基于选择数量计算
+        profitLossPercentage: ((15.20 - 12.50) / 12.50) * 100,
+        impliedVolatility: 0.18,
+        delta: 0.65,
+        gamma: 0.02,
+        theta: -0.05,
+        vega: 0.12,
+        status: 'open',
+        openDate: '2024-01-15T10:30:00Z',
+        notes: '买入腿'
+      },
+      {
+        id: 'pos-2',
+        symbol: 'SPY',
+        strategy: '牛市看涨价差',
+        strategy_id: 'sample-strategy-1',
+        type: 'call',
+        position_type: 'sell',
+        strike: 460,
+        expiry: '2024-03-15',
+        quantity: 5,
+        selectedQuantity: 3, // 在策略中选择的数量
+        premium: 6.80,
+        currentValue: 8.10,
+        profitLoss: (6.80 - 8.10) * 3 * 100, // 卖出期权的盈亏计算
+        profitLossPercentage: ((6.80 - 8.10) / 6.80) * 100,
+        impliedVolatility: 0.16,
+        delta: 0.35,
+        gamma: 0.015,
+        theta: -0.03,
+        vega: 0.08,
+        status: 'open',
+        openDate: '2024-01-15T10:30:00Z',
+        notes: '卖出腿'
+      }
+    ],
+    createdAt: '2024-01-15T10:30:00Z',
+    updatedAt: '2024-01-15T10:30:00Z'
+  };
+  
+  customStrategiesStore.set(sampleStrategy.id, sampleStrategy);
+};
+
+// 初始化示例数据
+initializeCustomStrategies();
+
 // Mock期权持仓数据
 const generateMockOptionsPortfolio = (): OptionsPortfolioData => {
   const positions: OptionsPosition[] = [
