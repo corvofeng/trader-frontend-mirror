@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Calendar, TrendingUp, TrendingDown, Activity, Shield, Target, BarChart2, Layers, ChevronDown, ChevronUp, Edit2, Save, X, Plus } from 'lucide-react';
 import { 
   ChevronLeft, 
