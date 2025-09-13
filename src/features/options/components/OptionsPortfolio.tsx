@@ -1381,21 +1381,3 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
                     })()}
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-      
-      {/* 加载自定义策略的状态 */}
-      {isLoadingStrategies && (
-        <div className={`${themes[theme].card} rounded-lg p-6`}>
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
-            <p className={`${themes[theme].text}`}>正在加载自定义策略...</p>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}

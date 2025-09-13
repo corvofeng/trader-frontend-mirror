@@ -449,21 +449,6 @@ export default function OptionsPortfolioManagement({ theme }: OptionsPortfolioMa
           requiredTypes: presetStrategy.requiredTypes,
           requiredActions: presetStrategy.requiredActions
         } : null
-        // 新增：策略类型相关信息
-        strategyType: selectedPresetStrategy,
-        strategyCategory: presetStrategy.category,
-        riskLevel: getRiskLevel(presetStrategy.category),
-        isPresetStrategy: selectedPresetStrategy !== 'custom',
-        presetStrategyInfo: selectedPresetStrategy !== 'custom' ? {
-          id: presetStrategy.id,
-          name: presetStrategy.name,
-          description: presetStrategy.description,
-          category: presetStrategy.category,
-          minPositions: presetStrategy.minPositions,
-          maxPositions: presetStrategy.maxPositions,
-          requiredTypes: presetStrategy.requiredTypes,
-          requiredActions: presetStrategy.requiredActions
-        } : null
       };
 
       const { data, error } = await optionsService.saveCustomStrategy(strategyData);
