@@ -35,6 +35,80 @@ interface PositionSelection {
 
 const DEMO_USER_ID = 'mock-user-id';
 
+// 预设策略模板
+const PRESET_STRATEGIES = [
+  {
+    id: 'bull_call_spread',
+    name: '牛市看涨价差',
+    description: '买入低行权价看涨期权，卖出高行权价看涨期权',
+    category: 'bullish' as const,
+    minPositions: 2,
+    maxPositions: 2,
+    requiredTypes: ['call', 'call'],
+    requiredActions: ['buy', 'sell']
+  },
+  {
+    id: 'bear_put_spread',
+    name: '熊市看跌价差',
+    description: '买入高行权价看跌期权，卖出低行权价看跌期权',
+    category: 'bearish' as const,
+    minPositions: 2,
+    maxPositions: 2,
+    requiredTypes: ['put', 'put'],
+    requiredActions: ['buy', 'sell']
+  },
+  {
+    id: 'long_straddle',
+    name: '买入跨式',
+    description: '同时买入相同行权价的看涨和看跌期权',
+    category: 'volatility' as const,
+    minPositions: 2,
+    maxPositions: 2,
+    requiredTypes: ['call', 'put'],
+    requiredActions: ['buy', 'buy']
+  },
+  {
+    id: 'short_straddle',
+    name: '卖出跨式',
+    description: '同时卖出相同行权价的看涨和看跌期权',
+    category: 'volatility' as const,
+    minPositions: 2,
+    maxPositions: 2,
+    requiredTypes: ['call', 'put'],
+    requiredActions: ['sell', 'sell']
+  },
+  {
+    id: 'long_strangle',
+    name: '买入宽跨式',
+    description: '买入不同行权价的看涨和看跌期权',
+    category: 'volatility' as const,
+    minPositions: 2,
+    maxPositions: 2,
+    requiredTypes: ['call', 'put'],
+    requiredActions: ['buy', 'buy']
+  },
+  {
+    id: 'iron_condor',
+    name: '铁鹰策略',
+    description: '卖出跨式组合+买入保护性期权',
+    category: 'neutral' as const,
+    minPositions: 4,
+    maxPositions: 4,
+    requiredTypes: ['put', 'put', 'call', 'call'],
+    requiredActions: ['buy', 'sell', 'sell', 'buy']
+  },
+  {
+    id: 'custom',
+    name: '自定义策略',
+    description: '创建您自己的期权组合策略',
+    category: 'neutral' as const,
+    minPositions: 1,
+    maxPositions: 10,
+    requiredTypes: [],
+    requiredActions: []
+  }
+];
+
 const getPositionTypeInfo = (positionType: string, optionType: string) => {
   const isLong = positionType === 'long';
   const isCall = optionType === 'call';
@@ -82,6 +156,9 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
   const [strategyName, setStrategyName] = useState('');
   const [strategyDescription, setStrategyDescription] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [sortBy, setSortBy] = useState<'expiry' | 'rights_obligations' | 'strike' | 'symbol'>('expiry');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [selectedPresetStrategy, setSelectedPresetStrategy] = useState<string>('custom');
   const { currencyConfig } = useCurrency();
 
   useEffect(() => {
@@ -148,16 +225,87 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
     fetchCustomStrategies();
   }, []);
 
+  const sortPositions = (positions: OptionsPosition[]) => {
+    return [...positions].sort((a, b) => {
+      const multiplier = sortDirection === 'asc' ? 1 : -1;
+      
+      switch (sortBy) {
+        case 'expiry':
+          return multiplier * (new Date(a.expiry).getTime() - new Date(b.expiry).getTime());
+        case 'rights_obligations':
+          const aType = `${a.position_type}_${a.type}`;
+          const bType = `${b.position_type}_${b.type}`;
+          return multiplier * aType.localeCompare(bType);
+        case 'strike':
+          return multiplier * (a.strike - b.strike);
+        case 'symbol':
+          return multiplier * a.symbol.localeCompare(b.symbol);
+        default:
+          return 0;
+      }
+    });
+  };
+
+  const handleSort = (field: typeof sortBy) => {
+    if (sortBy === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const getPresetStrategyInfo = (strategyId: string) => {
+    return PRESET_STRATEGIES.find(s => s.id === strategyId) || PRESET_STRATEGIES.find(s => s.id === 'custom')!;
+  };
+
+  const validatePresetStrategy = (selectedPositions: PositionSelection[], presetStrategy: any) => {
+    if (presetStrategy.id === 'custom') return { valid: true, message: '' };
+    
+    const positions = selectedPositions.map(s => s.position);
+    
+    // 检查数量
+    if (positions.length < presetStrategy.minPositions || positions.length > presetStrategy.maxPositions) {
+      return { 
+        name: strategyName || presetStrategy.name,
+        description: strategyDescription || presetStrategy.description,
+        valid: false, 
+        message: `${presetStrategy.name}需要${presetStrategy.minPositions}${presetStrategy.minPositions !== presetStrategy.maxPositions ? `-${presetStrategy.maxPositions}` : ''}个期权持仓` 
+      };
+    }
+    
+    // 检查类型和操作（如果有要求）
+    if (presetStrategy.requiredTypes.length > 0) {
+      const positionTypes = positions.map(p => p.type);
+      const positionActions = positions.map(p => p.position_type);
+      
+      // 简单验证：检查是否包含所需的类型
+      const hasRequiredTypes = presetStrategy.requiredTypes.every((type: string) => 
+        positionTypes.includes(type)
+      );
+      
+      if (!hasRequiredTypes) {
+        return { 
+          valid: false, 
+          message: `${presetStrategy.name}需要特定的期权类型组合` 
+        };
+      }
+    }
+    
+    return { valid: true, message: '' };
+  };
+
   const getCurrentMonthPositions = () => {
     if (!portfolioData || !currentMonth) return [];
     
-    return portfolioData.expiryGroups
+    const positions = portfolioData.expiryGroups
       .filter(group => {
         const groupMonth = format(new Date(group.expiry), 'yyyy-MM');
         return groupMonth === currentMonth;
       })
       .flatMap(group => group.positions)
-      .sort((a, b) => new Date(a.expiry).getTime() - new Date(b.expiry).getTime());
+    
+    return sortPositions(positions);
   };
 
   const navigateMonth = (direction: 'prev' | 'next') => {
@@ -223,6 +371,13 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
     return Array.from(selectedPositions.values()).filter(selection => selection.isSelected);
   };
 
+  const SortIcon = ({ field }: { field: typeof sortBy }) => {
+    if (sortBy !== field) {
+      return <span className="text-gray-400">↕</span>;
+    }
+    return sortDirection === 'asc' ? <span className="text-blue-500">↑</span> : <span className="text-blue-500">↓</span>;
+  };
+
   const calculateStrategyMetrics = () => {
     const selections = getSelectedPositionsArray();
     const totalCost = selections.reduce((sum, selection) => {
@@ -247,6 +402,15 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
     const selections = getSelectedPositionsArray();
     if (selections.length === 0) {
       toast.error('请至少选择一个期权持仓');
+      return;
+    }
+    
+    // 验证预设策略
+    const presetStrategy = getPresetStrategyInfo(selectedPresetStrategy);
+    const validation = validatePresetStrategy(selectedArray, presetStrategy);
+    
+    if (!validation.valid) {
+      toast.error(validation.message);
       return;
     }
 
@@ -281,6 +445,7 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
         // 重置表单
         setStrategyName('');
         setStrategyDescription('');
+        setSelectedPresetStrategy('custom');
         setSelectedPositions(new Map());
         setShowCreateStrategy(false);
       }
@@ -470,14 +635,32 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
                   <th className={`px-4 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
                     选择
                   </th>
-                  <th className={`px-4 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
-                    合约
+                  <th 
+                    className={`px-4 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
+                    onClick={() => handleSort('symbol')}
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>合约</span>
+                      <SortIcon field="symbol" />
+                    </div>
                   </th>
-                  <th className={`px-4 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
-                    权利义务
+                  <th 
+                    className={`px-4 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
+                    onClick={() => handleSort('rights_obligations')}
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>权利义务</span>
+                      <SortIcon field="rights_obligations" />
+                    </div>
                   </th>
-                  <th className={`px-4 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
-                    到期日
+                  <th 
+                    className={`px-4 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
+                    onClick={() => handleSort('expiry')}
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>到期日</span>
+                      <SortIcon field="expiry" />
+                    </div>
                   </th>
                   <th className={`px-4 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
                     持仓数量
@@ -485,8 +668,14 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
                   <th className={`px-4 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
                     选择数量
                   </th>
-                  <th className={`px-4 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
-                    权利金
+                  <th 
+                    className={`px-4 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
+                    onClick={() => handleSort('strike')}
+                  >
+                    <div className="flex items-center justify-end gap-1">
+                      <span>权利金</span>
+                      <SortIcon field="strike" />
+                    </div>
                   </th>
                   <th className={`px-4 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
                     当前价值
@@ -633,8 +822,30 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
             <div className="flex justify-between items-center">
               <h3 className={`text-lg font-semibold ${themes[theme].text}`}>
                 创建自定义策略
+                <span className={`text-sm font-normal ${themes[theme].text} opacity-60 ml-2`}>
+                  (共 {currentMonthPositions.length} 个)
+                </span>
               </h3>
-              <button
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <label className={`text-sm ${themes[theme].text}`}>排序:</label>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                    className={`px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
+                  >
+                    <option value="expiry">到期日</option>
+                    <option value="rights_obligations">权利义务</option>
+                    <option value="strike">行权价</option>
+                    <option value="symbol">标的</option>
+                  </select>
+                  <button
+                    onClick={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
+                    className={`px-2 py-1 rounded text-sm ${themes[theme].secondary}`}
+                  >
+                    <SortIcon field={sortBy} />
+                  </button>
+                </div>
                 onClick={() => setShowCreateStrategy(false)}
                 className={`p-2 rounded-md ${themes[theme].secondary}`}
               >
@@ -644,6 +855,48 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
           </div>
 
           <div className="p-6 space-y-6">
+            {/* 预设策略选择 */}
+            <div>
+              <label className={`block text-sm font-medium ${themes[theme].text} mb-2`}>
+                策略类型
+              </label>
+              <select
+                value={selectedPresetStrategy}
+                onChange={(e) => setSelectedPresetStrategy(e.target.value)}
+                className={`w-full px-3 py-2 rounded-md ${themes[theme].input} ${themes[theme].text}`}
+              >
+                {PRESET_STRATEGIES.map(strategy => (
+                  <option key={strategy.id} value={strategy.id}>
+                    {strategy.name} - {strategy.description}
+                  </option>
+                ))}
+              </select>
+              {selectedPresetStrategy !== 'custom' && (
+                <div className={`mt-2 p-3 rounded-md ${themes[theme].background}`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      getPresetStrategyInfo(selectedPresetStrategy).category === 'bullish' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100' :
+                      getPresetStrategyInfo(selectedPresetStrategy).category === 'bearish' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100' :
+                      getPresetStrategyInfo(selectedPresetStrategy).category === 'volatility' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100' :
+                      'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100'
+                    }`}>
+                      {getPresetStrategyInfo(selectedPresetStrategy).category === 'bullish' ? '看涨策略' :
+                       getPresetStrategyInfo(selectedPresetStrategy).category === 'bearish' ? '看跌策略' :
+                       getPresetStrategyInfo(selectedPresetStrategy).category === 'volatility' ? '波动率策略' : '中性策略'}
+                    </span>
+                    <span className={`text-sm ${themes[theme].text} opacity-75`}>
+                      需要 {getPresetStrategyInfo(selectedPresetStrategy).minPositions}
+                      {getPresetStrategyInfo(selectedPresetStrategy).minPositions !== getPresetStrategyInfo(selectedPresetStrategy).maxPositions 
+                        ? `-${getPresetStrategyInfo(selectedPresetStrategy).maxPositions}` : ''} 个期权
+                    </span>
+                  </div>
+                  <p className={`text-sm ${themes[theme].text} opacity-75`}>
+                    {getPresetStrategyInfo(selectedPresetStrategy).description}
+                  </p>
+                </div>
+              )}
+            </div>
+
             {/* 策略基本信息 */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -654,8 +907,8 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
                   type="text"
                   value={strategyName}
                   onChange={(e) => setStrategyName(e.target.value)}
+                  placeholder={selectedPresetStrategy !== 'custom' ? getPresetStrategyInfo(selectedPresetStrategy).name : '输入策略名称'}
                   className={`w-full px-3 py-2 rounded-md ${themes[theme].input} ${themes[theme].text}`}
-                  placeholder="输入策略名称"
                 />
               </div>
               <div>
@@ -666,8 +919,8 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
                   type="text"
                   value={strategyDescription}
                   onChange={(e) => setStrategyDescription(e.target.value)}
+                  placeholder={selectedPresetStrategy !== 'custom' ? getPresetStrategyInfo(selectedPresetStrategy).description : '输入策略描述'}
                   className={`w-full px-3 py-2 rounded-md ${themes[theme].input} ${themes[theme].text}`}
-                  placeholder="输入策略描述"
                 />
               </div>
             </div>
@@ -758,9 +1011,9 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
               </button>
               <button
                 onClick={handleCreateStrategy}
-                disabled={isSaving || !strategyName.trim() || selectedArray.length === 0}
+                disabled={isSaving || (!strategyName.trim() && selectedPresetStrategy === 'custom') || selectedArray.length === 0}
                 className={`inline-flex items-center px-4 py-2 rounded-md ${themes[theme].primary} ${
-                  isSaving || !strategyName.trim() || selectedArray.length === 0 ? 'opacity-50 cursor-not-allowed' : ''
+                  isSaving || (!strategyName.trim() && selectedPresetStrategy === 'custom') || selectedArray.length === 0 ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
                 {isSaving ? (
