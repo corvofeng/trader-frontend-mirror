@@ -110,7 +110,7 @@ const PRESET_STRATEGIES = [
 ];
 
 const getPositionTypeInfo = (positionType: string, optionType: string) => {
-  const isLong = positionType === 'long';
+  const isLong = positionType === 'buy';
   const isCall = optionType === 'call';
   
   if (isLong && isCall) {
