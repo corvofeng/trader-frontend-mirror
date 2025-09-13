@@ -485,7 +485,7 @@ export default function OptionsPortfolioManagement({ theme }: OptionsPortfolioMa
 
       if (error) throw error;
       if (data) {
-        setCustomStrategies(prev => [data, ...prev]);
+        setCustomStrategies(prev => [...data, ...prev]);
         toast.success('策略创建成功');
         
         // 重置表单
