@@ -131,7 +131,7 @@ const convertPositionToStrategyLeg = (position: OptionsPosition): OptionStrategy
     contract_name: position.contract_name || '',
     contract_type: position.contract_type || getContractTypeZh(position.type),
     contract_type_zh: position.contract_type_zh || '',
-    contract_strike_price: position.strike,
+    contract_strike_price: position.contract_strike_price || position.strike,
     position_type: position.position_type,
     position_type_zh: position.position_type_zh || getPositionTypeZh(position.position_type, position.type),
     leg_quantity: position.leg_quantity || position.selectedQuantity || position.quantity,
