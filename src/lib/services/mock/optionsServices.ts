@@ -1,5 +1,5 @@
 import type { OptionsService, OptionsData, OptionsPortfolioData, OptionsPosition, OptionsStrategy } from '../types';
-import type { CustomOptionsStrategy } from '../types';
+import type { CustomOptionsStrategy, OptionStrategyLeg } from '../types';
 
 // 支持的期权标的列表
 const AVAILABLE_OPTIONS_SYMBOLS = [
@@ -74,7 +74,16 @@ const initializeCustomStrategies = () => {
         vega: 0.12,
         status: 'open',
         openDate: '2024-01-15T10:30:00Z',
-        notes: '买入腿'
+        notes: '买入腿',
+        // 新增：策略腿部详细信息
+        contract_code: 'SPY20240315C440',
+        contract_name: 'SPY 440 认购',
+        contract_type: '认购',
+        contract_type_zh: 'call',
+        contract_strike_price: 440,
+        position_type_zh: '权利',
+        leg_quantity: 3,
+        cost_price: 12.50
       },
       {
         id: 'pos-2',
@@ -98,7 +107,16 @@ const initializeCustomStrategies = () => {
         vega: 0.08,
         status: 'open',
         openDate: '2024-01-15T10:30:00Z',
-        notes: '卖出腿'
+        notes: '卖出腿',
+        // 新增：策略腿部详细信息
+        contract_code: 'SPY20240315C460',
+        contract_name: 'SPY 460 认购',
+        contract_type: '认购',
+        contract_type_zh: 'call',
+        contract_strike_price: 460,
+        position_type_zh: '义务',
+        leg_quantity: 3,
+        cost_price: 6.80
       }
     ],
     createdAt: '2024-01-15T10:30:00Z',
@@ -135,7 +153,16 @@ const generateMockOptionsPortfolio = (): OptionsPortfolioData => {
       vega: 0.12,
       status: 'open',
       openDate: '2024-01-15T10:30:00Z',
-      notes: '看好市场短期上涨'
+      notes: '看好市场短期上涨',
+      // 策略腿部详细信息
+      contract_code: 'SPY20240315C450',
+      contract_name: 'SPY 450 认购',
+      contract_type: '认购',
+      contract_type_zh: 'call',
+      contract_strike_price: 450,
+      position_type_zh: '权利',
+      leg_quantity: 10,
+      cost_price: 5.50
     },
     {
       id: '2',
@@ -158,7 +185,16 @@ const generateMockOptionsPortfolio = (): OptionsPortfolioData => {
       vega: 0.15,
       status: 'open',
       openDate: '2024-01-10T14:20:00Z',
-      notes: '为现有QQQ持仓购买保护'
+      notes: '为现有QQQ持仓购买保护',
+      // 策略腿部详细信息
+      contract_code: 'QQQ20240216P380',
+      contract_name: 'QQQ 380 认沽',
+      contract_type: '认沽',
+      contract_type_zh: 'put',
+      contract_strike_price: 380,
+      position_type_zh: '权利',
+      leg_quantity: 5,
+      cost_price: 8.30
     },
     {
       id: '3',
@@ -181,7 +217,16 @@ const generateMockOptionsPortfolio = (): OptionsPortfolioData => {
       vega: 0.08,
       status: 'open',
       openDate: '2024-01-05T09:15:00Z',
-      notes: '牛市价差策略'
+      notes: '牛市价差策略',
+      // 策略腿部详细信息
+      contract_code: 'AAPL20240419C175',
+      contract_name: 'AAPL 175 认购价差',
+      contract_type: '认购',
+      contract_type_zh: 'call',
+      contract_strike_price: 175,
+      position_type_zh: '权利',
+      leg_quantity: 8,
+      cost_price: 2.50
     },
     {
       id: '4',
@@ -204,7 +249,16 @@ const generateMockOptionsPortfolio = (): OptionsPortfolioData => {
       vega: -0.05,
       status: 'open',
       openDate: '2024-01-20T11:45:00Z',
-      notes: '中性策略，收取时间价值'
+      notes: '中性策略，收取时间价值',
+      // 策略腿部详细信息
+      contract_code: 'TSLA20240216IC250',
+      contract_name: 'TSLA 250 铁鹰',
+      contract_type: '价差',
+      contract_type_zh: 'spread',
+      contract_strike_price: 250,
+      position_type_zh: '义务',
+      leg_quantity: 3,
+      cost_price: 4.20
     },
     {
       id: '5',
@@ -227,7 +281,16 @@ const generateMockOptionsPortfolio = (): OptionsPortfolioData => {
       vega: 0.10,
       status: 'open',
       openDate: '2024-01-08T15:30:00Z',
-      notes: '对现有MSFT持仓卖出看涨期权'
+      notes: '对现有MSFT持仓卖出看涨期权',
+      // 策略腿部详细信息
+      contract_code: 'MSFT20240517C380',
+      contract_name: 'MSFT 380 备兑认购',
+      contract_type: '认购',
+      contract_type_zh: 'call',
+      contract_strike_price: 380,
+      position_type_zh: '备兑',
+      leg_quantity: 12,
+      cost_price: 6.80
     }
   ];
 
