@@ -846,8 +846,17 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
                     <SortIcon field={sortBy} />
                   </button>
                 </div>
-                onClick={() => setShowCreateStrategy(false)}
-                className={`p-2 rounded-md ${themes[theme].secondary}`}
+                <button
+                  onClick={() => setShowCreateStrategy(false)}
+                  className={`p-2 rounded-md ${themes[theme].secondary}`}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6 space-y-6">
               >
                 <X className="w-5 h-5" />
               </button>
