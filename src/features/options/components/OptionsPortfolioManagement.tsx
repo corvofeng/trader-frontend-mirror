@@ -20,7 +20,7 @@ import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { optionsService, authService } from '../../../lib/services';
-import type { OptionsPortfolioData, OptionsPosition, CustomOptionsStrategy } from '../../../lib/services/types';
+import type { OptionsPortfolioData, OptionsPosition, CustomOptionsStrategy, OptionStrategyLeg } from '../../../lib/services/types';
 import toast from 'react-hot-toast';
 
 interface OptionsPortfolioManagementProps {
@@ -108,6 +108,36 @@ const PRESET_STRATEGIES = [
     requiredActions: []
   }
 ];
+
+// 转换期权持仓为策略腿部结构
+const convertPositionToStrategyLeg = (position: OptionsPosition): OptionStrategyLeg => {
+  const getContractTypeZh = (type: string) => {
+    return type === 'call' ? '认购' : '认沽';
+  };
+
+  const getPositionTypeZh = (positionType: string, optionType: string) => {
+    const isLong = positionType === 'buy';
+    const isCall = optionType === 'call';
+    
+    if (isLong && isCall) return '权利';
+    if (isLong && !isCall) return '权利';
+    if (!isLong && isCall) return '义务';
+    if (!isLong && !isCall) return '义务';
+    return '未知';
+  };
+
+  return {
+    contract_code: `${position.symbol}${position.expiry.replace(/-/g, '')}${position.type.toUpperCase()}${position.strike}`,
+    contract_name: `${position.symbol} ${position.strike} ${getContractTypeZh(position.type)}`,
+    contract_type: getContractTypeZh(position.type),
+    contract_type_zh: position.type,
+    contract_strike_price: position.strike,
+    position_type: position.position_type,
+    position_type_zh: getPositionTypeZh(position.position_type, position.type),
+    leg_quantity: position.selectedQuantity || position.quantity,
+    cost_price: position.premium
+  };
+};
 
 const getPositionTypeInfo = (positionType: string, optionType: string) => {
   const isLong = positionType === 'buy';
@@ -990,16 +1020,293 @@ export default function OptionsPortfolioManagement({ theme }: OptionsPortfolioMa
               <h4 className={`text-md font-semibold ${themes[theme].text} mb-3`}>
                 包含的期权持仓 ({selectedArray.length})
               </h4>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {selectedArray.map((selection) => {
                   const position = selection.position;
+                  const strategyLeg = convertPositionToStrategyLeg(position);
                   const adjustedCost = position.premium * selection.selectedQuantity * 100;
                   const adjustedValue = position.currentValue * selection.selectedQuantity * 100;
                   const adjustedProfitLoss = adjustedValue - adjustedCost;
                   
                   return (
-                    <div key={position.id} className={`${themes[theme].background} rounded-lg p-3 border ${themes[theme].border}`}>
-                      <div className="flex justify-between items-center">
+                    <div key={position.id} className={`${themes[theme].background} rounded-lg p-4 border ${themes[theme].border}`}>
+                      <div className="space-y-3">
+                        {/* 合约基本信息 */}
+                        <div className="flex justify-between items-start">
+                          <div className="flex items-center gap-2">
+                            {getTypeIcon(position.type)}
+                            <div>
+                              <div className={`text-sm font-medium ${themes[theme].text}`}>
+                                {strategyLeg.contract_name}
+                              </div>
+                              <div className={`text-xs ${themes[theme].text} opacity-75`}>
+                                合约代码: {strategyLeg.contract_code}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className={`text-sm font-medium ${
+                              adjustedProfitLoss >= 0 ? 'text-green-600' : 'text-red-600'
+                            }`}>
+                              {adjustedProfitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(adjustedProfitLoss), currencyConfig)}
+                            </div>
+                            <div className={`text-xs ${themes[theme].text} opacity-60`}>
+                              盈亏
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* 详细信息网格 */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                          <div>
+                            <span className={`${themes[theme].text} opacity-60`}>合约类型:</span>
+                            <div className={`font-medium ${themes[theme].text}`}>
+                              {strategyLeg.contract_type}
+                            </div>
+                          </div>
+                          <div>
+                            <span className={`${themes[theme].text} opacity-60`}>权利义务:</span>
+                            <div className={`font-medium ${themes[theme].text}`}>
+                              {strategyLeg.position_type_zh}
+                            </div>
+                          </div>
+                          <div>
+                            <span className={`${themes[theme].text} opacity-60`}>行权价格:</span>
+                            <div className={`font-medium ${themes[theme].text}`}>
+                              {formatCurrency(strategyLeg.contract_strike_price, currencyConfig)}
+                            </div>
+                          </div>
+                          <div>
+                            <span className={`${themes[theme].text} opacity-60`}>到期日:</span>
+                            <div className={`font-medium ${themes[theme].text}`}>
+                              {format(new Date(position.expiry), 'MM-dd')}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* 数量和成本信息 */}
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+                          <div>
+                            <span className={`${themes[theme].text} opacity-60`}>腿部数量:</span>
+                            <div className={`font-medium ${themes[theme].text}`}>
+                              {strategyLeg.leg_quantity}
+                              {strategyLeg.leg_quantity !== position.quantity && (
+                                <span className="text-blue-600 ml-1">
+                                  (总持仓: {position.quantity})
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div>
+                            <span className={`${themes[theme].text} opacity-60`}>成本价格:</span>
+                            <div className={`font-medium ${themes[theme].text}`}>
+                              {formatCurrency(strategyLeg.cost_price, currencyConfig)}
+                            </div>
+                          </div>
+                          <div>
+                            <span className={`${themes[theme].text} opacity-60`}>总成本:</span>
+                            <div className={`font-medium ${themes[theme].text}`}>
+                              {formatCurrency(adjustedCost, currencyConfig)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 保存按钮 */}
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowCreateStrategy(false)}
+                className={`px-4 py-2 rounded-md ${themes[theme].secondary}`}
+              >
+                取消
+              </button>
+              <button
+                onClick={handleCreateStrategy}
+                disabled={isSaving || (!strategyName.trim() && selectedPresetStrategy === 'custom') || selectedArray.length === 0}
+                className={`inline-flex items-center px-4 py-2 rounded-md ${themes[theme].primary} ${
+                  isSaving || (!strategyName.trim() && selectedPresetStrategy === 'custom') || selectedArray.length === 0 ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+              >
+                {isSaving ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                ) : (
+                  <Save className="w-4 h-4 mr-2" />
+                )}
+                保存策略
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 已保存的策略 */}
+      <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
+        <div className="p-6 border-b border-gray-200">
+          <h3 className={`text-lg font-semibold ${themes[theme].text}`}>
+            已保存的策略 ({customStrategies.length})
+          </h3>
+        </div>
+
+        <div className="p-6">
+          {isLoadingStrategies ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+              <p className={`${themes[theme].text}`}>正在加载策略...</p>
+            </div>
+          ) : customStrategies.length === 0 ? (
+            <div className="text-center py-8">
+              <Target className={`w-12 h-12 mx-auto mb-4 ${themes[theme].text} opacity-40`} />
+              <p className={`text-lg font-medium ${themes[theme].text}`}>暂无保存的策略</p>
+              <p className={`text-sm ${themes[theme].text} opacity-75`}>
+                选择期权持仓创建您的第一个自定义策略
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {customStrategies.map((strategy) => {
+                // 转换策略中的期权为腿部结构
+                const strategyLegs = strategy.positions.map(position => convertPositionToStrategyLeg(position));
+                
+                return (
+                  <div key={strategy.id} className={`${themes[theme].background} rounded-lg p-4 border ${themes[theme].border}`}>
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <h4 className={`text-lg font-semibold ${themes[theme].text}`}>
+                            {strategy.name}
+                          </h4>
+                          {strategy.strategyCategory && (
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              strategy.strategyCategory === 'bullish' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100' :
+                              strategy.strategyCategory === 'bearish' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100' :
+                              strategy.strategyCategory === 'volatility' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100' :
+                              'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100'
+                            }`}>
+                              {strategy.strategyCategory === 'bullish' ? '看涨策略' :
+                               strategy.strategyCategory === 'bearish' ? '看跌策略' :
+                               strategy.strategyCategory === 'volatility' ? '波动率策略' : '中性策略'}
+                            </span>
+                          )}
+                          {strategy.riskLevel && (
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              strategy.riskLevel === 'low' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100' :
+                              strategy.riskLevel === 'medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100' :
+                              'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100'
+                            }`}>
+                              {strategy.riskLevel === 'low' ? '低风险' :
+                               strategy.riskLevel === 'medium' ? '中风险' : '高风险'}
+                            </span>
+                          )}
+                        </div>
+                        <p className={`text-sm ${themes[theme].text} opacity-75`}>
+                          {strategy.description}
+                        </p>
+                        <p className={`text-xs ${themes[theme].text} opacity-60 mt-1`}>
+                          创建时间: {new Date(strategy.createdAt).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleDeleteStrategy(strategy.id)}
+                          className={`p-2 rounded-md ${themes[theme].secondary} text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <h5 className={`text-sm font-medium ${themes[theme].text}`}>
+                        策略腿部详情 ({strategyLegs.length} 个腿部)
+                      </h5>
+                      <div className="space-y-2">
+                        {strategyLegs.map((leg, index) => (
+                          <div key={index} className={`${themes[theme].card} rounded-lg p-3 border ${themes[theme].border}`}>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                              {/* 合约信息 */}
+                              <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                  {getTypeIcon(leg.contract_type_zh as any)}
+                                  <span className={`text-sm font-medium ${themes[theme].text}`}>
+                                    {leg.contract_name}
+                                  </span>
+                                </div>
+                                <div className={`text-xs ${themes[theme].text} opacity-60`}>
+                                  {leg.contract_code}
+                                </div>
+                              </div>
+                              
+                              {/* 权利义务 */}
+                              <div>
+                                <div className={`text-xs ${themes[theme].text} opacity-60 mb-1`}>
+                                  权利义务
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  {(() => {
+                                    const positionInfo = getPositionTypeInfo(leg.position_type, leg.contract_type_zh);
+                                    return (
+                                      <>
+                                        {positionInfo.icon}
+                                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${positionInfo.color}`}>
+                                          {leg.position_type_zh}
+                                        </span>
+                                      </>
+                                    );
+                                  })()}
+                                </div>
+                              </div>
+                              
+                              {/* 数量和价格 */}
+                              <div>
+                                <div className={`text-xs ${themes[theme].text} opacity-60 mb-1`}>
+                                  腿部数量
+                                </div>
+                                <div className={`text-sm font-medium ${themes[theme].text}`}>
+                                  {leg.leg_quantity} 手
+                                </div>
+                              </div>
+                              
+                              {/* 成本信息 */}
+                              <div>
+                                <div className={`text-xs ${themes[theme].text} opacity-60 mb-1`}>
+                                  成本价格
+                                </div>
+                                <div className={`text-sm font-medium ${themes[theme].text}`}>
+                                  {formatCurrency(leg.cost_price, currencyConfig)}
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* 行权价格和合约类型 */}
+                            <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+                              <div className="flex justify-between items-center text-xs">
+                                <span className={`${themes[theme].text} opacity-60`}>
+                                  行权价格: {formatCurrency(leg.contract_strike_price, currencyConfig)}
+                                </span>
+                                <span className={`${themes[theme].text} opacity-60`}>
+                                  总成本: {formatCurrency(leg.cost_price * leg.leg_quantity * 100, currencyConfig)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
                         <div className="flex items-center gap-2">
                           {getTypeIcon(position.type)}
                           <div>

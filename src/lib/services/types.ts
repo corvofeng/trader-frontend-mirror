@@ -347,6 +347,28 @@ export interface OptionsPosition {
   closeDate?: string;
   notes?: string;
   selectedQuantity?: number; // 在策略中选择的数量
+  // 新增：策略腿部详细信息
+  contract_code?: string;
+  contract_name?: string;
+  contract_type?: string; // 认购/认沽
+  contract_type_zh?: string; // call/put
+  contract_strike_price?: number; // 行权价格
+  position_type_zh?: string; // 权利/义务/备兑
+  leg_quantity?: number; // 该leg对应的持仓数量
+  cost_price?: number; // 成本价格
+}
+
+// 策略腿部结构体
+export interface OptionStrategyLeg {
+  contract_code: string;
+  contract_name: string;
+  contract_type: string; // 认购/认沽
+  contract_type_zh: string; // call/put
+  contract_strike_price: number; // 行权价格
+  position_type: string; // buy/sell
+  position_type_zh: string; // 权利/义务/备兑
+  leg_quantity: number; // 该leg对应的持仓数量
+  cost_price: number; // 成本价格
 }
 
 export interface OptionsStrategy {
