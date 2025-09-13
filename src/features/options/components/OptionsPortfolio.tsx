@@ -1381,3 +1381,11 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
                     })()}
                   </div>
                 </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
