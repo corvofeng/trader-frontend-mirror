@@ -195,9 +195,14 @@ export default function OptionsPortfolioManagement({ theme }: OptionsPortfolioMa
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        const { data: { user } } = await authService.getUser();
-        
-        const userId = user?.id || DEMO_USER_ID;
+        let userId = DEMO_USER_ID;
+        try {
+          const { data: { user } } = await authService.getUser();
+          userId = user?.id || DEMO_USER_ID;
+        } catch (error) {
+          console.log(error);
+        }
+
         const { data, error } = await optionsService.getOptionsPortfolio(userId);
         
         if (error) throw error;
@@ -236,11 +241,16 @@ export default function OptionsPortfolioManagement({ theme }: OptionsPortfolioMa
     const fetchCustomStrategies = async () => {
       try {
         setIsLoadingStrategies(true);
-        const { data: { user } } = await authService.getUser();
-        
-        const userId = user?.id || DEMO_USER_ID;
+        let userId = DEMO_USER_ID;
+        try {
+          const { data: { user } } = await authService.getUser();
+          userId = user?.id || DEMO_USER_ID;
+        } catch (error) {
+          console.log(error);
+        }
+
         const { data, error } = await optionsService.getCustomStrategies(userId);
-        
+
         if (error) throw error;
         if (data) {
           setCustomStrategies(data);
