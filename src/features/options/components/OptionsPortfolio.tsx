@@ -4,7 +4,6 @@ import { Calendar, TrendingUp, TrendingDown, Activity, Shield, Target, BarChart2
 import {
   Clock,
   Hash,
-  Layers
 } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
