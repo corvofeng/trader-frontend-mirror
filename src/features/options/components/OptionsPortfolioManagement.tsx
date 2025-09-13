@@ -138,30 +138,13 @@ const getPositionTypeInfo = (positionType: string, optionType: string) => {
     return {
       icon: <TrendingDown className="w-3 h-3" />,
       label: '卖出看跌',
-    // 准备传递给后端的策略数据，包含策略类型信息
-    const strategyData = {
-      userId,
-      name: strategyName || presetStrategy.name,
-      description: strategyDescription || presetStrategy.description,
-      positions: strategyPositions,
-      // 新增：策略类型相关信息
-      strategyType: selectedPresetStrategy,
-      strategyCategory: presetStrategy.category,
-      riskLevel: getRiskLevel(presetStrategy.category),
-      isPresetStrategy: selectedPresetStrategy !== 'custom',
-      presetStrategyInfo: selectedPresetStrategy !== 'custom' ? {
-        id: presetStrategy.id,
-        name: presetStrategy.name,
-        description: presetStrategy.description,
-        category: presetStrategy.category,
-        minPositions: presetStrategy.minPositions,
-        maxPositions: presetStrategy.maxPositions,
-        requiredTypes: presetStrategy.requiredTypes,
-        requiredActions: presetStrategy.requiredActions
-      } : null
-    };
       color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100',
-    const { data, error } = await optionsService.saveCustomStrategy(strategyData);
+      description: '看跌期权卖方'
+    };
+  }
+};
+
+export default function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagementProps) {
   const [portfolioData, setPortfolioData] = useState<OptionsPortfolioData | null>(null);
   const [customStrategies, setCustomStrategies] = useState<CustomOptionsStrategy[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -284,8 +267,6 @@ const getPositionTypeInfo = (positionType: string, optionType: string) => {
     // 检查数量
     if (positions.length < presetStrategy.minPositions || positions.length > presetStrategy.maxPositions) {
       return { 
-        name: strategyName || presetStrategy.name,
-        description: strategyDescription || presetStrategy.description,
         valid: false, 
         message: `${presetStrategy.name}需要${presetStrategy.minPositions}${presetStrategy.minPositions !== presetStrategy.maxPositions ? `-${presetStrategy.maxPositions}` : ''}个期权持仓` 
       };
@@ -320,7 +301,7 @@ const getPositionTypeInfo = (positionType: string, optionType: string) => {
         const groupMonth = format(new Date(group.expiry), 'yyyy-MM');
         return groupMonth === currentMonth;
       })
-      .flatMap(group => group.positions)
+      .flatMap(group => group.positions);
     
     return sortPositions(positions);
   };
@@ -424,7 +405,7 @@ const getPositionTypeInfo = (positionType: string, optionType: string) => {
     
     // 验证预设策略
     const presetStrategy = getPresetStrategyInfo(selectedPresetStrategy);
-    const validation = validatePresetStrategy(selectedArray, presetStrategy);
+    const validation = validatePresetStrategy(selections, presetStrategy);
     
     if (!validation.valid) {
       toast.error(validation.message);
@@ -447,12 +428,30 @@ const getPositionTypeInfo = (positionType: string, optionType: string) => {
           : 0
       }));
 
-      const { data, error } = await optionsService.saveCustomStrategy({
+      // 准备传递给后端的策略数据，包含策略类型信息
+      const strategyData = {
         userId,
-        name: strategyName,
-        description: strategyDescription,
-        positions: strategyPositions
-      });
+        name: strategyName || presetStrategy.name,
+        description: strategyDescription || presetStrategy.description,
+        positions: strategyPositions,
+        // 新增：策略类型相关信息
+        strategyType: selectedPresetStrategy,
+        strategyCategory: presetStrategy.category,
+        riskLevel: getRiskLevel(presetStrategy.category),
+        isPresetStrategy: selectedPresetStrategy !== 'custom',
+        presetStrategyInfo: selectedPresetStrategy !== 'custom' ? {
+          id: presetStrategy.id,
+          name: presetStrategy.name,
+          description: presetStrategy.description,
+          category: presetStrategy.category,
+          minPositions: presetStrategy.minPositions,
+          maxPositions: presetStrategy.maxPositions,
+          requiredTypes: presetStrategy.requiredTypes,
+          requiredActions: presetStrategy.requiredActions
+        } : null
+      };
+
+      const { data, error } = await optionsService.saveCustomStrategy(strategyData);
 
       if (error) throw error;
       if (data) {
@@ -473,6 +472,7 @@ const getPositionTypeInfo = (positionType: string, optionType: string) => {
       setIsSaving(false);
     }
   };
+
   // 根据策略类别确定风险等级
   const getRiskLevel = (category: string): 'low' | 'medium' | 'high' => {
     switch (category) {
@@ -854,7 +854,7 @@ const getPositionTypeInfo = (positionType: string, optionType: string) => {
               <h3 className={`text-lg font-semibold ${themes[theme].text}`}>
                 创建自定义策略
                 <span className={`text-sm font-normal ${themes[theme].text} opacity-60 ml-2`}>
-                  (共 {currentMonthPositions.length} 个)
+                  (共 {selectedArray.length} 个)
                 </span>
               </h3>
               <div className="flex items-center gap-4">
@@ -1146,7 +1146,6 @@ const getPositionTypeInfo = (positionType: string, optionType: string) => {
                                   </div>
                                 );
                               })()}
-                              {position.strategy} • {getPositionTypeInfo(position.position_type, position.type).description}
                             </div>
                           </div>
                         </div>
