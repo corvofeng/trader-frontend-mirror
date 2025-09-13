@@ -3,8 +3,6 @@ import { Calendar, TrendingUp, TrendingDown, Activity, Shield, Target, BarChart2
 import { 
   ChevronLeft, 
   ChevronRight, 
-  Save, 
-  X, 
   Check,
   Target,
   TrendingDown,
