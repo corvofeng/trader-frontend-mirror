@@ -474,6 +474,9 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
                     合约
                   </th>
                   <th className={`px-4 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
+                    权利义务
+                  </th>
+                  <th className={`px-4 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
                     到期日
                   </th>
                   <th className={`px-4 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
@@ -532,6 +535,24 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
                             </div>
                           </div>
                         </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        {(() => {
+                          const positionInfo = getPositionTypeInfo(position.position_type, position.type);
+                          return (
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-1">
+                                {positionInfo.icon}
+                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${positionInfo.color}`}>
+                                  {positionInfo.label}
+                                </span>
+                              </div>
+                              <div className={`text-xs ${themes[theme].text} opacity-60`}>
+                                {positionInfo.description}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="px-4 py-4">
                         <div>
