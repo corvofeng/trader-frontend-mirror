@@ -5,7 +5,6 @@ import {
   ChevronRight, 
   Check,
   Trash2,
-  Edit2
 } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
