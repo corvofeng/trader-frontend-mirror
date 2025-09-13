@@ -857,13 +857,6 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
           </div>
 
           <div className="p-6 space-y-6">
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-
-          <div className="p-6 space-y-6">
             {/* 预设策略选择 */}
             <div>
               <label className={`block text-sm font-medium ${themes[theme].text} mb-2`}>
