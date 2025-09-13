@@ -424,6 +424,9 @@ export interface CustomOptionsStrategy {
   positions: OptionsPosition[];
   createdAt: string;
   updatedAt: string;
+  strategy_name?: string;
+  strategy_type?: string;
+  expiry?: string;
   strategyType?: string; // 策略类型ID
   strategyCategory?: 'bullish' | 'bearish' | 'neutral' | 'volatility'; // 策略分类
   riskLevel?: 'low' | 'medium' | 'high'; // 风险等级

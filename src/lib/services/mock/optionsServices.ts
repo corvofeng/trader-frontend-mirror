@@ -35,8 +35,11 @@ const initializeCustomStrategies = () => {
   const sampleStrategy: CustomOptionsStrategy = {
     id: 'sample-strategy-1',
     userId: 'mock-user-id',
-    name: '示例牛市价差策略',
+    name: '9月看涨1450-1500',
+    strategy_name: '9月看涨1450-1500',
+    strategy_type: 'Bull Call Spread',
     description: '买入低行权价Call，卖出高行权价Call的牛市策略',
+    expiry: '2024-09-24T00:00:00',
     strategyType: 'bull_call_spread',
     strategyCategory: 'bullish',
     riskLevel: 'low',
@@ -76,14 +79,14 @@ const initializeCustomStrategies = () => {
         openDate: '2024-01-15T10:30:00Z',
         notes: '买入腿',
         // 新增：策略腿部详细信息
-        contract_code: 'SPY20240315C440',
-        contract_name: 'SPY 440 认购',
+        contract_code: '10009837',
+        contract_name: '科创50购9月1450',
         contract_type: '认购',
         contract_type_zh: 'call',
-        contract_strike_price: 440,
+        contract_strike_price: 1.45,
         position_type_zh: '权利',
-        leg_quantity: 3,
-        cost_price: 12.50
+        leg_quantity: 4,
+        cost_price: 0
       },
       {
         id: 'pos-2',
@@ -109,14 +112,14 @@ const initializeCustomStrategies = () => {
         openDate: '2024-01-15T10:30:00Z',
         notes: '卖出腿',
         // 新增：策略腿部详细信息
-        contract_code: 'SPY20240315C460',
-        contract_name: 'SPY 460 认购',
+        contract_code: '10009838',
+        contract_name: '科创50购9月1500',
         contract_type: '认购',
         contract_type_zh: 'call',
-        contract_strike_price: 460,
+        contract_strike_price: 1.5,
         position_type_zh: '义务',
-        leg_quantity: 3,
-        cost_price: 6.80
+        leg_quantity: 4,
+        cost_price: 0
       }
     ],
     createdAt: '2024-01-15T10:30:00Z',

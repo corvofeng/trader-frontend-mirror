@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { format, differenceInDays } from 'date-fns';
+import { Calendar, TrendingUp, TrendingDown, Activity, Shield, Target, BarChart2, Layers, ChevronDown, ChevronUp, Edit2, Save, X, Plus } from 'lucide-react';
 import { 
   Calendar, 
   ChevronLeft, 
@@ -20,7 +20,7 @@ import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { optionsService, authService } from '../../../lib/services';
-import type { OptionsPortfolioData, OptionsPosition, CustomOptionsStrategy, OptionStrategyLeg } from '../../../lib/services/types';
+import type { CustomOptionsStrategy, OptionsPosition, OptionStrategyLeg } from '../../../lib/services/types';
 import toast from 'react-hot-toast';
 
 interface OptionsPortfolioManagementProps {
@@ -33,6 +33,26 @@ interface PositionSelection {
   selectedQuantity: number;
 }
 
+  const [editingStrategy, setEditingStrategy] = useState<string | null>(null);
+  const [editingPosition, setEditingPosition] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<{
+    strategy_name: string;
+    strategy_type: string;
+    description: string;
+    expiry: string;
+  }>({
+    strategy_name: '',
+    strategy_type: '',
+    description: '',
+    expiry: ''
+  });
+  const [positionEditForm, setPositionEditForm] = useState<{
+    leg_quantity: number;
+    cost_price: number;
+  }>({
+    leg_quantity: 0,
+    cost_price: 0
+  });
 const DEMO_USER_ID = 'mock-user-id';
 
 // 预设策略模板
@@ -219,6 +239,97 @@ export default function OptionsPortfolioManagement({ theme }: OptionsPortfolioMa
           // 设置当前月份为最近的有持仓的月份
           if (sortedMonths.length > 0) {
             setCurrentMonth(sortedMonths[0]);
+  const startEditingStrategy = (strategy: CustomOptionsStrategy) => {
+    setEditingStrategy(strategy.id);
+    setEditForm({
+      strategy_name: strategy.strategy_name || strategy.name,
+      strategy_type: strategy.strategy_type || '',
+      description: strategy.description,
+      expiry: strategy.expiry || ''
+    });
+  };
+
+  const startEditingPosition = (position: OptionsPosition) => {
+    setEditingPosition(position.id);
+    setPositionEditForm({
+      leg_quantity: position.leg_quantity || position.quantity,
+      cost_price: position.cost_price || position.premium
+    });
+  };
+
+  const saveStrategyEdit = async (strategyId: string) => {
+    try {
+      const strategy = customStrategies.find(s => s.id === strategyId);
+      if (!strategy) return;
+
+      const updatedStrategy = {
+        ...strategy,
+        strategy_name: editForm.strategy_name,
+        strategy_type: editForm.strategy_type,
+        description: editForm.description,
+        expiry: editForm.expiry,
+        name: editForm.strategy_name, // 保持兼容性
+        updatedAt: new Date().toISOString()
+      };
+
+      // 这里应该调用API更新策略
+      // const { error } = await optionsService.updateCustomStrategy(updatedStrategy);
+      // if (error) throw error;
+
+      setCustomStrategies(prev => 
+        prev.map(s => s.id === strategyId ? updatedStrategy : s)
+      );
+      setEditingStrategy(null);
+      toast.success('策略信息已更新');
+    } catch (error) {
+      console.error('Error updating strategy:', error);
+      toast.error('更新策略失败');
+    }
+  };
+
+  const savePositionEdit = async (strategyId: string, positionId: string) => {
+    try {
+      const strategy = customStrategies.find(s => s.id === strategyId);
+      if (!strategy) return;
+
+      const updatedPositions = strategy.positions.map(pos => 
+        pos.id === positionId 
+          ? {
+              ...pos,
+              leg_quantity: positionEditForm.leg_quantity,
+              cost_price: positionEditForm.cost_price,
+              quantity: positionEditForm.leg_quantity, // 保持兼容性
+              premium: positionEditForm.cost_price // 保持兼容性
+            }
+          : pos
+      );
+
+      const updatedStrategy = {
+        ...strategy,
+        positions: updatedPositions,
+        updatedAt: new Date().toISOString()
+      };
+
+      // 这里应该调用API更新策略
+      // const { error } = await optionsService.updateCustomStrategy(updatedStrategy);
+      // if (error) throw error;
+
+      setCustomStrategies(prev => 
+        prev.map(s => s.id === strategyId ? updatedStrategy : s)
+      );
+      setEditingPosition(null);
+      toast.success('腿部信息已更新');
+    } catch (error) {
+      console.error('Error updating position:', error);
+      toast.error('更新腿部信息失败');
+    }
+  };
+
+  const cancelEdit = () => {
+    setEditingStrategy(null);
+    setEditingPosition(null);
+  };
+
           }
         }
       } catch (error) {
