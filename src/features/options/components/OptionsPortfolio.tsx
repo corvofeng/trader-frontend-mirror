@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { format, differenceInDays } from 'date-fns';
 import { Calendar, TrendingUp, TrendingDown, Activity, Shield, Target, BarChart2, Layers, ChevronDown, ChevronUp } from 'lucide-react';
 import {
-  Calendar, 
   ChevronLeft, 
   ChevronRight, 
   Filter,
