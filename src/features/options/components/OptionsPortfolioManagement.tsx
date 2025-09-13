@@ -127,10 +127,10 @@ const convertPositionToStrategyLeg = (position: OptionsPosition): OptionStrategy
   };
 
   return {
-    contract_code: `${position.symbol}${position.expiry.replace(/-/g, '')}${position.type.toUpperCase()}${position.strike}`,
-    contract_name: `${position.symbol} ${position.strike} ${getContractTypeZh(position.type)}`,
-    contract_type: getContractTypeZh(position.type),
-    contract_type_zh: position.type,
+    contract_code: position.contract_code || '',
+    contract_name: position.contract_name || '',
+    contract_type: position.contract_type || getContractTypeZh(position.type),
+    contract_type_zh: position.contract_type_zh || '',
     contract_strike_price: position.strike,
     position_type: position.position_type,
     position_type_zh: getPositionTypeZh(position.position_type, position.type),
