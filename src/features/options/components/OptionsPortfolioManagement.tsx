@@ -4,7 +4,6 @@ import {
   ChevronLeft, 
   ChevronRight, 
   Check,
-  TrendingDown,
   Activity,
   Trash2,
   Edit2
