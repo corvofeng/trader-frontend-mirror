@@ -138,13 +138,30 @@ const getPositionTypeInfo = (positionType: string, optionType: string) => {
     return {
       icon: <TrendingDown className="w-3 h-3" />,
       label: '卖出看跌',
-      color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100',
-      description: '看跌期权卖方'
+    // 准备传递给后端的策略数据，包含策略类型信息
+    const strategyData = {
+      userId,
+      name: strategyName || presetStrategy.name,
+      description: strategyDescription || presetStrategy.description,
+      positions: strategyPositions,
+      // 新增：策略类型相关信息
+      strategyType: selectedPresetStrategy,
+      strategyCategory: presetStrategy.category,
+      riskLevel: getRiskLevel(presetStrategy.category),
+      isPresetStrategy: selectedPresetStrategy !== 'custom',
+      presetStrategyInfo: selectedPresetStrategy !== 'custom' ? {
+        id: presetStrategy.id,
+        name: presetStrategy.name,
+        description: presetStrategy.description,
+        category: presetStrategy.category,
+        minPositions: presetStrategy.minPositions,
+        maxPositions: presetStrategy.maxPositions,
+        requiredTypes: presetStrategy.requiredTypes,
+        requiredActions: presetStrategy.requiredActions
+      } : null
     };
-  }
-};
-
-export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagementProps) {
+      color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100',
+    const { data, error } = await optionsService.saveCustomStrategy(strategyData);
   const [portfolioData, setPortfolioData] = useState<OptionsPortfolioData | null>(null);
   const [customStrategies, setCustomStrategies] = useState<CustomOptionsStrategy[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -454,6 +471,20 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
       toast.error('创建策略失败');
     } finally {
       setIsSaving(false);
+    }
+  };
+  // 根据策略类别确定风险等级
+  const getRiskLevel = (category: string): 'low' | 'medium' | 'high' => {
+    switch (category) {
+      case 'bullish':
+      case 'bearish':
+        return 'medium';
+      case 'neutral':
+        return 'low';
+      case 'volatility':
+        return 'high';
+      default:
+        return 'medium';
     }
   };
 
