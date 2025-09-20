@@ -856,7 +856,7 @@ export default function OptionsPortfolioManagement({ theme }: OptionsPortfolioMa
                         position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'
                       }`}>
                         <div>
-                          {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
+                          {position.profitLoss >= 0 ? '+' : '-'}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
                         </div>
                         <div className="text-xs">
                           ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
