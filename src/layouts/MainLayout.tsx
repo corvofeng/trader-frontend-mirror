@@ -1,7 +1,7 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import { Navigation } from '../pages/journal/features/navigation';
+import { Navigation } from '../components/Navigation';
 import { Breadcrumbs } from '../shared/components';
 import { Theme, themes } from '../lib/theme';
 import type { User } from '../lib/services/types';

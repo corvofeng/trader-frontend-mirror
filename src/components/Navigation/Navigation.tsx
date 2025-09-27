@@ -1,8 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogIn, LogOut, Menu, X, Sun, Moon, Palette } from 'lucide-react';
-import { Theme, themes } from '../../../../lib/theme';
-import type { User } from '../../../../lib/services/types';
+import { Theme, themes } from '../../lib/theme';
+import type { User } from '../../lib/services/types';
 
 interface NavigationProps {
   user: User | null;

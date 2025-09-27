@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createChart, ColorType, IChartApi, ISeriesApi } from 'lightweight-charts';
-import { themes, Theme } from '../../../../lib/theme';
-import { stockService } from '../../../../lib/services';
-import { useCurrency } from '../../../../lib/context/CurrencyContext';
-import type { StockData } from '../../../../lib/services/types';
+import { themes, Theme } from '../../../lib/theme';
+import { stockService } from '../../../lib/services';
+import { useCurrency } from '../../../lib/context/CurrencyContext';
+import type { StockData } from '../../../lib/services/types';
 
 interface AnimatedChartProps {
   theme: Theme;
