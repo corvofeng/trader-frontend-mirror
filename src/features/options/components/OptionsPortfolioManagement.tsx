@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Edit2, Trash2, Plus, Save, X, TrendingUp, TrendingDown, Target, DollarSign, Briefcase, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
+import { Calendar, CreditCard as Edit2, Trash2, Plus, Save, X, TrendingUp, TrendingDown, Target, DollarSign, Briefcase, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
