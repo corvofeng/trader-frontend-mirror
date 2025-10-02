@@ -1,7 +1,6 @@
 import React from 'react';
 import { OptionsChain } from '../../../features/options/components/OptionsChain';
 import { TimeValueChart } from '../../../features/options/components/TimeValueChart';
-import { OptionsPortfolioManagement } from '../../../features/options/components/OptionsPortfolioManagement';
 import { OptionsPortfolio } from '../../../features/options/components/OptionsPortfolio';
 import { OptionsTradePlans } from '../../../features/options/components/OptionsTradePlans';
 import { OptionsCalculatorCard } from '../../../features/options/components/OptionsCalculatorCard';
