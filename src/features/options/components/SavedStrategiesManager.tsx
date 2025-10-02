@@ -340,7 +340,7 @@ export function SavedStrategiesManager({ theme, onEditStrategy }: SavedStrategie
                         <button
                           onClick={() => {
                             // TODO: 实现编辑功能
-                            toast.info('编辑功能开发中...');
+                            toast('编辑功能开发中...');
                           }}
                           className={`inline-flex items-center px-3 py-1.5 rounded-md text-sm ${themes[theme].secondary}`}
                         >
