@@ -10,7 +10,7 @@ import toast from 'react-hot-toast';
 
 interface SavedStrategiesManagerProps {
   theme: Theme;
-  onEditStrategy?: (strategy: CustomOptionsStrategy) => void;
+  onStrategyUpdated?: () => void;
 }
 
 interface StrategyGroup {
@@ -130,6 +130,7 @@ export function SavedStrategiesManager({ theme, onEditStrategy }: SavedStrategie
       
       setSavedStrategies(prev => prev.filter(s => s.id !== strategyId));
       toast.success('策略已删除');
+      onStrategyUpdated?.();
     } catch (error) {
       console.error('Error deleting strategy:', error);
       toast.error('删除策略失败');
@@ -337,7 +338,10 @@ export function SavedStrategiesManager({ theme, onEditStrategy }: SavedStrategie
                       {/* 操作按钮 */}
                       <div className="flex justify-end gap-2">
                         <button
-                          onClick={() => onEditStrategy?.(strategy)}
+                          onClick={() => {
+                            // TODO: 实现编辑功能
+                            toast.info('编辑功能开发中...');
+                          }}
                           className={`inline-flex items-center px-3 py-1.5 rounded-md text-sm ${themes[theme].secondary}`}
                         >
                           <Edit className="w-4 h-4 mr-1" />
