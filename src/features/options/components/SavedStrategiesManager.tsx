@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { format, differenceInDays } from 'date-fns';
-import { Calendar, CreditCard as Edit, Trash2, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Target, Activity } from 'lucide-react';
+import { Calendar, Edit, Trash2, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Target, Activity } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { optionsService } from '../../../lib/services';
 import type { CustomOptionsStrategy, OptionsPosition } from '../../../lib/services/types';
+import { StrategyEditModal } from './StrategyEditModal';
 import toast from 'react-hot-toast';
 
 interface SavedStrategiesManagerProps {
@@ -24,10 +25,11 @@ interface StrategyGroup {
 
 const DEMO_USER_ID = 'mock-user-id';
 
-export function SavedStrategiesManager({ theme, onEditStrategy }: SavedStrategiesManagerProps) {
+export function SavedStrategiesManager({ theme, onStrategyUpdated }: SavedStrategiesManagerProps) {
   const [savedStrategies, setSavedStrategies] = useState<CustomOptionsStrategy[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedMonths, setExpandedMonths] = useState<string[]>([]);
+  const [editingStrategy, setEditingStrategy] = useState<CustomOptionsStrategy | null>(null);
   const { currencyConfig } = useCurrency();
 
   useEffect(() => {
@@ -135,6 +137,18 @@ export function SavedStrategiesManager({ theme, onEditStrategy }: SavedStrategie
       console.error('Error deleting strategy:', error);
       toast.error('删除策略失败');
     }
+  };
+
+  const handleEditStrategy = (strategy: CustomOptionsStrategy) => {
+    setEditingStrategy(strategy);
+  };
+
+  const handleStrategyUpdated = (updatedStrategy: CustomOptionsStrategy) => {
+    setSavedStrategies(prev => 
+      prev.map(s => s.id === updatedStrategy.id ? updatedStrategy : s)
+    );
+    onStrategyUpdated?.();
+    setEditingStrategy(null);
   };
 
   const toggleMonth = (month: string) => {
@@ -338,10 +352,7 @@ export function SavedStrategiesManager({ theme, onEditStrategy }: SavedStrategie
                       {/* 操作按钮 */}
                       <div className="flex justify-end gap-2">
                         <button
-                          onClick={() => {
-                            // TODO: 实现编辑功能
-                            toast('编辑功能开发中...');
-                          }}
+                          onClick={() => handleEditStrategy(strategy)}
                           className={`inline-flex items-center px-3 py-1.5 rounded-md text-sm ${themes[theme].secondary}`}
                         >
                           <Edit className="w-4 h-4 mr-1" />
@@ -363,6 +374,16 @@ export function SavedStrategiesManager({ theme, onEditStrategy }: SavedStrategie
           </div>
         ))}
       </div>
+
+      {/* 策略编辑模态框 */}
+      {editingStrategy && (
+        <StrategyEditModal
+          theme={theme}
+          strategy={editingStrategy}
+          onClose={() => setEditingStrategy(null)}
+          onStrategyUpdated={handleStrategyUpdated}
+        />
+      )}
 
       {strategyGroups.length === 0 && !isLoading && (
         <div className="p-8 text-center">
