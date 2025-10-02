@@ -11,7 +11,7 @@ import { OptionsCalculatorCard } from '../features/options/components/OptionsCal
 import { OptionsCalculatorModal } from './options/OptionsCalculatorModal';
 import { RelatedLinks } from '../shared/components';
 import { optionsService } from '../lib/services';
-import OptionsPortfolioManagement from '../features/options/components/OptionsPortfolioManagement';
+import { OptionsPortfolioManagement } from '../features/options/components/OptionsPortfolioManagement';
 import type { OptionsData } from '../lib/services/types';
 
 interface OptionsProps {
