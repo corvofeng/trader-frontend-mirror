@@ -1,21 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { format, differenceInDays } from 'date-fns';
-import { 
-  Calendar, 
-  ChevronLeft, 
-  ChevronRight, 
-  Plus, 
-  Save, 
-  X, 
-  Check,
-  Target,
-  TrendingUp,
-  TrendingDown,
-  Activity,
-  Shield,
-  Trash2,
-  Edit2
-} from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Plus, Save, X, Check, Target, TrendingUp, TrendingDown, Activity, Shield, Trash2, CreditCard as Edit2 } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
