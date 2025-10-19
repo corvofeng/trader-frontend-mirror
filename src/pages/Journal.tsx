@@ -6,9 +6,9 @@ import { Portfolio } from '../features/portfolio';
 import { OperationsView, UploadPage } from './Journal/features';
 import { RelatedLinks } from '../shared/components';
 import { Theme, themes } from '../lib/theme';
-import { portfolioService } from '../lib/services';
+import { portfolioService, accountService } from '../lib/services';
 import { StockChart } from '../features/trading/components/StockChart';
-import type { Stock, Holding, Trade } from '../lib/services/types';
+import type { Stock, Holding, Trade, Account } from '../lib/services/types';
 
 interface JournalProps {
   selectedStock: Stock | null;
@@ -36,6 +36,8 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
     startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0]
   });
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
 
   // Get UUID from URL params for portfolio sharing
   const portfolioUuid = new URLSearchParams(location.search).get('uuid');
@@ -60,20 +62,28 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
           if (holdingsResponse.data) setHoldings(holdingsResponse.data);
           if (tradesResponse.data) setRecentTrades(tradesResponse.data);
         } else {
-          // Fetch regular user portfolio data
-          const [holdingsResponse, tradesResponse] = await Promise.all([
-            portfolioService.getHoldings(DEMO_USER_ID),
-            portfolioService.getRecentTrades(DEMO_USER_ID, dateRange.startDate, dateRange.endDate)
+          // Fetch regular user portfolio data and accounts
+          const [holdingsResponse, tradesResponse, accountsResponse] = await Promise.all([
+            portfolioService.getHoldings(selectedAccountId || DEMO_USER_ID),
+            portfolioService.getRecentTrades(selectedAccountId || DEMO_USER_ID, dateRange.startDate, dateRange.endDate),
+            accountService.getAccounts(DEMO_USER_ID)
           ]);
           
           if (holdingsResponse.data) setHoldings(holdingsResponse.data);
           if (tradesResponse.data) setRecentTrades(tradesResponse.data);
+          if (accountsResponse.data) {
+            setAccounts(accountsResponse.data);
+            // Set default account if none selected
+            if (!selectedAccountId && accountsResponse.data.length > 0) {
+              setSelectedAccountId(accountsResponse.data[0].id);
+            }
+          }
         }
       }
     };
 
     fetchData();
-  }, [activeTab, dateRange, portfolioUuid]);
+  }, [activeTab, dateRange, portfolioUuid, selectedAccountId]);
 
   const tabs = [
     { id: 'portfolio' as Tab, name: 'Portfolio', icon: Briefcase },
@@ -143,6 +153,9 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
           dateRange={dateRange}
           onDateRangeChange={setDateRange}
           isSharedView={!!portfolioUuid}
+          userId={DEMO_USER_ID}
+          selectedAccountId={selectedAccountId}
+          onAccountChange={(accountId) => setSelectedAccountId(accountId)}
         />
       )}
 

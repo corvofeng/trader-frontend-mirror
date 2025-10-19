@@ -12,6 +12,7 @@ import { PortfolioTrend } from './PortfolioTrend';
 import { PortfolioHeatmap } from './PortfolioHeatmap';
 import { StockAnalysisModal } from './StockAnalysisModal';
 import { PortfolioAnalysisPanel } from './PortfolioAnalysisPanel';
+import { AccountSelector } from '../../../shared/components';
 
 ChartJS.register(
   ArcElement, 
@@ -33,6 +34,9 @@ interface PortfolioProps {
   };
   onDateRangeChange: (range: { startDate: string; endDate: string }) => void;
   isSharedView?: boolean;
+  userId?: string;
+  selectedAccountId?: string | null;
+  onAccountChange?: (accountId: string) => void;
 }
 
 const DEMO_USER_ID = 'mock-user-id';
@@ -43,7 +47,10 @@ export function Portfolio({
   recentTrades = [], 
   dateRange, 
   onDateRangeChange,
-  isSharedView = false 
+  isSharedView = false,
+  userId,
+  selectedAccountId,
+  onAccountChange
 }: PortfolioProps) {
   const [showRecentTrades, setShowRecentTrades] = useState(true);
   const [holdingsPage, setHoldingsPage] = useState(1);
@@ -277,9 +284,19 @@ export function Portfolio({
       <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
         <div className="p-6 border-b border-gray-200">
           <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center mb-6">
-            <h2 className={`text-xl font-bold ${themes[theme].text}`}>
-              Portfolio Overview
-            </h2>
+            <div className="flex items-center gap-4">
+              <h2 className={`text-xl font-bold ${themes[theme].text}`}>
+                Portfolio Overview
+              </h2>
+              {userId && onAccountChange && (
+                <AccountSelector
+                  userId={userId}
+                  theme={theme}
+                  selectedAccountId={selectedAccountId || null}
+                  onAccountChange={onAccountChange}
+                />
+              )}
+            </div>
             {(!isSharedView || portfolioUuid) && (
               <div className="flex flex-wrap gap-4 items-center">
                 <div className="flex gap-2">

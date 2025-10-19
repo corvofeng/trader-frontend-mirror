@@ -43,9 +43,11 @@ export function Portfolio({
   const [trendData, setTrendData] = useState<TrendData[]>([]);
   const [selectedStockForAnalysis, setSelectedStockForAnalysis] = useState<{ code: string; name: string } | null>(null);
   const [showPortfolioAnalysis, setShowPortfolioAnalysis] = useState(false);
+  console.log("init the portfolio")
 
   // Get UUID from URL params for portfolio sharing
   const portfolioUuid = new URLSearchParams(window.location.search).get('uuid');
+  console.log(holdings, theme)
 
   useEffect(() => {
     const fetchTrendData = async () => {
@@ -93,6 +95,19 @@ export function Portfolio({
           </div>
         </div>
       )}
+
+      <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden mb-6`}>
+        <PortfolioHeader
+          theme={theme}
+          dateRange={dateRange}
+          onDateRangeChange={onDateRangeChange}
+          isSharedView={isSharedView}
+          portfolioUuid={portfolioUuid}
+          userId={userId}
+          selectedAccountId={selectedAccountId}
+          onAccountChange={onAccountChange}
+        />
+      </div>
 
       {/* Portfolio Analysis Panel */}
       <div className="mt-6">
