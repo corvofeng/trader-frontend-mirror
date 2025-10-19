@@ -16,6 +16,11 @@ import { AccountSelector } from '../../../shared/components';
 import { X, Download, Share2 } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { ScreenshotPreview } from './ScreenshotPreview';
+import { HoldingsTable } from './HoldingsTable';
+import { TradesTable } from './TradesTable';
+import { OverviewControls } from './OverviewControls';
+import { PortfolioHeader } from './PortfolioHeader';
+import { StatsGrid } from './StatsGrid';
 
 ChartJS.register(
   ArcElement, 
@@ -305,31 +310,20 @@ export function Portfolio({
 
       {/* Portfolio Analysis Panel */}
       <div className="mt-6">
-        <div className="flex justify-between items-center mb-4">
-          <div className="flex items-center gap-2">
-            <h2 className={`text-xl font-semibold leading-tight whitespace-nowrap flex-shrink-0 ${themes[theme].text}`}>投资组合分析</h2>
-            <button 
-              onClick={() => setShowPortfolioAnalysis(!showPortfolioAnalysis)}
-              className={`${themes[theme].secondary} rounded-full p-1`}
-            >
-              {showPortfolioAnalysis ? 
-                <ChevronUp className="w-4 h-4" /> : 
-                <ChevronDown className="w-4 h-4" />
-              }
-            </button>
-          </div>
-          
-          {/* 添加截图按钮 */}
-          <button
-            onClick={handleScreenshot}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-md whitespace-nowrap ${themes[theme].secondary} hover:opacity-80 transition-opacity`}
-            title="生成持仓截图"
-          >
-            <Camera className="w-4 h-4" />
-            <span>分享截图</span>
-          </button>
-        </div>
-        {showPortfolioAnalysis && <PortfolioAnalysisPanel theme={theme} portfolioUuid={portfolioUuid} userId={userId} selectedAccountId={selectedAccountId} />}
+        <PortfolioHeader
+          theme={theme}
+          showPortfolioAnalysis={showPortfolioAnalysis}
+          onToggle={() => setShowPortfolioAnalysis(!showPortfolioAnalysis)}
+          onScreenshot={handleScreenshot}
+        />
+        {showPortfolioAnalysis && (
+          <PortfolioAnalysisPanel
+            theme={theme}
+            portfolioUuid={portfolioUuid || undefined}
+            userId={userId}
+            selectedAccountId={selectedAccountId ?? null}
+          />
+        )}
       </div>
 
       {/* Stock Analysis Modal */}
@@ -343,105 +337,26 @@ export function Portfolio({
       )}
       <div className={`${themes[theme].card} rounded-lg shadow-md`}>
         <div className="p-6 border-b border-gray-200">
-          <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center mb-6">
-            <div className="flex items-center gap-4">
-              <h2 className={`text-xl font-bold ${themes[theme].text}`}>
-                Portfolio Overview
-              </h2>
-              {userId && onAccountChange && (
-                <AccountSelector
-                  userId={userId}
-                  theme={theme}
-                  selectedAccountId={selectedAccountId || null}
-                  onAccountChange={onAccountChange}
-                />
-              )}
-            </div>
-            {(!isSharedView || portfolioUuid) && (
-              <div className="flex flex-wrap gap-4 items-center">
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setQuickDateRange(7)}
-                    className={`px-3 py-1 rounded-md text-sm ${themes[theme].secondary}`}
-                  >
-                    1W
-                  </button>
-                  <button
-                    onClick={() => setQuickDateRange(30)}
-                    className={`px-3 py-1 rounded-md text-sm ${themes[theme].secondary}`}
-                  >
-                    1M
-                  </button>
-                  <button
-                    onClick={() => setQuickDateRange(90)}
-                    className={`px-3 py-1 rounded-md text-sm ${themes[theme].secondary}`}
-                  >
-                    3M
-                  </button>
-                  <button
-                    onClick={() => setQuickDateRange(180)}
-                    className={`px-3 py-1 rounded-md text-sm ${themes[theme].secondary}`}
-                  >
-                    6M
-                  </button>
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="date"
-                    value={dateRange.startDate}
-                    onChange={(e) => onDateRangeChange({ ...dateRange, startDate: e.target.value })}
-                    className={`px-2 py-1 rounded-md text-sm ${themes[theme].input} ${themes[theme].text}`}
-                  />
-                  <span className={`text-sm ${themes[theme].text}`}>to</span>
-                  <input
-                    type="date"
-                    value={dateRange.endDate}
-                    onChange={(e) => onDateRangeChange({ ...dateRange, endDate: e.target.value })}
-                    className={`px-2 py-1 rounded-md text-sm ${themes[theme].input} ${themes[theme].text}`}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className={`${themes[theme].background} rounded-lg p-4`}>
-              <h3 className={`text-sm font-medium ${themes[theme].text} opacity-75`}>总市值</h3>
-              <p className={`text-2xl font-bold ${themes[theme].text} mt-1`}>
-                {formatCurrency(latestTrendValue, currencyConfig)}
-              </p>
-              <p className={`text-xs ${themes[theme].text} opacity-60 mt-1`}>
-                {trendData.length > 0 ? 'Based on latest trend data' : 'Based on holdings value'}
-              </p>
-            </div>
-            <div className={`${themes[theme].background} rounded-lg p-4`}>
-              <h3 className={`text-sm font-medium ${themes[theme].text} opacity-75`}>总仓位</h3>
-              <p className={`text-2xl font-bold ${themes[theme].text} mt-1`}>
-                {formatCurrency(totalHoldingsValue, currencyConfig)}
-              </p>
-              <p className={`text-xs ${themes[theme].text} opacity-60 mt-1`}>
-                Sum of all holdings market value
-              </p>
-            </div>
-            <div className={`${themes[theme].background} rounded-lg p-4`}>
-              <h3 className={`text-sm font-medium ${themes[theme].text} opacity-75`}>持仓比例</h3>
-              <p className={`text-2xl font-bold ${themes[theme].text} mt-1`}>
-                {positionRatio.toFixed(2)}%
-              </p>
-              <p className={`text-xs ${themes[theme].text} opacity-60 mt-1`}>
-                Holdings / Total market value
-              </p>
-            </div>
-            <div className={`${themes[theme].background} rounded-lg p-4`}>
-              <h3 className={`text-sm font-medium ${themes[theme].text} opacity-75`}>持仓盈亏</h3>
-              <p className={`text-2xl font-bold mt-1 ${totalProfitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {totalProfitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(totalProfitLoss), currencyConfig)}
-              </p>
-              <p className={`text-xs ${themes[theme].text} opacity-60 mt-1`}>
-                Sum of all holdings P/L
-              </p>
-            </div>
-          </div>
+          <OverviewControls
+            theme={theme}
+            userId={userId}
+            selectedAccountId={selectedAccountId ?? null}
+            onAccountChange={onAccountChange}
+            dateRange={dateRange}
+            onDateRangeChange={onDateRangeChange}
+            isSharedView={isSharedView}
+            portfolioUuid={portfolioUuid}
+            onQuickSelect={setQuickDateRange}
+          />
+          <StatsGrid
+            theme={theme}
+            currencyConfig={currencyConfig}
+            latestTrendValue={latestTrendValue}
+            totalHoldingsValue={totalHoldingsValue}
+            positionRatio={positionRatio}
+            totalProfitLoss={totalProfitLoss}
+            hasTrendData={trendData.length > 0}
+          />
         </div>
 
         {trendData.length > 0 && (
@@ -459,111 +374,19 @@ export function Portfolio({
 
         <div className="grid md:grid-cols-2 gap-6 p-6">
           <div className="order-2 md:order-1">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className={`text-lg font-semibold ${themes[theme].text}`}>Holdings</h3>
-              <select
-                value={holdingsPerPage}
-                onChange={(e) => setHoldingsPerPage(Number(e.target.value))}
-                className={`px-2 py-1 rounded-md text-sm ${themes[theme].input} ${themes[theme].text}`}
-              >
-                <option value={5}>5 per page</option>
-                <option value={10}>10 per page</option>
-                <option value={20}>20 per page</option>
-              </select>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className={`${themes[theme].background}`}>
-                  <tr>
-                    <th 
-                      className={`px-6 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
-                      onClick={() => handleHoldingsSort('stock_code')}
-                    >
-                      <div className="flex items-center space-x-1">
-                        <span>Stock</span>
-                        <SortIcon field="stock_code" currentSort={holdingsSort} />
-                      </div>
-                    </th>
-                    <th 
-                      className={`px-6 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
-                      onClick={() => handleHoldingsSort('total_value')}
-                    >
-                      <div className="flex items-center justify-end space-x-1">
-                        <span>Value</span>
-                        <SortIcon field="total_value" currentSort={holdingsSort} />
-                      </div>
-                    </th>
-                    <th 
-                      className={`px-6 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
-                      onClick={() => handleHoldingsSort('profit_loss_percentage')}
-                    >
-                      <div className="flex items-center justify-end space-x-1">
-                        <span>P/L %</span>
-                        <SortIcon field="profit_loss_percentage" currentSort={holdingsSort} />
-                      </div>
-                    </th>
-                    <th className={`px-6 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
-                      操作
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className={`divide-y ${themes[theme].border}`}>
-                  {paginatedHoldings.map((holding) => (
-                    <tr key={holding.stock_code} className={themes[theme].cardHover}>
-                      <td className="px-6 py-4">
-                        <div>
-                          <div className={`text-sm font-medium ${themes[theme].text}`}>{holding.stock_code}</div>
-                          <div className={`text-sm ${themes[theme].text} opacity-75`}>{holding.stock_name}</div>
-                        </div>
-                      </td>
-                      <td className={`px-6 py-4 text-right text-sm ${themes[theme].text}`}>
-                        {formatCurrency(holding.total_value, currencyConfig)}
-                      </td>
-                      <td className={`px-6 py-4 text-right text-sm font-medium ${
-                        holding.profit_loss_percentage >= 0 ? 'text-green-600' : 'text-red-600'
-                      }`}>
-                        {holding.profit_loss_percentage >= 0 ? '+' : ''}{holding.profit_loss_percentage.toFixed(2)}%
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <button
-                          onClick={() => setSelectedStockForAnalysis({ code: holding.stock_code, name: holding.stock_name })}
-                          className={`px-3 py-1 rounded-md text-xs ${themes[theme].secondary}`}
-                        >
-                          分析
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex items-center justify-between mt-4">
-              <div className={`text-sm ${themes[theme].text}`}>
-                Showing {Math.min(holdings.length, (holdingsPage - 1) * holdingsPerPage + 1)} to {Math.min(holdings.length, holdingsPage * holdingsPerPage)} of {holdings.length} holdings
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setHoldingsPage(Math.max(1, holdingsPage - 1))}
-                  disabled={holdingsPage === 1}
-                  className={`p-1 rounded-md ${themes[theme].secondary} ${
-                    holdingsPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={() => setHoldingsPage(Math.min(totalHoldingsPages, holdingsPage + 1))}
-                  disabled={holdingsPage === totalHoldingsPages}
-                  className={`p-1 rounded-md ${themes[theme].secondary} ${
-                    holdingsPage === totalHoldingsPages ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
-                >
-                  <ChevronRight className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
+            <HoldingsTable
+              theme={theme}
+              holdings={holdings}
+              paginatedHoldings={paginatedHoldings}
+              holdingsPage={holdingsPage}
+              holdingsPerPage={holdingsPerPage}
+              totalHoldingsPages={totalHoldingsPages}
+              onHoldingsPageChange={setHoldingsPage}
+              onHoldingsPerPageChange={setHoldingsPerPage}
+              holdingsSort={holdingsSort}
+              onHoldingsSort={handleHoldingsSort}
+              onAnalyzeStock={(code, name) => setSelectedStockForAnalysis({ code, name })}
+            />
           </div>
 
           <div className="order-1 md:order-2">
@@ -590,133 +413,18 @@ export function Portfolio({
           
           {showRecentTrades && (
             <div className="p-4">
-              <div className="flex justify-between items-center mb-4">
-                <div className={`text-sm ${themes[theme].text}`}>
-                  Showing {Math.min(recentTrades.length, (tradesPage - 1) * tradesPerPage + 1)} to {Math.min(recentTrades.length, tradesPage * tradesPerPage)} of {recentTrades.length} trades
-                </div>
-                <select
-                  value={tradesPerPage}
-                  onChange={(e) => setTradesPerPage(Number(e.target.value))}
-                  className={`px-2 py-1 rounded-md text-sm ${themes[theme].input} ${themes[theme].text}`}
-                >
-                  <option value={5}>5 per page</option>
-                  <option value={10}>10 per page</option>
-                  <option value={20}>20 per page</option>
-                </select>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className={`${themes[theme].background}`}>
-                    <tr>
-                      <th 
-                        className={`px-6 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
-                        onClick={() => handleTradesSort('created_at')}
-                      >
-                        <div className="flex items-center space-x-1">
-                          <span>Date</span>
-                          <SortIcon field="created_at" currentSort={tradesSort} />
-                        </div>
-                      </th>
-                      <th 
-                        className={`px-6 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
-                        onClick={() => handleTradesSort('stock_code')}
-                      >
-                        <div className="flex items-center space-x-1">
-                          <span>Stock</span>
-                          <SortIcon field="stock_code" currentSort={tradesSort} />
-                        </div>
-                      </th>
-                      <th 
-                        className={`px-6 py-3 text-center text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
-                        onClick={() => handleTradesSort('operation')}
-                      >
-                        <div className="flex items-center justify-center space-x-1">
-                          <span>Operation</span>
-                          <SortIcon field="operation" currentSort={tradesSort} />
-                        </div>
-                      </th>
-                      <th 
-                        className={`px-6 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
-                        onClick={() => handleTradesSort('target_price')}
-                      >
-                        <div className="flex items-center justify-end space-x-1">
-                          <span>Price</span>
-                          <SortIcon field="target_price" currentSort={tradesSort} />
-                        </div>
-                      </th>
-                      <th 
-                        className={`px-6 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
-                        onClick={() => handleTradesSort('quantity')}
-                      >
-                        <div className="flex items-center justify-end space-x-1">
-                          <span>Quantity</span>
-                          <SortIcon field="quantity" currentSort={tradesSort} />
-                        </div>
-                      </th>
-                      <th className={`px-6 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
-                        Total
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className={`divide-y ${themes[theme].border}`}>
-                    {paginatedTrades.map((trade) => (
-                      <tr key={trade.id} className={themes[theme].cardHover}>
-                        <td className={`px-6 py-4 text-sm ${themes[theme].text}`}>
-                          {format(new Date(trade.created_at), 'MMM d, yyyy HH:mm')}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div>
-                            <div className={`text-sm font-medium ${themes[theme].text}`}>{trade.stock_code}</div>
-                            <div className={`text-sm ${themes[theme].text} opacity-75`}>{trade.stock_name}</div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex justify-center">
-                            {trade.operation === 'buy' ? (
-                              <ArrowUpCircle className="w-5 h-5" style={{ color: currencyConfig.region === 'CN' || currencyConfig.region === 'JP' ? '#ef5350' : '#26a69a' }} />
-                            ) : (
-                              <ArrowDownCircle className="w-5 h-5" style={{ color: currencyConfig.region === 'CN' || currencyConfig.region === 'JP' ? '#26a69a' : '#ef5350' }} />
-                            )}
-                          </div>
-                        </td>
-                        <td className={`px-6 py-4 text-right text-sm ${themes[theme].text}`}>
-                          {formatCurrency(trade.target_price, currencyConfig)}
-                        </td>
-                        <td className={`px-6 py-4 text-right text-sm ${themes[theme].text}`}>
-                          {trade.quantity}
-                        </td>
-                        <td className={`px-6 py-4 text-right text-sm ${themes[theme].text}`}>
-                          {formatCurrency(trade.target_price * trade.quantity, currencyConfig)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="flex justify-end mt-4">
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setTradesPage(Math.max(1, tradesPage - 1))}
-                    disabled={tradesPage === 1}
-                    className={`p-1 rounded-md ${themes[theme].secondary} ${
-                      tradesPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
-                  >
-                    <ChevronLeft className="w-5 h-5" />
-                  </button>
-                  <button
-                    onClick={() => setTradesPage(Math.min(totalTradesPages, tradesPage + 1))}
-                    disabled={tradesPage === totalTradesPages}
-                    className={`p-1 rounded-md ${themes[theme].secondary} ${
-                      tradesPage === totalTradesPages ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
-                  >
-                    <ChevronRight className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
+              <TradesTable
+                theme={theme}
+                trades={recentTrades}
+                paginatedTrades={paginatedTrades}
+                tradesPage={tradesPage}
+                tradesPerPage={tradesPerPage}
+                totalTradesPages={totalTradesPages}
+                onTradesPageChange={setTradesPage}
+                onTradesPerPageChange={setTradesPerPage}
+                sort={tradesSort}
+                onSort={handleTradesSort}
+              />
             </div>
           )}
         </div>
