@@ -1,4 +1,4 @@
-import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, OperationService, StockConfigService, StockConfig, UploadService, UploadResponse, AnalysisService } from '../types';
+import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, OperationService, StockConfigService, StockConfig, UploadService, UploadResponse, AnalysisService, AccountService } from '../types';
 import type { Trade } from '../types';
 
 export const authService: AuthService = {
@@ -469,6 +469,96 @@ export const analysisService: AnalysisService = {
       return { data, error: null };
     } catch (error) {
       console.error('Error refreshing shared portfolio analysis:', error);
+      return { data: null, error: error as Error };
+    }
+  }
+};
+
+export const accountService: AccountService = {
+  getAccounts: async (userId: string) => {
+    try {
+      const response = await fetch(`/api/accounts?userId=${userId}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch accounts');
+      }
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error fetching accounts:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  createAccount: async (account) => {
+    try {
+      const response = await fetch('/api/accounts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(account)
+      });
+      if (!response.ok) {
+        throw new Error('Failed to create account');
+      }
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error creating account:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  updateAccount: async (account) => {
+    try {
+      const response = await fetch(`/api/accounts/${account.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(account)
+      });
+      if (!response.ok) {
+        throw new Error('Failed to update account');
+      }
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error updating account:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  deleteAccount: async (accountId) => {
+    try {
+      const response = await fetch(`/api/accounts/${accountId}`, {
+        method: 'DELETE'
+      });
+      if (!response.ok) {
+        throw new Error('Failed to delete account');
+      }
+      return { data: null, error: null };
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  setDefaultAccount: async (userId, accountId) => {
+    try {
+      const response = await fetch(`/api/accounts/${accountId}/set-default`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ userId })
+      });
+      if (!response.ok) {
+        throw new Error('Failed to set default account');
+      }
+      return { data: null, error: null };
+    } catch (error) {
+      console.error('Error setting default account:', error);
       return { data: null, error: error as Error };
     }
   }

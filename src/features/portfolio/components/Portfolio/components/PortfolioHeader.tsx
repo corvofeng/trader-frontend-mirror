@@ -1,7 +1,7 @@
 import React from 'react';
 import { subDays } from 'date-fns';
 import { Theme, themes } from '../../../../../lib/theme';
-import { AccountSelector } from '../../../../../shared/components/ui';
+import { AccountSelector } from '../../../../../shared/components';
 
 interface PortfolioHeaderProps {
   theme: Theme;

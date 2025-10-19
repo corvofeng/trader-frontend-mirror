@@ -1,5 +1,5 @@
 import { mockUser, mockHoldings, tradeIdCounter, MOCK_STOCKS, MOCK_STOCK_CONFIGS, generateMockTrades, generateMockOperations, DEMO_STOCK_DATA, generateMockStockData } from './mockData';
-import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, StockData, StockPrice, Operation, OperationService, TrendData, StockConfigService, StockConfig, UploadService, UploadResponse, AnalysisService, StockAnalysis, PortfolioAnalysis, Account } from '../types';
+import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, StockData, StockPrice, Operation, OperationService, TrendData, StockConfigService, StockConfig, UploadService, UploadResponse, AnalysisService, StockAnalysis, PortfolioAnalysis, Account, AccountService } from '../types';
 import { format, subDays, addMinutes, startOfDay, endOfDay, parseISO } from 'date-fns';
 
 export const mockTrades = generateMockTrades(DEMO_STOCK_DATA);
@@ -13,6 +13,32 @@ const uploadedPortfolios = new Map<string, {
   uploadTime: string;
   filename: string;
 }>();
+
+// Mock accounts data
+let mockAccounts: Account[] = [
+  {
+    id: 'account-1',
+    user_id: 'mock-user-id',
+    name: 'Main Account',
+    description: 'Primary trading account',
+    is_default: true,
+    currency: 'USD',
+    created_at: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+    updated_at: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
+  },
+  {
+    id: 'account-2',
+    user_id: 'mock-user-id',
+    name: 'Savings Account',
+    description: 'Long-term investment portfolio',
+    is_default: false,
+    currency: 'USD',
+    created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
+    updated_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
+  }
+];
+
+let accountIdCounter = 3;
 
 export const authService: AuthService = {
   getUser: async () => {
@@ -157,11 +183,6 @@ export const stockConfigService: StockConfigService = {
   }
 };
 
-const mockAccounts: Account[] = [
-  { id: 'account-1', name: '中金财富账户', broker: '中金财富', accountNo: '1200123456', isDefault: true },
-  { id: 'account-2', name: '华泰证券账户', broker: '华泰证券', accountNo: '8800654321', isDefault: false },
-  { id: 'account-3', name: '国泰君安账户', broker: '国泰君安', accountNo: '5500789012', isDefault: false }
-];
 
 export const portfolioService: PortfolioService = {
   getHoldings: async (userId: string, accountId?: string) => {
@@ -295,8 +316,7 @@ export const portfolioService: PortfolioService = {
   },
 
   getAccounts: async (userId: string) => {
-    await new Promise(resolve => setTimeout(resolve, 300));
-    return { data: mockAccounts, error: null };
+    return accountService.getAccounts(userId);
   },
 
   // UUID-based methods for shared portfolios
@@ -764,5 +784,83 @@ export const analysisService: AnalysisService = {
   refreshPortfolioAnalysisByUuid: async (uuid: string) => {
     // Same as getPortfolioAnalysisByUuid but with a refresh indicator
     return analysisService.getPortfolioAnalysisByUuid(uuid);
+  }
+};
+
+export const accountService: AccountService = {
+  getAccounts: async (userId: string) => {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    const userAccounts = mockAccounts.filter(acc => acc.user_id === userId);
+    return { data: userAccounts, error: null };
+  },
+
+  createAccount: async (account) => {
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    const newAccount: Account = {
+      ...account,
+      id: `account-${accountIdCounter++}`,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    if (newAccount.is_default) {
+      mockAccounts = mockAccounts.map(acc =>
+        acc.user_id === newAccount.user_id
+          ? { ...acc, is_default: false }
+          : acc
+      );
+    }
+
+    mockAccounts.push(newAccount);
+    return { data: newAccount, error: null };
+  },
+
+  updateAccount: async (account) => {
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    const index = mockAccounts.findIndex(acc => acc.id === account.id);
+    if (index === -1) {
+      return { data: null, error: new Error('Account not found') };
+    }
+
+    if (account.is_default) {
+      mockAccounts = mockAccounts.map(acc =>
+        acc.user_id === account.user_id && acc.id !== account.id
+          ? { ...acc, is_default: false }
+          : acc
+      );
+    }
+
+    mockAccounts[index] = {
+      ...account,
+      updated_at: new Date().toISOString()
+    };
+
+    return { data: mockAccounts[index], error: null };
+  },
+
+  deleteAccount: async (accountId) => {
+    await new Promise(resolve => setTimeout(resolve, 400));
+
+    const index = mockAccounts.findIndex(acc => acc.id === accountId);
+    if (index === -1) {
+      return { data: null, error: new Error('Account not found') };
+    }
+
+    mockAccounts.splice(index, 1);
+    return { data: null, error: null };
+  },
+
+  setDefaultAccount: async (userId, accountId) => {
+    await new Promise(resolve => setTimeout(resolve, 400));
+
+    mockAccounts = mockAccounts.map(acc => ({
+      ...acc,
+      is_default: acc.user_id === userId && acc.id === accountId,
+      updated_at: acc.user_id === userId ? new Date().toISOString() : acc.updated_at
+    }));
+
+    return { data: null, error: null };
   }
 };

@@ -136,6 +136,9 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
         dateRange={dateRange}
         onDateRangeChange={setDateRange}
         portfolioUuid={portfolioUuid}
+        userId={DEMO_USER_ID}
+        selectedAccountId={selectedAccountId}
+        onAccountChange={setSelectedAccountId}
       />
     </main>
   );

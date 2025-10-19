@@ -241,10 +241,23 @@ export interface TradeService {
 
 export interface Account {
   id: string;
+  user_id: string;
   name: string;
+  description?: string;
   broker?: string;
-  accountNo?: string;
-  isDefault?: boolean;
+  account_no?: string;
+  is_default: boolean;
+  currency: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface AccountService {
+  getAccounts: (userId: string) => Promise<ServiceResponse<Account[]>>;
+  createAccount: (account: Omit<Account, 'id' | 'created_at' | 'updated_at'>) => Promise<ServiceResponse<Account>>;
+  updateAccount: (account: Account) => Promise<ServiceResponse<Account>>;
+  deleteAccount: (accountId: string) => Promise<ServiceResponse<void>>;
+  setDefaultAccount: (userId: string, accountId: string) => Promise<ServiceResponse<void>>;
 }
 
 export interface PortfolioService {
@@ -297,6 +310,7 @@ export interface Services {
   analysisService: AnalysisService;
   uploadService: UploadService;
   optionsService: OptionsService;
+  accountService: AccountService;
 }
 
 // Options Service Types
