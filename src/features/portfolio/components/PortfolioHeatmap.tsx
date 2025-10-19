@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as echarts from 'echarts';
 import { Filter, X } from 'lucide-react';
-import { Theme, themes } from '../../../shared/constants/theme';
+import { Theme, themes } from '../../../lib/theme';
 import type { Holding, StockConfig } from '../../../lib/services/types';
 import { formatCurrency } from '../../../shared/utils/format';
 import type { CurrencyConfig } from '../../../shared/types';
@@ -268,6 +268,7 @@ export function PortfolioHeatmap({ holdings, theme }: PortfolioHeatmapProps) {
     };
 
     const option = {
+      grid: { left: 24, right: 24, top: 24, bottom: 24, containLabel: true },
       tooltip: {
         formatter: (params: any) => {
           const { name, value, dailyPLPercentage, stock_code } = params.data;
@@ -401,7 +402,7 @@ export function PortfolioHeatmap({ holdings, theme }: PortfolioHeatmapProps) {
   }, [holdings, theme, currencyConfig, groupingDimension, stockConfigs, isLoading, isMobile]);
 
   return (
-    <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
+    <div className={`${themes[theme].card} rounded-lg shadow-md`}>
       <div className="p-4 sm:p-6">
         <div className="flex flex-col gap-4">
           <div className="flex justify-between items-center">

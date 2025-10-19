@@ -367,11 +367,11 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid, userId, selectedA
   ];
 
   return (
-    <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
+    <div className={`${themes[theme].card} rounded-lg shadow-md`}>
       <div className="p-6 border-b border-gray-200">
         <div className="flex justify-between items-center">
           <div>
-            <h2 className={`text-xl font-bold ${themes[theme].text}`}>
+            <h2 className={`text-xl font-bold leading-tight whitespace-nowrap flex-shrink-0 ${themes[theme].text}`}>
               投资组合分析
             </h2>
             <p className={`text-sm ${themes[theme].text} opacity-75`}>
@@ -388,30 +388,33 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid, userId, selectedA
         </div>
       </div>
 
-      <div className="divide-y divide-gray-200">
-        {sections.map((section) => (
-          <div key={section.id}>
-            <button
-              onClick={() => toggleSection(section.id)}
-              className={`w-full p-4 flex items-center justify-between ${themes[theme].cardHover} transition-colors`}
-            >
-              <div className="flex items-center gap-3">
-                {section.icon}
-                <span className={`font-medium ${themes[theme].text}`}>{section.title}</span>
-              </div>
-              {expandedSections.includes(section.id) ? (
-                <ChevronUp className={`w-5 h-5 ${themes[theme].text}`} />
-              ) : (
-                <ChevronDown className={`w-5 h-5 ${themes[theme].text}`} />
+      <div className="p-4 sm:p-6">
+        {/* sections rendering */}
+        <div className="divide-y divide-gray-200">
+          {sections.map((section) => (
+            <div key={section.id}>
+              <button
+                onClick={() => toggleSection(section.id)}
+                className={`w-full p-4 flex items-center justify-between ${themes[theme].cardHover} transition-colors`}
+              >
+                <div className="flex items-center gap-3">
+                  {section.icon}
+                  <span className={`font-medium ${themes[theme].text}`}>{section.title}</span>
+                </div>
+                {expandedSections.includes(section.id) ? (
+                  <ChevronUp className={`w-5 h-5 ${themes[theme].text}`} />
+                ) : (
+                  <ChevronDown className={`w-5 h-5 ${themes[theme].text}`} />
+                )}
+              </button>
+              {expandedSections.includes(section.id) && (
+                <div className="p-4 pt-0">
+                  {section.content}
+                </div>
               )}
-            </button>
-            {expandedSections.includes(section.id) && (
-              <div className="p-4 pt-0">
-                {section.content}
-              </div>
-            )}
-          </div>
-        ))}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

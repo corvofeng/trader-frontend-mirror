@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { format, subDays } from 'date-fns';
-import { ArrowUpCircle, ArrowDownCircle, Calendar, Filter, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, BarChart2, Briefcase, ExternalLink } from 'lucide-react';
-import { Theme, themes } from '../../../shared/constants/theme';
+import { ArrowUpCircle, ArrowDownCircle, Calendar, Filter, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, BarChart2, Briefcase, ExternalLink, Camera } from 'lucide-react';
+import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
 import type { Holding, Trade, TrendData } from '../../../lib/services/types';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement } from 'chart.js';
@@ -13,6 +13,9 @@ import { PortfolioHeatmap } from './PortfolioHeatmap';
 import { StockAnalysisModal } from './StockAnalysisModal';
 import { PortfolioAnalysisPanel } from './PortfolioAnalysisPanel';
 import { AccountSelector } from '../../../shared/components';
+import { X, Download, Share2 } from 'lucide-react';
+import { toPng } from 'html-to-image';
+import { ScreenshotPreview } from './ScreenshotPreview';
 
 ChartJS.register(
   ArcElement, 
@@ -63,6 +66,10 @@ export function Portfolio({
   const [trendData, setTrendData] = useState<TrendData[]>([]);
   const [selectedStockForAnalysis, setSelectedStockForAnalysis] = useState<{ code: string; name: string } | null>(null);
   const [showPortfolioAnalysis, setShowPortfolioAnalysis] = useState(false);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const journalRef = useRef<HTMLDivElement>(null);
   const { currencyConfig } = useCurrency();
   
   // Calculate portfolio metrics
@@ -90,7 +97,7 @@ export function Portfolio({
             dateRange.endDate
           );
         } else if (!isSharedView) {
-          // 使用账户ID作为主要参数，用户ID作为查询参数
+          // Fix null handling for accountId when calling services
           response = await portfolioService.getTrendData(
             userId || DEMO_USER_ID,
             dateRange.startDate,
@@ -197,6 +204,7 @@ export function Portfolio({
   const pieChartOptions = {
     responsive: true,
     maintainAspectRatio: false,
+    layout: { padding: { top: 8, right: 8, bottom: 16, left: 8 } },
     plugins: {
       legend: {
         position: 'bottom' as const,
@@ -204,16 +212,7 @@ export function Portfolio({
           color: theme === 'dark' ? '#e5e7eb' : '#111827',
           font: { size: 12 },
           boxWidth: 12,
-          padding: 10,
-        },
-      },
-      tooltip: {
-        callbacks: {
-          label: (context: any) => {
-            const value = context.raw;
-            const percentage = ((value / totalHoldingsValue) * 100).toFixed(1);
-            return `${context.label}: ${formatCurrency(value, currencyConfig)} (${percentage}%)`;
-          },
+          padding: 16,
         },
       },
     },
@@ -242,8 +241,52 @@ export function Portfolio({
     }));
   };
 
+  const handleScreenshot = async () => {
+    if (!journalRef.current) return;
+    
+    try {
+      const dataUrl = await toPng(journalRef.current, {
+        cacheBust: true,
+        pixelRatio: 2,
+        quality: 0.95,
+      });
+      
+      setScreenshotPreview(dataUrl);
+      setShowPreview(true);
+    } catch (error) {
+      console.error('Error generating screenshot:', error);
+    }
+  };
+
+  const handleSaveScreenshot = () => {
+    if (!screenshotPreview) return;
+    
+    const link = document.createElement('a');
+    link.download = `trading-journal-${new Date().toISOString().split('T')[0]}.png`;
+    link.href = screenshotPreview;
+    link.click();
+    
+    setShowPreview(false);
+    setScreenshotPreview(null);
+  };
+
+  const handleScreenshotSave = async () => {
+    if (!imageUrl) return;
+
+    try {
+      const link = document.createElement('a');
+      link.href = imageUrl;
+      link.download = `portfolio_screenshot_${new Date().toISOString().split('T')[0]}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Error downloading image:', error);
+    }
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" ref={journalRef}>
       {isSharedView && (
         <div className={`${themes[theme].card} rounded-lg p-4 border-l-4 border-blue-500`}>
           <div className="flex items-center justify-between">
@@ -263,12 +306,27 @@ export function Portfolio({
       {/* Portfolio Analysis Panel */}
       <div className="mt-6">
         <div className="flex justify-between items-center mb-4">
-          <h3 className={`text-lg font-semibold ${themes[theme].text}`}>智能分析</h3>
+          <div className="flex items-center gap-2">
+            <h2 className={`text-xl font-semibold leading-tight whitespace-nowrap flex-shrink-0 ${themes[theme].text}`}>投资组合分析</h2>
+            <button 
+              onClick={() => setShowPortfolioAnalysis(!showPortfolioAnalysis)}
+              className={`${themes[theme].secondary} rounded-full p-1`}
+            >
+              {showPortfolioAnalysis ? 
+                <ChevronUp className="w-4 h-4" /> : 
+                <ChevronDown className="w-4 h-4" />
+              }
+            </button>
+          </div>
+          
+          {/* 添加截图按钮 */}
           <button
-            onClick={() => setShowPortfolioAnalysis(!showPortfolioAnalysis)}
-            className={`px-4 py-2 rounded-md ${themes[theme].secondary}`}
+            onClick={handleScreenshot}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-md whitespace-nowrap ${themes[theme].secondary} hover:opacity-80 transition-opacity`}
+            title="生成持仓截图"
           >
-            {showPortfolioAnalysis ? '隐藏分析' : '查看分析'}
+            <Camera className="w-4 h-4" />
+            <span>分享截图</span>
           </button>
         </div>
         {showPortfolioAnalysis && <PortfolioAnalysisPanel theme={theme} portfolioUuid={portfolioUuid} userId={userId} selectedAccountId={selectedAccountId} />}
@@ -283,7 +341,7 @@ export function Portfolio({
           onClose={() => setSelectedStockForAnalysis(null)}
         />
       )}
-      <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
+      <div className={`${themes[theme].card} rounded-lg shadow-md`}>
         <div className="p-6 border-b border-gray-200">
           <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center mb-6">
             <div className="flex items-center gap-4">
@@ -517,7 +575,7 @@ export function Portfolio({
       </div>
 
       {recentTrades.length > 0 && (
-        <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
+        <div className={`${themes[theme].card} rounded-lg shadow-md`}>
           <div className="p-6 border-b border-gray-200">
             <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
               <h2 className={`text-lg font-semibold ${themes[theme].text}`}>Recent Trades</h2>
@@ -662,6 +720,64 @@ export function Portfolio({
             </div>
           )}
         </div>
+      )}
+
+      {/* Screenshot Preview Modal */}
+      {imageUrl && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className={`${themes[theme].card} rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col`}>
+            <div className="p-4 border-b flex justify-between items-center">
+              <h2 className={`text-lg font-semibold ${themes[theme].text}`}>
+                持仓数据预览
+              </h2>
+              <button
+                onClick={() => setImageUrl(null)}
+                className={`p-2 rounded-md ${themes[theme].secondary}`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-4 flex-1 overflow-auto">
+              <div className={`${themes[theme].background} rounded-lg p-2 flex justify-center`}>
+                <img 
+                  src={imageUrl} 
+                  alt="持仓数据截图" 
+                  className="max-w-full h-auto rounded shadow-lg"
+                />
+              </div>
+            </div>
+            
+            <div className="p-4 border-t flex justify-end gap-3">
+              <button
+                onClick={() => setImageUrl(null)}
+                className={`px-4 py-2 rounded-md ${themes[theme].secondary}`}
+              >
+                取消
+              </button>
+              <button
+                onClick={handleScreenshotSave}
+                className={`px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2`}
+              >
+                <Download className="w-4 h-4" />
+                保存图片
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Journal Screenshot Preview */}
+      {showPreview && (
+        <ScreenshotPreview
+          imageUrl={screenshotPreview}
+          theme={theme}
+          onClose={() => {
+            setShowPreview(false);
+            setScreenshotPreview(null);
+          }}
+          onSave={handleSaveScreenshot}
+        />
       )}
     </div>
   );

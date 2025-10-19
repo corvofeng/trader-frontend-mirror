@@ -13,7 +13,7 @@ export function getThemeColors(theme: Theme, regionalColors: RegionalColorConfig
 }
 
 function getBaseTheme(theme: Theme): ThemeColors {
-  const baseThemes: Record<Theme, ThemeColors> = {
+  const baseThemes = {
     light: {
       primary: 'bg-blue-600 hover:bg-blue-700 text-white',
       secondary: 'bg-gray-100 hover:bg-gray-200 text-gray-700',
@@ -62,7 +62,7 @@ function getBaseTheme(theme: Theme): ThemeColors {
         crosshairColor: '#60a5fa'
       }
     }
-  };
+  } satisfies Record<Theme, ThemeColors>;
   return baseThemes[theme];
 }
 
