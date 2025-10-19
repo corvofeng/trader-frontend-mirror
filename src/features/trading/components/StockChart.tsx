@@ -466,7 +466,8 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
           const tradesResponse = await portfolioService.getRecentTrades(
             userResponse.data.user.id,
             startDate,
-            endDate
+            endDate,
+            userResponse.data.user.selectedAccountId || 'default-account'
           );
           if (tradesResponse.data && !isDisposed.current) {
             trades = tradesResponse.data

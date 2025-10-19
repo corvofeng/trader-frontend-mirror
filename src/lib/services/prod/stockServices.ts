@@ -212,9 +212,9 @@ export const portfolioService: PortfolioService = {
 
   getRecentTrades: async (userId: string, startDate: string, endDate: string, accountId?: string) => {
     try {
-      const url = accountId
-        ? `/api/portfolio/${userId}/recent-trades?startDate=${startDate}&endDate=${endDate}&accountId=${accountId}`
-        : `/api/portfolio/${userId}/recent-trades?startDate=${startDate}&endDate=${endDate}`;
+      // 使用默认账户ID或用户ID作为路径参数
+      const defaultAccountId = 'default-account';
+      const url = `/api/portfolio/${accountId || defaultAccountId}/recent-trades?startDate=${startDate}&endDate=${endDate}&userId=${userId}`;
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error('Failed to fetch recent trades');
@@ -229,9 +229,9 @@ export const portfolioService: PortfolioService = {
 
   getTrendData: async (userId: string, startDate: string, endDate: string, accountId?: string) => {
     try {
-      const url = accountId
-        ? `/api/portfolio/${userId}/trend?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&accountId=${accountId}`
-        : `/api/portfolio/${userId}/trend?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`;
+      // 使用默认账户ID或用户ID作为路径参数
+      const defaultAccountId = 'default-account';
+      const url = `/api/portfolio/${accountId || defaultAccountId}/trend?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&userId=${userId}`;
       const response = await fetch(url);
 
       if (!response.ok) {
@@ -398,9 +398,11 @@ export const analysisService: AnalysisService = {
     }
   },
 
-  getPortfolioAnalysis: async (userId: string) => {
+  getPortfolioAnalysis: async (userId: string, accountId?: string) => {
     try {
-      const response = await fetch(`/api/analysis/portfolio/${userId}`);
+      const defaultAccountId = 'default-account';
+      const url = `/api/analysis/portfolio/${accountId || defaultAccountId}?userId=${userId}`;
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error('Failed to fetch portfolio analysis');
       }
@@ -441,9 +443,11 @@ export const analysisService: AnalysisService = {
     }
   },
 
-  refreshPortfolioAnalysis: async (userId: string) => {
+  refreshPortfolioAnalysis: async (userId: string, accountId?: string) => {
     try {
-      const response = await fetch(`/api/analysis/portfolio/${userId}/refresh`, {
+      const defaultAccountId = 'default-account';
+      const url = `/api/analysis/portfolio/${accountId || defaultAccountId}/refresh?userId=${userId}`;
+      const response = await fetch(url, {
         method: 'POST'
       });
       if (!response.ok) {

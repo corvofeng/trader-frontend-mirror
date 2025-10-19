@@ -28,6 +28,7 @@ interface PortfolioProps {
 }
 
 const DEMO_USER_ID = 'mock-user-id';
+const DEMO_ACCOUNT_ID = 'mock-account-id';
 
 export function Portfolio({
   holdings,
@@ -61,9 +62,10 @@ export function Portfolio({
           );
         } else if (!isSharedView) {
           response = await portfolioService.getTrendData(
-            DEMO_USER_ID,
+            userId || DEMO_USER_ID,
             dateRange.startDate,
-            dateRange.endDate
+            dateRange.endDate,
+            selectedAccountId || DEMO_ACCOUNT_ID
           );
         }
 
@@ -76,7 +78,7 @@ export function Portfolio({
     };
 
     fetchTrendData();
-  }, [dateRange, isSharedView, portfolioUuid]);
+  }, [dateRange, isSharedView, portfolioUuid, selectedAccountId, userId]);
 
   return (
     <div className="space-y-6">
@@ -120,7 +122,7 @@ export function Portfolio({
             {showPortfolioAnalysis ? '隐藏分析' : '查看分析'}
           </button>
         </div>
-        {showPortfolioAnalysis && <PortfolioAnalysisPanel theme={theme} portfolioUuid={portfolioUuid} />}
+        {showPortfolioAnalysis && <PortfolioAnalysisPanel theme={theme} portfolioUuid={portfolioUuid} userId={userId} selectedAccountId={selectedAccountId} />}
       </div>
 
       {/* Stock Analysis Modal */}

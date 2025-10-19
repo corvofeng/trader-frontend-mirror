@@ -72,6 +72,8 @@ export function SavedStrategiesManager({ theme, onStrategyUpdated }: SavedStrate
       const nearestExpiry = strategy.positions.reduce((nearest, position) => {
         const positionExpiry = new Date(position.expiry);
         const nearestExpiry = new Date(nearest);
+        position.position_type = 'buy';
+        position.type = 'call';
         return positionExpiry < nearestExpiry ? position.expiry : nearest;
       }, strategy.positions[0]?.expiry || new Date().toISOString());
 

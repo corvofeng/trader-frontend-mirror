@@ -65,7 +65,7 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
           // Fetch regular user portfolio data and accounts
           const [holdingsResponse, tradesResponse, accountsResponse] = await Promise.all([
             portfolioService.getHoldings(selectedAccountId || DEMO_USER_ID),
-            portfolioService.getRecentTrades(selectedAccountId || DEMO_USER_ID, dateRange.startDate, dateRange.endDate),
+            portfolioService.getRecentTrades(DEMO_USER_ID, dateRange.startDate, dateRange.endDate, selectedAccountId),
             accountService.getAccounts(DEMO_USER_ID)
           ]);
           

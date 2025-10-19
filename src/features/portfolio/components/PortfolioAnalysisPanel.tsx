@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { RefreshCw, TrendingUp, TrendingDown, PieChart, Shield, Target, AlertTriangle, ChevronDown, ChevronUp, FileText } from 'lucide-react';
-import { Theme, themes } from '../../../shared/constants/theme';
-import { analysisService, authService } from '../../../lib/services';
+import { Theme, themes } from '../../../lib/theme';
+import { analysisService } from '../../../lib/services';
 import type { PortfolioAnalysis } from '../../../lib/services/types';
 import { formatCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
@@ -10,11 +10,13 @@ import toast from 'react-hot-toast';
 interface PortfolioAnalysisPanelProps {
   theme: Theme;
   portfolioUuid?: string;
+  userId?: string;
+  selectedAccountId?: string | null;
 }
 
 const DEMO_USER_ID = 'mock-user-id';
 
-export function PortfolioAnalysisPanel({ theme, portfolioUuid }: PortfolioAnalysisPanelProps) {
+export function PortfolioAnalysisPanel({ theme, portfolioUuid, userId, selectedAccountId }: PortfolioAnalysisPanelProps) {
   const [analysis, setAnalysis] = useState<PortfolioAnalysis | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -48,9 +50,9 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid }: PortfolioAnalys
     try {
       if (refresh) {
         setIsRefreshing(true);
-        const { data, error } = portfolioUuid 
+        const { data, error } = portfolioUuid
           ? await analysisService.refreshPortfolioAnalysisByUuid(portfolioUuid)
-          : await analysisService.refreshPortfolioAnalysis(DEMO_USER_ID);
+          : await analysisService.refreshPortfolioAnalysis(userId || DEMO_USER_ID, selectedAccountId || undefined);
         if (error) throw error;
         if (data) {
           setAnalysis(data);
@@ -58,9 +60,9 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid }: PortfolioAnalys
         }
       } else {
         setIsLoading(true);
-        const { data, error } = portfolioUuid 
+        const { data, error } = portfolioUuid
           ? await analysisService.getPortfolioAnalysisByUuid(portfolioUuid)
-          : await analysisService.getPortfolioAnalysis(DEMO_USER_ID);
+          : await analysisService.getPortfolioAnalysis(userId || DEMO_USER_ID, selectedAccountId || undefined);
         if (error) throw error;
         if (data) setAnalysis(data);
       }
@@ -75,11 +77,11 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid }: PortfolioAnalys
 
   useEffect(() => {
     fetchAnalysis();
-  }, [portfolioUuid]);
+  }, [portfolioUuid, userId, selectedAccountId]);
 
   const toggleSection = (section: string) => {
-    setExpandedSections(prev => 
-      prev.includes(section) 
+    setExpandedSections(prev =>
+      prev.includes(section)
         ? prev.filter(s => s !== section)
         : [...prev, section]
     );

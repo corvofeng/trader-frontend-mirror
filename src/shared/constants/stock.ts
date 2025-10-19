@@ -26,3 +26,4 @@ export const MOCK_STOCKS = [
 
 // Demo User
 export const DEMO_USER_ID = 'mock-user-id';
+export const DEMO_ACCOUNT_ID = 'mock-account-id';

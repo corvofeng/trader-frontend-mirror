@@ -631,7 +631,7 @@ export const analysisService: AnalysisService = {
     return { data: mockAnalysis, error: null };
   },
 
-  getPortfolioAnalysis: async (userId: string) => {
+  getPortfolioAnalysis: async (userId: string, accountId?: string) => {
     await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API delay
     
     const mockPortfolioAnalysis: PortfolioAnalysis = {
@@ -776,9 +776,9 @@ export const analysisService: AnalysisService = {
     return analysisService.getStockAnalysis(stockCode);
   },
 
-  refreshPortfolioAnalysis: async (userId: string) => {
+  refreshPortfolioAnalysis: async (userId: string, accountId?: string) => {
     // Same as getPortfolioAnalysis but with a refresh indicator
-    return analysisService.getPortfolioAnalysis(userId);
+    return analysisService.getPortfolioAnalysis(userId, accountId);
   },
 
   refreshPortfolioAnalysisByUuid: async (uuid: string) => {
