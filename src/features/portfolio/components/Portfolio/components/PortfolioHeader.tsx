@@ -1,6 +1,7 @@
 import React from 'react';
 import { subDays } from 'date-fns';
 import { Theme, themes } from '../../../../../lib/theme';
+import { AccountSelector } from '../../../../../shared/components/ui';
 
 interface PortfolioHeaderProps {
   theme: Theme;
@@ -11,14 +12,20 @@ interface PortfolioHeaderProps {
   onDateRangeChange: (range: { startDate: string; endDate: string }) => void;
   isSharedView: boolean;
   portfolioUuid: string | null;
+  userId?: string;
+  selectedAccountId?: string | null;
+  onAccountChange?: (accountId: string) => void;
 }
 
-export function PortfolioHeader({ 
-  theme, 
-  dateRange, 
-  onDateRangeChange, 
-  isSharedView, 
-  portfolioUuid 
+export function PortfolioHeader({
+  theme,
+  dateRange,
+  onDateRangeChange,
+  isSharedView,
+  portfolioUuid,
+  userId,
+  selectedAccountId,
+  onAccountChange
 }: PortfolioHeaderProps) {
   const setQuickDateRange = (days: number) => {
     if (isSharedView && !portfolioUuid) return; // Disable date range changes in shared view without UUID
@@ -34,9 +41,19 @@ export function PortfolioHeader({
   return (
     <div className="p-6 border-b border-gray-200">
       <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center mb-6">
-        <h2 className={`text-xl font-bold ${themes[theme].text}`}>
-          Portfolio Overview
-        </h2>
+        <div className="flex items-center gap-4">
+          <h2 className={`text-xl font-bold ${themes[theme].text}`}>
+            Portfolio Overview
+          </h2>
+          {userId && onAccountChange && (
+            <AccountSelector
+              userId={userId}
+              theme={theme}
+              selectedAccountId={selectedAccountId || null}
+              onAccountChange={onAccountChange}
+            />
+          )}
+        </div>
         {(!isSharedView || portfolioUuid) && (
           <div className="flex flex-wrap gap-4 items-center">
             <div className="flex gap-2">
