@@ -17,6 +17,8 @@ interface TradesTableProps {
   onTradesPerPageChange: (value: number) => void;
   onSort: (field: string) => void;
   sort: { field: string; direction: 'asc' | 'desc' };
+  // 新增：可选是否显示内部标题
+  showHeader?: boolean;
 }
 
 export function TradesTable({
@@ -30,23 +32,26 @@ export function TradesTable({
   onTradesPerPageChange,
   sort,
   onSort,
+  showHeader = true,
 }: TradesTableProps) {
   const { currencyConfig } = useCurrency();
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-4">
-        <h3 className={`text-lg font-semibold ${themes[theme].text}`}>成交记录</h3>
-        <select
-          value={tradesPerPage}
-          onChange={(e) => onTradesPerPageChange(Number(e.target.value))}
-          className={`px-2 py-1 rounded-md text-sm ${themes[theme].input} ${themes[theme].text}`}
-        >
-          <option value={5}>5 per page</option>
-          <option value={10}>10 per page</option>
-          <option value={20}>20 per page</option>
-        </select>
-      </div>
+      {showHeader && (
+        <div className="flex justify-between items-center mb-4">
+          <h3 className={`text-lg font-semibold ${themes[theme].text} whitespace-nowrap`}>成交记录</h3>
+          <select
+            value={tradesPerPage}
+            onChange={(e) => onTradesPerPageChange(Number(e.target.value))}
+            className={`px-2 py-1 rounded-md text-sm ${themes[theme].input} ${themes[theme].text}`}
+          >
+            <option value={5}>每页 5 条</option>
+            <option value={10}>每页 10 条</option>
+            <option value={20}>每页 20 条</option>
+          </select>
+        </div>
+      )}
 
       <div className="overflow-x-auto">
         <table className="w-full">
@@ -118,8 +123,8 @@ export function TradesTable({
       </div>
 
       <div className="flex items-center justify-between mt-4">
-        <div className={`text-sm ${themes[theme].text}`}>
-          Showing {Math.min(trades.length, (tradesPage - 1) * tradesPerPage + 1)} to {Math.min(trades.length, tradesPage * tradesPerPage)} of {trades.length} trades
+        <div className={`text-sm ${themes[theme].text} whitespace-nowrap`}>
+          显示第 {Math.min(trades.length, (tradesPage - 1) * tradesPerPage + 1)} 到第 {Math.min(trades.length, tradesPage * tradesPerPage)} 条，共 {trades.length} 条记录
         </div>
         <div className="flex gap-2">
           <button
