@@ -193,9 +193,12 @@ export const stockConfigService: StockConfigService = {
 };
 
 export const portfolioService: PortfolioService = {
-  getHoldings: async (userId: string) => {
+  getHoldings: async (userId: string, accountId?: string) => {
     try {
-      const response = await fetch(`/api/portfolio/${userId}`);
+      const url = accountId
+        ? `/api/portfolio/${userId}?accountId=${accountId}`
+        : `/api/portfolio/${userId}`;
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error('Failed to fetch portfolio data');
       }
@@ -206,12 +209,13 @@ export const portfolioService: PortfolioService = {
       return { data: null, error: error as Error };
     }
   },
-  
-  getRecentTrades: async (userId: string, startDate: string, endDate: string) => {
+
+  getRecentTrades: async (userId: string, startDate: string, endDate: string, accountId?: string) => {
     try {
-      const response = await fetch(
-        `/api/portfolio/${userId}/recent-trades?startDate=${startDate}&endDate=${endDate}`
-      );
+      const url = accountId
+        ? `/api/portfolio/${userId}/recent-trades?startDate=${startDate}&endDate=${endDate}&accountId=${accountId}`
+        : `/api/portfolio/${userId}/recent-trades?startDate=${startDate}&endDate=${endDate}`;
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error('Failed to fetch recent trades');
       }
@@ -223,20 +227,35 @@ export const portfolioService: PortfolioService = {
     }
   },
 
-  getTrendData: async (userId: string, startDate: string, endDate: string) => {
+  getTrendData: async (userId: string, startDate: string, endDate: string, accountId?: string) => {
     try {
-      const response = await fetch(
-        `/api/portfolio/${userId}/trend?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`
-      );
-      
+      const url = accountId
+        ? `/api/portfolio/${userId}/trend?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&accountId=${accountId}`
+        : `/api/portfolio/${userId}/trend?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`;
+      const response = await fetch(url);
+
       if (!response.ok) {
         throw new Error('Failed to fetch trend data');
       }
-      
+
       const data = await response.json();
       return { data, error: null };
     } catch (error) {
       console.error('Error fetching trend data:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  getAccounts: async (userId: string) => {
+    try {
+      const response = await fetch(`/api/portfolio/${userId}/accounts`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch accounts');
+      }
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error fetching accounts:', error);
       return { data: null, error: error as Error };
     }
   },

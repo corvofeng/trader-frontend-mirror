@@ -239,10 +239,19 @@ export interface TradeService {
   updateTrade: (trade: Trade) => Promise<ServiceResponse<Trade>>;
 }
 
+export interface Account {
+  id: string;
+  name: string;
+  broker?: string;
+  accountNo?: string;
+  isDefault?: boolean;
+}
+
 export interface PortfolioService {
-  getHoldings: (userId: string) => Promise<ServiceResponse<Holding[]>>;
-  getRecentTrades: (userId: string, startDate: string, endDate: string) => Promise<ServiceResponse<Trade[]>>;
-  getTrendData: (userId: string, startDate: string, endDate: string) => Promise<ServiceResponse<TrendData[]>>;
+  getHoldings: (userId: string, accountId?: string) => Promise<ServiceResponse<Holding[]>>;
+  getRecentTrades: (userId: string, startDate: string, endDate: string, accountId?: string) => Promise<ServiceResponse<Trade[]>>;
+  getTrendData: (userId: string, startDate: string, endDate: string, accountId?: string) => Promise<ServiceResponse<TrendData[]>>;
+  getAccounts: (userId: string) => Promise<ServiceResponse<Account[]>>;
   // UUID-based methods for shared portfolios
   getHoldingsByUuid: (uuid: string) => Promise<ServiceResponse<Holding[]>>;
   getRecentTradesByUuid: (uuid: string, startDate: string, endDate: string) => Promise<ServiceResponse<Trade[]>>;

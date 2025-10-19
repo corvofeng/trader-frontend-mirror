@@ -6,7 +6,7 @@ import { StockSearchSection } from './components/StockSearchSection';
 import { SharedPortfolioInfo } from './components/SharedPortfolioInfo';
 import { TabContent } from './components/TabContent';
 import { portfolioService } from '../../lib/services';
-import type { Stock, Holding, Trade } from '../../lib/services/types';
+import type { Stock, Holding, Trade, Account } from '../../lib/services/types';
 import type { Theme } from '../../lib/theme';
 
 interface JournalProps {
@@ -31,6 +31,8 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
   });
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [recentTrades, setRecentTrades] = useState<Trade[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState({
     startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0]
@@ -47,6 +49,22 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
   };
 
   useEffect(() => {
+    const fetchAccounts = async () => {
+      if (!portfolioUuid) {
+        const response = await portfolioService.getAccounts(DEMO_USER_ID);
+        if (response?.data) {
+          setAccounts(response.data);
+          const defaultAccount = response.data.find(acc => acc.isDefault);
+          if (defaultAccount) {
+            setSelectedAccountId(defaultAccount.id);
+          }
+        }
+      }
+    };
+    fetchAccounts();
+  }, [portfolioUuid]);
+
+  useEffect(() => {
     const fetchData = async () => {
       if (activeTab === 'portfolio') {
         if (portfolioUuid) {
@@ -55,16 +73,16 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
             portfolioService.getHoldingsByUuid(portfolioUuid),
             portfolioService.getRecentTradesByUuid(portfolioUuid, dateRange.startDate, dateRange.endDate)
           ]);
-          
+
           if (holdingsResponse.data) setHoldings(holdingsResponse.data);
           if (tradesResponse.data) setRecentTrades(tradesResponse.data);
         } else {
           // Fetch regular user portfolio data
           const [holdingsResponse, tradesResponse] = await Promise.all([
-            portfolioService.getHoldings(DEMO_USER_ID),
-            portfolioService.getRecentTrades(DEMO_USER_ID, dateRange.startDate, dateRange.endDate)
+            portfolioService.getHoldings(DEMO_USER_ID, selectedAccountId || undefined),
+            portfolioService.getRecentTrades(DEMO_USER_ID, dateRange.startDate, dateRange.endDate, selectedAccountId || undefined)
           ]);
-          
+
           if (holdingsResponse.data) setHoldings(holdingsResponse.data);
           if (tradesResponse.data) setRecentTrades(tradesResponse.data);
         }
@@ -72,7 +90,7 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
     };
 
     fetchData();
-  }, [activeTab, dateRange, portfolioUuid]);
+  }, [activeTab, dateRange, portfolioUuid, selectedAccountId]);
 
   const tabs = [
     { id: 'portfolio' as Tab, name: 'Portfolio', icon: Briefcase },

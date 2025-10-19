@@ -8,9 +8,10 @@ import { PortfolioHoldings } from './components/PortfolioHoldings';
 import { PortfolioTrades } from './components/PortfolioTrades';
 import { StockAnalysisModal } from '../StockAnalysisModal';
 import { PortfolioAnalysisPanel } from '../PortfolioAnalysisPanel';
+import { AccountSelector } from '../AccountSelector';
 import { Theme, themes } from '../../../../lib/theme';
 import { portfolioService } from '../../../../lib/services';
-import type { Holding, Trade, TrendData } from '../../../../lib/services/types';
+import type { Holding, Trade, TrendData, Account } from '../../../../lib/services/types';
 
 interface PortfolioProps {
   holdings: Holding[];
@@ -26,20 +27,38 @@ interface PortfolioProps {
 
 const DEMO_USER_ID = 'mock-user-id';
 
-export function Portfolio({ 
-  holdings, 
-  theme, 
-  recentTrades = [], 
-  dateRange, 
+export function Portfolio({
+  holdings,
+  theme,
+  recentTrades = [],
+  dateRange,
   onDateRangeChange,
-  isSharedView = false 
+  isSharedView = false
 }: PortfolioProps) {
   const [trendData, setTrendData] = useState<TrendData[]>([]);
   const [selectedStockForAnalysis, setSelectedStockForAnalysis] = useState<{ code: string; name: string } | null>(null);
   const [showPortfolioAnalysis, setShowPortfolioAnalysis] = useState(false);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
 
   // Get UUID from URL params for portfolio sharing
   const portfolioUuid = new URLSearchParams(window.location.search).get('uuid');
+
+  useEffect(() => {
+    const fetchAccounts = async () => {
+      if (!isSharedView && !portfolioUuid) {
+        const response = await portfolioService.getAccounts(DEMO_USER_ID);
+        if (response?.data) {
+          setAccounts(response.data);
+          const defaultAccount = response.data.find(acc => acc.isDefault);
+          if (defaultAccount) {
+            setSelectedAccountId(defaultAccount.id);
+          }
+        }
+      }
+    };
+    fetchAccounts();
+  }, [isSharedView, portfolioUuid]);
 
   useEffect(() => {
     const fetchTrendData = async () => {
@@ -57,7 +76,8 @@ export function Portfolio({
           response = await portfolioService.getTrendData(
             DEMO_USER_ID,
             dateRange.startDate,
-            dateRange.endDate
+            dateRange.endDate,
+            selectedAccountId || undefined
           );
         }
         
@@ -70,7 +90,7 @@ export function Portfolio({
     };
 
     fetchTrendData();
-  }, [dateRange, isSharedView, portfolioUuid]);
+  }, [dateRange, isSharedView, portfolioUuid, selectedAccountId]);
 
   return (
     <div className="space-y-6">
@@ -88,6 +108,15 @@ export function Portfolio({
             </span>
           </div>
         </div>
+      )}
+
+      {!isSharedView && !portfolioUuid && accounts.length > 0 && (
+        <AccountSelector
+          accounts={accounts}
+          selectedAccountId={selectedAccountId}
+          onAccountChange={setSelectedAccountId}
+          theme={theme}
+        />
       )}
 
       {/* Portfolio Analysis Panel */}

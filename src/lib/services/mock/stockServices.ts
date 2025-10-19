@@ -1,5 +1,5 @@
 import { mockUser, mockHoldings, tradeIdCounter, MOCK_STOCKS, MOCK_STOCK_CONFIGS, generateMockTrades, generateMockOperations, DEMO_STOCK_DATA, generateMockStockData } from './mockData';
-import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, StockData, StockPrice, Operation, OperationService, TrendData, StockConfigService, StockConfig, UploadService, UploadResponse, AnalysisService, StockAnalysis, PortfolioAnalysis } from '../types';
+import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, StockData, StockPrice, Operation, OperationService, TrendData, StockConfigService, StockConfig, UploadService, UploadResponse, AnalysisService, StockAnalysis, PortfolioAnalysis, Account } from '../types';
 import { format, subDays, addMinutes, startOfDay, endOfDay, parseISO } from 'date-fns';
 
 export const mockTrades = generateMockTrades(DEMO_STOCK_DATA);
@@ -157,13 +157,19 @@ export const stockConfigService: StockConfigService = {
   }
 };
 
+const mockAccounts: Account[] = [
+  { id: 'account-1', name: '中金财富账户', broker: '中金财富', accountNo: '1200123456', isDefault: true },
+  { id: 'account-2', name: '华泰证券账户', broker: '华泰证券', accountNo: '8800654321', isDefault: false },
+  { id: 'account-3', name: '国泰君安账户', broker: '国泰君安', accountNo: '5500789012', isDefault: false }
+];
+
 export const portfolioService: PortfolioService = {
-  getHoldings: async (userId: string) => {
+  getHoldings: async (userId: string, accountId?: string) => {
     await new Promise(resolve => setTimeout(resolve, 700));
     return { data: mockHoldings, error: null };
   },
-  
-  getRecentTrades: async (userId: string, startDate: string, endDate: string) => {
+
+  getRecentTrades: async (userId: string, startDate: string, endDate: string, accountId?: string) => {
     await new Promise(resolve => setTimeout(resolve, 500));
     const filteredTrades = mockTrades
       .filter(trade => trade.user_id === userId && trade.status === 'completed')
@@ -175,7 +181,7 @@ export const portfolioService: PortfolioService = {
     return { data: filteredTrades, error: null };
   },
 
-  getTrendData: async (userId: string, startDate: string, endDate: string) => {
+  getTrendData: async (userId: string, startDate: string, endDate: string, accountId?: string) => {
     await new Promise(resolve => setTimeout(resolve, 600));
     
     const start = new Date(startDate);
@@ -286,6 +292,11 @@ export const portfolioService: PortfolioService = {
     const smoothedData = fillMissingDays(trendData);
     
     return { data: smoothedData, error: null };
+  },
+
+  getAccounts: async (userId: string) => {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    return { data: mockAccounts, error: null };
   },
 
   // UUID-based methods for shared portfolios
