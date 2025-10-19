@@ -19,6 +19,9 @@ interface TabContentProps {
   };
   onDateRangeChange: (range: { startDate: string; endDate: string }) => void;
   portfolioUuid: string | null;
+  userId?: string;
+  selectedAccountId?: string | null;
+  onAccountChange?: (accountId: string) => void;
 }
 
 export function TabContent({
@@ -29,19 +32,25 @@ export function TabContent({
   recentTrades,
   dateRange,
   onDateRangeChange,
-  portfolioUuid
+  portfolioUuid,
+  userId,
+  selectedAccountId,
+  onAccountChange
 }: TabContentProps) {
   const isSharedView = !!portfolioUuid;
 
   if (activeTab === 'portfolio') {
     return (
-      <Portfolio 
-        holdings={holdings} 
-        theme={theme} 
+      <Portfolio
+        holdings={holdings}
+        theme={theme}
         recentTrades={recentTrades}
         dateRange={dateRange}
         onDateRangeChange={onDateRangeChange}
         isSharedView={isSharedView}
+        userId={userId}
+        selectedAccountId={selectedAccountId}
+        onAccountChange={onAccountChange}
       />
     );
   }
