@@ -103,11 +103,13 @@ export function Portfolio({
           );
         } else if (!isSharedView) {
           // Fix null handling for accountId when calling services
+          if (!userId || !selectedAccountId) return;
+
           response = await portfolioService.getTrendData(
-            userId || DEMO_USER_ID,
+            userId,
             dateRange.startDate,
             dateRange.endDate,
-            selectedAccountId || DEMO_ACCOUNT_ID
+            selectedAccountId,
           );
         }
         

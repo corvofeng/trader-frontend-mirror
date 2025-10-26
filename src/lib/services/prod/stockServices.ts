@@ -230,8 +230,9 @@ export const portfolioService: PortfolioService = {
   getTrendData: async (userId: string, startDate: string, endDate: string, accountId?: string) => {
     try {
       // 使用默认账户ID或用户ID作为路径参数
-      const defaultAccountId = 'default-account';
-      const url = `/api/portfolio/${accountId || defaultAccountId}/trend?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&userId=${userId}`;
+      if (!accountId) return { data: null, error: new Error('User ID is required') };
+
+      const url = `/api/portfolio/${accountId}/trend?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&userId=${userId}`;
       const response = await fetch(url);
 
       if (!response.ok) {

@@ -63,8 +63,10 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
           if (tradesResponse.data) setRecentTrades(tradesResponse.data);
         } else {
           // Fetch regular user portfolio data and accounts
+          if (!selectedAccountId) return;
+
           const [holdingsResponse, tradesResponse, accountsResponse] = await Promise.all([
-            portfolioService.getHoldings(selectedAccountId || DEMO_USER_ID),
+            portfolioService.getHoldings(selectedAccountId),
             portfolioService.getRecentTrades(DEMO_USER_ID, dateRange.startDate, dateRange.endDate, selectedAccountId),
             accountService.getAccounts(DEMO_USER_ID)
           ]);
