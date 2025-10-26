@@ -26,7 +26,7 @@ export function Options({ theme }: OptionsProps) {
   });
 
   const [availableSymbols, setAvailableSymbols] = useState<string[]>([]);
-  const [selectedSymbol, setSelectedSymbol] = useState<string>('SPY');
+  const [selectedSymbol, setSelectedSymbol] = useState<string>(null);
   const [optionsData, setOptionsData] = useState<OptionsData | null>(null);
   const [selectedExpiry, setSelectedExpiry] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
