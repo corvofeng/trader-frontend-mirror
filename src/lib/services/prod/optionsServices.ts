@@ -59,7 +59,9 @@ export const optionsService: OptionsService = {
     }
   },
 
-  saveCustomStrategy: async (strategy: Omit<CustomOptionsStrategy, 'id' | 'createdAt' | 'updatedAt'>) => {
+  saveCustomStrategy: async (
+    strategy: CustomOptionsStrategy | Omit<CustomOptionsStrategy, 'id' | 'createdAt' | 'updatedAt'>
+  ) => {
     try {
       const response = await fetch('/api/options/strategies/custom', {
         method: 'POST',

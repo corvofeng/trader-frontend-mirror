@@ -139,9 +139,15 @@ export function StrategyEditModal({
 
       if (data) {
         toast.success('策略更新成功！');
-        onStrategyUpdated(updatedStrategy);
+        // 优先使用服务端返回的数据（包含真实ID与时间戳）
+        onStrategyUpdated(data);
         onClose();
+        return;
       }
+      // 兜底：若未返回数据，回传本地更新对象
+      toast.success('策略更新成功！');
+      onStrategyUpdated(updatedStrategy);
+      onClose();
     } catch (error) {
       console.error('Error updating strategy:', error);
       toast.error('更新策略失败');

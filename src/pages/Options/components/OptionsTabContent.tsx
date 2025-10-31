@@ -5,6 +5,8 @@ import { OptionsPortfolio } from '../../../features/options/components/OptionsPo
 import { OptionsTradePlans } from '../../../features/options/components/OptionsTradePlans';
 import { OptionsCalculatorCard } from '../../../features/options/components/OptionsCalculatorCard';
 import { OptionsPortfolioManagement } from '../../../features/options/components/OptionsPortfolioManagement';
+import { HoldingsStrategyBuilder } from '../../../features/options/components/HoldingsStrategyBuilder';
+import { VolatilitySurface } from '../../../features/options/components/VolatilitySurface';
 import { RelatedLinks } from '../../../shared/components';
 import { Theme } from '../../../lib/theme';
 import type { OptionsData } from '../../../lib/services/types';
@@ -106,6 +108,7 @@ export function OptionsTabContent({
   if (activeTab === 'portfolio') {
     return (
       <div className="space-y-6">
+        <HoldingsStrategyBuilder theme={theme} />
         <OptionsPortfolio theme={theme} />
         <RelatedLinks 
           theme={theme}

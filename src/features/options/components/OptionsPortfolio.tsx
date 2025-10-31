@@ -9,7 +9,9 @@ import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { optionsService, authService } from '../../../lib/services';
+import { emitAddLegToStrategy } from '../events/strategySelection';
 import type { OptionsPortfolioData, CustomOptionsStrategy, OptionsPosition } from '../../../lib/services/types';
+import toast from 'react-hot-toast';
 
 interface OptionsPortfolioProps {
   theme: Theme;
@@ -109,7 +111,19 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
   const [sortBy, setSortBy] = useState<'expiry' | 'profitLoss' | 'symbol'>('expiry');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [expandedStrategies, setExpandedStrategies] = useState<string[]>([]);
+  // 到期分组选择模式（每个到期日单独开启多选）
+  const [expirySelectionMode, setExpirySelectionMode] = useState<Record<string, boolean>>({});
+  // 选中的腿及数量（positionId -> quantity）
+  const [selectedLegs, setSelectedLegs] = useState<Record<string, number>>({});
+  // 保存确认弹窗状态
+  const [saveModalOpen, setSaveModalOpen] = useState(false);
+  const [modalExpiry, setModalExpiry] = useState<string | null>(null);
+  const [saveStrategyName, setSaveStrategyName] = useState<string>('');
+  const [saveStrategyCategory, setSaveStrategyCategory] = useState<'bullish' | 'bearish' | 'neutral' | 'volatility'>('neutral');
+  const [saveStrategyDescription, setSaveStrategyDescription] = useState<string>('');
+  const [isModalSaving, setIsModalSaving] = useState(false);
   const { currencyConfig } = useCurrency();
+  // 复杂策略编辑复用“保存确认弹窗”，不使用独立编辑器
 
   useEffect(() => {
     const fetchData = async () => {
@@ -118,7 +132,8 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
 
         let userId = DEMO_USER_ID;
         try {
-          const { data: { user } } = await authService.getUser();
+          const authRes = await authService.getUser();
+          const user = authRes?.data?.user;
           userId = user?.id || DEMO_USER_ID;
         } catch (error) {
           console.log(error);
@@ -137,13 +152,20 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
     fetchData();
   }, []);
 
+  // 本页面不订阅外部“打开编辑器”事件，保持弹窗一致
+
   useEffect(() => {
     const fetchCustomStrategies = async () => {
       try {
         setIsLoadingStrategies(true);
-        const { data: { user } } = await authService.getUser();
-        
-        const userId = user?.id || DEMO_USER_ID;
+        let userId = DEMO_USER_ID;
+        try {
+          const authRes = await authService.getUser();
+          const user = authRes?.data?.user;
+          userId = user?.id || DEMO_USER_ID;
+        } catch (e) {
+          // ignore and fallback
+        }
         const { data, error } = await optionsService.getCustomStrategies(userId);
         
         if (error) throw error;
@@ -168,15 +190,280 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
     );
   };
 
+  // 开关指定到期日的选择模式
+  const toggleExpirySelection = (expiry: string) => {
+    setExpirySelectionMode(prev => ({ ...prev, [expiry]: !prev[expiry] }));
+  };
+
+  const isSelectingExpiry = (expiry: string) => !!expirySelectionMode[expiry];
+
+  // 根据 positionId 查找持仓，用于判断是否复杂策略
+  const findPositionById = (positionId: string): OptionsPosition | undefined => {
+    for (const group of portfolioData?.expiryGroups || []) {
+      const found = group.positions.find(p => p.id === positionId);
+      if (found) return found;
+    }
+    return undefined;
+  };
+
+  const setPositionSelected = (positionId: string, checked: boolean) => {
+    setSelectedLegs(prev => {
+      const next = { ...prev };
+      if (checked) {
+        // 若无数量则默认1
+        next[positionId] = next[positionId] && next[positionId] > 0 ? next[positionId] : 1;
+        // 在选择模式下：复杂策略不再同步到构建器
+        const pos = findPositionById(positionId);
+        const isComplex = pos ? (pos.type !== 'call' && pos.type !== 'put') : false;
+        if (!isComplex) {
+          emitAddLegToStrategy({ positionId, quantity: next[positionId] });
+        }
+      } else {
+        delete next[positionId];
+      }
+      return next;
+    });
+  };
+
+  const updateSelectedQuantity = (positionId: string, qty: number) => {
+    const bounded = Math.max(1, qty);
+    setSelectedLegs(prev => ({ ...prev, [positionId]: bounded }));
+    // 在选择模式下：复杂策略不再同步到构建器
+    const pos = findPositionById(positionId);
+    const isComplex = pos ? (pos.type !== 'call' && pos.type !== 'put') : false;
+    if (!isComplex) {
+      emitAddLegToStrategy({ positionId, quantity: bounded });
+    }
+  };
+
+  // 构建并保存本到期日所选腿为一个自定义策略
+  const buildStrategyFromExpiry = async (
+    expiry: string,
+    overrides?: { name?: string; strategyCategory?: 'bullish' | 'bearish' | 'neutral' | 'volatility'; description?: string }
+  ) => {
+    try {
+      const selectedIds = Object.keys(selectedLegs).filter(id => {
+        const qty = selectedLegs[id];
+        return qty && qty > 0;
+      });
+
+      if (selectedIds.length === 0) {
+        toast.error('请先选择期权腿并设置数量');
+        return;
+      }
+
+      // 聚合该到期组的持仓，匹配被选中的ID
+      const group = portfolioData?.expiryGroups.find(g => g.expiry === expiry);
+      if (!group) {
+        toast.error('未找到该到期组');
+        return;
+      }
+
+      const positions: OptionsPosition[] = group.positions
+        .filter(p => selectedIds.includes(p.id))
+        .map(p => ({
+          ...p,
+          selectedQuantity: Math.max(1, Math.min(selectedLegs[p.id] || 1, p.quantity)),
+          // 以选择数量估算策略中的盈亏，不影响原始quantity
+          profitLoss: (p.currentValue - p.premium) * (selectedLegs[p.id] || 1) * 100,
+        }));
+
+      // 基本策略信息：名称可用到期日+数量概述
+      const defaultName = `${format(new Date(expiry), 'yyyy-MM-dd')} 自选组合 (${positions.length}腿)`;
+      const defaultDescription = `基于到期日 ${format(new Date(expiry), 'yyyy-MM-dd')} 的多腿组合`;
+      const name = overrides?.name?.trim() ? overrides!.name! : defaultName;
+      const description = overrides?.description?.trim() ? overrides!.description! : defaultDescription;
+      const strategyCategoryOverride = overrides?.strategyCategory || 'neutral';
+
+      // 用户ID（若登录则使用真实，否则DEMO）
+      let userId = DEMO_USER_ID;
+      try {
+        const authRes = await authService.getUser();
+        const user = authRes?.data?.user;
+        userId = user?.id || DEMO_USER_ID;
+      } catch {
+        // ignore
+      }
+
+      const payload: Omit<CustomOptionsStrategy, 'id' | 'createdAt' | 'updatedAt'> = {
+        userId,
+        name,
+        description,
+        positions,
+        strategyCategory: strategyCategoryOverride,
+        riskLevel: 'medium',
+        isPresetStrategy: false,
+      };
+
+      const { data, error } = await optionsService.saveCustomStrategy(payload);
+      if (error) throw error;
+
+      toast.success('组合构建并保存成功！');
+
+      // 成功后：清理本到期的选择并退出选择模式
+      setSelectedLegs(prev => {
+        const next = { ...prev };
+        positions.forEach(p => { delete next[p.id]; });
+        return next;
+      });
+      setExpirySelectionMode(prev => ({ ...prev, [expiry]: false }));
+    } catch (e) {
+      console.error(e);
+      toast.error('保存组合失败，请稍后重试');
+    }
+  };
+
+  // 打开保存确认弹窗，并填充默认值（可编辑）
+  const openSaveModal = (expiry: string) => {
+    const group = portfolioData?.expiryGroups.find(g => g.expiry === expiry);
+    const selectedIds = Object.keys(selectedLegs).filter(id => selectedLegs[id] && selectedLegs[id] > 0);
+    const positionsCount = group ? group.positions.filter(p => selectedIds.includes(p.id)).length : selectedIds.length;
+    const currentPositions = group ? group.positions.filter(p => selectedIds.includes(p.id)) : [];
+    const inferred = inferStrategyFromLegs(currentPositions);
+    const inferredName = inferred ? inferred.nameZh : '自选组合';
+    const defaultName = `${format(new Date(expiry), 'yyyy-MM-dd')} ${inferredName} (${positionsCount}腿)`;
+    const defaultDescription = `基于到期日 ${format(new Date(expiry), 'yyyy-MM-dd')} 的多腿组合${inferred ? `，初步识别：${inferred.nameZh}` : ''}`;
+
+    setModalExpiry(expiry);
+    setSaveStrategyName(defaultName);
+    setSaveStrategyCategory(inferred ? inferred.category : 'neutral');
+    setSaveStrategyDescription(defaultDescription);
+    setSaveModalOpen(true);
+  };
+
+  const closeSaveModal = () => {
+    setSaveModalOpen(false);
+    setModalExpiry(null);
+    setIsModalSaving(false);
+  };
+
+  const confirmSaveModal = async () => {
+    if (!modalExpiry) return;
+    try {
+      setIsModalSaving(true);
+      await buildStrategyFromExpiry(modalExpiry, {
+        name: saveStrategyName,
+        strategyCategory: saveStrategyCategory,
+        description: saveStrategyDescription,
+      });
+      closeSaveModal();
+    } catch (e) {
+      setIsModalSaving(false);
+    }
+  };
+
+  // ====== 策略类型初步解析（基于所选腿） ======
+  type InferredResult = {
+    nameZh: string;
+    category: 'bullish' | 'bearish' | 'neutral' | 'volatility';
+    confidence: number; // 0~1
+  };
+
+  const inferStrategyFromLegs = (legs: OptionsPosition[]): InferredResult | null => {
+    if (!legs || legs.length === 0) return null;
+
+    const byType = {
+      call: legs.filter(l => l.type === 'call'),
+      put: legs.filter(l => l.type === 'put')
+    };
+    const getQty = (l: OptionsPosition) => selectedLegs[l.id] || 0;
+    const totalLegs = legs.reduce((acc, l) => acc + (getQty(l) > 0 ? 1 : 0), 0);
+    const calls = byType.call.filter(l => getQty(l) > 0);
+    const puts = byType.put.filter(l => getQty(l) > 0);
+
+    const sortByStrikeAsc = (arr: OptionsPosition[]) => [...arr].sort((a,b)=>a.strike-b.strike);
+
+    // 单腿
+    if (totalLegs === 1) {
+      const l = legs.find(x => getQty(x) > 0)!;
+      if (l.type === 'call') {
+        return { nameZh: l.position_type === 'buy' ? '买入看涨' : '卖出看涨', category: l.position_type === 'buy' ? 'bullish' : 'bearish', confidence: 0.9 };
+      } else if (l.type === 'put') {
+        return { nameZh: l.position_type === 'buy' ? '买入看跌' : '卖出看跌', category: l.position_type === 'buy' ? 'bearish' : 'bullish', confidence: 0.9 };
+      }
+    }
+
+    // 垂直价差（看涨/看跌）
+    if (calls.length === 2 && puts.length === 0) {
+      const [c1, c2] = sortByStrikeAsc(calls);
+      const q1 = getQty(c1), q2 = getQty(c2);
+      if (q1 === q2 && q1 > 0) {
+        if (c1.position_type === 'buy' && c2.position_type === 'sell') {
+          return { nameZh: '牛市看涨价差', category: 'bullish', confidence: 0.95 };
+        }
+        if (c1.position_type === 'sell' && c2.position_type === 'buy') {
+          return { nameZh: '熊市看涨价差', category: 'bearish', confidence: 0.95 };
+        }
+      }
+    }
+    if (puts.length === 2 && calls.length === 0) {
+      const [p1, p2] = sortByStrikeAsc(puts);
+      const q1 = getQty(p1), q2 = getQty(p2);
+      if (q1 === q2 && q1 > 0) {
+        if (p1.position_type === 'sell' && p2.position_type === 'buy') {
+          return { nameZh: '牛市看跌价差', category: 'bullish', confidence: 0.95 };
+        }
+        if (p1.position_type === 'buy' && p2.position_type === 'sell') {
+          return { nameZh: '熊市看跌价差', category: 'bearish', confidence: 0.95 };
+        }
+      }
+    }
+
+    // 跨式 / 勒式
+    if (calls.length === 1 && puts.length === 1) {
+      const c = calls[0], p = puts[0];
+      const qc = getQty(c), qp = getQty(p);
+      if (qc === qp && qc > 0 && c.position_type === 'buy' && p.position_type === 'buy') {
+        if (c.strike === p.strike) {
+          return { nameZh: '买入跨式', category: 'volatility', confidence: 0.9 };
+        } else {
+          return { nameZh: '买入勒式', category: 'volatility', confidence: 0.9 };
+        }
+      }
+    }
+
+    // 铁鹰：卖出看涨价差 + 卖出看跌价差（各两腿）
+    if (calls.length === 2 && puts.length === 2) {
+      const [c1, c2] = sortByStrikeAsc(calls);
+      const [p1, p2] = sortByStrikeAsc(puts);
+      const spreadCallShort = c1.position_type === 'sell' && c2.position_type === 'buy';
+      const spreadPutShort = p1.position_type === 'sell' && p2.position_type === 'buy';
+      const qtyOk = getQty(c1) === getQty(c2) && getQty(p1) === getQty(p2) && getQty(c1) === getQty(p1) && getQty(c1) > 0;
+      if (spreadCallShort && spreadPutShort && qtyOk) {
+        return { nameZh: '铁鹰（Iron Condor）', category: 'neutral', confidence: 0.9 };
+      }
+    }
+
+    // 蝶式（基于看涨）：买入低、卖出中x2、买入高
+    if (calls.length >= 3 && puts.length === 0) {
+      const sorted = sortByStrikeAsc(calls);
+      if (sorted.length === 3) {
+        const [low, mid, high] = sorted;
+        const qLow = getQty(low), qMid = getQty(mid), qHigh = getQty(high);
+        const pattern = low.position_type === 'buy' && mid.position_type === 'sell' && high.position_type === 'buy' && qMid === qLow * 2 && qLow === qHigh && qLow > 0;
+        if (pattern) return { nameZh: '蝶式价差（看涨）', category: 'neutral', confidence: 0.85 };
+      }
+    }
+
+    // 兜底：返回中性分类
+    return { nameZh: '自选组合', category: 'neutral', confidence: 0.5 };
+  };
+
   // 生成策略ID的逻辑
   const getStrategyId = (position: OptionsPosition, index: number): string => {
-    // 根据策略类型生成ID
-    if (position.strategy.includes('Spread') || position.strategy.includes('Condor') || position.strategy.includes('Butterfly')) {
-      return `STR-${position.strategy.replace(/\s+/g, '').toUpperCase()}-${Math.floor(index / 2) + 1}`;
-    } else if (position.strategy.includes('Straddle') || position.strategy.includes('Strangle')) {
-      return `VOL-${position.strategy.replace(/\s+/g, '').toUpperCase()}-${Math.floor(index / 2) + 1}`;
+    // 规范化策略名，兼容 snake_case/大小写
+    const normalized = (position.strategy || '')
+      .replace(/_/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toUpperCase();
+
+    if (normalized.includes('SPREAD') || normalized.includes('CONDOR') || normalized.includes('BUTTERFLY')) {
+      return `STR-${normalized.replace(/\s+/g, '')}-${Math.floor(index / 2) + 1}`;
+    } else if (normalized.includes('STRADDLE') || normalized.includes('STRANGLE')) {
+      return `VOL-${normalized.replace(/\s+/g, '')}-${Math.floor(index / 2) + 1}`;
     } else {
-      return `SINGLE-${position.type.toUpperCase()}-${index + 1}`;
+      return `SINGLE-${(position.type || 'unknown').toUpperCase()}-${index + 1}`;
     }
   };
 
@@ -305,8 +592,11 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
     .flatMap(group => group.positions)
     .filter(position => statusFilter === 'all' || position.status === statusFilter)
     .map((position, index) => {
+      // 为缺失id生成稳定ID
+      const safeId = position.id ?? `pos-${index}-${(position.symbol || 'SYM')}-${(position.expiry || 'EXP')}`;
       const extendedPosition: ExtendedOptionsPosition = {
         ...position,
+        id: safeId,
         strategy_id: getStrategyId(position, index),
         is_single_leg: isSingleLegPosition(position)
       };
@@ -314,6 +604,27 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
     });
 
   const { strategies: groupedStrategies, singleLegs } = groupPositionsByStrategy(allPositions);
+
+  // 根据复杂仓位打开保存弹窗（预选同策略ID且同到期日的腿）
+  const openEditForComplexPosition = (position: ExtendedOptionsPosition) => {
+    const strategyId = position.strategy_id;
+    if (!strategyId) return;
+    const expiry = position.expiry;
+
+    const legs = allPositions.filter(p => p.strategy_id === strategyId && p.expiry === expiry);
+
+    setSelectedLegs(prev => {
+      const next = { ...prev };
+      legs.forEach(l => {
+        next[l.id] = Math.max(1, (l as any).selectedQuantity || l.quantity || 1);
+      });
+      return next;
+    });
+
+    openSaveModal(expiry);
+  };
+
+  // 不再使用独立编辑器更新回调
 
   return (
     <div className="space-y-6">
@@ -862,6 +1173,22 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
                       <p className={`text-sm ${themes[theme].text} opacity-75`}>
                         总价值: {formatCurrency(group.totalValue, currencyConfig)}
                       </p>
+                      <div className="mt-2 flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => toggleExpirySelection(group.expiry)}
+                          className={`px-3 py-1 rounded text-xs ${themes[theme].secondary}`}
+                        >
+                          {isSelectingExpiry(group.expiry) ? '退出选择' : '选择此到期日'}
+                        </button>
+                        {isSelectingExpiry(group.expiry) && (
+                          <button
+                            onClick={() => openSaveModal(group.expiry)}
+                            className="px-3 py-1 rounded text-xs bg-blue-600 text-white hover:bg-blue-700"
+                          >
+                            构建组合并保存
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -930,10 +1257,48 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
                                             <div className={`text-xs ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                               ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
                                             </div>
-                                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(position.status)} mt-1`}>
-                                              {position.status === 'open' ? '持仓中' : 
-                                               position.status === 'closed' ? '已平仓' : '已到期'}
-                                            </span>
+                                            <div className="flex items-center justify-end gap-2 mt-1">
+                                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(position.status)}`}>
+                                                {position.status === 'open' ? '持仓中' : 
+                                                 position.status === 'closed' ? '已平仓' : '已到期'}
+                                              </span>
+                                              {!isSelectingExpiry(position.expiry) && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => emitAddLegToStrategy({ positionId: position.id, quantity: 1 })}
+                                                  className="inline-flex items-center px-2 py-1 rounded text-xs bg-blue-600 text-white hover:bg-blue-700"
+                                                  aria-label="加入策略"
+                                                >
+                                                  加入策略
+                                                </button>
+                                              )}
+                                              {isSelectingExpiry(position.expiry) && (
+                                                <div className="mt-2 flex items-center justify-end gap-2">
+                                                  <label className={`text-xs ${themes[theme].text} opacity-75 flex items-center gap-1`}>
+                                                    <input
+                                                      type="checkbox"
+                                                      checked={!!selectedLegs[position.id]}
+                                                      onChange={(e) => setPositionSelected(position.id, e.target.checked)}
+                                                    />
+                                                    选择
+                                                  </label>
+                                                  {!!selectedLegs[position.id] && (
+                                                    <input
+                                                      type="number"
+                                                      min={1}
+                                                      max={position.quantity}
+                                                      value={selectedLegs[position.id]}
+                                                      onChange={(e) => {
+                                                        const val = parseInt(e.target.value) || 1;
+                                                        const clamped = Math.max(1, Math.min(val, position.quantity));
+                                                        updateSelectedQuantity(position.id, clamped);
+                                                      }}
+                                                      className={`w-20 px-2 py-1 rounded text-xs ${themes[theme].input} ${themes[theme].text}`}
+                                                    />
+                                                  )}
+                                                </div>
+                                              )}
+                                            </div>
                                           </div>
                                         </div>
                                       </div>
@@ -1001,10 +1366,48 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
                                             <div className={`text-xs ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                               ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
                                             </div>
-                                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(position.status)} mt-1`}>
-                                              {position.status === 'open' ? '持仓中' : 
-                                               position.status === 'closed' ? '已平仓' : '已到期'}
-                                            </span>
+                                            <div className="flex items-center justify-end gap-2 mt-1">
+                                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(position.status)}`}>
+                                                {position.status === 'open' ? '持仓中' : 
+                                                 position.status === 'closed' ? '已平仓' : '已到期'}
+                                              </span>
+                                              {!isSelectingExpiry(position.expiry) && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => emitAddLegToStrategy({ positionId: position.id, quantity: 1 })}
+                                                  className="inline-flex items-center px-2 py-1 rounded text-xs bg-blue-600 text-white hover:bg-blue-700"
+                                                  aria-label="加入策略"
+                                                >
+                                                  加入策略
+                                                </button>
+                                              )}
+                                              {isSelectingExpiry(position.expiry) && (
+                                                <div className="mt-2 flex items-center justify-end gap-2">
+                                                  <label className={`text-xs ${themes[theme].text} opacity-75 flex items-center gap-1`}>
+                                                    <input
+                                                      type="checkbox"
+                                                      checked={!!selectedLegs[position.id]}
+                                                      onChange={(e) => setPositionSelected(position.id, e.target.checked)}
+                                                    />
+                                                    选择
+                                                  </label>
+                                                  {!!selectedLegs[position.id] && (
+                                                    <input
+                                                      type="number"
+                                                      min={1}
+                                                      max={position.quantity}
+                                                      value={selectedLegs[position.id]}
+                                                      onChange={(e) => {
+                                                        const val = parseInt(e.target.value) || 1;
+                                                        const clamped = Math.max(1, Math.min(val, position.quantity));
+                                                        updateSelectedQuantity(position.id, clamped);
+                                                      }}
+                                                      className={`w-20 px-2 py-1 rounded text-xs ${themes[theme].input} ${themes[theme].text}`}
+                                                    />
+                                                  )}
+                                                </div>
+                                              )}
+                                            </div>
                                           </div>
                                         </div>
                                       </div>
@@ -1037,7 +1440,7 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
                                   
                                   return (
                                     <div 
-                                      key={position.id} 
+                                      key={`${position.id ?? 'noid'}-${position.symbol}-${position.strike}-${position.type}-${position.expiry}`}
                                       className={`${themes[theme].background} rounded-lg p-4 border-l-4 ${positionInfo.borderColor}`}
                                     >
                                       <div className="flex justify-between items-start">
@@ -1075,10 +1478,48 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
                                           <div className={`text-xs ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                             ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
                                           </div>
-                                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(position.status)} mt-1`}>
-                                            {position.status === 'open' ? '持仓中' : 
-                                             position.status === 'closed' ? '已平仓' : '已到期'}
-                                          </span>
+                                          <div className="flex items-center justify-end gap-2 mt-1">
+                                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(position.status)}`}>
+                                              {position.status === 'open' ? '持仓中' : 
+                                               position.status === 'closed' ? '已平仓' : '已到期'}
+                                            </span>
+                                            {!isSelectingExpiry(position.expiry) && (
+                                              <button
+                                                type="button"
+                                                onClick={() => openEditForComplexPosition(position as ExtendedOptionsPosition)}
+                                                className="inline-flex items-center px-2 py-1 rounded text-xs bg-purple-600 text-white hover:bg-purple-700"
+                                                aria-label="编辑策略"
+                                              >
+                                                编辑策略
+                                              </button>
+                                            )}
+                                            {isSelectingExpiry(position.expiry) && (
+                                              <div className="mt-2 flex items-center justify-end gap-2">
+                                                <label className={`text-xs ${themes[theme].text} opacity-75 flex items-center gap-1`}>
+                                                  <input
+                                                    type="checkbox"
+                                                    checked={!!selectedLegs[position.id]}
+                                                    onChange={(e) => setPositionSelected(position.id, e.target.checked)}
+                                                  />
+                                                  选择
+                                                </label>
+                                                {!!selectedLegs[position.id] && (
+                                                  <input
+                                                    type="number"
+                                                    min={1}
+                                                    max={position.quantity}
+                                                    value={selectedLegs[position.id]}
+                                                    onChange={(e) => {
+                                                      const val = parseInt(e.target.value) || 1;
+                                                      const clamped = Math.max(1, Math.min(val, position.quantity));
+                                                      updateSelectedQuantity(position.id, clamped);
+                                                    }}
+                                                    className={`w-20 px-2 py-1 rounded text-xs ${themes[theme].input} ${themes[theme].text}`}
+                                                  />
+                                                )}
+                                              </div>
+                                            )}
+                                          </div>
                                         </div>
                                       </div>
                                     </div>
@@ -1212,13 +1653,39 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
                                             <div className={`text-sm font-bold ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                               {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
                                             </div>
-                                            <div className={`text-xs ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                              <div className={`text-xs ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                               ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
                                             </div>
                                             <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(position.status)} mt-1`}>
                                               {position.status === 'open' ? '持仓中' : 
                                                position.status === 'closed' ? '已平仓' : '已到期'}
                                             </span>
+                                            {isSelectingExpiry(position.expiry) && (
+                                              <div className="mt-2 flex items-center justify-end gap-2">
+                                                <label className={`text-xs ${themes[theme].text} opacity-75 flex items-center gap-1`}>
+                                                  <input
+                                                    type="checkbox"
+                                                    checked={!!selectedLegs[position.id]}
+                                                    onChange={(e) => setPositionSelected(position.id, e.target.checked)}
+                                                  />
+                                                  选择
+                                                </label>
+                                                {!!selectedLegs[position.id] && (
+                                                  <input
+                                                    type="number"
+                                                    min={1}
+                                                    max={position.quantity}
+                                                    value={selectedLegs[position.id]}
+                                                    onChange={(e) => {
+                                                      const val = parseInt(e.target.value) || 1;
+                                                      const clamped = Math.max(1, Math.min(val, position.quantity));
+                                                      updateSelectedQuantity(position.id, clamped);
+                                                    }}
+                                                    className={`w-20 px-2 py-1 rounded text-xs ${themes[theme].input} ${themes[theme].text}`}
+                                                  />
+                                                )}
+                                              </div>
+                                            )}
                                           </div>
                                         </div>
                                       </div>
@@ -1290,6 +1757,32 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
                                               {position.status === 'open' ? '持仓中' : 
                                                position.status === 'closed' ? '已平仓' : '已到期'}
                                             </span>
+                                            {isSelectingExpiry(position.expiry) && (
+                                              <div className="mt-2 flex items-center justify-end gap-2">
+                                                <label className={`text-xs ${themes[theme].text} opacity-75 flex items-center gap-1`}>
+                                                  <input
+                                                    type="checkbox"
+                                                    checked={!!selectedLegs[position.id]}
+                                                    onChange={(e) => setPositionSelected(position.id, e.target.checked)}
+                                                  />
+                                                  选择
+                                                </label>
+                                                {!!selectedLegs[position.id] && (
+                                                  <input
+                                                    type="number"
+                                                    min={1}
+                                                    max={position.quantity}
+                                                    value={selectedLegs[position.id]}
+                                                    onChange={(e) => {
+                                                      const val = parseInt(e.target.value) || 1;
+                                                      const clamped = Math.max(1, Math.min(val, position.quantity));
+                                                      updateSelectedQuantity(position.id, clamped);
+                                                    }}
+                                                    className={`w-20 px-2 py-1 rounded text-xs ${themes[theme].input} ${themes[theme].text}`}
+                                                  />
+                                                )}
+                                              </div>
+                                            )}
                                           </div>
                                         </div>
                                       </div>
@@ -1322,7 +1815,7 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
                                   
                                   return (
                                     <div 
-                                      key={position.id} 
+                                      key={`${position.id ?? 'noid'}-${position.symbol}-${position.strike}-${position.type}-${position.expiry}`}
                                       className={`${themes[theme].background} rounded-lg p-4 border-l-4 ${positionInfo.borderColor}`}
                                     >
                                       <div className="flex justify-between items-start">
@@ -1364,6 +1857,42 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
                                             {position.status === 'open' ? '持仓中' : 
                                              position.status === 'closed' ? '已平仓' : '已到期'}
                                           </span>
+                                          {!isSelectingExpiry(position.expiry) && (
+                                            <button
+                                              type="button"
+                                              onClick={() => openEditForComplexPosition(position as ExtendedOptionsPosition)}
+                                              className="inline-flex items-center px-2 py-1 rounded text-xs bg-purple-600 text-white hover:bg-purple-700"
+                                              aria-label="编辑策略"
+                                            >
+                                              编辑策略
+                                            </button>
+                                          )}
+                                          {isSelectingExpiry(position.expiry) && (
+                                            <div className="mt-2 flex items-center justify-end gap-2">
+                                              <label className={`text-xs ${themes[theme].text} opacity-75 flex items-center gap-1`}>
+                                                <input
+                                                  type="checkbox"
+                                                  checked={!!selectedLegs[position.id]}
+                                                  onChange={(e) => setPositionSelected(position.id, e.target.checked)}
+                                                />
+                                                选择
+                                              </label>
+                                              {!!selectedLegs[position.id] && (
+                                                <input
+                                                  type="number"
+                                                  min={1}
+                                                  max={position.quantity}
+                                                  value={selectedLegs[position.id]}
+                                                  onChange={(e) => {
+                                                    const val = parseInt(e.target.value) || 1;
+                                                    const clamped = Math.max(1, Math.min(val, position.quantity));
+                                                    updateSelectedQuantity(position.id, clamped);
+                                                  }}
+                                                  className={`w-20 px-2 py-1 rounded text-xs ${themes[theme].input} ${themes[theme].text}`}
+                                                />
+                                              )}
+                                            </div>
+                                          )}
                                         </div>
                                       </div>
                                     </div>
@@ -1382,6 +1911,122 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
           })}
         </div>
       )}
+
+      {/* 保存确认弹窗 */}
+      {saveModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={closeSaveModal} />
+          <div className={`${themes[theme].card} relative z-10 w-full max-w-md rounded-lg shadow-lg p-6`}>
+            <h3 className={`text-lg font-semibold ${themes[theme].text} mb-4`}>确认保存组合</h3>
+            <div className="space-y-3">
+              <div>
+                <label className={`text-sm ${themes[theme].text} opacity-75`}>策略名称</label>
+                <input
+                  type="text"
+                  value={saveStrategyName}
+                  onChange={(e) => setSaveStrategyName(e.target.value)}
+                  className={`mt-1 w-full px-3 py-2 rounded ${themes[theme].input} ${themes[theme].text}`}
+                  placeholder="请输入策略名称"
+                />
+              </div>
+              <div>
+                <label className={`text-sm ${themes[theme].text} opacity-75`}>组合类型</label>
+                <select
+                  value={saveStrategyCategory}
+                  onChange={(e) => setSaveStrategyCategory(e.target.value as typeof saveStrategyCategory)}
+                  className={`mt-1 w-full px-3 py-2 rounded ${themes[theme].input} ${themes[theme].text}`}
+                >
+                  <option value="neutral">中性</option>
+                  <option value="bullish">看涨</option>
+                  <option value="bearish">看跌</option>
+                  <option value="volatility">波动率</option>
+                </select>
+              </div>
+              {/* 识别结果与腿预览（支持编辑） */}
+              <div className="border rounded p-3">
+                <div className={`text-sm font-medium ${themes[theme].text} mb-2`}>组合预览与编辑</div>
+                <div className="max-h-48 overflow-auto space-y-2">
+                  {(portfolioData?.expiryGroups.find(g => g.expiry === modalExpiry)?.positions || [])
+                    .map(p => {
+                      const checked = !!selectedLegs[p.id] && selectedLegs[p.id] > 0;
+                      const qty = selectedLegs[p.id] || 0;
+                      return (
+                        <div key={`${p.id ?? 'noid'}-${p.symbol}-${p.strike}-${p.type}-${p.expiry}`} className="flex items-center justify-between text-xs gap-2">
+                          <label className={`flex items-center gap-2 ${themes[theme].text}`}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => setPositionSelected(p.id, e.target.checked)}
+                            />
+                            <span>
+                              {p.symbol} {p.expiry} {p.type === 'call' ? '看涨' : p.type === 'put' ? '看跌' : p.strategy} {p.position_type === 'buy' ? '买入' : '卖出'} @ {p.strike}
+                            </span>
+                          </label>
+                          <div className="flex items-center gap-1">
+                            <span className={`${themes[theme].text} opacity-70`}>数量</span>
+                            <input
+                              type="number"
+                              min={1}
+                              max={p.quantity}
+                              value={checked ? qty : 0}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value) || 0;
+                                const clamped = Math.max(checked ? 1 : 0, Math.min(val, p.quantity));
+                                updateSelectedQuantity(p.id, clamped);
+                              }}
+                              className={`w-20 px-2 py-1 rounded ${themes[theme].input} ${themes[theme].text}`}
+                              disabled={!checked}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+                {/* 实时识别提示 */}
+                {(() => {
+                  const group = portfolioData?.expiryGroups.find(g => g.expiry === modalExpiry);
+                  const selectedIds = Object.keys(selectedLegs).filter(id => selectedLegs[id] && selectedLegs[id] > 0);
+                  const positions = group ? group.positions.filter(p => selectedIds.includes(p.id)) : [];
+                  const inferred = inferStrategyFromLegs(positions);
+                  return (
+                    <div className={`mt-2 text-xs ${themes[theme].text}`}>
+                      初步识别：{inferred ? `${inferred.nameZh}（置信度 ${Math.round(inferred.confidence*100)}%）` : '无法识别'}
+                    </div>
+                  );
+                })()}
+              </div>
+              <div>
+                <label className={`text-sm ${themes[theme].text} opacity-75`}>描述</label>
+                <textarea
+                  value={saveStrategyDescription}
+                  onChange={(e) => setSaveStrategyDescription(e.target.value)}
+                  className={`mt-1 w-full px-3 py-2 rounded ${themes[theme].input} ${themes[theme].text}`}
+                  rows={3}
+                  placeholder="可选，添加组合描述"
+                />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                onClick={closeSaveModal}
+                className={`px-3 py-2 rounded ${themes[theme].secondary}`}
+                disabled={isModalSaving}
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmSaveModal}
+                className="px-3 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                disabled={isModalSaving}
+              >
+                {isModalSaving ? '保存中...' : '确认保存'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 复杂策略编辑与构建统一使用上方“保存确认弹窗” */}
     </div>
   );
 }
