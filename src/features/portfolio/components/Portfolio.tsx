@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { logger } from '../../../shared/utils/logger';
 import { format, subDays } from 'date-fns';
 import { ArrowUpCircle, ArrowDownCircle, Calendar, Filter, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, BarChart2, Briefcase, ExternalLink, Camera } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
@@ -103,7 +104,10 @@ export function Portfolio({
           );
         } else if (!isSharedView) {
           // Fix null handling for accountId when calling services
-          if (!userId || !selectedAccountId) return;
+    if (!userId || !selectedAccountId) {
+      logger.debug('[Portfolio] Guard: user/account missing', { userId, selectedAccountId });
+      return;
+    }
 
           response = await portfolioService.getTrendData(
             userId,
@@ -249,7 +253,10 @@ export function Portfolio({
   };
 
   const handleScreenshot = async () => {
-    if (!journalRef.current) return;
+  if (!journalRef.current) {
+    logger.debug('[Portfolio] Guard: journalRef missing');
+    return;
+  }
     
     try {
       const node = journalRef.current;
@@ -274,7 +281,10 @@ export function Portfolio({
   };
 
   const handleSaveScreenshot = () => {
-    if (!screenshotPreview) return;
+  if (!screenshotPreview) {
+    logger.debug('[Portfolio] Guard: screenshotPreview missing');
+    return;
+  }
     
     const link = document.createElement('a');
     link.download = `trading-journal-${new Date().toISOString().split('T')[0]}.png`;
@@ -286,7 +296,10 @@ export function Portfolio({
   };
 
   const handleScreenshotSave = async () => {
-    if (!imageUrl) return;
+  if (!imageUrl) {
+    logger.debug('[Portfolio] Guard: imageUrl missing');
+    return;
+  }
 
     try {
       const link = document.createElement('a');

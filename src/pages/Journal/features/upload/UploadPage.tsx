@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { logger } from '../../../../shared/utils/logger';
 import { Upload, FileText, CheckCircle, AlertCircle, ExternalLink, Copy } from 'lucide-react';
 import { Theme, themes } from '../../../../lib/theme';
 import { uploadService } from '../../../../lib/services';
@@ -45,7 +46,10 @@ export function UploadPage({ theme }: UploadPageProps) {
   };
 
   const handleFileUpload = async (file: File) => {
-    if (!file) return;
+    if (!file) {
+      logger.debug('[UploadPage] Guard: file missing');
+      return;
+    }
 
     // Validate file type
     const allowedTypes = ['.csv', '.xlsx', '.xls', '.txt'];
@@ -72,7 +76,10 @@ export function UploadPage({ theme }: UploadPageProps) {
   };
 
   const copyShareLink = () => {
-    if (!uploadResult) return;
+    if (!uploadResult) {
+      logger.debug('[UploadPage] Guard: uploadResult missing on copy');
+      return;
+    }
     
     const shareUrl = `${window.location.origin}/journal?tab=portfolio&uuid=${uploadResult.uuid}`;
     navigator.clipboard.writeText(shareUrl);
@@ -80,7 +87,10 @@ export function UploadPage({ theme }: UploadPageProps) {
   };
 
   const openShareLink = () => {
-    if (!uploadResult) return;
+    if (!uploadResult) {
+      logger.debug('[UploadPage] Guard: uploadResult missing on open');
+      return;
+    }
     
     const shareUrl = `${window.location.origin}/journal?tab=portfolio&uuid=${uploadResult.uuid}`;
     window.open(shareUrl, '_blank');

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { logger } from '../../../shared/utils/logger';
 import * as echarts from 'echarts';
 import { Filter, X } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
@@ -127,7 +128,14 @@ export function PortfolioHeatmap({ holdings, theme }: PortfolioHeatmapProps) {
   }, []);
 
   useEffect(() => {
-    if (!chartRef.current || holdings.length === 0 || isLoading) return;
+    if (!chartRef.current || holdings.length === 0 || isLoading) {
+      logger.debug('[PortfolioHeatmap] Guard: chart not ready or no holdings', {
+        hasRef: !!chartRef.current,
+        holdingsCount: holdings.length,
+        isLoading,
+      });
+      return;
+    }
 
     if (chartInstance.current) {
       chartInstance.current.dispose();
@@ -152,7 +160,10 @@ export function PortfolioHeatmap({ holdings, theme }: PortfolioHeatmapProps) {
           const tags = config?.tags?.length ? config.tags : ['Untagged'];
           
           tags.forEach(tag => {
-            if (!tag) return; // Skip undefined tags
+            if (!tag) {
+              logger.debug('[PortfolioHeatmap] Guard: skipping undefined tag');
+              return; // Skip undefined tags
+            }
             
             if (!tagGroups.has(tag)) {
               tagGroups.set(tag, {

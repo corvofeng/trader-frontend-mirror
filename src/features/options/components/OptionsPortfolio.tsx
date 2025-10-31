@@ -10,6 +10,7 @@ import { formatCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { optionsService, authService } from '../../../lib/services';
 import { emitAddLegToStrategy } from '../events/strategySelection';
+import { logger } from '../../../shared/utils/logger';
 import type { OptionsPortfolioData, CustomOptionsStrategy, OptionsPosition } from '../../../lib/services/types';
 import toast from 'react-hot-toast';
 
@@ -338,7 +339,10 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
   };
 
   const confirmSaveModal = async () => {
-    if (!modalExpiry) return;
+  if (!modalExpiry) {
+    logger.debug('[OptionsPortfolio] Guard: modalExpiry missing');
+    return;
+  }
     try {
       setIsModalSaving(true);
       await buildStrategyFromExpiry(modalExpiry, {
@@ -608,7 +612,16 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
   // 根据复杂仓位打开保存弹窗（预选同策略ID且同到期日的腿）
   const openEditForComplexPosition = (position: ExtendedOptionsPosition) => {
     const strategyId = position.strategy_id;
-    if (!strategyId) return;
+    if (!strategyId) {
+      logger.debug('[OptionsPortfolio] Missing strategy_id for position, skip edit', {
+        positionId: position.id,
+        symbol: position.symbol,
+        expiry: position.expiry,
+        strategy: position.strategy,
+        type: position.type,
+      });
+      return;
+    }
     const expiry = position.expiry;
 
     const legs = allPositions.filter(p => p.strategy_id === strategyId && p.expiry === expiry);

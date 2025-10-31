@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
+import { logger } from '../../shared/utils/logger';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { BarChart2, TrendingUp, Briefcase, Calculator } from 'lucide-react';
 import { OptionsHeader } from './components/OptionsHeader';
 import { OptionsTabNavigation } from './components/OptionsTabNavigation';
 import { OptionsTabContent } from './components/OptionsTabContent';
-import { OptionsCalculatorModal } from './OptionsCalculatorModal';
+import { OptionsCalculatorModal } from '../options/OptionsCalculatorModal';
 import { RelatedLinks } from '../../shared/components';
 import { optionsService } from '../../lib/services';
 import { Theme } from '../../lib/theme';
@@ -26,7 +27,7 @@ export function Options({ theme }: OptionsProps) {
   });
 
   const [availableSymbols, setAvailableSymbols] = useState<string[]>([]);
-  const [selectedSymbol, setSelectedSymbol] = useState<string>(null);
+  const [selectedSymbol, setSelectedSymbol] = useState<string>('');
   const [optionsData, setOptionsData] = useState<OptionsData | null>(null);
   const [selectedExpiry, setSelectedExpiry] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
@@ -73,7 +74,13 @@ export function Options({ theme }: OptionsProps) {
   // Fetch options data when selected symbol changes (only for data tab)
   React.useEffect(() => {
     const fetchOptionsData = async () => {
-      if (!selectedSymbol || activeTab !== 'data') return;
+      if (!selectedSymbol || activeTab !== 'data') {
+        logger.debug('[Pages/Options] Guard: selectedSymbol missing or tab not data', {
+          selectedSymbol,
+          activeTab,
+        });
+        return;
+      }
       
       try {
         setIsLoading(true);
@@ -127,7 +134,7 @@ export function Options({ theme }: OptionsProps) {
           tabs={tabs}
           activeTab={activeTab}
           theme={theme}
-          onTabChange={handleTabChange}
+          onTabChange={(tab) => handleTabChange(tab as OptionsTab)}
         />
 
         <OptionsTabContent

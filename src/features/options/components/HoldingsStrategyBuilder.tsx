@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { logger } from '../../../shared/utils/logger';
 import { Save, Layers, Filter, CheckSquare, Square } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
@@ -32,6 +33,12 @@ export function HoldingsStrategyBuilder({ theme, onStrategyCreated }: HoldingsSt
 
   const { currencyConfig } = useCurrency();
 
+  const allPositions: OptionsPosition[] = useMemo(() => {
+    if (!portfolioData) return [];
+    // 将分组展开为纯列表
+    return portfolioData.expiryGroups.flatMap(g => g.positions);
+  }, [portfolioData]);
+
   useEffect(() => {
     const fetchPortfolio = async () => {
       try {
@@ -63,7 +70,10 @@ export function HoldingsStrategyBuilder({ theme, onStrategyCreated }: HoldingsSt
     const unsubscribe = onAddLegToStrategy(({ positionId, quantity }) => {
       // Find the position in current list
       const pos = allPositions.find(p => p.id === positionId);
-      if (!pos) return;
+  if (!pos) {
+    logger.debug('[HoldingsStrategyBuilder] Guard: pos not found');
+    return;
+  }
       // Toggle select on if not already selected
       setSelectedIds(prev => {
         const next = new Set(prev);
@@ -79,12 +89,6 @@ export function HoldingsStrategyBuilder({ theme, onStrategyCreated }: HoldingsSt
     return unsubscribe;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allPositions]);
-
-  const allPositions: OptionsPosition[] = useMemo(() => {
-    if (!portfolioData) return [];
-    // 将分组展开为纯列表
-    return portfolioData.expiryGroups.flatMap(g => g.positions);
-  }, [portfolioData]);
 
   const toggleSelect = (pos: OptionsPosition) => {
     const next = new Set(selectedIds);

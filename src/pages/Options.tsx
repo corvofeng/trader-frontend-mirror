@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { logger } from '../shared/utils/logger';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { BarChart2, TrendingUp, Briefcase, Calculator } from 'lucide-react';
 import { Theme, themes } from '../lib/theme';
@@ -77,7 +78,13 @@ export function Options({ theme }: OptionsProps) {
   // Fetch options data when selected symbol changes (only for data tab)
   React.useEffect(() => {
     const fetchOptionsData = async () => {
-      if (!selectedSymbol || activeTab !== 'data') return;
+    if (!selectedSymbol || activeTab !== 'data') {
+      logger.debug('[Pages/Options] Guard: selectedSymbol missing or tab not data', {
+        selectedSymbol,
+        activeTab,
+      });
+      return;
+    }
       
       try {
         setIsLoading(true);

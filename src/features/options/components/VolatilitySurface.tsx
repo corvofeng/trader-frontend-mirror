@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { logger } from '../../../shared/utils/logger';
 import * as echarts from 'echarts';
 import 'echarts-gl';
 import { format } from 'date-fns';
@@ -30,7 +31,13 @@ export function VolatilitySurface({ theme, optionsData, selectedSymbol }: Volati
   }, []);
 
   useEffect(() => {
-    if (!surfaceChartRef.current || !isMountedRef.current) return;
+  if (!surfaceChartRef.current || !isMountedRef.current) {
+    logger.debug('[VolatilitySurface] Guard: chart not ready', {
+      hasRef: !!surfaceChartRef.current,
+      isMounted: !!isMountedRef.current,
+    });
+    return;
+  }
 
     // Dispose of existing chart if it exists
     if (chartInstanceRef.current) {
@@ -43,7 +50,10 @@ export function VolatilitySurface({ theme, optionsData, selectedSymbol }: Volati
     const isDark = theme === 'dark';
 
     // Prepare data for the 3D surface
-    if (!optionsData) return;
+  if (!optionsData) {
+    logger.debug('[VolatilitySurface] Guard: optionsData missing');
+    return;
+  }
     
     const strikes = Array.from(new Set(optionsData.surface.map(p => p.strike))).sort((a, b) => a - b);
     const expiries = Array.from(new Set(optionsData.surface.map(p => p.expiry))).sort();

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { logger } from '../../shared/utils/logger';
 import * as echarts from 'echarts';
 import { X, Calculator, Plus, Minus, Save, FolderOpen, Trash2, Camera, Download, Eye } from 'lucide-react';
 import { Theme, themes } from '../../lib/theme';
@@ -134,13 +135,19 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
 
   // 截图功能
   const captureChart = () => {
-    if (!profitChartInstance.current) return;
+  if (!profitChartInstance.current) {
+    logger.debug('[OptionsCalculatorModal] Guard: profitChartInstance missing');
+    return;
+  }
     
     try {
       // 创建包含完整策略信息的高质量截图
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
-      if (!ctx) return;
+  if (!ctx) {
+    logger.debug('[OptionsCalculatorModal] Guard: canvas ctx missing');
+    return;
+  }
       
       // 设置画布尺寸
       canvas.width = 1200;
@@ -228,7 +235,10 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
   
   // 下载截图
   const downloadScreenshot = () => {
-    if (!screenshotDataUrl) return;
+  if (!screenshotDataUrl) {
+    logger.debug('[OptionsCalculatorModal] Guard: screenshotDataUrl missing');
+    return;
+  }
     
     const link = document.createElement('a');
     link.download = `options-strategy-${selectedSymbol}-${new Date().toISOString().split('T')[0]}.png`;
@@ -575,7 +585,10 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
 
   // 更新盈亏图表
   useEffect(() => {
-    if (!profitChartRef.current) return;
+  if (!profitChartRef.current) {
+    logger.debug('[OptionsCalculatorModal] Guard: profitChartRef missing');
+    return;
+  }
     
     if (profitChartInstance.current) {
       profitChartInstance.current.dispose();

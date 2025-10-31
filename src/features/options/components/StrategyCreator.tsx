@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { logger } from '../../../shared/utils/logger';
 import { Plus, Save, X, Target, TrendingUp, TrendingDown, Activity } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
@@ -124,7 +125,10 @@ export function StrategyCreator({ theme, selectedSymbol, onStrategyCreated }: St
 
   const handleTemplateSelect = (templateId: string) => {
     const template = STRATEGY_TEMPLATES.find(t => t.id === templateId);
-    if (!template) return;
+  if (!template) {
+    logger.debug('[StrategyCreator] Guard: template missing');
+    return;
+  }
 
     setSelectedTemplate(templateId);
     setStrategyName(template.name);

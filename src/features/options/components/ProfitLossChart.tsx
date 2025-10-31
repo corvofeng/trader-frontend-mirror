@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { logger } from '../../../shared/utils/logger';
 import * as echarts from 'echarts';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
@@ -17,7 +18,10 @@ export function ProfitLossChart({ theme, positions, currentPrice }: ProfitLossCh
   const { currencyConfig, getThemedColors } = useCurrency();
 
   useEffect(() => {
-    if (!chartRef.current) return;
+  if (!chartRef.current) {
+    logger.debug('[ProfitLossChart] Guard: chartRef missing');
+    return;
+  }
 
     if (chartInstanceRef.current) {
       chartInstanceRef.current.dispose();

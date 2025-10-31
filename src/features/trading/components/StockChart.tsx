@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { logger } from '../../../shared/utils/logger';
 import { createChart, ColorType, IChartApi, ISeriesApi, CrosshairMode, LineStyle, PriceScaleMode } from 'lightweight-charts';
 import { format } from 'date-fns';
 import { Theme, themes } from '../../../shared/constants/theme';
@@ -165,7 +166,13 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
   };
 
   const handleZoom = (direction: 'in' | 'out') => {
-    if (!chartRef.current || isDisposed.current) return;
+    if (!chartRef.current || isDisposed.current) {
+      logger.debug('[StockChart] Guard: chartRef missing or disposed', {
+        hasChart: !!chartRef.current,
+        disposed: isDisposed.current,
+      });
+      return;
+    }
     
     const timeScale = chartRef.current.timeScale();
     const newZoom = direction === 'in' ? zoomLevel * 1.2 : zoomLevel / 1.2;
@@ -175,7 +182,15 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
   };
 
   const updateChartType = (type: ChartType) => {
-    if (!chartRef.current || !candlestickSeriesRef.current || !chartData.candlestick.length || isDisposed.current) return;
+    if (!chartRef.current || !candlestickSeriesRef.current || !chartData.candlestick.length || isDisposed.current) {
+      logger.debug('[StockChart] Guard: series/chart/data invalid or disposed', {
+        hasChart: !!chartRef.current,
+        hasSeries: !!candlestickSeriesRef.current,
+        hasData: !!chartData.candlestick.length,
+        disposed: isDisposed.current,
+      });
+      return;
+    }
     
     const chart = chartRef.current;
     
@@ -303,7 +318,13 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
   }, [stockCode]);
 
   useEffect(() => {
-    if (!chartContainerRef.current || isInitializing.current) return;
+    if (!chartContainerRef.current || isInitializing.current) {
+      logger.debug('[StockChart] Guard: container missing or initializing', {
+        hasContainer: !!chartContainerRef.current,
+        isInitializing: isInitializing.current,
+      });
+      return;
+    }
 
     // Clean up any existing chart
     disposeChart();

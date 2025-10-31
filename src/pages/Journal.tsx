@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { logger } from '../shared/utils/logger';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Briefcase, LayoutGrid, History, Upload, Activity, BookOpen, Settings } from 'lucide-react';
 import { TradeForm, TradeList, StockSearch } from '../features/trading';
@@ -63,7 +64,10 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
           if (tradesResponse.data) setRecentTrades(tradesResponse.data);
         } else {
           // Fetch regular user portfolio data and accounts
-          if (!selectedAccountId) return;
+  if (!selectedAccountId) {
+    logger.debug('[Journal] Guard: selectedAccountId missing');
+    return;
+  }
 
           const [holdingsResponse, tradesResponse, accountsResponse] = await Promise.all([
             portfolioService.getHoldings(selectedAccountId),

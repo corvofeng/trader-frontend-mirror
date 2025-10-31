@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { logger } from '../../../shared/utils/logger';
 import { createChart, ColorType, IChartApi, ISeriesApi } from 'lightweight-charts';
 import { themes, Theme } from '../../../lib/theme';
 import { stockService } from '../../../lib/services';
@@ -25,13 +26,19 @@ export function AnimatedChart({ theme }: AnimatedChartProps) {
   }, []);
 
   useEffect(() => {
-    if (!containerReady) return;
+  if (!containerReady) {
+    logger.debug('[AnimatedChart] Guard: container not ready');
+    return;
+  }
 
     let disposed = false;
     let animationFrame: number;
 
     async function initializeChart() {
-      if (!chartContainerRef.current) return;
+  if (!chartContainerRef.current) {
+    logger.debug('[AnimatedChart] Guard: chartContainerRef missing');
+    return;
+  }
 
       const themedColors = getThemedColors(theme);
       const chartColors = themedColors.chart;
@@ -67,7 +74,6 @@ export function AnimatedChart({ theme }: AnimatedChartProps) {
           timeVisible: true,
           secondsVisible: false,
           borderColor: isDark ? '#374151' : '#e5e7eb',
-          textColor: isDark ? '#e5e7eb' : '#374151',
           fixLeftEdge: true,
           fixRightEdge: true,
         },

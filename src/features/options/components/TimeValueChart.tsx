@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { logger } from '../../../shared/utils/logger';
 import * as echarts from 'echarts';
 import { format, differenceInDays } from 'date-fns';
 import { Theme, themes } from '../../../lib/theme';
@@ -31,7 +32,14 @@ export function TimeValueChart({ theme, optionsData, selectedSymbol }: TimeValue
   }, []);
 
   useEffect(() => {
-    if (!timeValueChartRef.current || !isMountedRef.current || !optionsData) return;
+  if (!timeValueChartRef.current || !isMountedRef.current || !optionsData) {
+    logger.debug('[TimeValueChart] Guard: chart not ready or data missing', {
+      hasRef: !!timeValueChartRef.current,
+      isMounted: !!isMountedRef.current,
+      hasData: !!optionsData,
+    });
+    return;
+  }
 
     // Dispose of existing chart if it exists
     if (timeValueChartInstanceRef.current) {
