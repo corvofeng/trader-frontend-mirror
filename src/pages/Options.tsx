@@ -31,10 +31,10 @@ export function Options({ theme }: OptionsProps) {
   });
 
   const [availableSymbols, setAvailableSymbols] = useState<string[]>([]);
-  const [selectedSymbol, setSelectedSymbol] = useState<string>('SPY');
+  const [selectedSymbol, setSelectedSymbol] = useState<string>('');
   const [optionsData, setOptionsData] = useState<OptionsData | null>(null);
   const [selectedExpiry, setSelectedExpiry] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [isLoadingSymbols, setIsLoadingSymbols] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCalculatorModal, setShowCalculatorModal] = useState(false);
@@ -63,10 +63,8 @@ export function Options({ theme }: OptionsProps) {
         }
       } catch (err) {
         console.error('Error fetching available symbols:', err);
-        // Fallback to default symbols if API fails
-        const fallbackSymbols = ['SPY', 'QQQ', 'AAPL', 'TSLA'];
-        setAvailableSymbols(fallbackSymbols);
-        setSelectedSymbol(fallbackSymbols[0]);
+        // 不使用默认回退数据，只有当接口返回成功时才设置 selectedSymbol
+        setAvailableSymbols([]);
       } finally {
         setIsLoadingSymbols(false);
       }
@@ -142,20 +140,26 @@ export function Options({ theme }: OptionsProps) {
                   <label className={`text-sm font-medium ${themes[theme].text}`}>
                     Symbol:
                   </label>
-                  <select
-                    value={selectedSymbol}
-                    onChange={(e) => setSelectedSymbol(e.target.value)}
-                    disabled={isLoading || isLoadingSymbols}
-                    className={`px-3 py-2 rounded-md text-sm ${themes[theme].input} ${themes[theme].text} ${
-                      isLoading || isLoadingSymbols ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
-                  >
-                    {availableSymbols.map(symbol => (
-                      <option key={symbol} value={symbol}>
-                        {symbol}
-                      </option>
-                    ))}
-                  </select>
+                  {availableSymbols.length > 0 ? (
+                    <select
+                      value={selectedSymbol}
+                      onChange={(e) => setSelectedSymbol(e.target.value)}
+                      disabled={isLoading || isLoadingSymbols}
+                      className={`px-3 py-2 rounded-md text-sm ${themes[theme].input} ${themes[theme].text} ${
+                        isLoading || isLoadingSymbols ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
+                    >
+                      {availableSymbols.map(symbol => (
+                        <option key={symbol} value={symbol}>
+                          {symbol}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className={`text-sm ${themes[theme].text} opacity-70`}>
+                      No symbols available
+                    </span>
+                  )}
                 </div>
                 {(isLoading || isLoadingSymbols) && (
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
@@ -195,7 +199,7 @@ export function Options({ theme }: OptionsProps) {
               <div className="text-center py-12">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
                 <p className="text-gray-600">
-                  {isLoadingSymbols ? 'Loading available symbols...' : `Loading options data for ${selectedSymbol}...`}
+                  {isLoadingSymbols ? 'Loading available symbols...' : (selectedSymbol ? `Loading options data for ${selectedSymbol}...` : 'Waiting for symbol selection...')}
                 </p>
               </div>
             )}
@@ -208,16 +212,18 @@ export function Options({ theme }: OptionsProps) {
                   </svg>
                 </div>
                 <p className="text-gray-600 mb-4">{error}</p>
-                <button
-                  onClick={() => setSelectedSymbol(selectedSymbol)} // Trigger re-fetch
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                >
-                  Retry
-                </button>
+                {selectedSymbol && (
+                  <button
+                    onClick={() => setSelectedSymbol(selectedSymbol)} // Trigger re-fetch
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    Retry
+                  </button>
+                )}
               </div>
             )}
 
-            {!isLoading && !isLoadingSymbols && !error && optionsData && (
+            {!isLoading && !isLoadingSymbols && !error && optionsData && selectedSymbol && (
               <>
                 <OptionsChain
                   theme={theme}
