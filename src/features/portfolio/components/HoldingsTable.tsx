@@ -64,7 +64,7 @@ export function HoldingsTable({
           <thead className={`${themes[theme].background}`}>
             <tr>
               <th 
-                className={`px-6 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
+                className={`px-3 sm:px-6 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
                 onClick={() => onHoldingsSort('stock_code')}
               >
                 <div className="flex items-center space-x-1">
@@ -73,7 +73,7 @@ export function HoldingsTable({
                 </div>
               </th>
               <th 
-                className={`px-6 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
+                className={`px-3 sm:px-6 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
                 onClick={() => onHoldingsSort('total_value')}
               >
                 <div className="flex items-center justify-end space-x-1">
@@ -82,7 +82,7 @@ export function HoldingsTable({
                 </div>
               </th>
               <th 
-                className={`px-6 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
+                className={`px-3 sm:px-6 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer hidden sm:table-cell`}
                 onClick={() => onHoldingsSort('profit_loss_percentage')}
               >
                 <div className="flex items-center justify-end space-x-1">
@@ -90,7 +90,7 @@ export function HoldingsTable({
                   <SortIcon field="profit_loss_percentage" currentSort={holdingsSort} />
                 </div>
               </th>
-              <th className={`px-6 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
+              <th className={`px-3 sm:px-6 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
                 操作
               </th>
             </tr>
@@ -98,24 +98,29 @@ export function HoldingsTable({
           <tbody className={`divide-y ${themes[theme].border}`}>
             {paginatedHoldings.map((holding) => (
               <tr key={holding.stock_code} className={themes[theme].cardHover}>
-                <td className="px-6 py-4">
+                <td className="px-3 sm:px-6 py-3 sm:py-4">
                   <div>
                     <div className={`text-sm font-medium ${themes[theme].text}`}>{holding.stock_code}</div>
-                    <div className={`text-sm ${themes[theme].text} opacity-75`}>{holding.stock_name}</div>
+                    <div className={`text-xs sm:text-sm ${themes[theme].text} opacity-75`}>{holding.stock_name}</div>
+                    <div className={`text-xs sm:hidden font-medium ${
+                      holding.profit_loss_percentage >= 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {holding.profit_loss_percentage >= 0 ? '+' : ''}{holding.profit_loss_percentage.toFixed(2)}%
+                    </div>
                   </div>
                 </td>
-                <td className={`px-6 py-4 text-right text-sm ${themes[theme].text}`}>
-                  {formatCurrency(holding.total_value, currencyConfig)}
+                <td className={`px-3 sm:px-6 py-3 sm:py-4 text-right text-sm ${themes[theme].text}`}>
+                  <div>{formatCurrency(holding.total_value, currencyConfig)}</div>
                 </td>
-                <td className={`px-6 py-4 text-right text-sm font-medium ${
+                <td className={`px-3 sm:px-6 py-3 sm:py-4 text-right text-sm font-medium hidden sm:table-cell ${
                   holding.profit_loss_percentage >= 0 ? 'text-green-600' : 'text-red-600'
                 }`}>
                   {holding.profit_loss_percentage >= 0 ? '+' : ''}{holding.profit_loss_percentage.toFixed(2)}%
                 </td>
-                <td className="px-6 py-4 text-right">
+                <td className="px-3 sm:px-6 py-3 sm:py-4 text-right">
                   <button
                     onClick={() => onAnalyzeStock(holding.stock_code, holding.stock_name)}
-                    className={`px-3 py-1 rounded-md text-xs ${themes[theme].secondary}`}
+                    className={`px-2 sm:px-3 py-1 rounded-md text-xs ${themes[theme].secondary}`}
                   >
                     分析
                   </button>

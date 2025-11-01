@@ -212,20 +212,61 @@ export function Portfolio({
     ],
   };
 
+  const [screenSize, setScreenSize] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight
+  });
+  
+  useEffect(() => {
+    const handleResize = () => {
+      setScreenSize({
+        width: window.innerWidth,
+        height: window.innerHeight
+      });
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // iPhone 14 尺寸: 390x844, 更精确的移动端判断
+  const isMobile = screenSize.width < 640;
+  const isSmallMobile = screenSize.width <= 390;
+
   const pieChartOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    layout: { padding: { top: 8, right: 8, bottom: 16, left: 8 } },
+    layout: { 
+      padding: { 
+        top: isSmallMobile ? 4 : 8, 
+        right: isSmallMobile ? 2 : (isMobile ? 4 : 8), 
+        bottom: isSmallMobile ? 4 : (isMobile ? 8 : 16), 
+        left: isSmallMobile ? 2 : (isMobile ? 4 : 8) 
+      } 
+    },
     plugins: {
       legend: {
         position: 'bottom' as const,
         labels: {
           color: theme === 'dark' ? '#e5e7eb' : '#111827',
-          font: { size: 12 },
-          boxWidth: 12,
-          padding: 16,
+          font: { size: isSmallMobile ? 9 : (isMobile ? 10 : 12) },
+          boxWidth: isSmallMobile ? 6 : (isMobile ? 8 : 12),
+          padding: isSmallMobile ? 4 : (isMobile ? 6 : 16),
+          usePointStyle: isSmallMobile,
+          maxWidth: isSmallMobile ? 80 : (isMobile ? 120 : undefined),
         },
       },
+      tooltip: {
+        callbacks: {
+          label: function(context: any) {
+            const label = context.label || '';
+            const value = context.parsed;
+            const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
+            const percentage = ((value / total) * 100).toFixed(1);
+            return `${label}: ${formatCurrency(value, currencyConfig)} (${percentage}%)`;
+          }
+        }
+      }
     },
   };
 
@@ -395,8 +436,8 @@ export function Portfolio({
           theme={theme}
         />
 
-        <div className="grid md:grid-cols-2 gap-6 p-6">
-          <div className="order-2 md:order-1">
+        <div className="grid lg:grid-cols-2 gap-4 md:gap-6 p-4 md:p-6">
+          <div className="order-2 lg:order-1">
             <HoldingsTable
               theme={theme}
               holdings={holdings}
@@ -412,8 +453,8 @@ export function Portfolio({
             />
           </div>
 
-          <div className="order-1 md:order-2">
-            <div className="h-[300px] md:h-[400px] relative">
+          <div className="order-1 lg:order-2">
+            <div className="h-[200px] xs:h-[220px] sm:h-[280px] md:h-[320px] lg:h-[400px] relative">
               <Pie data={pieChartData} options={pieChartOptions} />
             </div>
           </div>

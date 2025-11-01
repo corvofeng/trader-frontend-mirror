@@ -166,19 +166,19 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
       )}
 
       {activeTab === 'trades' && !portfolioUuid && (
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-4 sm:gap-6">
           <TradeForm selectedStock={selectedStock} theme={theme} />
           <TradeList selectedStockCode={selectedStock?.stock_code} theme={theme} />
         </div>
       )}
 
       {activeTab === 'history' && !portfolioUuid && (
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {selectedStock?.stock_code && (
             <StockChart stockCode={selectedStock.stock_code} theme={theme} />
           )}
-          <div className={`${themes[theme].card} rounded-lg p-4 sm:p-6`}>
-            <h2 className={`text-xl sm:text-2xl font-bold mb-4 ${themes[theme].text}`}>Completed Trades</h2>
+          <div className={`${themes[theme].card} rounded-lg p-3 sm:p-4 lg:p-6`}>
+            <h2 className={`text-lg sm:text-xl lg:text-2xl font-bold mb-3 sm:mb-4 ${themes[theme].text}`}>Completed Trades</h2>
             <TradeList selectedStockCode={selectedStock?.stock_code} theme={theme} showCompleted={true} />
           </div>
         </div>
@@ -193,18 +193,18 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
       )}
 
       {activeTab === 'analysis' && (
-        <div className={`${themes[theme].card} rounded-lg p-4 sm:p-6`}>
-          <h2 className={`text-xl sm:text-2xl font-bold mb-4 ${themes[theme].text}`}>Performance Analysis</h2>
-          <p className={`${themes[theme].text} opacity-70`}>
+        <div className={`${themes[theme].card} rounded-lg p-3 sm:p-4 lg:p-6`}>
+          <h2 className={`text-lg sm:text-xl lg:text-2xl font-bold mb-3 sm:mb-4 ${themes[theme].text}`}>Performance Analysis</h2>
+          <p className={`${themes[theme].text} opacity-70 text-sm sm:text-base`}>
             Trading performance analysis features coming soon...
           </p>
         </div>
       )}
 
       {activeTab === 'settings' && !portfolioUuid && (
-        <div className={`${themes[theme].card} rounded-lg p-4 sm:p-6`}>
-          <h2 className={`text-xl sm:text-2xl font-bold mb-4 ${themes[theme].text}`}>Account Settings</h2>
-          <p className={`${themes[theme].text} opacity-70`}>
+        <div className={`${themes[theme].card} rounded-lg p-3 sm:p-4 lg:p-6`}>
+          <h2 className={`text-lg sm:text-xl lg:text-2xl font-bold mb-3 sm:mb-4 ${themes[theme].text}`}>Account Settings</h2>
+          <p className={`${themes[theme].text} opacity-70 text-sm sm:text-base`}>
             Account and preferences settings coming soon...
           </p>
         </div>
