@@ -3,12 +3,15 @@ import { logger } from '../shared/utils/logger';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Briefcase, LayoutGrid, History, Upload, Activity, BookOpen, Settings } from 'lucide-react';
 import { TradeForm, TradeList, StockSearch } from '../features/trading';
+import DailyTradeHistory from '../features/trading/components/DailyTradeHistory';
+import HistoryTradesChart from '../features/trading/components/HistoryTradesChart';
 import { Portfolio } from '../features/portfolio';
 import { OperationsView, UploadPage } from './Journal/features';
 import { RelatedLinks } from '../shared/components';
 import { Theme, themes } from '../lib/theme';
 import { portfolioService, accountService } from '../lib/services';
 import { StockChart } from '../features/trading/components/StockChart';
+import { AccountSelector } from '../shared/components/AccountSelector';
 import type { Stock, Holding, Trade, Account } from '../lib/services/types';
 
 interface JournalProps {
@@ -174,13 +177,31 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
 
       {activeTab === 'history' && !portfolioUuid && (
         <div className="space-y-4 sm:space-y-6">
+          <div className="flex justify-end">
+            <AccountSelector
+              userId={DEMO_USER_ID}
+              theme={theme}
+              selectedAccountId={selectedAccountId}
+              onAccountChange={(accountId) => setSelectedAccountId(accountId)}
+            />
+          </div>
           {selectedStock?.stock_code && (
             <StockChart stockCode={selectedStock.stock_code} theme={theme} />
           )}
-          <div className={`${themes[theme].card} rounded-lg p-3 sm:p-4 lg:p-6`}>
-            <h2 className={`text-lg sm:text-xl lg:text-2xl font-bold mb-3 sm:mb-4 ${themes[theme].text}`}>Completed Trades</h2>
-            <TradeList selectedStockCode={selectedStock?.stock_code} theme={theme} showCompleted={true} />
-          </div>
+          <HistoryTradesChart
+            theme={theme}
+            startDate={dateRange.startDate}
+            endDate={dateRange.endDate}
+            selectedAccountId={selectedAccountId}
+            selectedStockCode={selectedStock?.stock_code}
+          />
+          <DailyTradeHistory 
+            theme={theme}
+            startDate={dateRange.startDate}
+            endDate={dateRange.endDate}
+            selectedStockCode={selectedStock?.stock_code}
+            selectedAccountId={selectedAccountId}
+          />
         </div>
       )}
 

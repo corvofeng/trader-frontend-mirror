@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { Activity, RefreshCw, CheckCircle, XCircle, Calendar, Filter } from 'lucide-react';
+import { Activity, RefreshCw, CheckCircle, XCircle, Calendar, Filter, Eye, EyeOff } from 'lucide-react';
 import { Theme, themes } from '../../../../lib/theme';
 import { operationService } from '../../../../lib/services';
 import type { Operation } from '../../../../lib/services/types';
+import { OperationsChart } from './OperationsChart';
 
 interface OperationsViewProps {
   theme: Theme;
@@ -18,6 +19,7 @@ export function OperationsView({ theme }: OperationsViewProps) {
     endDate: new Date().toISOString().split('T')[0]
   });
   const [filter, setFilter] = useState<'all' | 'success' | 'failed'>('all');
+  const [showDetails, setShowDetails] = useState(false);
 
   const fetchOperations = async (refresh = false) => {
     try {
@@ -160,6 +162,19 @@ export function OperationsView({ theme }: OperationsViewProps) {
                 <option value="failed">Failed Only</option>
               </select>
             </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowDetails(prev => !prev)}
+                className={`inline-flex items-center px-3 py-2 rounded-md ${themes[theme].secondary}`}
+              >
+                {showDetails ? (
+                  <EyeOff className="w-4 h-4 mr-2" />
+                ) : (
+                  <Eye className="w-4 h-4 mr-2" />
+                )}
+                {showDetails ? '隐藏详细日志' : '显示详细日志'}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -182,30 +197,40 @@ export function OperationsView({ theme }: OperationsViewProps) {
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {filteredOperations.map((operation, index) => (
-                <div
-                  key={`${operation.func_name}-${operation.call_time}-${index}`}
-                  className={`${themes[theme].background} rounded-lg p-4 border ${themes[theme].border}`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      {getStatusIcon(operation.result)}
-                      <div>
-                        <h3 className={`text-sm font-medium ${themes[theme].text}`}>
-                          {operation.func_name}
-                        </h3>
-                        <p className={`text-xs ${themes[theme].text} opacity-75`}>
-                          {format(new Date(operation.call_time), 'MMM d, yyyy HH:mm:ss')}
-                        </p>
+            <div className="space-y-6">
+              {/* Chart: Daily counts grouped by operation */}
+              <div className={`${themes[theme].background} rounded-lg p-4 border ${themes[theme].border}`}>
+                <OperationsChart theme={theme} operations={filteredOperations} dateRange={dateRange} />
+              </div>
+
+              {/* Raw list */}
+              {showDetails && (
+                <div className="space-y-3">
+                  {filteredOperations.map((operation, index) => (
+                    <div
+                      key={`${operation.func_name}-${operation.call_time}-${index}`}
+                      className={`${themes[theme].background} rounded-lg p-4 border ${themes[theme].border}`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          {getStatusIcon(operation.result)}
+                          <div>
+                            <h3 className={`text-sm font-medium ${themes[theme].text}`}>
+                              {operation.func_name}
+                            </h3>
+                            <p className={`text-xs ${themes[theme].text} opacity-75`}>
+                              {format(new Date(operation.call_time), 'MMM d, yyyy HH:mm:ss')}
+                            </p>
+                          </div>
+                        </div>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(operation.result)}`}>
+                          {operation.result.charAt(0).toUpperCase() + operation.result.slice(1)}
+                        </span>
                       </div>
                     </div>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(operation.result)}`}>
-                      {operation.result.charAt(0).toUpperCase() + operation.result.slice(1)}
-                    </span>
-                  </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
           )}
         </div>

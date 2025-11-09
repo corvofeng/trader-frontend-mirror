@@ -1,0 +1,170 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import * as echarts from 'echarts';
+import type { BarSeriesOption, EChartsOption } from 'echarts';
+import { format } from 'date-fns';
+import { Theme, themes } from '../../../lib/theme';
+import { authService, portfolioService } from '../../../lib/services';
+import type { Trade } from '../../../lib/services/types';
+
+interface HistoryTradesChartProps {
+  theme: Theme;
+  startDate: string;
+  endDate: string;
+  selectedAccountId?: string | null;
+  selectedStockCode?: string;
+}
+
+function enumerateDays(startDate: string, endDate: string): string[] {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const days: string[] = [];
+  // Normalize time
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+  const current = new Date(start);
+  while (current <= end) {
+    days.push(format(current, 'yyyy-MM-dd'));
+    current.setDate(current.getDate() + 1);
+  }
+  return days;
+}
+
+export function HistoryTradesChart({ theme, startDate, endDate, selectedAccountId, selectedStockCode }: HistoryTradesChartProps) {
+  const chartRef = useRef<HTMLDivElement | null>(null);
+  const instanceRef = useRef<echarts.ECharts | null>(null);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const [trades, setTrades] = useState<Trade[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchTrades = async () => {
+      setIsLoading(true);
+      try {
+        const userResp = await authService.getUser();
+        const user = userResp.data?.user;
+        if (!user) {
+          setTrades([]);
+          return;
+        }
+        const resp = await portfolioService.getRecentTrades(user.id, startDate, endDate, selectedAccountId || undefined);
+        const data = resp.data || [];
+        const filtered = selectedStockCode ? data.filter(t => t.stock_code === selectedStockCode) : data;
+        setTrades(filtered);
+      } catch (e) {
+        console.error('Failed to load trades for chart', e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchTrades();
+  }, [startDate, endDate, selectedAccountId, selectedStockCode]);
+
+  const { days, series } = useMemo(() => {
+    const days = enumerateDays(startDate, endDate);
+    const stocks = Array.from(new Set(trades.map(t => t.stock_name ?? t.stock_code))).sort();
+    const countsByStockDay: Record<string, Record<string, number>> = {};
+    for (const stock of stocks) {
+      countsByStockDay[stock] = {};
+      for (const day of days) countsByStockDay[stock][day] = 0;
+    }
+    for (const t of trades) {
+      const day = t.created_at.split('T')[0];
+      const key = t.stock_name ?? t.stock_code;
+      if (!countsByStockDay[key]) countsByStockDay[key] = {};
+      if (countsByStockDay[key][day] === undefined) countsByStockDay[key][day] = 0;
+      countsByStockDay[key][day] += 1;
+    }
+
+    const series: BarSeriesOption[] = stocks.map(stock => ({
+      name: stock,
+      type: 'bar' as const,
+      stack: 'total',
+      emphasis: { focus: 'series' as const },
+      barMaxWidth: 32,
+      data: days.map(d => countsByStockDay[stock]?.[d] ?? 0),
+    }));
+
+    return { days, series };
+  }, [trades, startDate, endDate]);
+
+  useEffect(() => {
+    if (!chartRef.current) return;
+    if (!instanceRef.current) {
+      instanceRef.current = echarts.init(chartRef.current);
+    }
+    const isDark = theme === 'dark';
+    const option: EChartsOption = {
+      backgroundColor: 'transparent',
+      grid: {
+        left: '6%',
+        right: '22%',
+        bottom: '12%',
+        top: 48,
+        containLabel: true,
+      },
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'shadow' },
+        confine: true,
+        backgroundColor: isDark ? '#111827' : '#ffffff',
+        borderColor: isDark ? '#374151' : '#e5e7eb',
+        textStyle: { color: isDark ? '#e5e7eb' : '#111827' },
+      },
+      legend: {
+        type: 'scroll',
+        orient: 'vertical',
+        right: 8,
+        top: 32,
+        bottom: 16,
+        textStyle: { color: isDark ? '#e5e7eb' : '#111827' },
+      },
+      xAxis: {
+        type: 'category',
+        data: days.map(d => format(new Date(d), 'MM-dd')),
+        axisLabel: {
+          color: isDark ? '#e5e7eb' : '#111827',
+          hideOverlap: true,
+        },
+        axisLine: { lineStyle: { color: isDark ? '#6b7280' : '#9ca3af' } },
+      },
+      yAxis: {
+        type: 'value',
+        axisLabel: { color: isDark ? '#e5e7eb' : '#111827', margin: 12 },
+        splitLine: { lineStyle: { color: isDark ? '#1f2937' : '#e5e7eb' } },
+      },
+      series,
+    };
+    instanceRef.current.setOption(option);
+
+    if (chartRef.current && !resizeObserverRef.current) {
+      resizeObserverRef.current = new ResizeObserver(entries => {
+        const el = entries[0];
+        if (instanceRef.current) {
+          instanceRef.current.resize({ width: el.contentRect.width });
+        }
+      });
+      resizeObserverRef.current.observe(chartRef.current);
+    }
+
+    return () => {
+      // do not dispose to keep observer; will be disposed on unmount if needed
+    };
+  }, [days, series, theme]);
+
+  return (
+    <div className={`${themes[theme].card} rounded-lg p-3 sm:p-4 lg:p-6`}>
+      <div className="flex items-baseline justify-between mb-2">
+        <div className={`${themes[theme].text}`}>
+          <h3 className="text-lg sm:text-xl font-semibold">每日操作情况（按股票堆叠）</h3>
+          <p className="text-xs opacity-70">范围：{startDate} 到 {endDate}</p>
+        </div>
+        {isLoading && (
+          <span className={`text-xs ${themes[theme].text} opacity-70`}>加载中...</span>
+        )}
+      </div>
+      <div ref={chartRef} style={{ width: '100%', height: 360 }} />
+    </div>
+  );
+}
+
+export default HistoryTradesChart;
