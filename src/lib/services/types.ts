@@ -331,6 +331,11 @@ export interface OptionQuote {
   putImpliedVol: number;
   callUrl?: string;
   putUrl?: string;
+  // 用户持仓相关（可选）：展示在期权链中的我的买入/卖出数量
+  myCallBuyQty?: number;
+  myCallSellQty?: number;
+  myPutBuyQty?: number;
+  myPutSellQty?: number;
 }
 
 export interface OptionSurfacePoint {
