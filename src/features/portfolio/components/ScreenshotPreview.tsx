@@ -1,6 +1,6 @@
 import React from 'react';
 import { X, Download, Share2 } from 'lucide-react';
-import { Theme, themes } from '../../../shared/constants/theme';
+import { Theme, themes } from '../../../lib/theme';
 
 interface ScreenshotPreviewProps {
   imageUrl: string | null;
@@ -15,7 +15,7 @@ export function ScreenshotPreview({ imageUrl, theme, onClose, onSave }: Screensh
       <div className={`${themes[theme].card} rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col`}>
         <div className="p-4 border-b flex justify-between items-center">
           <h2 className={`text-lg font-semibold ${themes[theme].text}`}>
-            持仓数据预览
+            持仓预览
           </h2>
           <button
             onClick={onClose}

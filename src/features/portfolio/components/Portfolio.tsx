@@ -372,23 +372,7 @@ export function Portfolio({
         </div>
       )}
 
-      {/* Portfolio Analysis Panel */}
-      <div className="mt-6">
-        <PortfolioHeader
-          theme={theme}
-          showPortfolioAnalysis={showPortfolioAnalysis}
-          onToggle={() => setShowPortfolioAnalysis(!showPortfolioAnalysis)}
-          onScreenshot={handleScreenshot}
-        />
-        {showPortfolioAnalysis && (
-          <PortfolioAnalysisPanel
-            theme={theme}
-            portfolioUuid={portfolioUuid || undefined}
-            userId={userId}
-            selectedAccountId={selectedAccountId ?? null}
-          />
-        )}
-      </div>
+      {/* Portfolio Analysis Panel moved to bottom */}
 
       {/* Stock Analysis Modal */}
       {selectedStockForAnalysis && (
@@ -506,13 +490,31 @@ export function Portfolio({
         </div>
       )}
 
+      {/* Portfolio Analysis Panel (bottom) */}
+      <div className="mt-6">
+        <PortfolioHeader
+          theme={theme}
+          showPortfolioAnalysis={showPortfolioAnalysis}
+          onToggle={() => setShowPortfolioAnalysis(!showPortfolioAnalysis)}
+          onScreenshot={handleScreenshot}
+        />
+        {showPortfolioAnalysis && (
+          <PortfolioAnalysisPanel
+            theme={theme}
+            portfolioUuid={portfolioUuid || undefined}
+            userId={userId}
+            selectedAccountId={selectedAccountId ?? null}
+          />
+        )}
+      </div>
+
       {/* Screenshot Preview Modal */}
       {imageUrl && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
           <div className={`${themes[theme].card} rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col`}>
             <div className="p-4 border-b flex justify-between items-center">
               <h2 className={`text-lg font-semibold ${themes[theme].text}`}>
-                持仓数据预览
+                持仓预览
               </h2>
               <button
                 onClick={() => setImageUrl(null)}

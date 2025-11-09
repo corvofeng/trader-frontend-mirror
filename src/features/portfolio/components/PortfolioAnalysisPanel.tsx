@@ -23,27 +23,90 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid, userId, selectedA
   const [expandedSections, setExpandedSections] = useState<string[]>(['overview']);
   const { currencyConfig, regionalColors } = useCurrency();
 
-  // 渲染markdown内容的函数
-  const renderMarkdownContent = (content: string) => {
-    // 增强的markdown渲染，支持多级标题、分割线等格式
-    return content
-      // 处理分割线
-      .replace(/^---$/gm, '<hr class="my-6 border-t border-gray-300 dark:border-gray-600" />')
-      .replace(/^\*\*\*$/gm, '<hr class="my-6 border-t border-gray-300 dark:border-gray-600" />')
-      // 处理多级标题（从高级到低级，避免冲突）
-      .replace(/^#### (.*?)$/gm, '<h4 class="text-base font-semibold mb-2 mt-4 text-purple-600 dark:text-purple-400">$1</h4>')
-      .replace(/^### (.*?)$/gm, '<h3 class="text-lg font-semibold mb-3 mt-5 text-blue-600 dark:text-blue-400">$1</h3>')
-      .replace(/^## (.*?)$/gm, '<h2 class="text-xl font-bold mb-4 mt-6 text-blue-700 dark:text-blue-300">$1</h2>')
-      .replace(/^# (.*?)$/gm, '<h1 class="text-2xl font-bold mb-4 mt-6 text-blue-800 dark:text-blue-200">$1</h1>')
-      // 处理粗体和斜体
-      .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
-      // 处理列表项
-      .replace(/^- (.*?)$/gm, '<li class="ml-4 mb-1 list-disc list-inside">$1</li>')
-      .replace(/^  - (.*?)$/gm, '<li class="ml-8 mb-1 list-circle list-inside">$1</li>')
-      // 处理段落分隔
-      .replace(/\n\n/g, '<br><br>')
-      .replace(/\n/g, '<br>');
+  // 优化的 markdown 渲染，控制间距，消除过度留白
+  const renderMarkdownContent = (raw: string) => {
+    const content = raw.trim().replace(/\n{3,}/g, '\n\n');
+
+    const lines = content.split(/\r?\n/);
+    let html = '';
+    let paragraph = '';
+    let inList = false;
+
+    const flushParagraph = () => {
+      const text = paragraph.trim();
+      if (text) {
+        const formatted = text
+          .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
+          .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>');
+        html += `<p class="mb-2 leading-relaxed ${themes[theme].text}">${formatted}</p>`;
+      }
+      paragraph = '';
+    };
+
+    const closeList = () => {
+      if (inList) {
+        html += '</ul>';
+        inList = false;
+      }
+    };
+
+    for (const line of lines) {
+      // 分割线
+      if (/^(-{3,}|\*\*\*)$/.test(line.trim())) {
+        flushParagraph();
+        closeList();
+        html += '<hr class="my-3 border-t border-gray-300 dark:border-gray-600" />';
+        continue;
+      }
+
+      // 标题
+      const headingMatch = /^(#{1,4})\s+(.*)$/.exec(line);
+      if (headingMatch) {
+        flushParagraph();
+        closeList();
+        const level = headingMatch[1].length;
+        const text = headingMatch[2]
+          .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
+          .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>');
+        const common = 'leading-tight whitespace-normal';
+        if (level === 1) html += `<h1 class="text-xl font-bold mt-3 mb-2 text-blue-800 dark:text-blue-200 ${common}">${text}</h1>`;
+        else if (level === 2) html += `<h2 class="text-lg font-bold mt-3 mb-2 text-blue-700 dark:text-blue-300 ${common}">${text}</h2>`;
+        else if (level === 3) html += `<h3 class="text-base font-semibold mt-2 mb-1 text-blue-600 dark:text-blue-400 ${common}">${text}</h3>`;
+        else html += `<h4 class="text-sm font-semibold mt-2 mb-1 text-purple-600 dark:text-purple-400 ${common}">${text}</h4>`;
+        continue;
+      }
+
+      // 列表项（支持两级缩进）
+      const listMatch = /^\s{0,2}-\s+(.*)$/.exec(line);
+      if (listMatch) {
+        flushParagraph();
+        if (!inList) {
+          html += `<ul class="ml-4 list-disc space-y-1">`;
+          inList = true;
+        }
+        const item = listMatch[1]
+          .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
+          .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>');
+        // 判断缩进
+        const indentClass = /^\s{2}-/.test(line) ? 'ml-4' : '';
+        html += `<li class="${themes[theme].text} ${indentClass}">${item}</li>`;
+        continue;
+      }
+
+      // 空行：结束段落或列表
+      if (line.trim() === '') {
+        flushParagraph();
+        closeList();
+        continue;
+      }
+
+      // 普通文本，合并为段落
+      paragraph += (paragraph ? ' ' : '') + line.trim();
+    }
+
+    flushParagraph();
+    closeList();
+    return html;
   };
 
   const fetchAnalysis = async (refresh = false) => {
@@ -108,10 +171,10 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid, userId, selectedA
         <div className="p-6 border-b border-gray-200">
           <div className="flex justify-between items-center">
             <div>
-              <h2 className={`text-xl font-bold ${themes[theme].text}`}>
+              <h2 className={`text-xl font-bold leading-tight whitespace-nowrap flex-shrink-0 ${themes[theme].text}`}>
                 智能分析报告
               </h2>
-              <p className={`text-sm ${themes[theme].text} opacity-75`}>
+              <p className={`text-sm ${themes[theme].text} opacity-75 whitespace-nowrap`}>
                 分析时间: {new Date(analysis.analysis_time).toLocaleString()}
               </p>
             </div>
@@ -128,10 +191,10 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid, userId, selectedA
         <div className="p-6">
           <div className="flex items-center gap-2 mb-4">
             <FileText className="w-5 h-5 text-blue-500" />
-            <h3 className={`text-lg font-semibold ${themes[theme].text}`}>分析报告</h3>
+            <h3 className={`text-lg font-semibold leading-tight whitespace-nowrap flex-shrink-0 ${themes[theme].text}`}>分析报告</h3>
           </div>
           <div 
-            className={`prose prose-sm max-w-none ${themes[theme].text}`}
+            className={`max-w-none ${themes[theme].text} text-sm leading-relaxed space-y-2`}
             dangerouslySetInnerHTML={{ 
               __html: renderMarkdownContent(analysis.content) 
             }}
