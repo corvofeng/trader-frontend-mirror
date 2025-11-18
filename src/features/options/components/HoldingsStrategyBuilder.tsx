@@ -35,8 +35,10 @@ export function HoldingsStrategyBuilder({ theme, onStrategyCreated }: HoldingsSt
 
   const allPositions: OptionsPosition[] = useMemo(() => {
     if (!portfolioData) return [];
-    // 将分组展开为纯列表
-    return portfolioData.expiryGroups.flatMap(g => g.positions);
+    if (portfolioData.expiryBuckets && portfolioData.expiryBuckets.length > 0) {
+      return portfolioData.expiryBuckets.flatMap(b => b.single);
+    }
+    return [];
   }, [portfolioData]);
 
   useEffect(() => {

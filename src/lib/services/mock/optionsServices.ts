@@ -129,6 +129,94 @@ const initializeCustomStrategies = () => {
 // 初始化示例数据
 initializeCustomStrategies();
 
+function makeStrategy(name: string, positions: OptionsPosition[]): OptionsStrategy {
+  const totalCost = positions.reduce((sum, p) => sum + p.premium * p.quantity * 100, 0);
+  const currentValue = positions.reduce((sum, p) => sum + p.currentValue * p.quantity * 100, 0);
+  const profitLoss = positions.reduce((sum, p) => sum + p.profitLoss, 0);
+  return {
+    id: name.toLowerCase().replace(/\s+/g, '_'),
+    name,
+    description: getStrategyDescription(name),
+    category: getStrategyCategory(name),
+    riskLevel: getStrategyRiskLevel(name),
+    positions,
+    totalCost,
+    currentValue,
+    profitLoss,
+    profitLossPercentage: totalCost > 0 ? (profitLoss / totalCost) * 100 : 0,
+    maxRisk: calculateMaxRisk(name, positions),
+    maxReward: calculateMaxReward(name, positions)
+  };
+}
+
+function computeExpiryGroups(positions: OptionsPosition[]): OptionsPortfolioData['expiryGroups'] {
+  const groups = positions.reduce((acc, position) => {
+    const existing = acc.find(g => g.expiry === position.expiry);
+    if (existing) {
+      existing.positions.push(position);
+      existing.totalValue += position.currentValue * position.quantity * 100;
+      existing.totalCost += position.premium * position.quantity * 100;
+      existing.profitLoss += position.profitLoss;
+    } else {
+      const daysToExpiry = Math.ceil((new Date(position.expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      acc.push({
+        expiry: position.expiry,
+        daysToExpiry,
+        positions: [position],
+        totalValue: position.currentValue * position.quantity * 100,
+        totalCost: position.premium * position.quantity * 100,
+        profitLoss: position.profitLoss
+      });
+    }
+    return acc;
+  }, [] as OptionsPortfolioData['expiryGroups']);
+  return groups.sort((a, b) => a.daysToExpiry - b.daysToExpiry);
+}
+
+function computeTotals(positions: OptionsPosition[]) {
+  const totalValue = positions.reduce((sum, p) => sum + p.currentValue * p.quantity * 100, 0);
+  const totalCost = positions.reduce((sum, p) => sum + p.premium * p.quantity * 100, 0);
+  const totalProfitLoss = positions.reduce((sum, p) => sum + p.profitLoss, 0);
+  const totalProfitLossPercentage = totalCost > 0 ? (totalProfitLoss / totalCost) * 100 : 0;
+  return { totalValue, totalCost, totalProfitLoss, totalProfitLossPercentage };
+}
+
+function buildComplexStrategies(positions: OptionsPosition[]): OptionsStrategy[] {
+  const byName = new Map<string, OptionsPosition[]>();
+  positions.forEach(p => {
+    const name = p.strategy;
+    const arr = byName.get(name) || [];
+    arr.push(p);
+    byName.set(name, arr);
+  });
+  const strategies: OptionsStrategy[] = [];
+  byName.forEach((legs, name) => {
+    const isComplex = legs.some(l => l.type !== 'call' && l.type !== 'put');
+    if (isComplex) {
+      strategies.push(makeStrategy(name, legs));
+    }
+  });
+  return strategies;
+}
+
+function buildExpiryBuckets(positions: OptionsPosition[]): OptionsPortfolioData['expiryBuckets'] {
+  const positionsByExpiry = new Map<string, OptionsPosition[]>();
+  positions.forEach(p => {
+    const arr = positionsByExpiry.get(p.expiry) || [];
+    arr.push(p);
+    positionsByExpiry.set(p.expiry, arr);
+  });
+
+  const buckets: OptionsPortfolioData['expiryBuckets'] = [];
+  positionsByExpiry.forEach((legs, expiry) => {
+    const daysToExpiry = Math.ceil((new Date(expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    const single = legs.filter(l => l.type === 'call' || l.type === 'put');
+    const complexStrategies = buildComplexStrategies(legs);
+    buckets.push({ expiry, daysToExpiry, single, complex: complexStrategies });
+  });
+  return buckets.sort((a, b) => a.daysToExpiry - b.daysToExpiry);
+}
+
 // Mock期权持仓数据
 const generateMockOptionsPortfolio = (): OptionsPortfolioData => {
   const positions: OptionsPosition[] = [
@@ -416,85 +504,84 @@ const generateMockOptionsPortfolio = (): OptionsPortfolioData => {
       position_type_zh: '备兑',
       leg_quantity: 12,
       cost_price: 6.80
+    },
+    {
+      id: '6',
+      symbol: 'SPY',
+      strategy: 'Straddle',
+      strategy_id: 'STR-006',
+      type: 'straddle',
+      position_type: 'buy',
+      strike: 450,
+      expiry: '2024-03-15',
+      quantity: 2,
+      premium: 10.50,
+      currentValue: 12.00,
+      profitLoss: (12.00 - 10.50) * 2 * 100,
+      profitLossPercentage: ((12.00 - 10.50) / 10.50) * 100,
+      impliedVolatility: 0.30,
+      delta: 0.00,
+      gamma: 0.010,
+      theta: -0.02,
+      vega: 0.15,
+      status: 'open',
+      openDate: '2024-01-12T10:00:00Z',
+      notes: '在 2024-03-15 到期内添加复杂策略用于调试',
+      // 策略腿部详细信息
+      contract_code: 'SPY20240315SD450',
+      contract_name: 'SPY 450 跨式',
+      contract_type: '价差',
+      contract_type_zh: 'spread',
+      contract_strike_price: 450,
+      position_type_zh: '权利',
+      leg_quantity: 2,
+      cost_price: 10.50
+    },
+    {
+      id: '7',
+      symbol: 'MSFT',
+      strategy: 'Butterfly Spread',
+      strategy_id: 'STR-007',
+      type: 'butterfly',
+      position_type: 'buy',
+      strike: 380,
+      expiry: '2024-05-17',
+      quantity: 4,
+      premium: 1.20,
+      currentValue: 1.50,
+      profitLoss: (1.50 - 1.20) * 4 * 100,
+      profitLossPercentage: ((1.50 - 1.20) / 1.20) * 100,
+      impliedVolatility: 0.22,
+      delta: 0.10,
+      gamma: 0.020,
+      theta: -0.01,
+      vega: 0.05,
+      status: 'open',
+      openDate: '2024-01-22T12:00:00Z',
+      notes: '在 2024-05-17 到期内添加复杂策略用于调试',
+      // 策略腿部详细信息
+      contract_code: 'MSFT20240517BF380',
+      contract_name: 'MSFT 380 蝶式价差',
+      contract_type: '价差',
+      contract_type_zh: 'spread',
+      contract_strike_price: 380,
+      position_type_zh: '权利',
+      leg_quantity: 4,
+      cost_price: 1.20
     }
   ];
-
-  // 按到期日分组
-  const expiryGroups = positions.reduce((groups, position) => {
-    const expiry = position.expiry;
-    const existing = groups.find(g => g.expiry === expiry);
-    
-    if (existing) {
-      existing.positions.push(position);
-      existing.totalValue += position.currentValue * position.quantity * 100;
-      existing.totalCost += position.premium * position.quantity * 100;
-      existing.profitLoss += position.profitLoss;
-    } else {
-      const daysToExpiry = Math.ceil((new Date(expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-      groups.push({
-        expiry,
-        daysToExpiry,
-        positions: [position],
-        totalValue: position.currentValue * position.quantity * 100,
-        totalCost: position.premium * position.quantity * 100,
-        profitLoss: position.profitLoss
-      });
-    }
-    
-    return groups;
-  }, [] as OptionsPortfolioData['expiryGroups']);
-
-  // 按策略分组
-  const strategies = positions.reduce((strategies, position) => {
-    const strategyName = position.strategy;
-    const existing = strategies.find(s => s.name === strategyName);
-    
-    if (existing) {
-      existing.positions.push(position);
-      existing.totalCost += position.premium * position.quantity * 100;
-      existing.currentValue += position.currentValue * position.quantity * 100;
-      existing.profitLoss += position.profitLoss;
-    } else {
-      const totalCost = position.premium * position.quantity * 100;
-      const currentValue = position.currentValue * position.quantity * 100;
-      const profitLoss = position.profitLoss;
-      
-      strategies.push({
-        id: strategyName.toLowerCase().replace(/\s+/g, '_'),
-        name: strategyName,
-        description: getStrategyDescription(strategyName),
-        category: getStrategyCategory(strategyName),
-        riskLevel: getStrategyRiskLevel(strategyName),
-        positions: [position],
-        totalCost,
-        currentValue,
-        profitLoss,
-        profitLossPercentage: totalCost > 0 ? (profitLoss / totalCost) * 100 : 0,
-        maxRisk: calculateMaxRisk(strategyName, [position]),
-        maxReward: calculateMaxReward(strategyName, [position])
-      });
-    }
-    
-    return strategies;
-  }, [] as OptionsStrategy[]);
-
-  // 更新策略的盈亏百分比
-  strategies.forEach(strategy => {
-    strategy.profitLossPercentage = strategy.totalCost > 0 ? (strategy.profitLoss / strategy.totalCost) * 100 : 0;
-  });
-
-  const totalValue = positions.reduce((sum, pos) => sum + (pos.currentValue * pos.quantity * 100), 0);
-  const totalCost = positions.reduce((sum, pos) => sum + (pos.premium * pos.quantity * 100), 0);
-  const totalProfitLoss = positions.reduce((sum, pos) => sum + pos.profitLoss, 0);
-  const totalProfitLossPercentage = totalCost > 0 ? (totalProfitLoss / totalCost) * 100 : 0;
-
+  const expiryBuckets = buildExpiryBuckets(positions);
+  const { totalValue, totalCost, totalProfitLoss, totalProfitLossPercentage } = computeTotals(positions);
   return {
-    strategies,
+    strategies: [],
+    singleLegPositions: [],
+    complexStrategies: [],
+    expiryBuckets,
     totalValue,
     totalCost,
     totalProfitLoss,
     totalProfitLossPercentage,
-    expiryGroups: expiryGroups.sort((a, b) => a.daysToExpiry - b.daysToExpiry)
+    expiryGroups: []
   };
 };
 

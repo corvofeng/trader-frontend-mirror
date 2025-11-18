@@ -104,12 +104,19 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
               <p className="text-gray-600">加载投资组合数据...</p>
             </div>
           ) : portfolioData ? (
-            <StrategyDisplay
-              theme={theme}
-              strategies={portfolioData.strategies}
-              title="当前期权策略"
-              showFilters={true}
-            />
+            (() => {
+              const strategiesForOverview = (Array.isArray(portfolioData.expiryBuckets) && portfolioData.expiryBuckets.length > 0)
+                ? portfolioData.expiryBuckets.flatMap(b => b.complex)
+                : [];
+              return (
+                <StrategyDisplay
+                  theme={theme}
+                  strategies={strategiesForOverview}
+                  title="当前期权策略"
+                  showFilters={true}
+                />
+              );
+            })()
           ) : (
             <div className={`${themes[theme].card} rounded-lg p-8 text-center`}>
               <Briefcase className={`w-12 h-12 mx-auto mb-4 ${themes[theme].text} opacity-40`} />

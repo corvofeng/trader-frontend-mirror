@@ -420,6 +420,14 @@ export interface OptionsStrategy {
 
 export interface OptionsPortfolioData {
   strategies: OptionsStrategy[];
+  singleLegPositions?: OptionsPosition[];
+  complexStrategies?: OptionsStrategy[];
+  expiryBuckets?: Array<{
+    expiry: string;
+    daysToExpiry: number;
+    single: OptionsPosition[];
+    complex: OptionsStrategy[];
+  }>;
   totalValue: number;
   totalCost: number;
   totalProfitLoss: number;
