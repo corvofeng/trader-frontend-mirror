@@ -1,5 +1,5 @@
-import type { OptionsService, OptionsData, OptionsPortfolioData, OptionsPosition, OptionsStrategy } from '../types';
-import type { CustomOptionsStrategy, OptionStrategyLeg } from '../types';
+import type { OptionsService, OptionsPortfolioData, OptionsPosition, OptionsStrategy, RatioSpreadPlanResult } from '../types';
+import type { CustomOptionsStrategy } from '../types';
 
 // 支持的期权标的列表
 const AVAILABLE_OPTIONS_SYMBOLS = [
@@ -822,6 +822,51 @@ export const optionsService: OptionsService = {
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     
     return { data: userStrategies, error: null };
+  }
+  ,
+  getRatioSpreadPlans: async (symbol?: string) => {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    const sample: RatioSpreadPlanResult[] = [
+      {
+        plan: {
+          expiry: '2026-06-24',
+          option_type: 'put',
+          lower_strike: 1.35,
+          upper_strike: 1.4,
+          target_spread: 10,
+          cover_contracts_needed: 3,
+          label: `2026-06-24-put-1.35-1.40${symbol ? `-${symbol}` : ''}`
+        },
+        current_spread: 0,
+        leverage: 4,
+        cover_contracts_needed: 3,
+        action: 'open',
+        reason: 'leverage 4 >= threshold 4',
+        best_net_premium: 0.0338,
+        buy_price: 0.1894,
+        sell_price: 0.1505,
+        analysis: {
+          strike_type: 'put',
+          buy_strike: { code: '10010360', name: '科创50沽6月1400', price: 0.1865, option_type: 'put', strike_price: 1.4, expiry: '2026-06-24' },
+          sell_strike: { code: '10010359', name: '科创50沽6月1350', price: 0.1561, option_type: 'put', strike_price: 1.35, expiry: '2026-06-24' },
+          buy_price: 0.1894,
+          sell_price: 0.1505,
+          buy_strike_price: 1.4,
+          sell_strike_price: 1.35,
+          buy_count: 3,
+          sell_count: 4,
+          best_net_premium: 0.0338,
+          cover_contracts_needed: 3,
+          到期日: '2026-06-24'
+        }
+      }
+    ];
+    return { data: sample, error: null };
+  }
+  ,
+  saveRatioSpreadPlan: async (plan) => {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return { data: { ...plan, saved: true }, error: null };
   }
 };
 

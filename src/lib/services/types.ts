@@ -452,6 +452,8 @@ export interface OptionsService {
   ) => Promise<ServiceResponse<CustomOptionsStrategy>>;
   deleteCustomStrategy: (strategyId: string) => Promise<ServiceResponse<void>>;
   getCustomStrategies: (userId: string) => Promise<ServiceResponse<CustomOptionsStrategy[]>>;
+  getRatioSpreadPlans: (symbol?: string) => Promise<ServiceResponse<RatioSpreadPlanResult[]>>;
+  saveRatioSpreadPlan: (plan: RatioSpreadPlanResult) => Promise<ServiceResponse<RatioSpreadPlanResult>>;
 }
 
 export interface CustomOptionsStrategy {
@@ -475,5 +477,51 @@ export interface CustomOptionsStrategy {
     maxPositions: number;
     requiredTypes: string[];
     requiredActions: string[];
+  };
+}
+
+export interface OptionContract {
+  code: string;
+  name: string;
+  price: number;
+  option_type: 'call' | 'put';
+  strike_price: number;
+  expiry: string;
+}
+
+export interface RatioSpreadPlanConfig {
+  expiry: string;
+  option_type: 'call' | 'put';
+  lower_strike: number;
+  upper_strike: number;
+  target_spread: number;
+  cover_contracts_needed: number;
+  label: string;
+}
+
+export interface RatioSpreadPlanResult {
+  plan: RatioSpreadPlanConfig;
+  current_spread: number;
+  leverage: number;
+  cover_contracts_needed: number;
+  action: 'open' | 'close' | 'hold';
+  reason: string;
+  best_net_premium: number;
+  buy_price: number;
+  sell_price: number;
+  saved?: boolean;
+  analysis: {
+    strike_type: 'call' | 'put';
+    buy_strike: OptionContract;
+    sell_strike: OptionContract;
+    buy_price: number;
+    sell_price: number;
+    buy_strike_price: number;
+    sell_strike_price: number;
+    buy_count: number;
+    sell_count: number;
+    best_net_premium: number;
+    cover_contracts_needed: number;
+    到期日: string;
   };
 }

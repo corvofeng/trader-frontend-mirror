@@ -112,5 +112,38 @@ export const optionsService: OptionsService = {
       console.error('Error fetching custom strategies:', error);
       return { data: null, error: error as Error };
     }
+  },
+
+  getRatioSpreadPlans: async (symbol?: string) => {
+    try {
+      const queryParam = symbol ? `?symbol=${encodeURIComponent(symbol)}` : '';
+      const response = await fetch(`/api/options/ratio-spread-plans${queryParam}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch ratio spread plans');
+      }
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error fetching ratio spread plans:', error);
+      return { data: null, error: error as Error };
+    }
+  }
+  ,
+  saveRatioSpreadPlan: async (plan) => {
+    try {
+      const response = await fetch(`/api/options/ratio-spread-plans`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(plan)
+      });
+      if (!response.ok) {
+        throw new Error('Failed to save ratio spread plan');
+      }
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error saving ratio spread plan:', error);
+      return { data: null, error: error as Error };
+    }
   }
 };
