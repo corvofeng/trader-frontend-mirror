@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
@@ -43,6 +43,7 @@ export function ExpiryGroupCard({
   computeCombosForPositions,
   allExpiryBuckets,
 }: ExpiryGroupCardProps) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const filteredPositions = filterAndSortPositions(group.single);
   if (filteredPositions.length === 0) return null;
 
@@ -65,6 +66,12 @@ export function ExpiryGroupCard({
           </div>
           <div className="text-right">
             <div className="mt-2 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setDetailsOpen(!detailsOpen)}
+                className={`px-3 py-1 rounded text-xs ${themes[theme].secondary}`}
+              >
+                {detailsOpen ? '收起详情' : '展开详情'}
+              </button>
               <button
                 onClick={() => toggleExpirySelection(group.expiry)}
                 className={`px-3 py-1 rounded text-xs ${themes[theme].secondary}`}
@@ -92,7 +99,111 @@ export function ExpiryGroupCard({
 
             return (
               <div className="space-y-6">
-                {(callPositions.length > 0 || putPositions.length > 0) && (
+                {filteredPositions.length > 0 && (
+                  <div className="mt-0">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-4 h-4 bg-gray-500 rounded"></div>
+                      <h4 className={`text-lg font-semibold ${themes[theme].text}`}>持仓T型数量看板</h4>
+                    </div>
+                    <div className={`${themes[theme].background} rounded-lg p-4 border ${themes[theme].border}`}>
+                      {(() => {
+                        const strikes = Array.from(new Set(filteredPositions.map(p => p.strike))).sort((a, b) => a - b);
+                        const rows = strikes.map(strike => {
+                          const callSell = filteredPositions
+                            .filter(p => p.strike === strike && p.type === 'call' && p.position_type === 'sell')
+                            .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
+                          const putSell = filteredPositions
+                            .filter(p => p.strike === strike && p.type === 'put' && p.position_type === 'sell')
+                            .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
+                          return { strike, callSell, putSell };
+                        });
+                        const hasData = filteredPositions.length > 0;
+                        if (!hasData) {
+                          return (
+                            <div className={`text-center text-sm ${themes[theme].text} opacity-75`}>暂无数据</div>
+                          );
+                        }
+                        return (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className={`${themes[theme].text} opacity-75`}>
+                                  <th className="text-center py-2" colSpan={4}>Calls</th>
+                                  <th className={`text-center py-2 border-l border-r ${themes[theme].border}`}></th>
+                                  <th className="text-center py-2" colSpan={4}>Puts</th>
+                                </tr>
+                                <tr className={`text-xs ${themes[theme].text} opacity-70`}>
+                                  <th className="text-center py-2">Call 权利</th>
+                                  <th className="text-center py-2">Call 备兑</th>
+                                  <th className="text-center py-2">Call 义务</th>
+                                  <th className={`text-center py-2 px-3 border-r ${themes[theme].border}`}>Call 组合</th>
+                                  <th className="text-center py-2 px-4">行权价</th>
+                                  <th className={`text-center py-2 px-3 border-l ${themes[theme].border}`}>Put 组合</th>
+                                  <th className="text-center py-2">Put 权利</th>
+                                  <th className="text-center py-2">Put 备兑</th>
+                                  <th className="text-center py-2">Put 义务</th>
+                                </tr>
+                              </thead>
+                              <tbody className={`divide-y ${themes[theme].border}`}>
+                                {(() => {
+                                  const callCombos = new Map<number, number>();
+                                  const putCombos = new Map<number, number>();
+                                  (allExpiryBuckets || []).forEach(bucket => {
+                                    bucket.complex.forEach(s => {
+                                      if (s.positions.some(p => p.expiry === group.expiry)) {
+                                        const c = computeCombosForPositions(s, 'call');
+                                        const p = computeCombosForPositions(s, 'put');
+                                        c.forEach((v, k) => callCombos.set(k, (callCombos.get(k) ?? 0) + v));
+                                        p.forEach((v, k) => putCombos.set(k, (putCombos.get(k) ?? 0) + v));
+                                      }
+                                    });
+                                  });
+                                  return rows.map(row => {
+                                    const s = row.strike;
+                                    const callRight = filteredPositions
+                                      .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'buy')
+                                      .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
+                                    const callCovered = filteredPositions
+                                      .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh === '备兑')
+                                      .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
+                                    const callNormal = filteredPositions
+                                      .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh !== '备兑')
+                                      .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
+                                    const putNormal = filteredPositions
+                                      .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'sell' && p.position_type_zh !== '备兑')
+                                      .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
+                                    const putCovered = filteredPositions
+                                      .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'sell' && p.position_type_zh === '备兑')
+                                      .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
+                                    const putRight = filteredPositions
+                                      .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'buy')
+                                      .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
+                                    const comboCallQty = callCombos.get(s) ?? 0;
+                                    const comboPutQty = putCombos.get(s) ?? 0;
+                                    return (
+                                      <tr key={`trow-top-${group.expiry}-${s}`} className={themes[theme].cardHover}>
+                                        <td className={`text-center py-2 ${themes[theme].text}`}>{callRight}</td>
+                                        <td className={`text-center py-2 ${themes[theme].text}`}>{callCovered}</td>
+                                        <td className={`text-center py-2 ${themes[theme].text}`}>{callNormal}</td>
+                                        <td className={`text-center py-2 px-3 w-20 border-r ${themes[theme].border} ${themes[theme].text}`}>{comboCallQty}</td>
+                                        <td className={`text-center py-2 px-4 w-24 ${themes[theme].text}`}>{s}</td>
+                                        <td className={`text-center py-2 px-3 w-20 border-l ${themes[theme].border} ${themes[theme].text}`}>{comboPutQty}</td>
+                                        <td className={`text-center py-2 ${themes[theme].text}`}>{putRight}</td>
+                                        <td className={`text-center py-2 ${themes[theme].text}`}>{putCovered}</td>
+                                        <td className={`text-center py-2 ${themes[theme].text}`}>{putNormal}</td>
+                                      </tr>
+                                    );
+                                  });
+                                })()}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                )}
+                {detailsOpen && (callPositions.length > 0 || putPositions.length > 0) && (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div>
                       <div className="flex items-center gap-2 mb-4">
@@ -308,7 +419,7 @@ export function ExpiryGroupCard({
                   </div>
                 )}
 
-                {(group.complex && group.complex.length > 0) && (
+                {detailsOpen && (group.complex && group.complex.length > 0) && (
                   <div>
                     <div className="flex items-center gap-2 mb-4">
                       <div className="w-4 h-4 bg-purple-500 rounded"></div>
@@ -380,7 +491,7 @@ export function ExpiryGroupCard({
                   </div>
                 )}
 
-                {filteredPositions.length > 0 && (
+                {detailsOpen && filteredPositions.length > 0 && (
                   <div className="mt-6">
                     <div className="flex items-center gap-2 mb-3">
                       <div className="w-4 h-4 bg-gray-500 rounded"></div>

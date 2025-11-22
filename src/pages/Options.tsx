@@ -10,7 +10,7 @@ import { OptionsPortfolio } from '../features/options/components/OptionsPortfoli
 import { OptionsTradePlans } from '../features/options/components/OptionsTradePlans';
 import { OptionsCalculatorCard } from '../features/options/components/OptionsCalculatorCard';
 import { OptionsCalculatorModal } from './options/OptionsCalculatorModal';
-import { RelatedLinks } from '../shared/components';
+import { RelatedLinks, AccountSelector } from '../shared/components';
 import { optionsService } from '../lib/services';
 import { OptionsPortfolioManagement } from '../features/options/components/OptionsPortfolioManagement';
 import type { OptionsData } from '../lib/services/types';
@@ -38,6 +38,8 @@ export function Options({ theme }: OptionsProps) {
   const [isLoadingSymbols, setIsLoadingSymbols] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCalculatorModal, setShowCalculatorModal] = useState(false);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const DEMO_USER_ID = 'mock-user-id';
 
   const handleTabChange = (newTab: OptionsTab) => {
     setActiveTab(newTab);
@@ -134,8 +136,19 @@ export function Options({ theme }: OptionsProps) {
                 Advanced options analysis and trading tools
               </p>
             </div>
-            {activeTab === 'data' && (
-              <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <label className={`text-sm font-medium ${themes[theme].text}`}>
+                  账户:
+                </label>
+                <AccountSelector
+                  userId={DEMO_USER_ID}
+                  theme={theme}
+                  selectedAccountId={selectedAccountId}
+                  onAccountChange={(id) => setSelectedAccountId(id)}
+                />
+              </div>
+              {activeTab === 'data' && (
                 <div className="flex items-center gap-2">
                   <label className={`text-sm font-medium ${themes[theme].text}`}>
                     Symbol:
@@ -161,11 +174,11 @@ export function Options({ theme }: OptionsProps) {
                     </span>
                   )}
                 </div>
-                {(isLoading || isLoadingSymbols) && (
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
-                )}
-              </div>
-            )}
+              )}
+              {(isLoading || isLoadingSymbols) && activeTab === 'data' && (
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -262,7 +275,7 @@ export function Options({ theme }: OptionsProps) {
 
         {activeTab === 'portfolio' && (
           <div className="space-y-6">
-            <OptionsPortfolio theme={theme} />
+            <OptionsPortfolio theme={theme} selectedAccountId={selectedAccountId} />
             <RelatedLinks 
               theme={theme}
               currentPath="/options?tab=portfolio" 
@@ -273,7 +286,7 @@ export function Options({ theme }: OptionsProps) {
 
         {activeTab === 'trading' && (
           <div className="space-y-6">
-            <OptionsTradePlans theme={theme} selectedSymbol={selectedSymbol} />
+            <OptionsTradePlans theme={theme} selectedSymbol={selectedSymbol} selectedAccountId={selectedAccountId} />
             <RelatedLinks 
               theme={theme}
               currentPath="/options?tab=trading" 

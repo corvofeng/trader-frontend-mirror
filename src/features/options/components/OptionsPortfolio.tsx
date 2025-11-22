@@ -9,6 +9,7 @@ import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { optionsService, authService } from '../../../lib/services';
+import { AccountSelector } from '../../../shared/components';
 import { emitAddLegToStrategy } from '../events/strategySelection';
 import { logger } from '../../../shared/utils/logger';
 import type { OptionsPortfolioData, CustomOptionsStrategy, OptionsPosition, OptionsStrategy } from '../../../lib/services/types';
@@ -18,6 +19,7 @@ import { ExpiryGroupCard } from './ExpiryGroupCard';
 
 interface OptionsPortfolioProps {
   theme: Theme;
+  selectedAccountId?: string | null;
 }
 
 type OptionsViewMode = 'expiry' | 'strategy' | 'grouped';
@@ -118,10 +120,11 @@ const getPositionTypeInfo2 = (positionType: string, optionType: string, position
   };
 };
 
-export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
+export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdProp }: OptionsPortfolioProps) {
   const [portfolioData, setPortfolioData] = useState<OptionsPortfolioData | null>(null);
   const [customStrategies, setCustomStrategies] = useState<CustomOptionsStrategy[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(selectedAccountIdProp ?? null);
   const [isLoadingStrategies, setIsLoadingStrategies] = useState(false);
   const [viewMode, setViewMode] = useState<OptionsViewMode>('expiry');
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'closed' | 'expired'>('all');
@@ -157,7 +160,7 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
           console.log(error);
         }
 
-        const { data, error } = await optionsService.getOptionsPortfolio(userId);
+        const { data, error } = await optionsService.getOptionsPortfolio(userId, selectedAccountId || null);
         if (error) throw error;
         if (data) setPortfolioData(data);
       } catch (error) {
@@ -168,7 +171,7 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
     };
 
     fetchData();
-  }, []);
+  }, [selectedAccountId]);
 
   // 本页面不订阅外部“打开编辑器”事件，保持弹窗一致
 
@@ -704,9 +707,15 @@ export function OptionsPortfolio({ theme }: OptionsPortfolioProps) {
       {/* Portfolio Overview */}
       <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
         <div className="p-6 border-b border-gray-200">
-          <h2 className={`text-xl font-bold ${themes[theme].text}`}>
-            期权投资组合概览
-          </h2>
+          <div className="flex items-center justify-between">
+            <h2 className={`text-xl font-bold ${themes[theme].text}`}>
+              期权投资组合概览
+            </h2>
+            <div className="flex items-center gap-2">
+              <label className={`text-sm font-medium ${themes[theme].text}`}>账户</label>
+              <AccountSelector userId={DEMO_USER_ID} theme={theme} selectedAccountId={selectedAccountId} onAccountChange={(id) => setSelectedAccountId(id)} />
+            </div>
+          </div>
         </div>
         
         <div className="p-6">

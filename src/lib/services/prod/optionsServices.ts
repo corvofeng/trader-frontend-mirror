@@ -31,9 +31,12 @@ export const optionsService: OptionsService = {
     }
   },
 
-  getOptionsPortfolio: async (userId: string) => {
+  getOptionsPortfolio: async (userId: string, accountId?: string | null) => {
     try {
-      const response = await fetch(`/api/options/portfolio/${userId}`);
+      const params = new URLSearchParams();
+      if (accountId) params.set('accountId', accountId);
+      const qs = params.toString();
+      const response = await fetch(`/api/options/portfolio/${userId}${qs ? `?${qs}` : ''}`);
       if (!response.ok) {
         throw new Error('Failed to fetch options portfolio');
       }
@@ -114,10 +117,13 @@ export const optionsService: OptionsService = {
     }
   },
 
-  getRatioSpreadPlans: async (symbol?: string) => {
+  getRatioSpreadPlans: async (symbol?: string, accountId?: string | null) => {
     try {
-      const queryParam = symbol ? `?symbol=${encodeURIComponent(symbol)}` : '';
-      const response = await fetch(`/api/options/ratio-spread-plans${queryParam}`);
+      const params = new URLSearchParams();
+      if (symbol) params.set('symbol', symbol);
+      if (accountId) params.set('accountId', accountId);
+      const qs = params.toString();
+      const response = await fetch(`/api/options/ratio-spread-plans${qs ? `?${qs}` : ''}`);
       if (!response.ok) {
         throw new Error('Failed to fetch ratio spread plans');
       }

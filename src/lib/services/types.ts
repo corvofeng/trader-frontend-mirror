@@ -445,14 +445,14 @@ export interface OptionsPortfolioData {
 export interface OptionsService {
   getOptionsData: (symbol?: string) => Promise<ServiceResponse<OptionsData>>;
   getAvailableSymbols: () => Promise<ServiceResponse<string[]>>;
-  getOptionsPortfolio: (userId: string) => Promise<ServiceResponse<OptionsPortfolioData>>;
+  getOptionsPortfolio: (userId: string, accountId?: string | null) => Promise<ServiceResponse<OptionsPortfolioData>>;
   getAvailableStrategies: () => Promise<ServiceResponse<string[]>>;
   saveCustomStrategy: (
     strategy: CustomOptionsStrategy | Omit<CustomOptionsStrategy, 'id' | 'createdAt' | 'updatedAt'>
   ) => Promise<ServiceResponse<CustomOptionsStrategy>>;
   deleteCustomStrategy: (strategyId: string) => Promise<ServiceResponse<void>>;
   getCustomStrategies: (userId: string) => Promise<ServiceResponse<CustomOptionsStrategy[]>>;
-  getRatioSpreadPlans: (symbol?: string) => Promise<ServiceResponse<RatioSpreadPlanResult[]>>;
+  getRatioSpreadPlans: (symbol?: string, accountId?: string | null) => Promise<ServiceResponse<RatioSpreadPlanResult[]>>;
   saveRatioSpreadPlan: (plan: RatioSpreadPlanResult) => Promise<ServiceResponse<RatioSpreadPlanResult>>;
 }
 
