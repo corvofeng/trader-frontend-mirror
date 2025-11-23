@@ -4,7 +4,6 @@ import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { optionsService, stockService } from '../../../lib/services';
-import { AccountSelector } from '../../../shared/components';
 import type { RatioSpreadPlanResult } from '../../../lib/services/types';
 
 interface OptionsTradePlansProps {
@@ -205,8 +204,8 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
   }, []);
 
   useEffect(() => {
-    // 初始化默认账户由 AccountSelector 负责
-  }, []);
+    setSelectedAccountId(selectedAccountIdProp ?? null);
+  }, [selectedAccountIdProp]);
 
   useEffect(() => {
     if (availableSymbols.length > 0) {
@@ -283,8 +282,6 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
                   placeholder="例如: SPY"
                 />
               )}
-              <label className={`text-sm ${themes[theme].text} ml-3`}>账户</label>
-              <AccountSelector userId={DEMO_USER_ID} theme={theme} selectedAccountId={selectedAccountId} onAccountChange={(id) => setSelectedAccountId(id)} />
               <button
                 type="button"
                 onClick={refreshRatioPlans}
@@ -384,24 +381,33 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
                           .filter(filterPlan)
                           .sort(sortPlans)
                           .map((rp, idx) => (
-                          <div key={`ratio-call-${exp}-${idx}`} className={`${themes[theme].background} rounded-lg p-3 sm:p-4 border ${themes[theme].border} relative group ${getPlanColor(rp)}`}>
-                            <div className="flex items-start justify-between">
+                          <div key={`ratio-call-${exp}-${idx}`} className={`${themes[theme].background} rounded-lg p-2 sm:p-3 border ${themes[theme].border} relative group ${getPlanColor(rp)}`}>
+                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
                               <div className="flex items-start gap-3">
                                 <Target className="w-4 h-4 text-purple-500" />
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <h3 className={`text-sm font-semibold ${themes[theme].text}`}>{rp.plan.label}</h3>
+                                <div className="min-w-0">
+                                  <h3 className={`text-sm font-semibold ${themes[theme].text} truncate`}>{rp.plan.label}</h3>
+                                  <div className="mt-1 flex items-center gap-2">
                                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${rp.action === 'open' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100' : rp.action === 'close' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100'}`}>{rp.action}</span>
-                                    <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-medium ${(() => { const m = getMoneyness(rp); return m === 'atm' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100' : m === 'itm' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100' : 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100'; })()}`}>{(() => { const m = getMoneyness(rp); return m.toUpperCase(); })()}</span>
+                                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${(() => { const m = getMoneyness(rp); return m === 'atm' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100' : m === 'itm' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100' : 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100'; })()}`}>{(() => { const m = getMoneyness(rp); return m.toUpperCase(); })()}</span>
                                   </div>
-                                  <p className={`text-xs ${themes[theme].text} opacity-75`}>净权利金 {formatCurrency(rp.best_net_premium, currencyConfig)}</p>
+                                  <div className="mt-2 sm:hidden flex items-center gap-3">
+                                    <div className="flex items-center gap-1">
+                                      <span className={`text-xs ${themes[theme].text} opacity-75`}>净权利金</span>
+                                      <span className={`px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{formatCurrency(rp.best_net_premium, currencyConfig)}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <span className={`text-xs ${themes[theme].text} opacity-75`}>杠杆</span>
+                                      <span className={`px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{rp.leverage}</span>
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
-                              <div className="text-right">
+                              <div className="hidden sm:block text-right">
                                 <p className={`text-xs ${themes[theme].text} opacity-75`}>杠杆</p>
                                 <p className={`text-sm font-semibold ${themes[theme].text}`}>{rp.leverage}</p>
                               </div>
-                              <div className="mt-2 flex items-center gap-2">
+                              <div className="w-full sm:w-auto mt-1 sm:mt-0 flex flex-wrap items-center gap-2 sm:ml-2">
                                 <button
                                   onClick={() => handleSavePlan(rp)}
                                   disabled={savingIds[`${rp.plan.label}-${rp.plan.expiry}`] || rp.saved}
@@ -426,9 +432,11 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
                                 )}
                               </div>
                             </div>
-                            <div className={`${themes[theme].card} rounded-lg shadow-lg border ${themes[theme].border} absolute z-10 top-2 left-2 w-[24rem] max-w-[90vw] hidden group-hover:block p-4 pointer-events-none sm:block sm:group-hover:block sm:pointer-events-auto sm:hidden`}></div>
-                            <div className={`${themes[theme].card} rounded-lg border ${themes[theme].border} mt-3 p-3 sm:hidden ${expandedPlanId === `${rp.plan.label}-${rp.plan.expiry}` ? 'block' : 'hidden'}`}>
-                              <div className="grid grid-cols-2 gap-4">
+                            <div
+                              className={`${themes[theme].card} rounded-lg border ${themes[theme].border} transition-all duration-300 ease-out overflow-hidden ${expandedPlanId === `${rp.plan.label}-${rp.plan.expiry}` ? 'mt-2 p-3 max-h-[22rem] opacity-100' : 'mt-0 p-0 max-h-0 opacity-0'}`}
+                              aria-hidden={expandedPlanId !== `${rp.plan.label}-${rp.plan.expiry}`}
+                            >
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                                 <div>
                                   <p className={`text-xs ${themes[theme].text} opacity-75`}>买入腿</p>
                                   <p className={`text-sm font-medium ${themes[theme].text}`}>{rp.analysis.buy_strike.name}</p>
@@ -439,22 +447,28 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
                                   <p className={`text-sm font-medium ${themes[theme].text}`}>{rp.analysis.sell_strike.name}</p>
                                   <p className={`text-xs ${themes[theme].text} opacity-60`}>代码 {rp.analysis.sell_strike.code}</p>
                                 </div>
-                                <div>
+                              </div>
+                              <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                <div className={`p-2 rounded border ${themes[theme].border}`}>
                                   <p className={`text-xs ${themes[theme].text} opacity-75`}>买入价格</p>
-                                  <p className={`text-sm font-medium ${themes[theme].text}`}>{formatCurrency(rp.buy_price, currencyConfig)}</p>
+                                  <span className={`inline-block px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{formatCurrency(rp.buy_price, currencyConfig)}</span>
                                 </div>
-                                <div>
+                                <div className={`p-2 rounded border ${themes[theme].border}`}>
                                   <p className={`text-xs ${themes[theme].text} opacity-75`}>卖出价格</p>
-                                  <p className={`text-sm font-medium ${themes[theme].text}`}>{formatCurrency(rp.sell_price, currencyConfig)}</p>
+                                  <span className={`inline-block px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{formatCurrency(rp.sell_price, currencyConfig)}</span>
                                 </div>
-                                <div>
-                                  <p className={`text-xs ${themes[theme].text} opacity-75`}>买入合约数</p>
-                                  <p className={`text-sm font-medium ${themes[theme].text}`}>{rp.analysis.buy_count}</p>
+                                <div className={`p-2 rounded border ${themes[theme].border}`}>
+                                  <p className={`text-xs ${themes[theme].text} opacity-75`}>净权利金</p>
+                                  <span className={`inline-block px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{formatCurrency(rp.best_net_premium, currencyConfig)}</span>
                                 </div>
-                                <div>
-                                  <p className={`text-xs ${themes[theme].text} opacity-75`}>卖出合约数</p>
-                                  <p className={`text-sm font-medium ${themes[theme].text}`}>{rp.analysis.sell_count}</p>
+                                <div className={`p-2 rounded border ${themes[theme].border}`}>
+                                  <p className={`text-xs ${themes[theme].text} opacity-75`}>杠杆</p>
+                                  <span className={`inline-block px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{rp.leverage}</span>
                                 </div>
+                              </div>
+                              <div className="mt-2 flex items-center gap-2">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">买入 {rp.analysis.buy_count}</span>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100">卖出 {rp.analysis.sell_count}</span>
                               </div>
                               <div className={`mt-3 ${themes[theme].card} rounded p-3 border ${themes[theme].border}`}>
                                 <p className={`text-sm ${themes[theme].text}`}>{rp.reason}</p>
@@ -475,24 +489,33 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
                           .filter(filterPlan)
                           .sort(sortPlans)
                           .map((rp, idx) => (
-                          <div key={`ratio-put-${exp}-${idx}`} className={`${themes[theme].background} rounded-lg p-3 sm:p-4 border ${themes[theme].border} relative group ${getPlanColor(rp)}`}>
-                            <div className="flex items-start justify-between">
+                          <div key={`ratio-put-${exp}-${idx}`} className={`${themes[theme].background} rounded-lg p-2 sm:p-3 border ${themes[theme].border} relative group ${getPlanColor(rp)}`}>
+                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
                               <div className="flex items-start gap-3">
                                 <Target className="w-4 h-4 text-purple-500" />
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <h3 className={`text-sm font-semibold ${themes[theme].text}`}>{rp.plan.label}</h3>
+                                <div className="min-w-0">
+                                  <h3 className={`text-sm font-semibold ${themes[theme].text} truncate`}>{rp.plan.label}</h3>
+                                  <div className="mt-1 flex items-center gap-2">
                                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${rp.action === 'open' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100' : rp.action === 'close' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100'}`}>{rp.action}</span>
-                                    <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-medium ${(() => { const m = getMoneyness(rp); return m === 'atm' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100' : m === 'itm' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100' : 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100'; })()}`}>{(() => { const m = getMoneyness(rp); return m.toUpperCase(); })()}</span>
+                                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${(() => { const m = getMoneyness(rp); return m === 'atm' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100' : m === 'itm' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100' : 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100'; })()}`}>{(() => { const m = getMoneyness(rp); return m.toUpperCase(); })()}</span>
                                   </div>
-                                  <p className={`text-xs ${themes[theme].text} opacity-75`}>净权利金 {formatCurrency(rp.best_net_premium, currencyConfig)}</p>
+                                  <div className="mt-2 sm:hidden flex items-center gap-3">
+                                    <div className="flex items-center gap-1">
+                                      <span className={`text-xs ${themes[theme].text} opacity-75`}>净权利金</span>
+                                      <span className={`px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{formatCurrency(rp.best_net_premium, currencyConfig)}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <span className={`text-xs ${themes[theme].text} opacity-75`}>杠杆</span>
+                                      <span className={`px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{rp.leverage}</span>
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
-                              <div className="text-right">
+                              <div className="hidden sm:block text-right">
                                 <p className={`text-xs ${themes[theme].text} opacity-75`}>杠杆</p>
                                 <p className={`text-sm font-semibold ${themes[theme].text}`}>{rp.leverage}</p>
                               </div>
-                              <div className="mt-2 flex items-center gap-2">
+                              <div className="w-full sm:w-auto mt-1 sm:mt-0 flex flex-wrap items-center gap-2 sm:ml-2">
                                 <button
                                   onClick={() => handleSavePlan(rp)}
                                   disabled={savingIds[`${rp.plan.label}-${rp.plan.expiry}`] || rp.saved}
@@ -517,9 +540,11 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
                                 )}
                               </div>
                             </div>
-                            <div className={`${themes[theme].card} rounded-lg shadow-lg border ${themes[theme].border} absolute z-10 top-2 left-2 w-[24rem] max-w-[90vw] hidden group-hover:block p-4 pointer-events-none sm:block sm:group-hover:block sm:pointer-events-auto sm:hidden`}></div>
-                            <div className={`${themes[theme].card} rounded-lg border ${themes[theme].border} mt-3 p-3 sm:hidden ${expandedPlanId === `${rp.plan.label}-${rp.plan.expiry}` ? 'block' : 'hidden'}`}>
-                              <div className="grid grid-cols-2 gap-4">
+                            <div
+                              className={`${themes[theme].card} rounded-lg border ${themes[theme].border} transition-all duration-300 ease-out overflow-hidden ${expandedPlanId === `${rp.plan.label}-${rp.plan.expiry}` ? 'mt-2 p-3 max-h-[22rem] opacity-100' : 'mt-0 p-0 max-h-0 opacity-0'}`}
+                              aria-hidden={expandedPlanId !== `${rp.plan.label}-${rp.plan.expiry}`}
+                            >
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                                 <div>
                                   <p className={`text-xs ${themes[theme].text} opacity-75`}>买入腿</p>
                                   <p className={`text-sm font-medium ${themes[theme].text}`}>{rp.analysis.buy_strike.name}</p>
@@ -530,22 +555,28 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
                                   <p className={`text-sm font-medium ${themes[theme].text}`}>{rp.analysis.sell_strike.name}</p>
                                   <p className={`text-xs ${themes[theme].text} opacity-60`}>代码 {rp.analysis.sell_strike.code}</p>
                                 </div>
-                                <div>
+                              </div>
+                              <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                <div className={`p-2 rounded border ${themes[theme].border}`}>
                                   <p className={`text-xs ${themes[theme].text} opacity-75`}>买入价格</p>
-                                  <p className={`text-sm font-medium ${themes[theme].text}`}>{formatCurrency(rp.buy_price, currencyConfig)}</p>
+                                  <span className={`inline-block px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{formatCurrency(rp.buy_price, currencyConfig)}</span>
                                 </div>
-                                <div>
+                                <div className={`p-2 rounded border ${themes[theme].border}`}>
                                   <p className={`text-xs ${themes[theme].text} opacity-75`}>卖出价格</p>
-                                  <p className={`text-sm font-medium ${themes[theme].text}`}>{formatCurrency(rp.sell_price, currencyConfig)}</p>
+                                  <span className={`inline-block px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{formatCurrency(rp.sell_price, currencyConfig)}</span>
                                 </div>
-                                <div>
-                                  <p className={`text-xs ${themes[theme].text} opacity-75`}>买入合约数</p>
-                                  <p className={`text-sm font-medium ${themes[theme].text}`}>{rp.analysis.buy_count}</p>
+                                <div className={`p-2 rounded border ${themes[theme].border}`}>
+                                  <p className={`text-xs ${themes[theme].text} opacity-75`}>净权利金</p>
+                                  <span className={`inline-block px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{formatCurrency(rp.best_net_premium, currencyConfig)}</span>
                                 </div>
-                                <div>
-                                  <p className={`text-xs ${themes[theme].text} opacity-75`}>卖出合约数</p>
-                                  <p className={`text-sm font-medium ${themes[theme].text}`}>{rp.analysis.sell_count}</p>
+                                <div className={`p-2 rounded border ${themes[theme].border}`}>
+                                  <p className={`text-xs ${themes[theme].text} opacity-75`}>杠杆</p>
+                                  <span className={`inline-block px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{rp.leverage}</span>
                                 </div>
+                              </div>
+                              <div className="mt-2 flex items-center gap-2">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">买入 {rp.analysis.buy_count}</span>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100">卖出 {rp.analysis.sell_count}</span>
                               </div>
                               <div className={`mt-3 ${themes[theme].card} rounded p-3 border ${themes[theme].border}`}>
                                 <p className={`text-sm ${themes[theme].text}`}>{rp.reason}</p>
