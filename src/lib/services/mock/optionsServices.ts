@@ -872,6 +872,18 @@ export const optionsService: OptionsService = {
     await new Promise(resolve => setTimeout(resolve, 500));
     return { data: { ...plan, saved: true }, error: null };
   }
+  ,
+  refreshRatioSpreadPlan: async (plan) => {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    const refreshed = {
+      ...plan,
+      best_net_premium: (plan.best_net_premium ?? 0) * (1 + (Math.random() - 0.5) * 0.1),
+      buy_price: (plan.buy_price ?? 0) * (1 + (Math.random() - 0.5) * 0.1),
+      sell_price: (plan.sell_price ?? 0) * (1 + (Math.random() - 0.5) * 0.1),
+      leverage: Math.max(0, (plan.leverage ?? 0) + (Math.random() - 0.5) * 0.2),
+    };
+    return { data: refreshed, error: null };
+  }
 };
 
 // Helper function for normal cumulative distribution

@@ -152,4 +152,22 @@ export const optionsService: OptionsService = {
       return { data: null, error: error as Error };
     }
   }
+  ,
+  refreshRatioSpreadPlan: async (plan) => {
+    try {
+      const response = await fetch(`/api/options/ratio-spread-plans/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(plan)
+      });
+      if (!response.ok) {
+        throw new Error('Failed to refresh ratio spread plan');
+      }
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error refreshing ratio spread plan:', error);
+      return { data: null, error: error as Error };
+    }
+  }
 };

@@ -454,6 +454,7 @@ export interface OptionsService {
   getCustomStrategies: (userId: string) => Promise<ServiceResponse<CustomOptionsStrategy[]>>;
   getRatioSpreadPlans: (symbol?: string, accountId?: string | null) => Promise<ServiceResponse<RatioSpreadPlanResult[]>>;
   saveRatioSpreadPlan: (plan: RatioSpreadPlanResult) => Promise<ServiceResponse<RatioSpreadPlanResult>>;
+  refreshRatioSpreadPlan: (plan: RatioSpreadPlanResult) => Promise<ServiceResponse<RatioSpreadPlanResult>>;
 }
 
 export interface CustomOptionsStrategy {

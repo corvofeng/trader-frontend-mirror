@@ -28,6 +28,7 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
   const [savedFilter, setSavedFilter] = useState<'all' | 'saved' | 'unsaved'>('all');
   const [sortKey, setSortKey] = useState<'leverage' | 'net' | 'buy' | 'sell'>('leverage');
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(selectedAccountIdProp ?? null);
+  const [expandedPlanId, setExpandedPlanId] = useState<string | null>(null);
   const DEMO_USER_ID = 'mock-user-id';
   const groupedByExpiry: Record<string, RatioSpreadPlanResult[]> = ratioPlans.reduce((acc, rp) => {
     const key = rp.plan.expiry;
@@ -120,6 +121,25 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
       }
     } catch (e) {
       console.error('save ratio plan failed', e);
+    } finally {
+      setSavingIds(prev => ({ ...prev, [id]: false }));
+    }
+  };
+
+  const handleRefreshSavedPlan = async (rp: RatioSpreadPlanResult) => {
+    const id = `${rp.plan.label}-${rp.plan.expiry}`;
+    setSavingIds(prev => ({ ...prev, [id]: true }));
+    try {
+      const { data, error } = await optionsService.refreshRatioSpreadPlan(rp);
+      if (error) throw error;
+      if (data) {
+        setRatioPlans(prev => prev.map(p => {
+          const pid = `${p.plan.label}-${p.plan.expiry}`;
+          return pid === id ? { ...p, ...data, saved: true } : p;
+        }));
+      }
+    } catch (e) {
+      console.error('refresh ratio plan failed', e);
     } finally {
       setSavingIds(prev => ({ ...prev, [id]: false }));
     }
@@ -330,6 +350,20 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
                   <div className={`ml-auto text-sm ${themes[theme].text}`}>标的价 {underlyingPrice}</div>
                 )}
               </div>
+              <div className="flex gap-2 sm:hidden">
+                <button
+                  onClick={() => setOptionTypeFilter(prev => prev === 'all' ? 'call' : prev === 'call' ? 'put' : 'all')}
+                  className={`px-2 py-1 rounded text-xs ${themes[theme].secondary}`}
+                >类型: {optionTypeFilter.toUpperCase()}</button>
+                <button
+                  onClick={() => setAtmFilter(prev => prev === 'all' ? 'atm' : prev === 'atm' ? 'itm' : prev === 'itm' ? 'otm' : 'all')}
+                  className={`px-2 py-1 rounded text-xs ${themes[theme].secondary}`}
+                >价位: {atmFilter.toUpperCase()}</button>
+                <button
+                  onClick={() => setSavedFilter(prev => prev === 'all' ? 'saved' : prev === 'saved' ? 'unsaved' : 'all')}
+                  className={`px-2 py-1 rounded text-xs ${themes[theme].secondary}`}
+                >保存: {savedFilter}</button>
+              </div>
               {sortedExpiries.map((exp) => (
                 <div key={`exp-${exp}`} className="space-y-4">
                   <div className="flex items-center gap-2">
@@ -338,19 +372,19 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
                       到期 {new Date(exp).toLocaleDateString()} · {groupedByExpiry[exp].length} 条计划
                     </span>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                     <div>
                       <div className="flex items-center gap-2 mb-2">
                         <TrendingUp className="w-4 h-4 text-green-500" />
                         <span className={`text-sm font-medium ${themes[theme].text}`}>Call ({groupedByExpiry[exp].filter(p => p.plan.option_type === 'call').length})</span>
                       </div>
-                      <div className="space-y-3">
+                      <div className="space-y-2 sm:space-y-3">
                         {groupedByExpiry[exp]
                           .filter((rp) => rp.plan.option_type === 'call')
                           .filter(filterPlan)
                           .sort(sortPlans)
                           .map((rp, idx) => (
-                          <div key={`ratio-call-${exp}-${idx}`} className={`${themes[theme].background} rounded-lg p-4 border ${themes[theme].border} relative group ${getPlanColor(rp)}`}>
+                          <div key={`ratio-call-${exp}-${idx}`} className={`${themes[theme].background} rounded-lg p-3 sm:p-4 border ${themes[theme].border} relative group ${getPlanColor(rp)}`}>
                             <div className="flex items-start justify-between">
                               <div className="flex items-start gap-3">
                                 <Target className="w-4 h-4 text-purple-500" />
@@ -375,9 +409,25 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
                                 >
                                   {rp.saved ? '已保存' : (savingIds[`${rp.plan.label}-${rp.plan.expiry}`] ? '保存中...' : '保存计划')}
                                 </button>
+                                <button
+                                  onClick={() => setExpandedPlanId(prev => prev === `${rp.plan.label}-${rp.plan.expiry}` ? null : `${rp.plan.label}-${rp.plan.expiry}`)}
+                                  className={`px-2 py-1 rounded text-xs ${themes[theme].secondary}`}
+                                >
+                                  详情
+                                </button>
+                                {rp.saved && (
+                                  <button
+                                    onClick={() => handleRefreshSavedPlan(rp)}
+                                    disabled={savingIds[`${rp.plan.label}-${rp.plan.expiry}`]}
+                                    className={`px-2 py-1 rounded text-xs ${themes[theme].secondary}`}
+                                  >
+                                    刷新
+                                  </button>
+                                )}
                               </div>
                             </div>
-                            <div className={`${themes[theme].card} rounded-lg shadow-lg border ${themes[theme].border} absolute z-10 top-2 left-2 w-[24rem] max-w-[90vw] hidden group-hover:block p-4 pointer-events-none`}>
+                            <div className={`${themes[theme].card} rounded-lg shadow-lg border ${themes[theme].border} absolute z-10 top-2 left-2 w-[24rem] max-w-[90vw] hidden group-hover:block p-4 pointer-events-none sm:block sm:group-hover:block sm:pointer-events-auto sm:hidden`}></div>
+                            <div className={`${themes[theme].card} rounded-lg border ${themes[theme].border} mt-3 p-3 sm:hidden ${expandedPlanId === `${rp.plan.label}-${rp.plan.expiry}` ? 'block' : 'hidden'}`}>
                               <div className="grid grid-cols-2 gap-4">
                                 <div>
                                   <p className={`text-xs ${themes[theme].text} opacity-75`}>买入腿</p>
@@ -419,13 +469,13 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
                         <TrendingDown className="w-4 h-4 text-red-500" />
                         <span className={`text-sm font-medium ${themes[theme].text}`}>Put ({groupedByExpiry[exp].filter(p => p.plan.option_type === 'put').length})</span>
                       </div>
-                      <div className="space-y-3">
+                      <div className="space-y-2 sm:space-y-3">
                         {groupedByExpiry[exp]
                           .filter((rp) => rp.plan.option_type === 'put')
                           .filter(filterPlan)
                           .sort(sortPlans)
                           .map((rp, idx) => (
-                          <div key={`ratio-put-${exp}-${idx}`} className={`${themes[theme].background} rounded-lg p-4 border ${themes[theme].border} relative group ${getPlanColor(rp)}`}>
+                          <div key={`ratio-put-${exp}-${idx}`} className={`${themes[theme].background} rounded-lg p-3 sm:p-4 border ${themes[theme].border} relative group ${getPlanColor(rp)}`}>
                             <div className="flex items-start justify-between">
                               <div className="flex items-start gap-3">
                                 <Target className="w-4 h-4 text-purple-500" />
@@ -450,9 +500,25 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
                                 >
                                   {rp.saved ? '已保存' : (savingIds[`${rp.plan.label}-${rp.plan.expiry}`] ? '保存中...' : '保存计划')}
                                 </button>
+                                <button
+                                  onClick={() => setExpandedPlanId(prev => prev === `${rp.plan.label}-${rp.plan.expiry}` ? null : `${rp.plan.label}-${rp.plan.expiry}`)}
+                                  className={`px-2 py-1 rounded text-xs ${themes[theme].secondary}`}
+                                >
+                                  详情
+                                </button>
+                                {rp.saved && (
+                                  <button
+                                    onClick={() => handleRefreshSavedPlan(rp)}
+                                    disabled={savingIds[`${rp.plan.label}-${rp.plan.expiry}`]}
+                                    className={`px-2 py-1 rounded text-xs ${themes[theme].secondary}`}
+                                  >
+                                    刷新
+                                  </button>
+                                )}
                               </div>
                             </div>
-                            <div className={`${themes[theme].card} rounded-lg shadow-lg border ${themes[theme].border} absolute z-10 top-2 left-2 w-[24rem] max-w-[90vw] hidden group-hover:block p-4 pointer-events-none`}>
+                            <div className={`${themes[theme].card} rounded-lg shadow-lg border ${themes[theme].border} absolute z-10 top-2 left-2 w-[24rem] max-w-[90vw] hidden group-hover:block p-4 pointer-events-none sm:block sm:group-hover:block sm:pointer-events-auto sm:hidden`}></div>
+                            <div className={`${themes[theme].card} rounded-lg border ${themes[theme].border} mt-3 p-3 sm:hidden ${expandedPlanId === `${rp.plan.label}-${rp.plan.expiry}` ? 'block' : 'hidden'}`}>
                               <div className="grid grid-cols-2 gap-4">
                                 <div>
                                   <p className={`text-xs ${themes[theme].text} opacity-75`}>买入腿</p>
