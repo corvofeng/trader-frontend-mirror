@@ -354,6 +354,7 @@ export interface OptionsData {
 export interface OptionsPosition {
   id: string;
   symbol: string;
+  opt_undl_code_full?: string;
   strategy: string;
   strategy_id?: string;
   type: 'call' | 'put' | 'spread' | 'straddle' | 'strangle' | 'iron_condor' | 'butterfly';

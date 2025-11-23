@@ -250,7 +250,8 @@ const generateMockOptionsPortfolio = (): OptionsPortfolioData => {
       contract_strike_price: 450,
       position_type_zh: '权利',
       leg_quantity: 10,
-      cost_price: 5.50
+      cost_price: 5.50,
+      opt_undl_code_full: 'US.SPY'
     },
     // 追加：同一到期日(2024-03-15)下的多组 Call / Put 期权，便于多选构建策略
     {
@@ -282,7 +283,8 @@ const generateMockOptionsPortfolio = (): OptionsPortfolioData => {
       contract_strike_price: 455,
       position_type_zh: '权利',
       leg_quantity: 6,
-      cost_price: 6.20
+      cost_price: 6.20,
+      opt_undl_code_full: 'US.SPY'
     },
     {
       id: '7',
@@ -313,7 +315,8 @@ const generateMockOptionsPortfolio = (): OptionsPortfolioData => {
       contract_strike_price: 465,
       position_type_zh: '义务',
       leg_quantity: 4,
-      cost_price: 4.80
+      cost_price: 4.80,
+      opt_undl_code_full: 'US.SPY'
     },
     {
       id: '8',
@@ -344,7 +347,8 @@ const generateMockOptionsPortfolio = (): OptionsPortfolioData => {
       contract_strike_price: 440,
       position_type_zh: '权利',
       leg_quantity: 5,
-      cost_price: 5.10
+      cost_price: 5.10,
+      opt_undl_code_full: 'US.SPY'
     },
     {
       id: '9',
@@ -407,7 +411,8 @@ const generateMockOptionsPortfolio = (): OptionsPortfolioData => {
       contract_strike_price: 380,
       position_type_zh: '权利',
       leg_quantity: 5,
-      cost_price: 8.30
+      cost_price: 8.30,
+      opt_undl_code_full: 'US.QQQ'
     },
     {
       id: '3',
@@ -439,7 +444,8 @@ const generateMockOptionsPortfolio = (): OptionsPortfolioData => {
       contract_strike_price: 175,
       position_type_zh: '权利',
       leg_quantity: 8,
-      cost_price: 2.50
+      cost_price: 2.50,
+      opt_undl_code_full: 'US.AAPL'
     },
     {
       id: '4',
@@ -471,7 +477,8 @@ const generateMockOptionsPortfolio = (): OptionsPortfolioData => {
       contract_strike_price: 250,
       position_type_zh: '义务',
       leg_quantity: 3,
-      cost_price: 4.20
+      cost_price: 4.20,
+      opt_undl_code_full: 'US.TSLA'
     },
     {
       id: '5',
@@ -503,7 +510,8 @@ const generateMockOptionsPortfolio = (): OptionsPortfolioData => {
       contract_strike_price: 380,
       position_type_zh: '备兑',
       leg_quantity: 12,
-      cost_price: 6.80
+      cost_price: 6.80,
+      opt_undl_code_full: 'US.MSFT'
     },
     {
       id: '6',
@@ -535,7 +543,8 @@ const generateMockOptionsPortfolio = (): OptionsPortfolioData => {
       contract_strike_price: 450,
       position_type_zh: '权利',
       leg_quantity: 2,
-      cost_price: 10.50
+      cost_price: 10.50,
+      opt_undl_code_full: 'US.SPY'
     },
     {
       id: '7',
@@ -567,7 +576,8 @@ const generateMockOptionsPortfolio = (): OptionsPortfolioData => {
       contract_strike_price: 380,
       position_type_zh: '权利',
       leg_quantity: 4,
-      cost_price: 1.20
+      cost_price: 1.20,
+      opt_undl_code_full: 'US.MSFT'
     }
   ];
   const expiryBuckets = buildExpiryBuckets(positions);

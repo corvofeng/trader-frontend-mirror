@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
 import type { OptionsPosition, OptionsStrategy } from '../../../lib/services/types';
+import { optionsService } from '../../../lib/services';
+import { stockService } from '../../../lib/services';
 
 interface ExpiryGroupCardProps {
   theme: Theme;
@@ -22,6 +24,8 @@ interface ExpiryGroupCardProps {
   getPositionTypeInfo2: (positionType: string, optionType: string, positionTypeZh?: string) => { icon: React.ReactNode; label: string; color: string; description?: string; borderColor: string };
   computeCombosForPositions: (strategy: OptionsStrategy, type: 'call' | 'put') => Map<number, number>;
   allExpiryBuckets: Array<{ expiry: string; daysToExpiry: number; single: OptionsPosition[]; complex: OptionsStrategy[] }>;
+  selectedSymbol: string;
+  underlyingPrice: number | null;
 }
 
 export function ExpiryGroupCard({
@@ -42,9 +46,14 @@ export function ExpiryGroupCard({
   getPositionTypeInfo2,
   computeCombosForPositions,
   allExpiryBuckets,
+  selectedSymbol,
+  underlyingPrice,
 }: ExpiryGroupCardProps) {
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const filteredPositions = filterAndSortPositions(group.single);
+  const basePositions = filterAndSortPositions(group.single);
+  const filteredPositions = selectedSymbol
+    ? basePositions.filter(p => p.opt_undl_code_full === selectedSymbol)
+    : basePositions;
   if (filteredPositions.length === 0) return null;
 
   return (
@@ -66,6 +75,9 @@ export function ExpiryGroupCard({
           </div>
           <div className="text-right">
             <div className="mt-2 flex items-center justify-end gap-2">
+              {selectedSymbol && underlyingPrice != null && (
+                <div className={`text-sm ${themes[theme].text}`}>标的价 {underlyingPrice.toFixed(2)}</div>
+              )}
               <button
                 onClick={() => setDetailsOpen(!detailsOpen)}
                 className={`px-3 py-1 rounded text-xs ${themes[theme].secondary}`}
@@ -133,15 +145,15 @@ export function ExpiryGroupCard({
                                   <th className="text-center py-2" colSpan={4}>Puts</th>
                                 </tr>
                                 <tr className={`text-xs ${themes[theme].text} opacity-70`}>
-                                  <th className="text-center py-2">Call 权利</th>
+                                  <th className="text-center py-2">Call 组合</th>
                                   <th className="text-center py-2">Call 备兑</th>
                                   <th className="text-center py-2">Call 义务</th>
-                                  <th className={`text-center py-2 px-3 border-r ${themes[theme].border}`}>Call 组合</th>
+                                  <th className={`text-center py-2 px-3 border-r ${themes[theme].border}`}>Call 权利</th>
                                   <th className="text-center py-2 px-4">行权价</th>
-                                  <th className={`text-center py-2 px-3 border-l ${themes[theme].border}`}>Put 组合</th>
-                                  <th className="text-center py-2">Put 权利</th>
-                                  <th className="text-center py-2">Put 备兑</th>
+                                  <th className={`text-center py-2 px-3 border-l ${themes[theme].border}`}>Put 权利</th>
                                   <th className="text-center py-2">Put 义务</th>
+                                  <th className="text-center py-2">Put 备兑</th>
+                                  <th className="text-center py-2">Put 组合</th>
                                 </tr>
                               </thead>
                               <tbody className={`divide-y ${themes[theme].border}`}>
@@ -158,8 +170,17 @@ export function ExpiryGroupCard({
                                       }
                                     });
                                   });
-                                  return rows.map(row => {
+                                  const metrics = rows.map(row => {
                                     const s = row.strike;
+                                    const getM = () => {
+                                      if (underlyingPrice == null) return '';
+                                      const thr = 0.005;
+                                      const diffRatio = Math.abs(underlyingPrice - s) / Math.max(s, 1);
+                                      if (diffRatio <= thr) return 'ATM';
+                                      const isCallITM = underlyingPrice > s;
+                                      const isPutITM = underlyingPrice < s;
+                                      return `${isCallITM ? 'Call:ITM' : 'Call:OTM'} | ${isPutITM ? 'Put:ITM' : 'Put:OTM'}`;
+                                    };
                                     const callRight = filteredPositions
                                       .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'buy')
                                       .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
@@ -180,17 +201,42 @@ export function ExpiryGroupCard({
                                       .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
                                     const comboCallQty = callCombos.get(s) ?? 0;
                                     const comboPutQty = putCombos.get(s) ?? 0;
+                                    let risk = 0;
+                                    if (underlyingPrice != null) {
+                                      const up = underlyingPrice;
+                                      const cr = Math.max(0, (up - s) / Math.max(s, 1));
+                                      const pr = Math.max(0, (s - up) / Math.max(s, 1));
+                                      const wCovered = 0.3;
+                                      const wCombo = 0.2;
+                                      const shortCall = callNormal + callCovered * wCovered + comboCallQty * wCombo;
+                                      const shortPut = putNormal + putCovered * wCovered + comboPutQty * wCombo;
+                                      risk = shortCall * cr + shortPut * pr;
+                                      const near = Math.max(0, 0.02 - Math.abs(up - s) / Math.max(s, 1)) / 0.02;
+                                      risk += near * (callNormal + putNormal) * 0.5;
+                                    }
+                                    return { s, getM, callRight, callNormal, callCovered, comboCallQty, putRight, putNormal, putCovered, comboPutQty, risk };
+                                  });
+                                  const maxRisk = Math.max(1, ...metrics.map(m => m.risk));
+                                  return metrics.map(m => {
+                                    const intensity = Math.min(1, m.risk / maxRisk);
+                                    const h = Math.round(0 + 120 * (1 - intensity));
+                                    const c = theme === 'dark' ? `hsla(${h},70%,30%,0.35)` : `hsla(${h},85%,85%,0.65)`;
+                                    const bg = `linear-gradient(to right, ${c} 0%, transparent 100%)`;
                                     return (
-                                      <tr key={`trow-top-${group.expiry}-${s}`} className={themes[theme].cardHover}>
-                                        <td className={`text-center py-2 ${themes[theme].text}`}>{callRight}</td>
-                                        <td className={`text-center py-2 ${themes[theme].text}`}>{callCovered}</td>
-                                        <td className={`text-center py-2 ${themes[theme].text}`}>{callNormal}</td>
-                                        <td className={`text-center py-2 px-3 w-20 border-r ${themes[theme].border} ${themes[theme].text}`}>{comboCallQty}</td>
-                                        <td className={`text-center py-2 px-4 w-24 ${themes[theme].text}`}>{s}</td>
-                                        <td className={`text-center py-2 px-3 w-20 border-l ${themes[theme].border} ${themes[theme].text}`}>{comboPutQty}</td>
-                                        <td className={`text-center py-2 ${themes[theme].text}`}>{putRight}</td>
-                                        <td className={`text-center py-2 ${themes[theme].text}`}>{putCovered}</td>
-                                        <td className={`text-center py-2 ${themes[theme].text}`}>{putNormal}</td>
+                                      <tr key={`trow-top-${group.expiry}-${m.s}`} className={themes[theme].cardHover} style={{ backgroundImage: bg }}>
+                                        <td className={`text-center py-2 ${themes[theme].text}`}>{m.comboCallQty}</td>
+                                        <td className={`text-center py-2 ${themes[theme].text}`}>{m.callCovered}</td>
+                                        <td className={`text-center py-2 ${themes[theme].text}`}>{m.callNormal}</td>
+                                        <td className={`text-center py-2 px-3 w-20 border-r ${themes[theme].border} ${themes[theme].text}`}>{m.callRight}</td>
+                                        <td className={`text-center py-2 px-4 w-24 ${themes[theme].text}`}>{m.s}
+                                          {underlyingPrice != null && (
+                                            <div className={`mt-1 text-[10px] opacity-75`}>{m.getM()}</div>
+                                          )}
+                                        </td>
+                                        <td className={`text-center py-2 px-3 w-20 border-l ${themes[theme].border} ${themes[theme].text}`}>{m.putRight}</td>
+                                        <td className={`text-center py-2 ${themes[theme].text}`}>{m.putNormal}</td>
+                                        <td className={`text-center py-2 ${themes[theme].text}`}>{m.putCovered}</td>
+                                        <td className={`text-center py-2 ${themes[theme].text}`}>{m.comboPutQty}</td>
                                       </tr>
                                     );
                                   });
@@ -218,7 +264,7 @@ export function ExpiryGroupCard({
                           return (
                             <div 
                               key={position.id}
-                              className={`${themes[theme].background} rounded-lg p-4 border-l-4 ${positionInfo.borderColor}`}
+                              className={`${themes[theme].background} rounded-lg p-4 border ${themes[theme].border} border-l-4 ${positionInfo.borderColor} ${getHighlightClass(position)}`}
                             >
                               <div className="flex justify-between items-start">
                                 <div className="flex items-start space-x-3">
@@ -324,7 +370,7 @@ export function ExpiryGroupCard({
                           return (
                             <div 
                               key={position.id}
-                              className={`${themes[theme].background} rounded-lg p-4 border-l-4 ${positionInfo.borderColor}`}
+                              className={`${themes[theme].background} rounded-lg p-4 border ${themes[theme].border} border-l-4 ${positionInfo.borderColor} ${getHighlightClass(position)}`}
                             >
                               <div className="flex justify-between items-start">
                                 <div className="flex items-start space-x-3">
@@ -607,3 +653,19 @@ export function ExpiryGroupCard({
     </div>
   );
 }
+  const isSelectedPosition = (p: OptionsPosition) => {
+    return !!selectedSymbol && (p.opt_undl_code_full === selectedSymbol);
+  };
+
+  const getHighlightClass = (p: OptionsPosition) => {
+    if (!isSelectedPosition(p) || underlyingPrice == null) return '';
+    const isCall = (p.type === 'call' || (p.contract_type_zh as any) === 'call');
+    const thr = 0.005;
+    const diffRatio = Math.abs(underlyingPrice - p.strike) / Math.max(p.strike, 1);
+    const isATM = diffRatio <= thr;
+    const isITM = isCall ? (underlyingPrice > p.strike) : (underlyingPrice < p.strike);
+    if (isATM) return 'bg-blue-50 dark:bg-blue-900/30 border-blue-300';
+    if (p.position_type === 'sell' && isITM) return 'bg-red-50 dark:bg-red-900/30 border-red-300';
+    if (p.position_type === 'buy' && !isITM) return 'bg-amber-50 dark:bg-amber-900/30 border-amber-300';
+    return 'bg-green-50 dark:bg-green-900/30 border-green-300';
+  };

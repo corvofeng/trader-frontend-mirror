@@ -8,8 +8,7 @@ import {
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
-import { optionsService, authService } from '../../../lib/services';
-import { AccountSelector } from '../../../shared/components';
+import { optionsService, authService, stockService } from '../../../lib/services';
 import { emitAddLegToStrategy } from '../events/strategySelection';
 import { logger } from '../../../shared/utils/logger';
 import type { OptionsPortfolioData, CustomOptionsStrategy, OptionsPosition, OptionsStrategy } from '../../../lib/services/types';
@@ -131,6 +130,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   const [sortBy, setSortBy] = useState<'expiry' | 'profitLoss' | 'symbol'>('expiry');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [expandedStrategies, setExpandedStrategies] = useState<string[]>([]);
+  const [underlyingCache, setUnderlyingCache] = useState<Record<string, number>>({});
   // 到期分组选择模式（每个到期日单独开启多选）
   const [expirySelectionMode, setExpirySelectionMode] = useState<Record<string, boolean>>({});
   // 选中的腿及数量（positionId -> quantity）
@@ -173,6 +173,41 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     fetchData();
   }, [selectedAccountId]);
 
+  const getUnderlyingCode = (p: OptionsPosition) => {
+    const full = p.opt_undl_code_full || '';
+    return getSanitizedUnderlying(full);
+  };
+
+  const getSanitizedUnderlying = (code: string) => {
+    return code?.startsWith('US.') ? code.replace('US.', '') : code;
+  };
+
+  const ensureUnderlyingPrice = async (code: string) => {
+    if (!code) return null;
+    if (underlyingCache[code] != null) return underlyingCache[code];
+    const { data } = await stockService.getCurrentPrice(code);
+    const price = data?.price ?? null;
+    setUnderlyingCache(prev => ({ ...prev, [code]: price ?? prev[code] }));
+    return price;
+  };
+
+  const getMoneynessTag = (p: OptionsPosition) => {
+    const full = p.opt_undl_code_full;
+    const sanitized = getSanitizedUnderlying(full || '');
+    const price = underlyingCache[sanitized];
+    if (price == null) return null;
+    const thr = 0.005;
+    const diffRatio = Math.abs(price - p.strike) / Math.max(p.strike, 1);
+    if (diffRatio <= thr) return { label: 'ATM', className: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100' };
+    const isCall = (p.type === 'call' || (p.contract_type_zh as any) === 'call');
+    const isITM = isCall ? price > p.strike : price < p.strike;
+    return isITM
+      ? { label: 'ITM', className: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100' }
+      : { label: 'OTM', className: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100' };
+  };
+
+  
+
   // 本页面不订阅外部“打开编辑器”事件，保持弹窗一致
 
   useEffect(() => {
@@ -209,6 +244,36 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         ? prev.filter(id => id !== strategyId)
         : [...prev, strategyId]
     );
+  };
+
+  const [selectedSymbol, setSelectedSymbol] = useState<string>('');
+  useEffect(() => {
+    if (!selectedSymbol && portfolioData?.expiryBuckets && portfolioData.expiryBuckets.length > 0) {
+      const first = portfolioData.expiryBuckets[0].single[0];
+      const code = first?.opt_undl_code_full || '';
+      if (code) setSelectedSymbol(code);
+    }
+  }, [portfolioData?.expiryBuckets]);
+
+  useEffect(() => {
+    const loadSelectedPrice = async () => {
+      if (!selectedSymbol) return;
+      const sanitized = getSanitizedUnderlying(selectedSymbol);
+      await ensureUnderlyingPrice(sanitized);
+    };
+    loadSelectedPrice();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSymbol]);
+  const isSelectedPosition = (p: OptionsPosition) => {
+    return !!selectedSymbol && (p.opt_undl_code_full === selectedSymbol);
+  };
+  const getRowHighlightClass = (p: OptionsPosition) => {
+    if (!isSelectedPosition(p)) return '';
+    const tag = getMoneynessTag(p);
+    if (!tag) return 'ring-1 ring-blue-300';
+    if (tag.label === 'ATM') return 'ring-1 ring-blue-400';
+    if (tag.label === 'ITM') return 'ring-1 ring-green-400';
+    return 'ring-1 ring-amber-400';
   };
 
   // 开关指定到期日的选择模式
@@ -712,8 +777,21 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
               期权投资组合概览
             </h2>
             <div className="flex items-center gap-2">
-              <label className={`text-sm font-medium ${themes[theme].text}`}>账户</label>
-              <AccountSelector userId={DEMO_USER_ID} theme={theme} selectedAccountId={selectedAccountId} onAccountChange={(id) => setSelectedAccountId(id)} />
+              <label className={`text-sm font-medium ${themes[theme].text}`}>标的</label>
+              <select
+                value={selectedSymbol}
+                onChange={(e) => setSelectedSymbol(e.target.value)}
+                className={`px-3 py-2 rounded-md text-sm ${themes[theme].input} ${themes[theme].text}`}
+              >
+                <option value="">请选择</option>
+                {Array.from(new Set((portfolioData?.expiryBuckets || []).flatMap(b => b.single)
+                  .map(p => p.opt_undl_code_full)
+                  .filter(Boolean)))
+                  .map(full => (<option key={full!} value={full!}>{full!.replace('US.', '')}</option>))}
+              </select>
+              {selectedSymbol && underlyingCache[selectedSymbol] != null && (
+                <span className={`text-sm ${themes[theme].text}`}>当前价 {underlyingCache[selectedSymbol]!.toFixed(2)}</span>
+              )}
             </div>
           </div>
         </div>
@@ -1247,6 +1325,8 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
               getPositionTypeInfo2={getPositionTypeInfo2}
               computeCombosForPositions={computeCombosForPositions}
               allExpiryBuckets={portfolioData.expiryBuckets || []}
+              selectedSymbol={selectedSymbol}
+              underlyingPrice={underlyingCache[selectedSymbol] ?? null}
             />
           ))}
         </div>
@@ -1316,23 +1396,24 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                         <div className="space-y-6">
                           {/* Call和Put期权两列展示 */}
                           {(callPositions.length > 0 || putPositions.length > 0) && (
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                               {/* Call期权列 */}
                               <div>
-                                <div className="flex items-center gap-2 mb-4">
-                                  <div className="w-4 h-4 bg-green-500 rounded"></div>
-                                  <h4 className={`text-lg font-semibold ${themes[theme].text}`}>
-                                    Call期权 ({callPositions.length})
-                                  </h4>
-                                </div>
+                                              <div className="flex items-center gap-2 mb-4">
+                                                <div className="w-4 h-4 bg-green-500 rounded"></div>
+                                                <h4 className={`text-lg font-semibold ${themes[theme].text}`}>
+                                                  Call期权 ({callPositions.length})
+                                                </h4>
+                                                
+                                              </div>
                                 <div className="space-y-3">
                                   {callPositions.map((position) => {
                                     const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh);
                                     
                                     return (
                                       <div 
-                                        key={position.id} 
-                                        className={`${themes[theme].background} rounded-lg p-4 border-l-4 ${positionInfo.borderColor}`}
+                                        key={position.id}
+                                        className={`${themes[theme].background} rounded-lg p-4 border-l-4 ${positionInfo.borderColor} ${getRowHighlightClass(position)}`}
                                       >
                                         <div className="flex justify-between items-start">
                                           <div className="flex items-start space-x-3">
@@ -1347,6 +1428,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                                                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${positionInfo.color}`}>
                                                     {positionInfo.label}
                                                   </span>
+                                                  {(() => { const tag = getMoneynessTag(position); return tag ? (<span className={`px-2 py-0.5 rounded-full text-xs font-medium ${tag.className}`}>{tag.label}</span>) : null; })()}
                                                 </div>
                                               </div>
                                               <div className={`text-xs ${themes[theme].text} opacity-75`}>
@@ -1416,20 +1498,21 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
 
                               {/* Put期权列 */}
                               <div>
-                                <div className="flex items-center gap-2 mb-4">
-                                  <div className="w-4 h-4 bg-red-500 rounded"></div>
-                                  <h4 className={`text-lg font-semibold ${themes[theme].text}`}>
-                                    Put期权 ({putPositions.length})
-                                  </h4>
-                                </div>
+                                              <div className="flex items-center gap-2 mb-4">
+                                                <div className="w-4 h-4 bg-red-500 rounded"></div>
+                                                <h4 className={`text-lg font-semibold ${themes[theme].text}`}>
+                                                  Put期权 ({putPositions.length})
+                                                </h4>
+                                                
+                                              </div>
                                 <div className="space-y-3">
                                   {putPositions.map((position) => {
                                     const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh);
                                     
                                     return (
                                       <div 
-                                        key={position.id} 
-                                        className={`${themes[theme].background} rounded-lg p-4 border-l-4 ${positionInfo.borderColor}`}
+                                        key={position.id}
+                                        className={`${themes[theme].background} rounded-lg p-4 border-l-4 ${positionInfo.borderColor} ${getRowHighlightClass(position)}`}
                                       >
                                         <div className="flex justify-between items-start">
                                           <div className="flex items-start space-x-3">
@@ -1444,6 +1527,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                                                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${positionInfo.color}`}>
                                                     {positionInfo.label}
                                                   </span>
+                                                  {(() => { const tag = getMoneynessTag(position); return tag ? (<span className={`px-2 py-0.5 rounded-full text-xs font-medium ${tag.className}`}>{tag.label}</span>) : null; })()}
                                                 </div>
                                               </div>
                                               <div className={`text-xs ${themes[theme].text} opacity-75`}>
