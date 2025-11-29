@@ -77,6 +77,7 @@ export function Portfolio({
   const [showPreview, setShowPreview] = useState(false);
   const journalRef = useRef<HTMLDivElement>(null);
   const { currencyConfig } = useCurrency();
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Calculate portfolio metrics
   const totalHoldingsValue = holdings.reduce((sum, holding) => sum + holding.total_value, 0);
@@ -127,6 +128,28 @@ export function Portfolio({
 
     fetchTrendData();
   }, [dateRange, isSharedView, portfolioUuid, selectedAccountId, userId]);
+
+  const refreshAll = async () => {
+    if (isSharedView) return;
+    if (!userId || !selectedAccountId) {
+      logger.debug('[Portfolio] Guard: cannot refresh without user/account');
+      return;
+    }
+    setIsRefreshing(true);
+    try {
+      const [holdingsResp, tradesResp, trendResp] = await Promise.all([
+        portfolioService.getHoldings(userId, selectedAccountId),
+        portfolioService.getRecentTrades(userId, dateRange.startDate, dateRange.endDate, selectedAccountId),
+        portfolioService.getTrendData(userId, dateRange.startDate, dateRange.endDate, selectedAccountId),
+      ]);
+      // 更新父传入的持仓/交易需由上层触发，这里只触发日期范围以促使父刷新
+      if (trendResp?.data) setTrendData(trendResp.data);
+      // 轻微抖动日期，触发父层useEffect刷新持仓/交易
+      onDateRangeChange({ ...dateRange });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const setQuickDateRange = (days: number) => {
     if (isSharedView && !portfolioUuid) return; // Disable date range changes in shared view without UUID
@@ -395,6 +418,7 @@ export function Portfolio({
             isSharedView={isSharedView}
             portfolioUuid={portfolioUuid}
             onQuickSelect={setQuickDateRange}
+            onRefresh={refreshAll}
           />
           <StatsGrid
             theme={theme}

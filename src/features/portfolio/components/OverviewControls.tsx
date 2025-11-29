@@ -1,4 +1,5 @@
 import React from 'react';
+import { RefreshCw } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { AccountSelector } from '../../../shared/components';
 
@@ -12,6 +13,7 @@ interface OverviewControlsProps {
   isSharedView?: boolean;
   portfolioUuid?: string | null;
   onQuickSelect: (days: number) => void;
+  onRefresh?: () => void;
 }
 
 export function OverviewControls({
@@ -24,6 +26,7 @@ export function OverviewControls({
   isSharedView,
   portfolioUuid,
   onQuickSelect,
+  onRefresh,
 }: OverviewControlsProps) {
   return (
     <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center mb-6">
@@ -67,6 +70,15 @@ export function OverviewControls({
             >
               6M
             </button>
+            {onRefresh && (
+              <button
+                onClick={onRefresh}
+                className={`inline-flex items-center gap-2 px-3 py-1 rounded-md text-sm ${themes[theme].secondary}`}
+              >
+                <RefreshCw className="w-4 h-4" />
+                刷新
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <input
