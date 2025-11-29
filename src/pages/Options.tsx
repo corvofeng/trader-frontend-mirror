@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { logger } from '../shared/utils/logger';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { BarChart2, TrendingUp, Briefcase, Calculator } from 'lucide-react';
+import { BarChart2, TrendingUp, Briefcase, Calculator, RefreshCw } from 'lucide-react';
 import { Theme, themes } from '../lib/theme';
 import { OptionsChain } from '../features/options/components/OptionsChain';
 import { TimeValueChart } from '../features/options/components/TimeValueChart';
@@ -41,6 +41,7 @@ export function Options({ theme }: OptionsProps) {
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() => {
     return localStorage.getItem('selectedAccountId') || localStorage.getItem('selectedAccountAlias');
   });
+  const [refreshKey, setRefreshKey] = useState(0);
   const DEMO_USER_ID = 'mock-user-id';
 
   const handleTabChange = (newTab: OptionsTab) => {
@@ -151,8 +152,16 @@ export function Options({ theme }: OptionsProps) {
                     setSelectedAccountId(id);
                     localStorage.setItem('selectedAccountId', id);
                     localStorage.setItem('selectedAccountAlias', id);
+                    setRefreshKey((k) => k + 1);
                   }}
                 />
+                <button
+                  onClick={() => setRefreshKey((k) => k + 1)}
+                  className={`inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm ${themes[theme].secondary}`}
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  刷新
+                </button>
               </div>
               {activeTab === 'data' && (
                 <div className="flex items-center gap-2">
@@ -281,7 +290,7 @@ export function Options({ theme }: OptionsProps) {
 
         {activeTab === 'portfolio' && (
           <div className="space-y-6">
-            <OptionsPortfolio theme={theme} selectedAccountId={selectedAccountId} />
+            <OptionsPortfolio theme={theme} selectedAccountId={selectedAccountId} refreshKey={refreshKey} />
             <RelatedLinks 
               theme={theme}
               currentPath="/options?tab=portfolio" 

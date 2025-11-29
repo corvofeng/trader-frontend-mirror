@@ -19,6 +19,7 @@ import { ExpiryGroupCard } from './ExpiryGroupCard';
 interface OptionsPortfolioProps {
   theme: Theme;
   selectedAccountId?: string | null;
+  refreshKey?: number;
 }
 
 type OptionsViewMode = 'expiry' | 'strategy' | 'grouped';
@@ -119,7 +120,7 @@ const getPositionTypeInfo2 = (positionType: string, optionType: string, position
   };
 };
 
-export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdProp }: OptionsPortfolioProps) {
+export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdProp, refreshKey }: OptionsPortfolioProps) {
   const [portfolioData, setPortfolioData] = useState<OptionsPortfolioData | null>(null);
   const [customStrategies, setCustomStrategies] = useState<CustomOptionsStrategy[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -172,7 +173,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     };
 
     fetchData();
-  }, [selectedAccountId]);
+  }, [selectedAccountId, refreshKey]);
 
   const getUnderlyingCode = (p: OptionsPosition) => {
     const full = p.opt_undl_code_full || '';
