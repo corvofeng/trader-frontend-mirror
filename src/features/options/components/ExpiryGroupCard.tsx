@@ -26,6 +26,7 @@ interface ExpiryGroupCardProps {
   allExpiryBuckets: Array<{ expiry: string; daysToExpiry: number; single: OptionsPosition[]; complex: OptionsStrategy[] }>;
   selectedSymbol: string;
   underlyingPrice: number | null;
+  onClosePositions: (ids: string[]) => Promise<void>;
 }
 
 export function ExpiryGroupCard({
@@ -48,8 +49,10 @@ export function ExpiryGroupCard({
   allExpiryBuckets,
   selectedSymbol,
   underlyingPrice,
+  onClosePositions,
 }: ExpiryGroupCardProps) {
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [closingKey, setClosingKey] = useState<string | null>(null);
   const basePositions = filterAndSortPositions(group.single);
   const filteredPositions = selectedSymbol
     ? basePositions.filter(p => p.opt_undl_code_full === selectedSymbol)
@@ -225,17 +228,125 @@ export function ExpiryGroupCard({
                                     return (
                                       <tr key={`trow-top-${group.expiry}-${m.s}`} className={themes[theme].cardHover} style={{ backgroundImage: bg }}>
                                         <td className={`text-center py-2 ${themes[theme].text}`}>{m.comboCallQty}</td>
-                                        <td className={`text-center py-2 ${themes[theme].text}`}>{m.callCovered}</td>
-                                        <td className={`text-center py-2 ${themes[theme].text}`}>{m.callNormal}</td>
-                                        <td className={`text-center py-2 px-3 w-20 border-r ${themes[theme].border} ${themes[theme].text}`}>{m.callRight}</td>
+                                        <td className={`text-center py-2 ${themes[theme].text}`}>
+                                          {m.callCovered}
+                                          {m.callCovered > 0 && (
+                                            <div className="mt-1">
+                                              <button
+                                                className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
+                                                disabled={closingKey === `call-covered-${m.s}`}
+                                                onClick={async () => {
+                                                  setClosingKey(`call-covered-${m.s}`);
+                                                  const ids = filteredPositions
+                                                    .filter(p => p.strike === m.s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh === '备兑')
+                                                    .map(p => p.id);
+                                                  await onClosePositions(ids);
+                                                  setClosingKey(null);
+                                                }}
+                                              >平仓</button>
+                                            </div>
+                                          )}
+                                        </td>
+                                        <td className={`text-center py-2 ${themes[theme].text}`}>
+                                          {m.callNormal}
+                                          {m.callNormal > 0 && (
+                                            <div className="mt-1">
+                                              <button
+                                                className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
+                                                disabled={closingKey === `call-normal-${m.s}`}
+                                                onClick={async () => {
+                                                  setClosingKey(`call-normal-${m.s}`);
+                                                  const ids = filteredPositions
+                                                    .filter(p => p.strike === m.s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh !== '备兑')
+                                                    .map(p => p.id);
+                                                  await onClosePositions(ids);
+                                                  setClosingKey(null);
+                                                }}
+                                              >平仓</button>
+                                            </div>
+                                          )}
+                                        </td>
+                                        <td className={`text-center py-2 px-3 w-20 border-r ${themes[theme].border} ${themes[theme].text}`}>
+                                          {m.callRight}
+                                          {m.callRight > 0 && (
+                                            <div className="mt-1">
+                                              <button
+                                                className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
+                                                disabled={closingKey === `call-right-${m.s}`}
+                                                onClick={async () => {
+                                                  setClosingKey(`call-right-${m.s}`);
+                                                  const ids = filteredPositions
+                                                    .filter(p => p.strike === m.s && p.type === 'call' && p.position_type === 'buy')
+                                                    .map(p => p.id);
+                                                  await onClosePositions(ids);
+                                                  setClosingKey(null);
+                                                }}
+                                              >平仓</button>
+                                            </div>
+                                          )}
+                                        </td>
                                         <td className={`text-center py-2 px-4 w-24 ${themes[theme].text}`}>{m.s}
                                           {underlyingPrice != null && (
                                             <div className={`mt-1 text-[10px] opacity-75`}>{m.getM()}</div>
                                           )}
                                         </td>
-                                        <td className={`text-center py-2 px-3 w-20 border-l ${themes[theme].border} ${themes[theme].text}`}>{m.putRight}</td>
-                                        <td className={`text-center py-2 ${themes[theme].text}`}>{m.putNormal}</td>
-                                        <td className={`text-center py-2 ${themes[theme].text}`}>{m.putCovered}</td>
+                                        <td className={`text-center py-2 px-3 w-20 border-l ${themes[theme].border} ${themes[theme].text}`}>
+                                          {m.putRight}
+                                          {m.putRight > 0 && (
+                                            <div className="mt-1">
+                                              <button
+                                                className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
+                                                disabled={closingKey === `put-right-${m.s}`}
+                                                onClick={async () => {
+                                                  setClosingKey(`put-right-${m.s}`);
+                                                  const ids = filteredPositions
+                                                    .filter(p => p.strike === m.s && p.type === 'put' && p.position_type === 'buy')
+                                                    .map(p => p.id);
+                                                  await onClosePositions(ids);
+                                                  setClosingKey(null);
+                                                }}
+                                              >平仓</button>
+                                            </div>
+                                          )}
+                                        </td>
+                                        <td className={`text-center py-2 ${themes[theme].text}`}>
+                                          {m.putNormal}
+                                          {m.putNormal > 0 && (
+                                            <div className="mt-1">
+                                              <button
+                                                className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
+                                                disabled={closingKey === `put-normal-${m.s}`}
+                                                onClick={async () => {
+                                                  setClosingKey(`put-normal-${m.s}`);
+                                                  const ids = filteredPositions
+                                                    .filter(p => p.strike === m.s && p.type === 'put' && p.position_type === 'sell' && p.position_type_zh !== '备兑')
+                                                    .map(p => p.id);
+                                                  await onClosePositions(ids);
+                                                  setClosingKey(null);
+                                                }}
+                                              >平仓</button>
+                                            </div>
+                                          )}
+                                        </td>
+                                        <td className={`text-center py-2 ${themes[theme].text}`}>
+                                          {m.putCovered}
+                                          {m.putCovered > 0 && (
+                                            <div className="mt-1">
+                                              <button
+                                                className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
+                                                disabled={closingKey === `put-covered-${m.s}`}
+                                                onClick={async () => {
+                                                  setClosingKey(`put-covered-${m.s}`);
+                                                  const ids = filteredPositions
+                                                    .filter(p => p.strike === m.s && p.type === 'put' && p.position_type === 'sell' && p.position_type_zh === '备兑')
+                                                    .map(p => p.id);
+                                                  await onClosePositions(ids);
+                                                  setClosingKey(null);
+                                                }}
+                                              >平仓</button>
+                                            </div>
+                                          )}
+                                        </td>
                                         <td className={`text-center py-2 ${themes[theme].text}`}>{m.comboPutQty}</td>
                                       </tr>
                                     );

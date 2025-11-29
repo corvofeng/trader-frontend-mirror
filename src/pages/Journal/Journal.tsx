@@ -5,7 +5,7 @@ import { TabNavigation } from './components/TabNavigation';
 import { StockSearchSection } from './components/StockSearchSection';
 import { SharedPortfolioInfo } from './components/SharedPortfolioInfo';
 import { TabContent } from './components/TabContent';
-import { portfolioService } from '../../lib/services';
+import { portfolioService, accountService } from '../../lib/services';
 import type { Stock, Holding, Trade, Account } from '../../lib/services/types';
 import type { Theme } from '../../lib/theme';
 
@@ -32,7 +32,7 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [recentTrades, setRecentTrades] = useState<Trade[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() => localStorage.getItem('selectedAccountId') || localStorage.getItem('selectedAccountAlias'));
   const [dateRange, setDateRange] = useState({
     startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0]
@@ -51,12 +51,20 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
   useEffect(() => {
     const fetchAccounts = async () => {
       if (!portfolioUuid) {
-        const response = await portfolioService.getAccounts(DEMO_USER_ID);
-        if (response?.data) {
-          setAccounts(response.data);
-          const defaultAccount = response.data.find(acc => acc.isDefault);
-          if (defaultAccount) {
-            setSelectedAccountId(defaultAccount.id);
+        const resp = await accountService.getAccounts(DEMO_USER_ID);
+        if (resp?.data) {
+          setAccounts(resp.data);
+          const storedId = localStorage.getItem('selectedAccountId') || localStorage.getItem('selectedAccountAlias');
+          const storedExists = storedId && resp.data.some(acc => acc.id === storedId);
+          if (storedExists) {
+            setSelectedAccountId(storedId);
+          } else {
+            const defaultAccount = resp.data.find(acc => acc.is_default) || resp.data[0];
+            if (defaultAccount) {
+              setSelectedAccountId(defaultAccount.id);
+              localStorage.setItem('selectedAccountId', defaultAccount.id);
+              if (defaultAccount.alias) localStorage.setItem('selectedAccountAlias', defaultAccount.alias);
+            }
           }
         }
       }

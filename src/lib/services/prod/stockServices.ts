@@ -196,7 +196,7 @@ export const portfolioService: PortfolioService = {
   getHoldings: async (userId: string, accountId?: string) => {
     try {
       const url = accountId
-        ? `/api/portfolio/${userId}?accountId=${accountId}`
+        ? `/api/portfolio/${accountId}`
         : `/api/portfolio/${userId}`;
       const response = await fetch(url);
       if (!response.ok) {
@@ -490,6 +490,19 @@ export const accountService: AccountService = {
       return { data, error: null };
     } catch (error) {
       console.error('Error fetching accounts:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+  getOptionsAccounts: async (userId: string) => {
+    try {
+      const response = await fetch(`/api/options/accounts?userId=${userId}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch options accounts');
+      }
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error fetching options accounts:', error);
       return { data: null, error: error as Error };
     }
   },

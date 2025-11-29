@@ -33,10 +33,8 @@ export const optionsService: OptionsService = {
 
   getOptionsPortfolio: async (userId: string, accountId?: string | null) => {
     try {
-      const params = new URLSearchParams();
-      if (accountId) params.set('accountId', accountId);
-      const qs = params.toString();
-      const response = await fetch(`/api/options/portfolio/${userId}${qs ? `?${qs}` : ''}`);
+      const path = accountId ? `/api/options/portfolio/${accountId}` : `/api/options/portfolio/${userId}`;
+      const response = await fetch(path);
       if (!response.ok) {
         throw new Error('Failed to fetch options portfolio');
       }
@@ -103,9 +101,12 @@ export const optionsService: OptionsService = {
     }
   },
 
-  getCustomStrategies: async (userId: string) => {
+  getCustomStrategies: async (userId: string, accountId?: string | null) => {
     try {
-      const response = await fetch(`/api/options/strategies/custom?userId=${userId}`);
+      const url = accountId
+        ? `/api/options/strategies/custom?accountId=${accountId}`
+        : `/api/options/strategies/custom?userId=${userId}`;
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error('Failed to fetch custom strategies');
       }
@@ -135,6 +136,23 @@ export const optionsService: OptionsService = {
     }
   }
   ,
+  closePositions: async (payload) => {
+    try {
+      const response = await fetch('/api/options/positions/close', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        throw new Error('Failed to close positions');
+      }
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error closing positions:', error);
+      return { data: null, error: error as Error };
+    }
+  },
   saveRatioSpreadPlan: async (plan) => {
     try {
       const response = await fetch(`/api/options/ratio-spread-plans`, {

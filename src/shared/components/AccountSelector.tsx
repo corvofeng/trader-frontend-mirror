@@ -9,9 +9,10 @@ interface AccountSelectorProps {
   theme: Theme;
   selectedAccountId: string | null;
   onAccountChange: (accountId: string) => void;
+  preferOptions?: boolean;
 }
 
-export function AccountSelector({ userId, theme, selectedAccountId, onAccountChange }: AccountSelectorProps) {
+export function AccountSelector({ userId, theme, selectedAccountId, onAccountChange, preferOptions = true }: AccountSelectorProps) {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -21,17 +22,27 @@ export function AccountSelector({ userId, theme, selectedAccountId, onAccountCha
 
   useEffect(() => {
     loadAccounts();
-  }, [userId]);
+  }, [userId, preferOptions]);
 
   const loadAccounts = async () => {
     setLoading(true);
-    const response = await accountService.getAccounts(userId);
-    console.log('Quick date range set:', response);
-    if (response.data) {
-      setAccounts(response.data);
-      if (!selectedAccountId && response.data.length > 0) {
-        const defaultAccount = response.data.find(acc => acc.is_default) || response.data[0];
+    let finalResponse;
+    if (preferOptions) {
+      const response = await accountService.getOptionsAccounts(userId);
+      finalResponse = response?.data ? response : await accountService.getAccounts(userId);
+    } else {
+      finalResponse = await accountService.getAccounts(userId);
+    }
+    if (finalResponse.data) {
+      setAccounts(finalResponse.data);
+      const storedId = localStorage.getItem('selectedAccountId') || localStorage.getItem('selectedAccountAlias');
+      const storedExists = storedId && finalResponse.data.some(acc => acc.id === storedId);
+      if (storedExists) {
+        onAccountChange(storedId!);
+      } else if (!selectedAccountId && finalResponse.data.length > 0) {
+        const defaultAccount = finalResponse.data.find(acc => acc.is_default) || finalResponse.data[0];
         onAccountChange(defaultAccount.id);
+        localStorage.setItem('selectedAccountId', defaultAccount.id);
       }
     }
     setLoading(false);
@@ -152,8 +163,10 @@ export function AccountSelector({ userId, theme, selectedAccountId, onAccountCha
                       className={`flex items-center justify-between p-3 rounded-md cursor-pointer transition-colors duration-200 hover:bg-gray-100 dark:hover:bg-gray-700 ${
                         selectedAccountId === account.id ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500' : ''
                       }`}
-                      onClick={() => {
+                        onClick={() => {
                         onAccountChange(account.id);
+                        localStorage.setItem('selectedAccountId', account.id);
+                        if (account.alias) localStorage.setItem('selectedAccountAlias', account.alias);
                         setIsOpen(false);
                       }}
                     >
@@ -177,10 +190,12 @@ export function AccountSelector({ userId, theme, selectedAccountId, onAccountCha
                       <div className="flex items-center gap-2">
                         {!account.is_default && (
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleSetDefault(account.id);
-                            }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSetDefault(account.id);
+                            localStorage.setItem('selectedAccountId', account.id);
+                            if (account.alias) localStorage.setItem('selectedAccountAlias', account.alias);
+                          }}
                             className={`text-xs px-2 py-1 rounded-full transition-colors duration-200 hover:bg-blue-100 dark:hover:bg-blue-900 ${themes[theme].secondary}`}
                           >
                             设为默认

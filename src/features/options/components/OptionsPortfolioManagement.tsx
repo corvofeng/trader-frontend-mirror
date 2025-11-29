@@ -44,7 +44,7 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
 
   const fetchSavedStrategies = async () => {
     try {
-      const { data, error } = await optionsService.getCustomStrategies(DEMO_USER_ID);
+      const { data, error } = await optionsService.getCustomStrategies(DEMO_USER_ID, null);
       if (error) throw error;
       if (data) {
         setSavedStrategies(data);

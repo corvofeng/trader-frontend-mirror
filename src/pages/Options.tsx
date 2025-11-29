@@ -38,7 +38,9 @@ export function Options({ theme }: OptionsProps) {
   const [isLoadingSymbols, setIsLoadingSymbols] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCalculatorModal, setShowCalculatorModal] = useState(false);
-  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() => {
+    return localStorage.getItem('selectedAccountId') || localStorage.getItem('selectedAccountAlias');
+  });
   const DEMO_USER_ID = 'mock-user-id';
 
   const handleTabChange = (newTab: OptionsTab) => {
@@ -145,7 +147,11 @@ export function Options({ theme }: OptionsProps) {
                   userId={DEMO_USER_ID}
                   theme={theme}
                   selectedAccountId={selectedAccountId}
-                  onAccountChange={(id) => setSelectedAccountId(id)}
+                  onAccountChange={(id) => {
+                    setSelectedAccountId(id);
+                    localStorage.setItem('selectedAccountId', id);
+                    localStorage.setItem('selectedAccountAlias', id);
+                  }}
                 />
               </div>
               {activeTab === 'data' && (

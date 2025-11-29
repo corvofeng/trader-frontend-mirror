@@ -160,6 +160,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
           console.log(error);
         }
 
+        const aliasOrUser = selectedAccountId || userId;
         const { data, error } = await optionsService.getOptionsPortfolio(userId, selectedAccountId || null);
         if (error) throw error;
         if (data) setPortfolioData(data);
@@ -222,7 +223,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         } catch (e) {
           // ignore and fallback
         }
-        const { data, error } = await optionsService.getCustomStrategies(userId);
+        const { data, error } = await optionsService.getCustomStrategies(userId, selectedAccountId || null);
         
         if (error) throw error;
         if (data) {
@@ -282,6 +283,49 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   };
 
   const isSelectingExpiry = (expiry: string) => !!expirySelectionMode[expiry];
+
+  const handleClosePositions = async (ids: string[]) => {
+    if (!ids || ids.length === 0) return;
+    try {
+      const collectPositions = (): OptionsPosition[] => {
+        const list: OptionsPosition[] = [];
+        (portfolioData?.expiryBuckets || []).forEach(bucket => {
+          bucket.single.forEach(p => { if (ids.includes(p.id)) list.push(p); });
+        });
+        (portfolioData?.expiryGroups || []).forEach(group => {
+          group.positions.forEach(p => { if (ids.includes(p.id) && !list.find(x => x.id === p.id)) list.push(p); });
+        });
+        (portfolioData?.strategies || []).forEach(s => {
+          s.positions.forEach(p => { if (ids.includes(p.id) && !list.find(x => x.id === p.id)) list.push(p); });
+        });
+        return list;
+      };
+      const payload = { positions: collectPositions() };
+      const { data, error } = await optionsService.closePositions(payload);
+      if (error) throw error;
+      setPortfolioData(prev => {
+        if (!prev) return prev;
+        const next = { ...prev } as OptionsPortfolioData;
+        next.expiryBuckets = (next.expiryBuckets || []).map(bucket => ({
+          ...bucket,
+          single: bucket.single.map(p => (ids.includes(p.id) ? { ...p, status: 'closed', closeDate: new Date().toISOString() } : p))
+        }));
+        next.expiryGroups = (next.expiryGroups || []).map(group => ({
+          ...group,
+          positions: group.positions.map(p => (ids.includes(p.id) ? { ...p, status: 'closed', closeDate: new Date().toISOString() } : p))
+        }));
+        next.strategies = (next.strategies || []).map(s => ({
+          ...s,
+          positions: s.positions.map(p => (ids.includes(p.id) ? { ...p, status: 'closed', closeDate: new Date().toISOString() } : p))
+        }));
+        return next;
+      });
+      toast.success(`已平仓 ${data?.closedIds?.length ?? ids.length} 个持仓`);
+    } catch (e) {
+      console.error(e);
+      toast.error('平仓失败');
+    }
+  };
 
   // 根据 positionId 查找持仓，用于判断是否复杂策略
   const findPositionById = (positionId: string): OptionsPosition | undefined => {
@@ -1327,6 +1371,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
               allExpiryBuckets={portfolioData.expiryBuckets || []}
               selectedSymbol={selectedSymbol}
               underlyingPrice={underlyingCache[selectedSymbol] ?? null}
+              onClosePositions={handleClosePositions}
             />
           ))}
         </div>
@@ -1827,3 +1872,4 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     </div>
   );
 }
+  

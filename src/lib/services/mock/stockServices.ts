@@ -793,6 +793,11 @@ export const accountService: AccountService = {
     const userAccounts = mockAccounts.filter(acc => acc.user_id === userId);
     return { data: userAccounts, error: null };
   },
+  getOptionsAccounts: async (userId: string) => {
+    await new Promise(resolve => setTimeout(resolve, 200));
+    const userAccounts = mockAccounts.filter(acc => acc.user_id === userId);
+    return { data: userAccounts, error: null };
+  },
 
   createAccount: async (account) => {
     await new Promise(resolve => setTimeout(resolve, 500));

@@ -50,7 +50,10 @@ export function TabContent({
         isSharedView={isSharedView}
         userId={userId}
         selectedAccountId={selectedAccountId}
-        onAccountChange={onAccountChange}
+        onAccountChange={(accountId) => {
+          onAccountChange?.(accountId);
+          if (accountId) localStorage.setItem('selectedAccountId', accountId);
+        }}
       />
     );
   }

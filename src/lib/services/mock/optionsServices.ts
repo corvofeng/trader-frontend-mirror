@@ -876,8 +876,12 @@ export const optionsService: OptionsService = {
       }
     ];
     return { data: sample, error: null };
-  }
-  ,
+  },
+  closePositions: async (payload) => {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    const ids = (payload?.positions || []).map(p => p.id);
+    return { data: { closedIds: ids }, error: null };
+  },
   saveRatioSpreadPlan: async (plan) => {
     await new Promise(resolve => setTimeout(resolve, 500));
     return { data: { ...plan, saved: true }, error: null };

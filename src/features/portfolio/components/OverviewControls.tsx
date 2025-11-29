@@ -35,6 +35,7 @@ export function OverviewControls({
             theme={theme}
             selectedAccountId={selectedAccountId || null}
             onAccountChange={onAccountChange}
+            preferOptions={false}
           />
         )}
       </div>

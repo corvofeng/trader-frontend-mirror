@@ -39,7 +39,7 @@ export function SavedStrategiesManager({ theme, onStrategyUpdated }: SavedStrate
   const fetchSavedStrategies = async () => {
     try {
       setIsLoading(true);
-      const { data, error } = await optionsService.getCustomStrategies(DEMO_USER_ID);
+      const { data, error } = await optionsService.getCustomStrategies(DEMO_USER_ID, null);
       if (error) throw error;
       if (data) {
         setSavedStrategies(data);

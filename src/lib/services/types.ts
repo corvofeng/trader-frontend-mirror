@@ -242,6 +242,7 @@ export interface TradeService {
 export interface Account {
   id: string;
   user_id: string;
+  alias?: string;
   name: string;
   description?: string;
   broker?: string;
@@ -254,6 +255,7 @@ export interface Account {
 
 export interface AccountService {
   getAccounts: (userId: string) => Promise<ServiceResponse<Account[]>>;
+  getOptionsAccounts: (userId: string) => Promise<ServiceResponse<Account[]>>;
   createAccount: (account: Omit<Account, 'id' | 'created_at' | 'updated_at'>) => Promise<ServiceResponse<Account>>;
   updateAccount: (account: Account) => Promise<ServiceResponse<Account>>;
   deleteAccount: (accountId: string) => Promise<ServiceResponse<void>>;
@@ -452,10 +454,11 @@ export interface OptionsService {
     strategy: CustomOptionsStrategy | Omit<CustomOptionsStrategy, 'id' | 'createdAt' | 'updatedAt'>
   ) => Promise<ServiceResponse<CustomOptionsStrategy>>;
   deleteCustomStrategy: (strategyId: string) => Promise<ServiceResponse<void>>;
-  getCustomStrategies: (userId: string) => Promise<ServiceResponse<CustomOptionsStrategy[]>>;
+  getCustomStrategies: (userId: string, accountId?: string | null) => Promise<ServiceResponse<CustomOptionsStrategy[]>>;
   getRatioSpreadPlans: (symbol?: string, accountId?: string | null) => Promise<ServiceResponse<RatioSpreadPlanResult[]>>;
   saveRatioSpreadPlan: (plan: RatioSpreadPlanResult) => Promise<ServiceResponse<RatioSpreadPlanResult>>;
   refreshRatioSpreadPlan: (plan: RatioSpreadPlanResult) => Promise<ServiceResponse<RatioSpreadPlanResult>>;
+  closePositions: (payload: { positions: OptionsPosition[] }) => Promise<ServiceResponse<{ closedIds: string[] }>>;
 }
 
 export interface CustomOptionsStrategy {
