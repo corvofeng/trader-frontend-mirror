@@ -1,10 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { format, differenceInDays } from 'date-fns';
-import { Calendar, TrendingUp, TrendingDown, Activity, Shield, Target, BarChart2, Layers, ChevronDown, ChevronUp } from 'lucide-react';
-import {
-  Clock,
-  Hash,
-} from 'lucide-react';
+import { format } from 'date-fns';
+import { Calendar, TrendingUp, TrendingDown, Activity, Shield, Target, Layers, ChevronDown, ChevronUp } from 'lucide-react';
+import { Hash } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
@@ -26,40 +23,7 @@ type OptionsViewMode = 'expiry' | 'strategy' | 'grouped';
 
 const DEMO_USER_ID = 'mock-user-id';
 
-const getPositionTypeInfo = (positionType: string, optionType: string) => {
-  const isLong = positionType === 'buy';
-  const isCall = optionType === 'call';
   
-  if (isLong && isCall) {
-    return {
-      icon: <TrendingUp className="w-3 h-3" />,
-      label: '买入看涨',
-      color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100',
-      description: '看涨期权买方'
-    };
-  } else if (isLong && !isCall) {
-    return {
-      icon: <TrendingDown className="w-3 h-3" />,
-      label: '买入看跌',
-      color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100',
-      description: '看跌期权买方'
-    };
-  } else if (!isLong && isCall) {
-    return {
-      icon: <TrendingUp className="w-3 h-3" />,
-      label: '卖出看涨',
-      color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100',
-      description: '看涨期权卖方'
-    };
-  } else {
-    return {
-      icon: <TrendingDown className="w-3 h-3" />,
-      label: '卖出看跌',
-      color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100',
-      description: '看跌期权卖方'
-    };
-  }
-};
 
 // 扩展OptionsPosition类型以包含策略ID
 interface ExtendedOptionsPosition extends OptionsPosition {
@@ -125,7 +89,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   const [customStrategies, setCustomStrategies] = useState<CustomOptionsStrategy[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   // Use prop directly to avoid stale state during refresh
-  const [isLoadingStrategies, setIsLoadingStrategies] = useState(false);
+  // 已不在界面使用策略加载状态，避免未使用变量
   const [viewMode, setViewMode] = useState<OptionsViewMode>('expiry');
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'closed' | 'expired'>('all');
   const [sortBy, setSortBy] = useState<'expiry' | 'profitLoss' | 'symbol'>('expiry');
@@ -177,10 +141,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     fetchData();
   }, [selectedAccountIdProp, refreshKey]);
 
-  const getUnderlyingCode = (p: OptionsPosition) => {
-    const full = p.opt_undl_code_full || '';
-    return getSanitizedUnderlying(full);
-  };
+  
 
   const getSanitizedUnderlying = (code: string) => {
     return code?.startsWith('US.') ? code.replace('US.', '') : code;
@@ -203,7 +164,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     const thr = 0.005;
     const diffRatio = Math.abs(price - p.strike) / Math.max(p.strike, 1);
     if (diffRatio <= thr) return { label: 'ATM', className: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100' };
-    const isCall = (p.type === 'call' || (p.contract_type_zh as any) === 'call');
+    const isCall = (p.type === 'call' || p.contract_type_zh === 'call');
     const isITM = isCall ? price > p.strike : price < p.strike;
     return isITM
       ? { label: 'ITM', className: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100' }
@@ -217,13 +178,13 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   useEffect(() => {
     const fetchCustomStrategies = async () => {
       try {
-        setIsLoadingStrategies(true);
+        
         let userId = DEMO_USER_ID;
         try {
           const authRes = await authService.getUser();
           const user = authRes?.data?.user;
           userId = user?.id || DEMO_USER_ID;
-        } catch (e) {
+        } catch {
           // ignore and fallback
         }
         const { data, error } = await optionsService.getCustomStrategies(userId, selectedAccountIdProp || null);
@@ -233,9 +194,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
           setCustomStrategies(data);
         }
       } catch (error) {
-        console.error('Error fetching custom strategies:', error);
-      } finally {
-        setIsLoadingStrategies(false);
+        console.error('Error fetching custom strategies:', error as Error);
       }
     };
 
@@ -257,7 +216,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       const code = first?.opt_undl_code_full || '';
       if (code) setSelectedSymbol(code);
     }
-  }, [portfolioData?.expiryBuckets]);
+  }, [portfolioData?.expiryBuckets, selectedSymbol]);
 
   useEffect(() => {
     const loadSelectedPrice = async () => {
@@ -295,26 +254,26 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         let ok = true;
         if (meta?.expiry) ok = ok && p.expiry === meta.expiry;
         if (meta?.strike != null) {
-          const sv = Number((p as any).contract_strike_price ?? p.strike);
+          const sv = Number(p.contract_strike_price ?? p.strike);
           ok = ok && sv === meta.strike;
         }
         if (meta?.comboType) {
-          const t = (p.type as any) ?? (p as any).contract_type_zh;
-          ok = ok && (t === meta.comboType || (t as any) === meta.comboType);
+          const t = p.type ?? p.contract_type_zh;
+          ok = ok && (t === meta.comboType);
         }
         if (meta?.category) {
           if (meta.category === 'call_normal') {
-            ok = ok && ((p.type === 'call' || (p as any).contract_type_zh === 'call') && p.position_type === 'sell' && (p as any).position_type_zh !== '备兑');
+            ok = ok && ((p.type === 'call' || p.contract_type_zh === 'call') && p.position_type === 'sell' && p.position_type_zh !== '备兑');
           } else if (meta.category === 'put_normal') {
-            ok = ok && ((p.type === 'put' || (p as any).contract_type_zh === 'put') && p.position_type === 'sell' && (p as any).position_type_zh !== '备兑');
+            ok = ok && ((p.type === 'put' || p.contract_type_zh === 'put') && p.position_type === 'sell' && p.position_type_zh !== '备兑');
           } else if (meta.category === 'call_right') {
-            ok = ok && ((p.type === 'call' || (p as any).contract_type_zh === 'call') && p.position_type === 'buy');
+            ok = ok && ((p.type === 'call' || p.contract_type_zh === 'call') && p.position_type === 'buy');
           } else if (meta.category === 'put_right') {
-            ok = ok && ((p.type === 'put' || (p as any).contract_type_zh === 'put') && p.position_type === 'buy');
+            ok = ok && ((p.type === 'put' || p.contract_type_zh === 'put') && p.position_type === 'buy');
           } else if (meta.category === 'call_covered') {
-            ok = ok && ((p.type === 'call' || (p as any).contract_type_zh === 'call') && p.position_type === 'sell' && (p as any).position_type_zh === '备兑');
+            ok = ok && ((p.type === 'call' || p.contract_type_zh === 'call') && p.position_type === 'sell' && p.position_type_zh === '备兑');
           } else if (meta.category === 'put_covered') {
-            ok = ok && ((p.type === 'put' || (p as any).contract_type_zh === 'put') && p.position_type === 'sell' && (p as any).position_type_zh === '备兑');
+            ok = ok && ((p.type === 'put' || p.contract_type_zh === 'put') && p.position_type === 'sell' && p.position_type_zh === '备兑');
           }
         }
         return ok;
@@ -337,13 +296,13 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       logger.debug('[OptionsPortfolio] selectedPositions', { ids: selectedPositions.map(p => p.id) });
       const selectedPositionsWithQty = selectedPositions.map(p => {
         const override = overrides?.[p.id];
-        const base = Number((p as any).selectedQuantity ?? (p as any).leg_quantity ?? p.quantity);
+        const base = Number(p.selectedQuantity ?? p.leg_quantity ?? p.quantity);
         const qty = override ?? base;
         return { ...p, selectedQuantity: qty } as OptionsPosition;
       });
       const selectedIds = selectedPositions.map(p => p.id);
       logger.info('[OptionsPortfolio] closing payload', { meta, count: selectedIds.length });
-      const payload = { positions: selectedPositionsWithQty, meta } as any;
+      const payload = { positions: selectedPositionsWithQty };
       const { data, error } = await optionsService.closePositions(payload);
       if (error) throw error;
       setPortfolioData(prev => {
@@ -365,7 +324,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       });
       toast.success(`已平仓 ${data?.closedIds?.length ?? selectedIds.length} 个持仓${meta?.comboType ? `（解除${meta.comboType.toUpperCase()}组合 @${meta.strike}）` : ''}`);
     } catch (e) {
-      console.error(e);
+      console.error(e as Error);
       toast.error('平仓失败');
     }
   };
@@ -468,7 +427,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         isPresetStrategy: false,
       };
 
-      const { data, error } = await optionsService.saveCustomStrategy(payload);
+      const { error } = await optionsService.saveCustomStrategy(payload);
       if (error) throw error;
 
       toast.success('组合构建并保存成功！');
@@ -525,7 +484,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         description: saveStrategyDescription,
       });
       closeSaveModal();
-    } catch (e) {
+    } catch {
       setIsModalSaving(false);
     }
   };
@@ -653,25 +612,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
            position.strategy === 'Protective Put';
   };
 
-  // 按策略分组期权持仓
-  const groupPositionsByStrategy = (positions: ExtendedOptionsPosition[]) => {
-    const strategies = new Map<string, ExtendedOptionsPosition[]>();
-    const singleLegs: ExtendedOptionsPosition[] = [];
-
-    positions.forEach(position => {
-      if (position.is_single_leg) {
-        singleLegs.push(position);
-      } else {
-        const strategyId = position.strategy_id!;
-        if (!strategies.has(strategyId)) {
-          strategies.set(strategyId, []);
-        }
-        strategies.get(strategyId)!.push(position);
-      }
-    });
-
-    return { strategies, singleLegs };
-  };
+  
 
   const getStatusColor = (status: OptionsPosition['status']) => {
     switch (status) {
@@ -842,7 +783,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     setSelectedLegs(prev => {
       const next = { ...prev };
       legs.forEach(l => {
-        next[l.id] = Math.max(1, (l as any).selectedQuantity || l.quantity || 1);
+        next[l.id] = Math.max(1, l.selectedQuantity || l.quantity || 1);
       });
       return next;
     });
@@ -1474,8 +1415,8 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                 <div className="p-6">
                   <div className="space-y-4">
                     {(() => {
-                      const callPositions = filteredPositions.filter(pos => (pos.type === 'call' || (pos.contract_type_zh as any) === 'call'));
-                      const putPositions = filteredPositions.filter(pos => (pos.type === 'put' || (pos.contract_type_zh as any) === 'put'));
+                      const callPositions = filteredPositions.filter(pos => (pos.type === 'call' || pos.contract_type_zh === 'call'));
+                      const putPositions = filteredPositions.filter(pos => (pos.type === 'put' || pos.contract_type_zh === 'put'));
                       const spreadPositions = filteredPositions.filter(pos => !['call', 'put'].includes(pos.type));
                       
                       return (
