@@ -26,7 +26,10 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
   const [optionTypeFilter, setOptionTypeFilter] = useState<'all' | 'call' | 'put'>('all');
   const [savedFilter, setSavedFilter] = useState<'all' | 'saved' | 'unsaved'>('all');
   const [sortKey, setSortKey] = useState<'leverage' | 'net' | 'buy' | 'sell'>('leverage');
-  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(selectedAccountIdProp ?? null);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() => {
+    const cookie = typeof document !== 'undefined' ? (document.cookie ? (document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith('selectedAccountId='))?.split('=')[1] ?? null) : null) : null;
+    return selectedAccountIdProp ?? cookie ?? null;
+  });
   const [expandedPlanId, setExpandedPlanId] = useState<string | null>(null);
   const DEMO_USER_ID = 'mock-user-id';
   const groupedByExpiry: Record<string, RatioSpreadPlanResult[]> = ratioPlans.reduce((acc, rp) => {

@@ -37,7 +37,13 @@ export function OverviewControls({
             userId={userId}
             theme={theme}
             selectedAccountId={selectedAccountId || null}
-            onAccountChange={onAccountChange}
+            onAccountChange={(id) => {
+              onAccountChange && onAccountChange(id);
+              localStorage.setItem('journalAccountId', id);
+              const expiryDate = new Date();
+              expiryDate.setDate(expiryDate.getDate() + 30);
+              document.cookie = `journalAccountId=${encodeURIComponent(id)}; expires=${expiryDate.toUTCString()}; path=/`;
+            }}
             preferOptions={false}
           />
         )}

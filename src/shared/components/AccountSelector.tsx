@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Check, Settings, Briefcase } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Plus, Check, Briefcase } from 'lucide-react';
 import { accountService } from '../../lib/services';
 import type { Account } from '../../shared/types/api';
 import { Theme, themes } from '../../lib/theme';
@@ -10,22 +10,35 @@ interface AccountSelectorProps {
   selectedAccountId: string | null;
   onAccountChange: (accountId: string) => void;
   preferOptions?: boolean;
+  refreshKey?: number;
 }
 
-export function AccountSelector({ userId, theme, selectedAccountId, onAccountChange, preferOptions = true }: AccountSelectorProps) {
+// Simple in-memory cache per user and mode (options vs stocks)
+const accountsCache: Map<string, Account[]> = new Map();
+
+export function AccountSelector({ userId, theme, selectedAccountId, onAccountChange, preferOptions = true, refreshKey }: AccountSelectorProps) {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newAccountName, setNewAccountName] = useState('');
   const [newAccountDescription, setNewAccountDescription] = useState('');
   const [loading, setLoading] = useState(false);
+  const cacheKey = `${preferOptions ? 'options' : 'stocks'}:${userId}`;
 
-  useEffect(() => {
-    loadAccounts();
-  }, [userId, preferOptions]);
-
-  const loadAccounts = async () => {
+  const loadAccounts = useCallback(async (forceRefresh: boolean = false) => {
     setLoading(true);
+    const cached = accountsCache.get(cacheKey);
+    if (!forceRefresh && cached && cached.length > 0) {
+      setAccounts(cached);
+      // Auto-select default if none provided
+      if (!selectedAccountId) {
+        const def = cached.find(acc => acc.is_default) || cached[0];
+        if (def) onAccountChange(def.id);
+      }
+      setLoading(false);
+      return;
+    }
+
     let finalResponse;
     if (preferOptions) {
       const response = await accountService.getOptionsAccounts(userId);
@@ -35,18 +48,28 @@ export function AccountSelector({ userId, theme, selectedAccountId, onAccountCha
     }
     if (finalResponse.data) {
       setAccounts(finalResponse.data);
-      const storedId = localStorage.getItem('selectedAccountId') || localStorage.getItem('selectedAccountAlias');
-      const storedExists = storedId && finalResponse.data.some(acc => acc.id === storedId);
-      if (storedExists) {
-        onAccountChange(storedId!);
-      } else if (!selectedAccountId && finalResponse.data.length > 0) {
+      accountsCache.set(cacheKey, finalResponse.data);
+      // Auto-select default if none provided
+      if (!selectedAccountId && finalResponse.data.length > 0) {
         const defaultAccount = finalResponse.data.find(acc => acc.is_default) || finalResponse.data[0];
-        onAccountChange(defaultAccount.id);
-        localStorage.setItem('selectedAccountId', defaultAccount.id);
+        if (defaultAccount.id !== selectedAccountId) {
+          onAccountChange(defaultAccount.id);
+        }
       }
     }
     setLoading(false);
-  };
+  }, [userId, preferOptions, cacheKey]);
+
+  useEffect(() => {
+    loadAccounts(false);
+  }, [loadAccounts]);
+
+  useEffect(() => {
+    if (typeof refreshKey === 'number') {
+      loadAccounts(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]);
 
   const handleCreateAccount = async () => {
     if (!newAccountName.trim()) return;
@@ -164,11 +187,9 @@ export function AccountSelector({ userId, theme, selectedAccountId, onAccountCha
                         selectedAccountId === account.id ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500' : ''
                       }`}
                         onClick={() => {
-                        onAccountChange(account.id);
-                        localStorage.setItem('selectedAccountId', account.id);
-                        if (account.alias) localStorage.setItem('selectedAccountAlias', account.alias);
-                        setIsOpen(false);
-                      }}
+                          onAccountChange(account.id);
+                          setIsOpen(false);
+                        }}
                     >
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
@@ -193,8 +214,6 @@ export function AccountSelector({ userId, theme, selectedAccountId, onAccountCha
                           onClick={(e) => {
                             e.stopPropagation();
                             handleSetDefault(account.id);
-                            localStorage.setItem('selectedAccountId', account.id);
-                            if (account.alias) localStorage.setItem('selectedAccountAlias', account.alias);
                           }}
                             className={`text-xs px-2 py-1 rounded-full transition-colors duration-200 hover:bg-blue-100 dark:hover:bg-blue-900 ${themes[theme].secondary}`}
                           >

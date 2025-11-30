@@ -11,7 +11,7 @@ import { OptionsTradePlans } from '../features/options/components/OptionsTradePl
 import { OptionsCalculatorCard } from '../features/options/components/OptionsCalculatorCard';
 import { OptionsCalculatorModal } from './options/OptionsCalculatorModal';
 import { RelatedLinks, AccountSelector } from '../shared/components';
-import { optionsService } from '../lib/services';
+import { optionsService, authService } from '../lib/services';
 import { OptionsPortfolioManagement } from '../features/options/components/OptionsPortfolioManagement';
 import type { OptionsData } from '../lib/services/types';
 
@@ -39,10 +39,12 @@ export function Options({ theme }: OptionsProps) {
   const [error, setError] = useState<string | null>(null);
   const [showCalculatorModal, setShowCalculatorModal] = useState(false);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() => {
-    return localStorage.getItem('selectedAccountId') || localStorage.getItem('selectedAccountAlias');
+    const ls = localStorage.getItem('selectedAccountId') || localStorage.getItem('selectedAccountAlias');
+    const cookie = typeof document !== 'undefined' ? (document.cookie ? (document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith('selectedAccountId='))?.split('=')[1] ?? null) : null) : null;
+    return cookie || ls || null;
   });
   const [refreshKey, setRefreshKey] = useState(0);
-  const DEMO_USER_ID = 'mock-user-id';
+  const [userId, setUserId] = useState<string | null>(null);
 
   const handleTabChange = (newTab: OptionsTab) => {
     setActiveTab(newTab);
@@ -76,6 +78,13 @@ export function Options({ theme }: OptionsProps) {
     };
 
     fetchAvailableSymbols();
+  }, []);
+
+  React.useEffect(() => {
+    authService.getUser().then(res => {
+      const u = res?.data?.user;
+      setUserId(u?.id || null);
+    }).catch(() => setUserId(null));
   }, []);
 
   // Fetch options data when selected symbol changes (only for data tab)
@@ -144,17 +153,28 @@ export function Options({ theme }: OptionsProps) {
                 <label className={`text-sm font-medium ${themes[theme].text}`}>
                   账户:
                 </label>
-                <AccountSelector
-                  userId={DEMO_USER_ID}
-                  theme={theme}
-                  selectedAccountId={selectedAccountId}
-                  onAccountChange={(id) => {
-                    setSelectedAccountId(id);
-                    localStorage.setItem('selectedAccountId', id);
-                    localStorage.setItem('selectedAccountAlias', id);
-                    setRefreshKey((k) => k + 1);
-                  }}
-                />
+                {userId ? (
+                  <AccountSelector
+                    userId={userId}
+                    theme={theme}
+                    selectedAccountId={selectedAccountId}
+                    onAccountChange={(id) => {
+                      setSelectedAccountId(id);
+                      try {
+                        localStorage.setItem('selectedAccountId', id);
+                      } catch {}
+                      try {
+                        const expiryDate = new Date();
+                        expiryDate.setDate(expiryDate.getDate() + 30);
+                        document.cookie = `selectedAccountId=${encodeURIComponent(id)}; expires=${expiryDate.toUTCString()}; path=/`;
+                      } catch {}
+                      setRefreshKey((k) => k + 1);
+                    }}
+                    refreshKey={refreshKey}
+                  />
+                ) : (
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500" />
+                )}
                 <button
                   onClick={() => setRefreshKey((k) => k + 1)}
                   className={`inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm ${themes[theme].secondary}`}
@@ -290,7 +310,7 @@ export function Options({ theme }: OptionsProps) {
 
         {activeTab === 'portfolio' && (
           <div className="space-y-6">
-            <OptionsPortfolio theme={theme} selectedAccountId={selectedAccountId} refreshKey={refreshKey} />
+              <OptionsPortfolio theme={theme} selectedAccountId={selectedAccountId} refreshKey={refreshKey} />
             <RelatedLinks 
               theme={theme}
               currentPath="/options?tab=portfolio" 

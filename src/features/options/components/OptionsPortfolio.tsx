@@ -120,11 +120,11 @@ const getPositionTypeInfo2 = (positionType: string, optionType: string, position
   };
 };
 
-export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdProp, refreshKey }: OptionsPortfolioProps) {
+export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdProp, refreshKey = 0 }: OptionsPortfolioProps) {
   const [portfolioData, setPortfolioData] = useState<OptionsPortfolioData | null>(null);
   const [customStrategies, setCustomStrategies] = useState<CustomOptionsStrategy[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(selectedAccountIdProp ?? null);
+  // Use prop directly to avoid stale state during refresh
   const [isLoadingStrategies, setIsLoadingStrategies] = useState(false);
   const [viewMode, setViewMode] = useState<OptionsViewMode>('expiry');
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'closed' | 'expired'>('all');
@@ -152,17 +152,19 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       try {
         setIsLoading(true);
 
-        let userId = DEMO_USER_ID;
+        let userId: string | null = null;
         try {
           const authRes = await authService.getUser();
           const user = authRes?.data?.user;
-          userId = user?.id || DEMO_USER_ID;
+          userId = user?.id || null;
         } catch (error) {
           console.log(error);
         }
-
-        const aliasOrUser = selectedAccountId || userId;
-        const { data, error } = await optionsService.getOptionsPortfolio(userId, selectedAccountId || null);
+        if (!userId) {
+          setIsLoading(false);
+          return;
+        }
+        const { data, error } = await optionsService.getOptionsPortfolio(userId, selectedAccountIdProp || null);
         if (error) throw error;
         if (data) setPortfolioData(data);
       } catch (error) {
@@ -173,7 +175,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     };
 
     fetchData();
-  }, [selectedAccountId, refreshKey]);
+  }, [selectedAccountIdProp, refreshKey]);
 
   const getUnderlyingCode = (p: OptionsPosition) => {
     const full = p.opt_undl_code_full || '';
@@ -224,7 +226,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         } catch (e) {
           // ignore and fallback
         }
-        const { data, error } = await optionsService.getCustomStrategies(userId, selectedAccountId || null);
+        const { data, error } = await optionsService.getCustomStrategies(userId, selectedAccountIdProp || null);
         
         if (error) throw error;
         if (data) {
@@ -238,7 +240,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     };
 
     fetchCustomStrategies();
-  }, []);
+  }, [selectedAccountIdProp]);
 
   const toggleStrategyExpansion = (strategyId: string) => {
     setExpandedStrategies(prev => 
@@ -285,23 +287,63 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
 
   const isSelectingExpiry = (expiry: string) => !!expirySelectionMode[expiry];
 
-  const handleClosePositions = async (ids: string[]) => {
+  const handleClosePositions = async (ids: string[], meta?: { action?: string; comboType?: 'call' | 'put'; strike?: number; expiry?: string; strategyIds?: string[]; category?: string }, overrides?: Record<string, number>) => {
     if (!ids || ids.length === 0) return;
     try {
+      logger.info('[OptionsPortfolio] handleClosePositions: start', { idsCount: ids.length, meta });
+      const matchesMeta = (p: OptionsPosition) => {
+        let ok = true;
+        if (meta?.expiry) ok = ok && p.expiry === meta.expiry;
+        if (meta?.strike != null) {
+          const sv = Number((p as any).contract_strike_price ?? p.strike);
+          ok = ok && sv === meta.strike;
+        }
+        if (meta?.comboType) {
+          const t = (p.type as any) ?? (p as any).contract_type_zh;
+          ok = ok && (t === meta.comboType || (t as any) === meta.comboType);
+        }
+        if (meta?.category) {
+          if (meta.category === 'call_normal') {
+            ok = ok && ((p.type === 'call' || (p as any).contract_type_zh === 'call') && p.position_type === 'sell' && (p as any).position_type_zh !== '备兑');
+          } else if (meta.category === 'put_normal') {
+            ok = ok && ((p.type === 'put' || (p as any).contract_type_zh === 'put') && p.position_type === 'sell' && (p as any).position_type_zh !== '备兑');
+          } else if (meta.category === 'call_right') {
+            ok = ok && ((p.type === 'call' || (p as any).contract_type_zh === 'call') && p.position_type === 'buy');
+          } else if (meta.category === 'put_right') {
+            ok = ok && ((p.type === 'put' || (p as any).contract_type_zh === 'put') && p.position_type === 'buy');
+          } else if (meta.category === 'call_covered') {
+            ok = ok && ((p.type === 'call' || (p as any).contract_type_zh === 'call') && p.position_type === 'sell' && (p as any).position_type_zh === '备兑');
+          } else if (meta.category === 'put_covered') {
+            ok = ok && ((p.type === 'put' || (p as any).contract_type_zh === 'put') && p.position_type === 'sell' && (p as any).position_type_zh === '备兑');
+          }
+        }
+        return ok;
+      };
       const collectPositions = (): OptionsPosition[] => {
         const list: OptionsPosition[] = [];
         (portfolioData?.expiryBuckets || []).forEach(bucket => {
-          bucket.single.forEach(p => { if (ids.includes(p.id)) list.push(p); });
+          bucket.single.forEach(p => { if (ids.includes(p.id) && matchesMeta(p)) list.push(p); });
         });
         (portfolioData?.expiryGroups || []).forEach(group => {
-          group.positions.forEach(p => { if (ids.includes(p.id) && !list.find(x => x.id === p.id)) list.push(p); });
+          group.positions.forEach(p => { if (ids.includes(p.id) && matchesMeta(p) && !list.find(x => x.id === p.id)) list.push(p); });
         });
         (portfolioData?.strategies || []).forEach(s => {
-          s.positions.forEach(p => { if (ids.includes(p.id) && !list.find(x => x.id === p.id)) list.push(p); });
+          s.positions.forEach(p => { if (ids.includes(p.id) && matchesMeta(p) && !list.find(x => x.id === p.id)) list.push(p); });
         });
+        logger.debug('[OptionsPortfolio] collectPositions: collected', { count: list.length });
         return list;
       };
-      const payload = { positions: collectPositions() };
+      const selectedPositions = collectPositions();
+      logger.debug('[OptionsPortfolio] selectedPositions', { ids: selectedPositions.map(p => p.id) });
+      const selectedPositionsWithQty = selectedPositions.map(p => {
+        const override = overrides?.[p.id];
+        const base = Number((p as any).selectedQuantity ?? (p as any).leg_quantity ?? p.quantity);
+        const qty = override ?? base;
+        return { ...p, selectedQuantity: qty } as OptionsPosition;
+      });
+      const selectedIds = selectedPositions.map(p => p.id);
+      logger.info('[OptionsPortfolio] closing payload', { meta, count: selectedIds.length });
+      const payload = { positions: selectedPositionsWithQty, meta } as any;
       const { data, error } = await optionsService.closePositions(payload);
       if (error) throw error;
       setPortfolioData(prev => {
@@ -309,19 +351,19 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         const next = { ...prev } as OptionsPortfolioData;
         next.expiryBuckets = (next.expiryBuckets || []).map(bucket => ({
           ...bucket,
-          single: bucket.single.map(p => (ids.includes(p.id) ? { ...p, status: 'closed', closeDate: new Date().toISOString() } : p))
+          single: bucket.single.map(p => (selectedIds.includes(p.id) ? { ...p, status: 'closed', closeDate: new Date().toISOString() } : p))
         }));
         next.expiryGroups = (next.expiryGroups || []).map(group => ({
           ...group,
-          positions: group.positions.map(p => (ids.includes(p.id) ? { ...p, status: 'closed', closeDate: new Date().toISOString() } : p))
+          positions: group.positions.map(p => (selectedIds.includes(p.id) ? { ...p, status: 'closed', closeDate: new Date().toISOString() } : p))
         }));
         next.strategies = (next.strategies || []).map(s => ({
           ...s,
-          positions: s.positions.map(p => (ids.includes(p.id) ? { ...p, status: 'closed', closeDate: new Date().toISOString() } : p))
+          positions: s.positions.map(p => (selectedIds.includes(p.id) ? { ...p, status: 'closed', closeDate: new Date().toISOString() } : p))
         }));
         return next;
       });
-      toast.success(`已平仓 ${data?.closedIds?.length ?? ids.length} 个持仓`);
+      toast.success(`已平仓 ${data?.closedIds?.length ?? selectedIds.length} 个持仓${meta?.comboType ? `（解除${meta.comboType.toUpperCase()}组合 @${meta.strike}）` : ''}`);
     } catch (e) {
       console.error(e);
       toast.error('平仓失败');
@@ -725,8 +767,6 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     );
   }
 
-  // 获取所有持仓并添加策略ID
-  console.log(portfolioData)
   const allPositionsSource = (portfolioData?.expiryBuckets && portfolioData.expiryBuckets.length > 0)
     ? portfolioData.expiryBuckets.map(b => ({ expiry: b.expiry, positions: b.single }))
     : [];

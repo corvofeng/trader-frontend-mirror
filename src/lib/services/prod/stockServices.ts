@@ -1,14 +1,32 @@
 import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, OperationService, StockConfigService, StockConfig, UploadService, UploadResponse, AnalysisService, AccountService } from '../types';
 import type { Trade } from '../types';
 
+let cachedUser: any | null = null;
+let pendingUserPromise: Promise<any> | null = null;
+
 export const authService: AuthService = {
   getUser: async () => {
-    const checker = await (await fetch('/api/check')).json();
-    if (checker['status']) {
-      const user = await (await fetch('/api/user')).json();
-      return { data: { user: user } };
-    } else {
-      return null;
+    if (cachedUser !== null) {
+      return { data: { user: cachedUser }, error: null } as any;
+    }
+    if (pendingUserPromise) {
+      const result = await pendingUserPromise;
+      return result as any;
+    }
+    pendingUserPromise = (async () => {
+      const checker = await (await fetch('/api/check')).json();
+      if (checker['status']) {
+        const user = await (await fetch('/api/user')).json();
+        cachedUser = user;
+        return { data: { user }, error: null } as any;
+      }
+      return { data: { user: null }, error: null } as any;
+    })();
+    try {
+      const res = await pendingUserPromise;
+      return res as any;
+    } finally {
+      pendingUserPromise = null;
     }
   },
 
@@ -17,6 +35,8 @@ export const authService: AuthService = {
   },
 
   signOut: async () => {
+    cachedUser = null;
+    pendingUserPromise = null;
     window.location.href = '/api/logout';
   }
 };

@@ -5,6 +5,7 @@ import { formatCurrency } from '../../../shared/utils/format';
 import type { OptionsPosition, OptionsStrategy } from '../../../lib/services/types';
 import { optionsService } from '../../../lib/services';
 import { stockService } from '../../../lib/services';
+import { logger } from '../../../shared/utils/logger';
 
 interface ExpiryGroupCardProps {
   theme: Theme;
@@ -26,7 +27,7 @@ interface ExpiryGroupCardProps {
   allExpiryBuckets: Array<{ expiry: string; daysToExpiry: number; single: OptionsPosition[]; complex: OptionsStrategy[] }>;
   selectedSymbol: string;
   underlyingPrice: number | null;
-  onClosePositions: (ids: string[]) => Promise<void>;
+  onClosePositions: (ids: string[], meta?: { action?: string; comboType?: 'call' | 'put'; strike?: number; expiry?: string; strategyIds?: string[]; category?: string }, overrides?: Record<string, number>) => Promise<void>;
 }
 
 export function ExpiryGroupCard({
@@ -52,12 +53,108 @@ export function ExpiryGroupCard({
   onClosePositions,
 }: ExpiryGroupCardProps) {
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [closingKey, setClosingKey] = useState<string | null>(null);
+  const [confirmData, setConfirmData] = useState<{ ids: string[]; meta?: { action?: string; comboType?: 'call' | 'put'; strike?: number; expiry?: string; strategyIds?: string[]; category?: string; defaultComboCount?: number; perLegMaxQty?: Record<string, number> }; title: string; description: string } | null>(null);
+  const [qtyOverrides, setQtyOverrides] = useState<Record<string, number>>({});
   const basePositions = filterAndSortPositions(group.single);
   const filteredPositions = selectedSymbol
     ? basePositions.filter(p => p.opt_undl_code_full === selectedSymbol)
     : basePositions;
   if (filteredPositions.length === 0) return null;
+
+  const isSelectedPosition = (p: OptionsPosition) => {
+    return !!selectedSymbol && (p.opt_undl_code_full === selectedSymbol);
+  };
+
+  const getHighlightClass = (p: OptionsPosition) => {
+    if (!isSelectedPosition(p) || underlyingPrice == null) return '';
+    const isCall = (p.type === 'call' || (p.contract_type_zh as any) === 'call');
+    const thr = 0.005;
+    const diffRatio = Math.abs(underlyingPrice - p.strike) / Math.max(p.strike, 1);
+    const isATM = diffRatio <= thr;
+    const isITM = isCall ? (underlyingPrice > p.strike) : (underlyingPrice < p.strike);
+    if (isATM) return 'bg-blue-50 dark:bg-blue-900/30 border-blue-300';
+    if (p.position_type === 'sell' && isITM) return 'bg-red-50 dark:bg-red-900/30 border-red-300';
+    if (p.position_type === 'buy' && !isITM) return 'bg-amber-50 dark:bg-amber-900/30 border-amber-300';
+    return 'bg-green-50 dark:bg-green-900/30 border-green-300';
+  };
+
+  const collectIdsForCategory = (
+    category: 'call_normal' | 'put_normal' | 'call_right' | 'put_right' | 'call_covered' | 'put_covered',
+    strike: number
+  ): string[] => {
+    const isCallLeg = (p: OptionsPosition) => {
+      const t = String(p.type || '').toLowerCase();
+      const zh = String((p as any).contract_type_zh || '');
+      return t === 'call' || zh.toLowerCase() === 'call' || zh.includes('认购') || zh.includes('购');
+    };
+    const isPutLeg = (p: OptionsPosition) => {
+      const t = String(p.type || '').toLowerCase();
+      const zh = String((p as any).contract_type_zh || '');
+      return t === 'put' || zh.toLowerCase() === 'put' || zh.includes('认沽') || zh.includes('沽');
+    };
+    const ids = (filteredPositions || [])
+      .filter(p => {
+        const isCall = isCallLeg(p);
+        const isPut = isPutLeg(p);
+        const isSell = p.position_type === 'sell';
+        const isBuy = p.position_type === 'buy';
+        const isCovered = p.position_type_zh === '备兑';
+        const sameStrike = p.strike === strike;
+        const sameExpiry = p.expiry === group.expiry;
+        if (!sameStrike || !sameExpiry) return false;
+        if (category === 'call_normal') return isCall && isSell && !isCovered;
+        if (category === 'put_normal') return isPut && isSell && !isCovered;
+        if (category === 'call_right') return isCall && isBuy;
+        if (category === 'put_right') return isPut && isBuy;
+        if (category === 'call_covered') return isCall && isSell && isCovered;
+        if (category === 'put_covered') return isPut && isSell && isCovered;
+        return false;
+      })
+      .map(p => p.id);
+    logger.debug('[ExpiryGroupCard] collectIdsForCategory', { category, strike, count: ids.length });
+    return ids;
+  };
+
+  const openConfirmFor = (
+    category: 'call_normal' | 'put_normal' | 'call_right' | 'put_right' | 'call_covered' | 'put_covered',
+    strike: number,
+    title: string,
+    descriptionPrefix: string
+  ) => {
+    const ids = collectIdsForCategory(category, strike);
+    const description = `${descriptionPrefix} @${strike}（到期 ${format(new Date(group.expiry), 'yyyy-MM-dd')}），数量 ${ids.length}`;
+    logger.info('[ExpiryGroupCard] openConfirmFor: setConfirmData', { category, strike, ids });
+    setConfirmData({
+      ids,
+      meta: { action: 'close_category', category, strike, expiry: group.expiry },
+      title,
+      description
+    });
+  };
+
+  useEffect(() => {
+    if (!confirmData) {
+      setQtyOverrides({});
+      return;
+    }
+    if (confirmData.meta?.action === 'unwind_combo') {
+      const defaultCount = Number(confirmData.meta?.defaultComboCount || 0);
+      const next: Record<string, number> = {};
+      confirmData.ids.forEach(id => {
+        next[id] = defaultCount;
+      });
+      setQtyOverrides(next);
+      logger.info('[ExpiryGroupCard] init combo overrides', { defaultCount, ids: confirmData.ids });
+    } else {
+      const map: Record<string, number> = {};
+      confirmData.ids.forEach(id => {
+        const pos = filteredPositions.find(x => x.id === id);
+        const qty = Number((pos as any)?.selectedQuantity ?? (pos as any)?.leg_quantity ?? pos?.quantity);
+        map[id] = qty;
+      });
+      setQtyOverrides(map);
+    }
+  }, [confirmData]);
 
   return (
     <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
@@ -227,23 +324,65 @@ export function ExpiryGroupCard({
                                     const bg = `linear-gradient(to right, ${c} 0%, transparent 100%)`;
                                     return (
                                       <tr key={`trow-top-${group.expiry}-${m.s}`} className={themes[theme].cardHover} style={{ backgroundImage: bg }}>
-                                        <td className={`text-center py-2 ${themes[theme].text}`}>{m.comboCallQty}</td>
+                                        <td className={`text-center py-2 ${themes[theme].text}`}>
+                                          {m.comboCallQty}
+                                          {m.comboCallQty > 0 && (
+                                            <div className="mt-1">
+                                              <button
+                                                className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
+                                                onClick={() => {
+                                                  const ids: string[] = [];
+                                                  const strategyIds: string[] = [];
+                                                  let defaultComboCountSum = 0;
+                                                  const perLegMaxQty: Record<string, number> = {};
+                                                  (allExpiryBuckets || []).forEach(bucket => {
+                                                    bucket.complex.forEach(s => {
+                                                      if (
+                                                        s.positions.some(p => p.expiry === group.expiry) &&
+                                                        s.name.includes('认购牛市价差策略') &&
+                                                        (s.positions[0]?.type === 'call' || (s.positions[0]?.contract_type_zh as any) === 'call')
+                                                      ) {
+                                                        const buyLeg = s.positions.find(p => p.position_type === 'buy');
+                                                        const buyStrike = Number((buyLeg as any)?.contract_strike_price ?? buyLeg?.strike);
+                                                        if (buyLeg && buyStrike === m.s) {
+                                                          ids.push(
+                                                            ...s.positions
+                                                              .filter(p => p.expiry === group.expiry)
+                                                              .map(p => p.id)
+                                                          );
+                                                          strategyIds.push(s.id as any);
+                                                          const comboMap = computeCombosForPositions(s, 'call');
+                                                          defaultComboCountSum += comboMap.get(m.s) || 0;
+                                                          s.positions
+                                                            .filter(p => p.expiry === group.expiry)
+                                                            .forEach(p => { perLegMaxQty[p.id] = p.quantity; });
+                                                        }
+                                                      }
+                                                    });
+                                                  });
+                                                  const uniqueIds = Array.from(new Set(ids));
+                                                  const uniqueStrategyIds = Array.from(new Set(strategyIds));
+                                                  if (uniqueIds.length > 0) {
+                                                    setConfirmData({
+                                                      ids: uniqueIds,
+                                                      meta: { action: 'unwind_combo', comboType: 'call', strike: m.s, expiry: group.expiry, strategyIds: uniqueStrategyIds, defaultComboCount: defaultComboCountSum, perLegMaxQty },
+                                                      title: '确认解除组合',
+                                                      description: `将解除组合：CALL 组合 @${m.s}（到期 ${format(new Date(group.expiry), 'yyyy-MM-dd')}），涉及腿数 ${uniqueIds.length}`
+                                                    });
+                                                  }
+                                                }}
+                                              >解除组合</button>
+                                            </div>
+                                          )}
+                                        </td>
                                         <td className={`text-center py-2 ${themes[theme].text}`}>
                                           {m.callCovered}
                                           {m.callCovered > 0 && (
                                             <div className="mt-1">
                                               <button
                                                 className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
-                                                disabled={closingKey === `call-covered-${m.s}`}
-                                                onClick={async () => {
-                                                  setClosingKey(`call-covered-${m.s}`);
-                                                  const ids = filteredPositions
-                                                    .filter(p => p.strike === m.s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh === '备兑')
-                                                    .map(p => p.id);
-                                                  await onClosePositions(ids);
-                                                  setClosingKey(null);
-                                                }}
-                                              >平仓</button>
+                                                onClick={() => openConfirmFor('call_covered', m.s, '确认平仓', '将平仓：Call 备兑')}
+                                              >调平</button>
                                             </div>
                                           )}
                                         </td>
@@ -253,16 +392,8 @@ export function ExpiryGroupCard({
                                             <div className="mt-1">
                                               <button
                                                 className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
-                                                disabled={closingKey === `call-normal-${m.s}`}
-                                                onClick={async () => {
-                                                  setClosingKey(`call-normal-${m.s}`);
-                                                  const ids = filteredPositions
-                                                    .filter(p => p.strike === m.s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh !== '备兑')
-                                                    .map(p => p.id);
-                                                  await onClosePositions(ids);
-                                                  setClosingKey(null);
-                                                }}
-                                              >平仓</button>
+                                                onClick={() => openConfirmFor('call_normal', m.s, '确认平仓', '将平仓：Call 义务')}
+                                              >调平</button>
                                             </div>
                                           )}
                                         </td>
@@ -272,16 +403,8 @@ export function ExpiryGroupCard({
                                             <div className="mt-1">
                                               <button
                                                 className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
-                                                disabled={closingKey === `call-right-${m.s}`}
-                                                onClick={async () => {
-                                                  setClosingKey(`call-right-${m.s}`);
-                                                  const ids = filteredPositions
-                                                    .filter(p => p.strike === m.s && p.type === 'call' && p.position_type === 'buy')
-                                                    .map(p => p.id);
-                                                  await onClosePositions(ids);
-                                                  setClosingKey(null);
-                                                }}
-                                              >平仓</button>
+                                                onClick={() => openConfirmFor('call_right', m.s, '确认平仓', '将平仓：Call 权利')}
+                                              >调平</button>
                                             </div>
                                           )}
                                         </td>
@@ -296,16 +419,8 @@ export function ExpiryGroupCard({
                                             <div className="mt-1">
                                               <button
                                                 className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
-                                                disabled={closingKey === `put-right-${m.s}`}
-                                                onClick={async () => {
-                                                  setClosingKey(`put-right-${m.s}`);
-                                                  const ids = filteredPositions
-                                                    .filter(p => p.strike === m.s && p.type === 'put' && p.position_type === 'buy')
-                                                    .map(p => p.id);
-                                                  await onClosePositions(ids);
-                                                  setClosingKey(null);
-                                                }}
-                                              >平仓</button>
+                                                onClick={() => openConfirmFor('put_right', m.s, '确认平仓', '将平仓：Put 权利')}
+                                              >调平</button>
                                             </div>
                                           )}
                                         </td>
@@ -315,16 +430,8 @@ export function ExpiryGroupCard({
                                             <div className="mt-1">
                                               <button
                                                 className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
-                                                disabled={closingKey === `put-normal-${m.s}`}
-                                                onClick={async () => {
-                                                  setClosingKey(`put-normal-${m.s}`);
-                                                  const ids = filteredPositions
-                                                    .filter(p => p.strike === m.s && p.type === 'put' && p.position_type === 'sell' && p.position_type_zh !== '备兑')
-                                                    .map(p => p.id);
-                                                  await onClosePositions(ids);
-                                                  setClosingKey(null);
-                                                }}
-                                              >平仓</button>
+                                                onClick={() => openConfirmFor('put_normal', m.s, '确认平仓', '将平仓：Put 义务')}
+                                              >调平</button>
                                             </div>
                                           )}
                                         </td>
@@ -334,20 +441,62 @@ export function ExpiryGroupCard({
                                             <div className="mt-1">
                                               <button
                                                 className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
-                                                disabled={closingKey === `put-covered-${m.s}`}
-                                                onClick={async () => {
-                                                  setClosingKey(`put-covered-${m.s}`);
-                                                  const ids = filteredPositions
-                                                    .filter(p => p.strike === m.s && p.type === 'put' && p.position_type === 'sell' && p.position_type_zh === '备兑')
-                                                    .map(p => p.id);
-                                                  await onClosePositions(ids);
-                                                  setClosingKey(null);
-                                                }}
-                                              >平仓</button>
+                                                onClick={() => openConfirmFor('put_covered', m.s, '确认平仓', '将平仓：Put 备兑')}
+                                              >调平</button>
                                             </div>
                                           )}
                                         </td>
-                                        <td className={`text-center py-2 ${themes[theme].text}`}>{m.comboPutQty}</td>
+                                        <td className={`text-center py-2 ${themes[theme].text}`}>
+                                          {m.comboPutQty}
+                                          {m.comboPutQty > 0 && (
+                                            <div className="mt-1">
+                                              <button
+                                                className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
+                                                onClick={() => {
+                                                  const ids: string[] = [];
+                                                  const strategyIds: string[] = [];
+                                                  let defaultComboCountSum = 0;
+                                                  const perLegMaxQty: Record<string, number> = {};
+                                                  (allExpiryBuckets || []).forEach(bucket => {
+                                                    bucket.complex.forEach(s => {
+                                                      if (
+                                                        s.positions.some(p => p.expiry === group.expiry) &&
+                                                        s.name.includes('认沽熊市价差策略') &&
+                                                        (s.positions[0]?.type === 'put' || (s.positions[0]?.contract_type_zh as any) === 'put')
+                                                      ) {
+                                                        const buyLeg = s.positions.find(p => p.position_type === 'buy');
+                                                        const buyStrike = Number((buyLeg as any)?.contract_strike_price ?? buyLeg?.strike);
+                                                        if (buyLeg && buyStrike === m.s) {
+                                                          ids.push(
+                                                            ...s.positions
+                                                              .filter(p => p.expiry === group.expiry)
+                                                              .map(p => p.id)
+                                                          );
+                                                          strategyIds.push(s.id as any);
+                                                          const comboMap = computeCombosForPositions(s, 'put');
+                                                          defaultComboCountSum += comboMap.get(m.s) || 0;
+                                                          s.positions
+                                                            .filter(p => p.expiry === group.expiry)
+                                                            .forEach(p => { perLegMaxQty[p.id] = p.quantity; });
+                                                        }
+                                                      }
+                                                    });
+                                                  });
+                                                  const uniqueIds = Array.from(new Set(ids));
+                                                  const uniqueStrategyIds = Array.from(new Set(strategyIds));
+                                                  if (uniqueIds.length > 0) {
+                                                    setConfirmData({
+                                                      ids: uniqueIds,
+                                                      meta: { action: 'unwind_combo', comboType: 'put', strike: m.s, expiry: group.expiry, strategyIds: uniqueStrategyIds, defaultComboCount: defaultComboCountSum, perLegMaxQty },
+                                                      title: '确认解除组合',
+                                                      description: `将解除组合：PUT 组合 @${m.s}（到期 ${format(new Date(group.expiry), 'yyyy-MM-dd')}），涉及腿数 ${uniqueIds.length}`
+                                                    });
+                                                  }
+                                                }}
+                                              >解除组合</button>
+                                            </div>
+                                          )}
+                                        </td>
                                       </tr>
                                     );
                                   });
@@ -648,135 +797,109 @@ export function ExpiryGroupCard({
                   </div>
                 )}
 
-                {detailsOpen && filteredPositions.length > 0 && (
-                  <div className="mt-6">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="w-4 h-4 bg-gray-500 rounded"></div>
-                      <h4 className={`text-lg font-semibold ${themes[theme].text}`}>
-                        T型报价（权利/义务/备兑/组合数量）
-                      </h4>
-                    </div>
-                    <div className={`${themes[theme].background} rounded-lg p-4 border ${themes[theme].border}`}>
-                      {(() => {
-                        const strikes = Array.from(new Set(filteredPositions.map(p => p.strike))).sort((a, b) => a - b);
-                        const rows = strikes.map(strike => {
-                          const callSell = filteredPositions
-                            .filter(p => p.strike === strike && p.type === 'call' && p.position_type === 'sell')
-                            .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
-                          const putSell = filteredPositions
-                            .filter(p => p.strike === strike && p.type === 'put' && p.position_type === 'sell')
-                            .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
-                          return { strike, callSell, putSell };
-                        });
-                        const hasData = filteredPositions.length > 0;
-                        if (!hasData) {
-                          return (
-                            <div className={`text-center text-sm ${themes[theme].text} opacity-75`}>
-                              暂无数据
-                            </div>
-                          );
-                        }
-                        return (
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                              <thead>
-                                <tr className={`${themes[theme].text} opacity-75`}>
-                                  <th className="text-center py-2" colSpan={4}>Calls</th>
-                                  <th className={`text-center py-2 border-l border-r ${themes[theme].border}`}></th>
-                                  <th className="text-center py-2" colSpan={4}>Puts</th>
-                                </tr>
-                                <tr className={`text-xs ${themes[theme].text} opacity-70`}>
-                                  <th className="text-center py-2">Call 权利</th>
-                                  <th className="text-center py-2">Call 备兑</th>
-                                  <th className="text-center py-2">Call 义务</th>
-                                  <th className={`text-center py-2 px-3 border-r ${themes[theme].border}`}>Call 组合</th>
-                                  <th className="text-center py-2 px-4">行权价</th>
-                                  <th className={`text-center py-2 px-3 border-l ${themes[theme].border}`}>Put 组合</th>
-                                  <th className="text-center py-2">Put 权利</th>
-                                  <th className="text-center py-2">Put 备兑</th>
-                                  <th className="text-center py-2">Put 义务</th>
-                                </tr>
-                              </thead>
-                              <tbody className={`divide-y ${themes[theme].border}`}>
-                                {(() => {
-                                  const callCombos = new Map<number, number>();
-                                  const putCombos = new Map<number, number>();
-                                  (allExpiryBuckets || []).forEach(bucket => {
-                                    bucket.complex.forEach(s => {
-                                      if (s.positions.some(p => p.expiry === group.expiry)) {
-                                        const c = computeCombosForPositions(s, 'call');
-                                        const p = computeCombosForPositions(s, 'put');
-                                        c.forEach((v, k) => callCombos.set(k, (callCombos.get(k) ?? 0) + v));
-                                        p.forEach((v, k) => putCombos.set(k, (putCombos.get(k) ?? 0) + v));
-                                      }
-                                    });
-                                  });
-                                  return rows.map(row => {
-                                    const s = row.strike;
-                                    const callRight = filteredPositions
-                                      .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'buy')
-                                      .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
-                                    const callCovered = filteredPositions
-                                      .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh === '备兑')
-                                      .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
-                                    const callNormal = filteredPositions
-                                      .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh !== '备兑')
-                                      .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
-                                    const putNormal = filteredPositions
-                                      .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'sell' && p.position_type_zh !== '备兑')
-                                      .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
-                                    const putCovered = filteredPositions
-                                      .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'sell' && p.position_type_zh === '备兑')
-                                      .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
-                                    const putRight = filteredPositions
-                                      .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'buy')
-                                      .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
-                                    const comboCallQty = callCombos.get(s) ?? 0;
-                                    const comboPutQty = putCombos.get(s) ?? 0;
-                                    return (
-                                      <tr key={`trow-${group.expiry}-${s}`} className={themes[theme].cardHover}>
-                                        <td className={`text-center py-2 ${themes[theme].text}`}>{callRight}</td>
-                                        <td className={`text-center py-2 ${themes[theme].text}`}>{callCovered}</td>
-                                        <td className={`text-center py-2 ${themes[theme].text}`}>{callNormal}</td>
-                                        <td className={`text-center py-2 px-3 w-20 border-r ${themes[theme].border} ${themes[theme].text}`}>{comboCallQty}</td>
-                                        <td className={`text-center py-2 px-4 w-24 ${themes[theme].text}`}>{s}</td>
-                                        <td className={`text-center py-2 px-3 w-20 border-l ${themes[theme].border} ${themes[theme].text}`}>{comboPutQty}</td>
-                                        <td className={`text-center py-2 ${themes[theme].text}`}>{putRight}</td>
-                                        <td className={`text-center py-2 ${themes[theme].text}`}>{putCovered}</td>
-                                        <td className={`text-center py-2 ${themes[theme].text}`}>{putNormal}</td>
-                                      </tr>
-                                    );
-                                  });
-                                })()}
-                              </tbody>
-                            </table>
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                )}
+                
               </div>
             );
           })()}
         </div>
       </div>
+  {confirmData && (
+    <div className="fixed inset-0 z-50">
+      <div className="absolute inset-0 bg-black/40" onClick={() => setConfirmData(null)}></div>
+      <div className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-md rounded-lg border ${themes[theme].card} ${themes[theme].border} p-6`}>
+        <div className={`text-lg font-semibold ${themes[theme].text}`}>{confirmData.title}</div>
+        <div className={`mt-2 text-sm ${themes[theme].text}`}>{confirmData.description}</div>
+        <div className="mt-4 max-h-56 overflow-auto space-y-2">
+          {confirmData.meta?.action === 'unwind_combo' ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className={`text-sm ${themes[theme].text}`}>组合数</div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    max={Object.values(qtyOverrides).reduce((m, v) => Math.max(m, v || 1), 1)}
+                    value={Object.values(qtyOverrides)[0] || 1}
+                    onChange={(e) => {
+                      const n = parseInt(e.target.value) || 1;
+                      const maxAll = Object.values(qtyOverrides).reduce((m, v) => Math.max(m, v || 1), 1);
+                      const clamped = Math.max(1, Math.min(n, maxAll));
+                      setQtyOverrides(() => {
+                        const next: Record<string, number> = {};
+                        confirmData.ids.forEach(id => {
+                          const pos = filteredPositions.find(x => x.id === id);
+                          const maxQty = pos?.quantity ?? 1;
+                          next[id] = Math.max(1, Math.min(clamped, maxQty));
+                        });
+                        return next;
+                      });
+                      logger.info('[ExpiryGroupCard] combo change', { count: clamped });
+                    }}
+                    className={`w-24 px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
+                  />
+                  <span className={`text-[10px] ${themes[theme].text} opacity-60`}>最大 {Object.values(qtyOverrides).reduce((m, v) => Math.max(m, v || 1), 1)}</span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {confirmData.ids.map(id => {
+                  const pos = filteredPositions.find(x => x.id === id);
+                  const maxQty = pos?.quantity ?? 1;
+                  const val = qtyOverrides[id] ?? 1;
+                  return (
+                    <div key={`confirm-pos-${id}`} className="flex items-center justify-between">
+                      <div className={`text-xs ${themes[theme].text}`}>
+                        {pos ? `${pos.symbol} ${pos.strike} ${pos.type.toUpperCase()} ${pos.position_type === 'buy' ? '权利' : (pos.position_type_zh === '备兑' ? '备兑' : '义务')}` : id}
+                      </div>
+                      <div className={`text-xs ${themes[theme].text} opacity-60`}>数量 {val}（最大 {maxQty}）</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            (() => {
+              const items = confirmData.ids.map(id => {
+                const pos = filteredPositions.find(x => x.id === id);
+                const val = qtyOverrides[id] ?? Number((pos as any)?.selectedQuantity ?? (pos as any)?.leg_quantity ?? pos?.quantity);
+                return (
+                  <div key={`confirm-pos-${id}`} className="flex items-center justify-between gap-2">
+                    <div className={`text-xs ${themes[theme].text}`}>
+                      {pos ? `${pos.symbol} ${pos.strike} ${pos.type.toUpperCase()} ${pos.position_type === 'buy' ? '权利' : (pos.position_type_zh === '备兑' ? '备兑' : '义务')}` : id}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        value={val}
+                        onChange={(e) => {
+                          const n = parseFloat(e.target.value);
+                          setQtyOverrides(prev => ({ ...prev, [id]: n }));
+                        }}
+                        className={`w-20 px-2 py-1 rounded text-xs ${themes[theme].input} ${themes[theme].text}`}
+                      />
+                    </div>
+                  </div>
+                );
+              });
+              return <div className="space-y-2">{items}</div>;
+            })()
+          )}
+        </div>
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            className={`px-3 py-2 rounded-md text-sm ${themes[theme].secondary}`}
+            onClick={() => setConfirmData(null)}
+          >取消</button>
+          <button
+            className={`px-3 py-2 rounded-md text-sm bg-blue-600 text-white hover:bg-blue-700`}
+            onClick={async () => {
+              await onClosePositions(confirmData.ids, confirmData.meta, qtyOverrides);
+              setConfirmData(null);
+            }}
+          >确认执行</button>
+        </div>
+      </div>
     </div>
-  );
+  )}
+</div>
+);
 }
-  const isSelectedPosition = (p: OptionsPosition) => {
-    return !!selectedSymbol && (p.opt_undl_code_full === selectedSymbol);
-  };
-
-  const getHighlightClass = (p: OptionsPosition) => {
-    if (!isSelectedPosition(p) || underlyingPrice == null) return '';
-    const isCall = (p.type === 'call' || (p.contract_type_zh as any) === 'call');
-    const thr = 0.005;
-    const diffRatio = Math.abs(underlyingPrice - p.strike) / Math.max(p.strike, 1);
-    const isATM = diffRatio <= thr;
-    const isITM = isCall ? (underlyingPrice > p.strike) : (underlyingPrice < p.strike);
-    if (isATM) return 'bg-blue-50 dark:bg-blue-900/30 border-blue-300';
-    if (p.position_type === 'sell' && isITM) return 'bg-red-50 dark:bg-red-900/30 border-red-300';
-    if (p.position_type === 'buy' && !isITM) return 'bg-amber-50 dark:bg-amber-900/30 border-amber-300';
-    return 'bg-green-50 dark:bg-green-900/30 border-green-300';
-  };

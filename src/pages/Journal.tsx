@@ -41,7 +41,10 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
     endDate: new Date().toISOString().split('T')[0]
   });
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() => {
+    const cookie = typeof document !== 'undefined' ? (document.cookie ? (document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith('journalAccountId='))?.split('=')[1] ?? null) : null) : null;
+    return cookie || localStorage.getItem('journalAccountId') || localStorage.getItem('selectedAccountId') || null;
+  });
 
   // Get UUID from URL params for portfolio sharing
   const portfolioUuid = new URLSearchParams(location.search).get('uuid');
@@ -84,7 +87,12 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
             setAccounts(accountsResponse.data);
             // Set default account if none selected
             if (!selectedAccountId && accountsResponse.data.length > 0) {
-              setSelectedAccountId(accountsResponse.data[0].id);
+              const def = accountsResponse.data.find(a => a.is_default) || accountsResponse.data[0];
+              setSelectedAccountId(def.id);
+              localStorage.setItem('journalAccountId', def.id);
+              const expiryDate = new Date();
+              expiryDate.setDate(expiryDate.getDate() + 30);
+              document.cookie = `journalAccountId=${encodeURIComponent(def.id)}; expires=${expiryDate.toUTCString()}; path=/`;
             }
           }
         }
@@ -164,7 +172,9 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
           isSharedView={!!portfolioUuid}
           userId={DEMO_USER_ID}
           selectedAccountId={selectedAccountId}
-          onAccountChange={(accountId) => setSelectedAccountId(accountId)}
+          onAccountChange={(accountId) => {
+            setSelectedAccountId(accountId);
+          }}
         />
       )}
 
@@ -182,7 +192,9 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
               userId={DEMO_USER_ID}
               theme={theme}
               selectedAccountId={selectedAccountId}
-              onAccountChange={(accountId) => setSelectedAccountId(accountId)}
+              onAccountChange={(accountId) => {
+                setSelectedAccountId(accountId);
+              }}
             />
           </div>
           {selectedStock?.stock_code && (
