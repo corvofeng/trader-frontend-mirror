@@ -907,6 +907,30 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                 {portfolioData.totalProfitLossPercentage >= 0 ? '+' : ''}{portfolioData.totalProfitLossPercentage.toFixed(2)}%
               </p>
             </div>
+            <div className={`${themes[theme].background} rounded-lg p-4`}>
+              <h3 className={`text-sm font-medium ${themes[theme].text} opacity-75`}>总金额 balance</h3>
+              <p className={`text-2xl font-bold ${themes[theme].text} mt-1`}>
+                {formatCurrency(portfolioData.balance ?? 0, currencyConfig)}
+              </p>
+            </div>
+            <div className={`${themes[theme].background} rounded-lg p-4`}>
+              <h3 className={`text-sm font-medium ${themes[theme].text} opacity-75`}>可用金额 available</h3>
+              <p className={`text-2xl font-bold ${themes[theme].text} mt-1`}>
+                {formatCurrency(portfolioData.available ?? 0, currencyConfig)}
+              </p>
+            </div>
+            <div className={`${themes[theme].background} rounded-lg p-4`}>
+              <h3 className={`text-sm font-medium ${themes[theme].text} opacity-75`}>当前仓位盈亏 position_profit</h3>
+              <p className={`text-2xl font-bold mt-1 ${(portfolioData.position_profit ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {(portfolioData.position_profit ?? 0) >= 0 ? '+' : ''}{formatCurrency(Math.abs(portfolioData.position_profit ?? 0), currencyConfig)}
+              </p>
+            </div>
+            <div className={`${themes[theme].background} rounded-lg p-4`}>
+              <h3 className={`text-sm font-medium ${themes[theme].text} opacity-75`}>当前使用保证金 real_used_margin</h3>
+              <p className={`text-2xl font-bold ${themes[theme].text} mt-1`}>
+                {formatCurrency(portfolioData.real_used_margin ?? 0, currencyConfig)}
+              </p>
+            </div>
           </div>
         </div>
       </div>

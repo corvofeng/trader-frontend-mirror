@@ -435,6 +435,10 @@ export interface OptionsPortfolioData {
   totalCost: number;
   totalProfitLoss: number;
   totalProfitLossPercentage: number;
+  balance?: number;
+  available?: number;
+  position_profit?: number;
+  real_used_margin?: number;
   expiryGroups: Array<{
     expiry: string;
     daysToExpiry: number;
