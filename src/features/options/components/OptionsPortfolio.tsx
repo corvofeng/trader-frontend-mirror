@@ -884,30 +884,6 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         <div className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className={`${themes[theme].background} rounded-lg p-4`}>
-              <h3 className={`text-sm font-medium ${themes[theme].text} opacity-75`}>总价值</h3>
-              <p className={`text-2xl font-bold ${themes[theme].text} mt-1`}>
-                {formatCurrency(portfolioData.totalValue, currencyConfig)}
-              </p>
-            </div>
-            <div className={`${themes[theme].background} rounded-lg p-4`}>
-              <h3 className={`text-sm font-medium ${themes[theme].text} opacity-75`}>总成本</h3>
-              <p className={`text-2xl font-bold ${themes[theme].text} mt-1`}>
-                {formatCurrency(portfolioData.totalCost, currencyConfig)}
-              </p>
-            </div>
-            <div className={`${themes[theme].background} rounded-lg p-4`}>
-              <h3 className={`text-sm font-medium ${themes[theme].text} opacity-75`}>总盈亏</h3>
-              <p className={`text-2xl font-bold mt-1 ${portfolioData.totalProfitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {portfolioData.totalProfitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(portfolioData.totalProfitLoss), currencyConfig)}
-              </p>
-            </div>
-            <div className={`${themes[theme].background} rounded-lg p-4`}>
-              <h3 className={`text-sm font-medium ${themes[theme].text} opacity-75`}>盈亏比例</h3>
-              <p className={`text-2xl font-bold mt-1 ${portfolioData.totalProfitLossPercentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {portfolioData.totalProfitLossPercentage >= 0 ? '+' : ''}{portfolioData.totalProfitLossPercentage.toFixed(2)}%
-              </p>
-            </div>
-            <div className={`${themes[theme].background} rounded-lg p-4`}>
               <h3 className={`text-sm font-medium ${themes[theme].text} opacity-75`}>总金额 balance</h3>
               <p className={`text-2xl font-bold ${themes[theme].text} mt-1`}>
                 {formatCurrency(portfolioData.balance ?? 0, currencyConfig)}
