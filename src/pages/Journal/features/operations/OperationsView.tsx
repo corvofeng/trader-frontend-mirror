@@ -46,7 +46,7 @@ export function OperationsView({ theme }: OperationsViewProps) {
 
   useEffect(() => {
     fetchOperations();
-  }, [dateRange]);
+  }, [dateRange, fetchOperations]);
 
   const filteredOperations = operations.filter(op => 
     filter === 'all' || op.result === filter

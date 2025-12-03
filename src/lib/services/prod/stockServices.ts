@@ -1,30 +1,30 @@
-import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, OperationService, StockConfigService, StockConfig, UploadService, UploadResponse, AnalysisService, AccountService } from '../types';
+import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, OperationService, StockConfigService, StockConfig, UploadService, UploadResponse, AnalysisService, AccountService, ServiceResponse, User } from '../types';
 import type { Trade } from '../types';
 
-let cachedUser: any | null = null;
-let pendingUserPromise: Promise<any> | null = null;
+let cachedUser: User | null = null;
+let pendingUserPromise: Promise<ServiceResponse<{ user: User | null }>> | null = null;
 
 export const authService: AuthService = {
   getUser: async () => {
     if (cachedUser !== null) {
-      return { data: { user: cachedUser }, error: null } as any;
+      return { data: { user: cachedUser }, error: null };
     }
     if (pendingUserPromise) {
       const result = await pendingUserPromise;
-      return result as any;
+      return result;
     }
     pendingUserPromise = (async () => {
       const checker = await (await fetch('/api/check')).json();
       if (checker['status']) {
-        const user = await (await fetch('/api/user')).json();
+        const user = await (await fetch('/api/user')).json() as User;
         cachedUser = user;
-        return { data: { user }, error: null } as any;
+        return { data: { user }, error: null };
       }
-      return { data: { user: null }, error: null } as any;
+      return { data: { user: null }, error: null };
     })();
     try {
       const res = await pendingUserPromise;
-      return res as any;
+      return res;
     } finally {
       pendingUserPromise = null;
     }
@@ -92,7 +92,7 @@ export const tradeService: TradeService = {
 };
 
 export const stockService: StockService = {
-  getStockName: (stockCode: string) => {
+  getStockName: (_stockCode: string) => {
     throw new Error('Not implemented');
   },
   
@@ -247,10 +247,10 @@ export const portfolioService: PortfolioService = {
     }
   },
 
-  getTrendData: async (userId: string, startDate: string, endDate: string, accountId?: string) => {
+  getTrendData: async (userId: string, startDate: string, endDate: string, accountId: string) => {
     try {
       // 使用默认账户ID或用户ID作为路径参数
-      if (!accountId) return { data: null, error: new Error('User ID is required') };
+      if (!accountId) return { data: null, error: new Error('Account ID is required') };
 
       const url = `/api/portfolio/${accountId}/trend?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&userId=${userId}`;
       const response = await fetch(url);

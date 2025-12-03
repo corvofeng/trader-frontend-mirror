@@ -6,7 +6,7 @@ import { OptionsHeader } from './components/OptionsHeader';
 import { OptionsTabNavigation } from './components/OptionsTabNavigation';
 import { OptionsTabContent } from './components/OptionsTabContent';
 import { OptionsCalculatorModal } from '../options/OptionsCalculatorModal';
-import { RelatedLinks } from '../../shared/components';
+// import { RelatedLinks } from '../../shared/components';
 import { optionsService } from '../../lib/services';
 import { Theme } from '../../lib/theme';
 import type { OptionsData } from '../../lib/services/types';
@@ -30,7 +30,7 @@ export function Options({ theme }: OptionsProps) {
   const [selectedSymbol, setSelectedSymbol] = useState<string>('');
   const [optionsData, setOptionsData] = useState<OptionsData | null>(null);
   const [selectedExpiry, setSelectedExpiry] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [isLoadingSymbols, setIsLoadingSymbols] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCalculatorModal, setShowCalculatorModal] = useState(false);
@@ -59,10 +59,7 @@ export function Options({ theme }: OptionsProps) {
         }
       } catch (err) {
         console.error('Error fetching available symbols:', err);
-        // Fallback to default symbols if API fails
-        const fallbackSymbols = ['SPY', 'QQQ', 'AAPL', 'TSLA'];
-        setAvailableSymbols(fallbackSymbols);
-        setSelectedSymbol(fallbackSymbols[0]);
+        setAvailableSymbols([]);
       } finally {
         setIsLoadingSymbols(false);
       }

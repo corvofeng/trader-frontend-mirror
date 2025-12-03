@@ -1,4 +1,4 @@
-import { format, subDays, addHours, addMinutes } from 'date-fns';
+import { format, subDays } from 'date-fns';
 
 export function formatDate(date: Date | string, formatStr: string = 'MMM d, yyyy'): string {
   const dateObj = typeof date === 'string' ? new Date(date) : date;
@@ -14,6 +14,6 @@ export function getDateRange(days: number) {
   };
 }
 
-export function isValidDate(date: any): boolean {
+export function isValidDate(date: unknown): boolean {
   return date instanceof Date && !isNaN(date.getTime());
 }

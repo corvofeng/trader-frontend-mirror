@@ -2,7 +2,7 @@ import React from 'react';
 import { TrendingUp } from 'lucide-react';
 import { AnimatedChart } from './AnimatedChart';
 import { InternalLink } from '../../../shared/components';
-import { Theme, themes } from '../../../lib/theme';
+import { Theme } from '../../../lib/theme';
 
 interface MarketOverviewProps {
   theme: Theme;

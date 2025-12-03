@@ -1,4 +1,4 @@
-import html2canvas from 'html2canvas';
+import * as htmlToImage from 'html-to-image';
 
 export interface ScreenshotOptions {
   filename?: string;
@@ -10,27 +10,17 @@ export async function captureElement(
   element: HTMLElement,
   options: ScreenshotOptions = {}
 ): Promise<string> {
-  const {
-    quality = 0.92,
-    backgroundColor = '#ffffff'
-  } = options;
+  const { backgroundColor = '#ffffff' } = options;
 
   try {
-    const canvas = await html2canvas(element, {
+    const dataUrl = await htmlToImage.toPng(element, {
+      canvasWidth: element.scrollWidth,
+      canvasHeight: element.scrollHeight,
       backgroundColor,
-      useCORS: true,
-      allowTaint: true,
-      scale: 2, // 高清截图
-      logging: false,
-      width: element.scrollWidth,
-      height: element.scrollHeight,
-      ignoreElements: (element) => {
-        // 忽略截图按钮本身
-        return element.classList.contains('screenshot-ignore');
-      }
+      pixelRatio: 2,
+      filter: (node) => !(node instanceof HTMLElement && node.classList.contains('screenshot-ignore'))
     });
-
-    return canvas.toDataURL('image/png', quality);
+    return dataUrl;
   } catch (error) {
     console.error('Screenshot capture failed:', error);
     throw new Error('截图失败，请重试');

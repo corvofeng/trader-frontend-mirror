@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { logger } from '../../shared/utils/logger';
 import * as echarts from 'echarts';
-import { X, Calculator, Plus, Minus, Save, FolderOpen, Trash2, Camera, Download, Eye } from 'lucide-react';
+import { X, Calculator, Plus, Minus, Save, FolderOpen, Trash2, Camera, Download } from 'lucide-react';
 import { Theme, themes } from '../../lib/theme';
 import { useCurrency } from '../../lib/context/CurrencyContext';
 import { formatCurrency } from '../../lib/types';
@@ -65,7 +65,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
   const [screenshotDataUrl, setScreenshotDataUrl] = useState<string>('');
 
   // 生成盈亏数据
-  const generateProfitLossData = () => {
+  const generateProfitLossData = useCallback(() => {
     if (!currentStockPrice || isNaN(currentStockPrice) || currentStockPrice <= 0) {
       return { data: [], markers: [], breakEvenPoints: [], extremePoints: [] };
     }
@@ -75,7 +75,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
     const priceStep = (maxPrice - minPrice) / 200; // 增加数据点精度
     
     const data: [number, number][] = [];
-    const markers: any[] = [];
+    const markers: Array<{ coord: [number, number]; name: string; itemStyle: { color: string } }> = [];
     const breakEvenPoints: { price: number; profit: number }[] = [];
     const extremePoints: { price: number; profit: number; type: 'max' | 'min' }[] = [];
     
@@ -131,7 +131,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
     });
     
     return { data, markers, breakEvenPoints, extremePoints };
-  };
+  }, [currentStockPrice, calculateTotalProfit]);
 
   // 截图功能
   const captureChart = () => {
@@ -255,7 +255,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
   const [lastOptionSelectionTime, setLastOptionSelectionTime] = useState<string>('');
 
   // 计算当前股价（基于期权内在价值）
-  const calculateCurrentStockPrice = (): number => {
+  const calculateCurrentStockPrice = useCallback((): number => {
     if (!optionsData || optionsData.quotes.length === 0) return 450;
     
     // 找到有内在价值的期权来推算当前股价
@@ -303,7 +303,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
     }
     
     return bestEstimate;
-  };
+  }, [optionsData]);
 
   // 从cookie加载上次选择的到期日
   useEffect(() => {
@@ -377,7 +377,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
       const calculatedPrice = calculateCurrentStockPrice();
       setCurrentStockPrice(calculatedPrice);
     }
-  }, [optionsData]);
+  }, [optionsData, calculateCurrentStockPrice]);
 
   // 从cookie加载保存的策略
   useEffect(() => {
@@ -432,16 +432,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
     setCurrentStockPrice(strategy.currentStockPrice);
   };
 
-  // 删除策略
-  const deleteStrategy = (index: number) => {
-    const updatedStrategies = savedStrategies.filter((_, i) => i !== index);
-    setSavedStrategies(updatedStrategies);
-    
-    // 更新cookie
-    const expiryDate = new Date();
-    expiryDate.setDate(expiryDate.getDate() + 30);
-    document.cookie = `optionsStrategies=${encodeURIComponent(JSON.stringify(updatedStrategies))}; expires=${expiryDate.toUTCString()}; path=/`;
-  };
+  
 
   const uniqueExpiryDates = optionsData 
     ? Array.from(new Set(optionsData.quotes.map(q => q.expiry)))
@@ -493,19 +484,19 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
     setCashPositions(cashPositions.filter(p => p.id !== id));
   };
 
-  const updateOptionPosition = (id: string, field: keyof OptionPosition, value: any) => {
+  const updateOptionPosition = (id: string, field: keyof OptionPosition, value: string | number) => {
     setOptionPositions(optionPositions.map(p => 
       p.id === id ? { ...p, [field]: value } : p
     ));
   };
 
-  const updateStockPosition = (id: string, field: keyof StockPosition, value: any) => {
+  const updateStockPosition = (id: string, field: keyof StockPosition, value: string | number) => {
     setStockPositions(stockPositions.map(p => 
       p.id === id ? { ...p, [field]: value } : p
     ));
   };
 
-  const updateCashPosition = (id: string, field: keyof CashPosition, value: any) => {
+  const updateCashPosition = (id: string, field: keyof CashPosition, value: string | number) => {
     setCashPositions(cashPositions.map(p => 
       p.id === id ? { ...p, [field]: value } : p
     ));
@@ -560,7 +551,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
   };
 
   // 计算总盈亏
-  const calculateTotalProfit = (stockPrice: number): number => {
+  const calculateTotalProfit = useCallback((stockPrice: number): number => {
     // 验证股价输入
     if (!stockPrice || isNaN(stockPrice) || stockPrice <= 0) {
       return 0;
@@ -581,7 +572,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
     });
     
     return total;
-  };
+  }, [optionPositions, stockPositions, cashPositions]);
 
   // 更新盈亏图表
   useEffect(() => {
@@ -692,14 +683,14 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
     const maxDisplayPrice = currentStockPrice + range;
     
     // 过滤数据到显示范围内
-    const { data: profitLossData, markers, breakEvenPoints: calculatedBreakEvenPoints, extremePoints } = generateProfitLossData();
-    const filteredData = profitLossData.filter(([price, _]) => 
+    const { data: profitLossData, breakEvenPoints: calculatedBreakEvenPoints, extremePoints } = generateProfitLossData();
+    const filteredData = profitLossData.filter(([price]) => 
       price >= minDisplayPrice && price <= maxDisplayPrice
     );
     
     // 检查是否有有效的仓位数据
     const hasValidPositions = optionPositions.length > 0 || stockPositions.length > 0;
-    const hasNonZeroData = filteredData.some(([_, profit]) => Math.abs(profit) > 0.01);
+    const hasNonZeroData = filteredData.some(([, profit]) => Math.abs(profit) > 0.01);
 
     const option = {
       title: {
@@ -719,7 +710,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
         textStyle: {
           color: isDark ? '#e5e7eb' : '#111827'
         },
-        formatter: (params: any) => {
+        formatter: (params: unknown) => {
           // 将params转换为数组格式以避免迭代错误
           const paramsArray = Array.isArray(params) ? params : [params];
           const param = paramsArray[0];
@@ -1027,19 +1018,17 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
         profitChartInstance.current.dispose();
       }
     };
-  }, [optionPositions, stockPositions, cashPositions, currentStockPrice, theme, selectedSymbol]);
+  }, [optionPositions, stockPositions, cashPositions, currentStockPrice, theme, selectedSymbol, calculateTotalProfit, getThemedColors, currencyConfig, generateProfitLossData]);
 
   // 期权选择器
   const OptionSelector = () => {
-    if (!optionsData) return null;
-
-    // 使用上次选择的时间，如果没有则使用第一个
-    const [selectedExpiry, setSelectedExpiry] = useState(() => {
+    const [selectedExpiry, setSelectedExpiry] = useState<string>(() => {
       if (lastOptionSelectionTime && uniqueExpiryDates.includes(lastOptionSelectionTime)) {
         return lastOptionSelectionTime;
       }
       return uniqueExpiryDates[0] || '';
     });
+    if (!optionsData) return null;
     
     const quotesByExpiry = optionsData.quotes
       .filter(q => q.expiry === selectedExpiry)

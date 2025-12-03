@@ -58,7 +58,7 @@ export function AccountSelector({ userId, theme, selectedAccountId, onAccountCha
       }
     }
     setLoading(false);
-  }, [userId, preferOptions, cacheKey]);
+  }, [userId, preferOptions, cacheKey, selectedAccountId, onAccountChange]);
 
   useEffect(() => {
     loadAccounts(false);

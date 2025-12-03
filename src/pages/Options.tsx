@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { logger } from '../shared/utils/logger';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { BarChart2, TrendingUp, Briefcase, Calculator, RefreshCw } from 'lucide-react';
@@ -162,12 +162,16 @@ export function Options({ theme }: OptionsProps) {
                       setSelectedAccountId(id);
                       try {
                         localStorage.setItem('selectedAccountId', id);
-                      } catch {}
+                      } catch {
+                        // ignore localStorage errors
+                      }
                       try {
                         const expiryDate = new Date();
                         expiryDate.setDate(expiryDate.getDate() + 30);
                         document.cookie = `selectedAccountId=${encodeURIComponent(id)}; expires=${expiryDate.toUTCString()}; path=/`;
-                      } catch {}
+                      } catch {
+                        // ignore cookie errors
+                      }
                       setRefreshKey((k) => k + 1);
                     }}
                     refreshKey={refreshKey}
@@ -321,7 +325,7 @@ export function Options({ theme }: OptionsProps) {
 
         {activeTab === 'trading' && (
           <div className="space-y-6">
-            <OptionsTradePlans theme={theme} selectedSymbol={selectedSymbol} selectedAccountId={selectedAccountId} />
+            <OptionsTradePlans theme={theme} selectedSymbol={selectedSymbol} selectedAccountId={selectedAccountId} userId={userId} />
             <RelatedLinks 
               theme={theme}
               currentPath="/options?tab=trading" 

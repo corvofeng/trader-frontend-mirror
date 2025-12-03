@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { logger } from '../../../../shared/utils/logger';
-import { Upload, FileText, CheckCircle, AlertCircle, ExternalLink, Copy } from 'lucide-react';
+import { Upload, FileText, CheckCircle, ExternalLink, Copy } from 'lucide-react';
 import { Theme, themes } from '../../../../lib/theme';
 import { uploadService } from '../../../../lib/services';
 import type { UploadResponse } from '../../../../lib/services/types';

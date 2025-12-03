@@ -1,5 +1,4 @@
-import type { CurrencyConfig, RegionalColorConfig } from '../shared/types';
-import { regionalColorConfigs, currencyConfigs } from '../shared/constants';
+import type { RegionalColorConfig } from '../shared/types';
 
 export type Theme = 'light' | 'dark' | 'blue';
 

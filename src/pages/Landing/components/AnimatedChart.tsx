@@ -1,10 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { logger } from '../../../shared/utils/logger';
 import { createChart, ColorType, IChartApi, ISeriesApi } from 'lightweight-charts';
-import { themes, Theme } from '../../../lib/theme';
+import { Theme } from '../../../lib/theme';
 import { stockService } from '../../../lib/services';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
-import type { StockData } from '../../../lib/services/types';
 
 interface AnimatedChartProps {
   theme: Theme;
@@ -180,7 +179,7 @@ export function AnimatedChart({ theme }: AnimatedChartProps) {
             width: chartContainerRef.current.clientWidth 
           });
           chartRef.current.timeScale().fitContent();
-        } catch (e) {
+        } catch {
           console.error('Error during resize:', e);
         }
       }
@@ -194,7 +193,7 @@ export function AnimatedChart({ theme }: AnimatedChartProps) {
       if (chartRef.current) {
         try {
           chartRef.current.remove();
-        } catch (e) {
+        } catch {
           // Ignore errors during cleanup
         }
         chartRef.current = null;

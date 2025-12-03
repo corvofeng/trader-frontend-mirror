@@ -7,7 +7,7 @@ import DailyTradeHistory from '../features/trading/components/DailyTradeHistory'
 import HistoryTradesChart from '../features/trading/components/HistoryTradesChart';
 import { Portfolio } from '../features/portfolio';
 import { OperationsView, UploadPage } from './Journal/features';
-import { RelatedLinks } from '../shared/components';
+import { } from '../shared/components';
 import { Theme, themes } from '../lib/theme';
 import { portfolioService, accountService } from '../lib/services';
 import { StockChart } from '../features/trading/components/StockChart';

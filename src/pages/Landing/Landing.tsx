@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TrendingUp, Sigma } from 'lucide-react';
+import { } from 'lucide-react';
 import { HeroSection } from './components/HeroSection';
 import { MarketOverview } from './components/MarketOverview';
 import { PortfolioPreview } from './components/PortfolioPreview';
