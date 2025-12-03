@@ -118,13 +118,14 @@ export const optionsService: OptionsService = {
     }
   },
 
-  getRatioSpreadPlans: async (symbol?: string, accountId?: string | null) => {
+  getRatioSpreadPlans: async (symbol?: string, accountId?: string | null, userId?: string | null) => {
     try {
       const params = new URLSearchParams();
       if (symbol) params.set('symbol', symbol);
-      if (accountId) params.set('accountId', accountId);
+      if (userId) params.set('userId', userId);
       const qs = params.toString();
-      const response = await fetch(`/api/options/ratio-spread-plans${qs ? `?${qs}` : ''}`);
+      const base = `/api/options/ratio-spread-plans${accountId ? `/accounts/${encodeURIComponent(accountId)}` : ''}`;
+      const response = await fetch(`${base}${qs ? `?${qs}` : ''}`);
       if (!response.ok) {
         throw new Error('Failed to fetch ratio spread plans');
       }
@@ -153,9 +154,11 @@ export const optionsService: OptionsService = {
       return { data: null, error: error as Error };
     }
   },
-  saveRatioSpreadPlan: async (plan) => {
+  saveRatioSpreadPlan: async (plan, accountId?: string | null, userId?: string | null) => {
     try {
-      const response = await fetch(`/api/options/ratio-spread-plans`, {
+      const base = `/api/options/ratio-spread-plans${accountId ? `/accounts/${encodeURIComponent(accountId)}` : ''}`;
+      const url = userId ? `${base}?userId=${encodeURIComponent(userId)}` : base;
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(plan)
@@ -171,10 +174,13 @@ export const optionsService: OptionsService = {
     }
   }
   ,
-  refreshRatioSpreadPlan: async (plan) => {
+  refreshRatioSpreadPlan: async (plan, accountId?: string | null, userId?: string | null) => {
     try {
-      const response = await fetch(`/api/options/ratio-spread-plans/refresh`, {
-        method: 'POST',
+      const planId = encodeURIComponent(`${plan?.plan?.label}-${plan?.plan?.expiry}`);
+      const base = `/api/options/ratio-spread-plans/${planId}${accountId ? `/accounts/${encodeURIComponent(accountId)}` : ''}`;
+      const url = userId ? `${base}?userId=${encodeURIComponent(userId)}` : base;
+      const response = await fetch(url, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(plan)
       });

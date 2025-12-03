@@ -838,7 +838,7 @@ export const optionsService: OptionsService = {
     return { data: userStrategies, error: null };
   }
   ,
-  getRatioSpreadPlans: async (symbol?: string, accountId?: string | null) => {
+  getRatioSpreadPlans: async (symbol?: string, accountId?: string | null, userId?: string | null) => {
     await new Promise(resolve => setTimeout(resolve, 500));
     const sample: RatioSpreadPlanResult[] = [
       {
@@ -849,7 +849,7 @@ export const optionsService: OptionsService = {
           upper_strike: 1.4,
           target_spread: 10,
           cover_contracts_needed: 3,
-          label: `2026-06-24-put-1.35-1.40${symbol ? `-${symbol}` : ''}${accountId ? `-${accountId}` : ''}`
+          label: `2026-06-24-put-1.35-1.40${symbol ? `-${symbol}` : ''}${accountId ? `-${accountId}` : ''}${userId ? `-${userId}` : ''}`
         },
         current_spread: 0,
         leverage: 4,
@@ -882,12 +882,12 @@ export const optionsService: OptionsService = {
     const ids = (payload?.positions || []).map(p => p.id);
     return { data: { closedIds: ids }, error: null };
   },
-  saveRatioSpreadPlan: async (plan) => {
+  saveRatioSpreadPlan: async (plan, accountId?: string | null) => {
     await new Promise(resolve => setTimeout(resolve, 500));
     return { data: { ...plan, saved: true }, error: null };
   }
   ,
-  refreshRatioSpreadPlan: async (plan) => {
+  refreshRatioSpreadPlan: async (plan, accountId?: string | null) => {
     await new Promise(resolve => setTimeout(resolve, 500));
     const refreshed = {
       ...plan,

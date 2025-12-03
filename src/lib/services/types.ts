@@ -459,9 +459,9 @@ export interface OptionsService {
   ) => Promise<ServiceResponse<CustomOptionsStrategy>>;
   deleteCustomStrategy: (strategyId: string) => Promise<ServiceResponse<void>>;
   getCustomStrategies: (userId: string, accountId?: string | null) => Promise<ServiceResponse<CustomOptionsStrategy[]>>;
-  getRatioSpreadPlans: (symbol?: string, accountId?: string | null) => Promise<ServiceResponse<RatioSpreadPlanResult[]>>;
-  saveRatioSpreadPlan: (plan: RatioSpreadPlanResult) => Promise<ServiceResponse<RatioSpreadPlanResult>>;
-  refreshRatioSpreadPlan: (plan: RatioSpreadPlanResult) => Promise<ServiceResponse<RatioSpreadPlanResult>>;
+  getRatioSpreadPlans: (symbol?: string, accountId?: string | null, userId?: string | null) => Promise<ServiceResponse<RatioSpreadPlanResult[]>>;
+  saveRatioSpreadPlan: (plan: RatioSpreadPlanResult, accountId?: string | null, userId?: string | null) => Promise<ServiceResponse<RatioSpreadPlanResult>>;
+  refreshRatioSpreadPlan: (plan: RatioSpreadPlanResult, accountId?: string | null, userId?: string | null) => Promise<ServiceResponse<RatioSpreadPlanResult>>;
   closePositions: (payload: { positions: OptionsPosition[] }) => Promise<ServiceResponse<{ closedIds: string[] }>>;
 }
 

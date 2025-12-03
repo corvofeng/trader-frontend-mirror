@@ -10,9 +10,10 @@ interface OptionsTradePlansProps {
   theme: Theme;
   selectedSymbol: string;
   selectedAccountId?: string | null;
+  userId?: string | null;
 }
 
-export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: selectedAccountIdProp }: OptionsTradePlansProps) {
+export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: selectedAccountIdProp, userId }: OptionsTradePlansProps) {
   const { currencyConfig } = useCurrency();
   const [symbol, setSymbol] = useState<string>(selectedSymbol);
   const [ratioPlans, setRatioPlans] = useState<RatioSpreadPlanResult[]>([]);
@@ -31,7 +32,6 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
     return selectedAccountIdProp ?? cookie ?? null;
   });
   const [expandedPlanId, setExpandedPlanId] = useState<string | null>(null);
-  const DEMO_USER_ID = 'mock-user-id';
   const groupedByExpiry: Record<string, RatioSpreadPlanResult[]> = ratioPlans.reduce((acc, rp) => {
     const key = rp.plan.expiry;
     if (!acc[key]) acc[key] = [];
@@ -98,7 +98,7 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
     try {
       setIsLoadingRatio(true);
       setRatioError(null);
-      const { data, error } = await optionsService.getRatioSpreadPlans(symbol, selectedAccountId);
+      const { data, error } = await optionsService.getRatioSpreadPlans(symbol, selectedAccountId, userId ?? null);
       if (error) throw error;
       setRatioPlans(data || []);
     } catch (e: unknown) {
@@ -113,7 +113,7 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
     const id = `${rp.plan.label}-${rp.plan.expiry}`;
     setSavingIds(prev => ({ ...prev, [id]: true }));
     try {
-      const { data, error } = await optionsService.saveRatioSpreadPlan(rp);
+      const { data, error } = await optionsService.saveRatioSpreadPlan(rp, selectedAccountId, userId ?? null);
       if (error) throw error;
       if (data) {
         setRatioPlans(prev => prev.map(p => {
@@ -132,7 +132,7 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
     const id = `${rp.plan.label}-${rp.plan.expiry}`;
     setSavingIds(prev => ({ ...prev, [id]: true }));
     try {
-      const { data, error } = await optionsService.refreshRatioSpreadPlan(rp);
+      const { data, error } = await optionsService.refreshRatioSpreadPlan(rp, selectedAccountId, userId ?? null);
       if (error) throw error;
       if (data) {
         setRatioPlans(prev => prev.map(p => {
@@ -157,7 +157,7 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
       try {
         setIsLoadingRatio(true);
         setRatioError(null);
-        const { data, error } = await optionsService.getRatioSpreadPlans(symbol, selectedAccountId);
+        const { data, error } = await optionsService.getRatioSpreadPlans(symbol, selectedAccountId, userId ?? null);
         if (error) throw error;
         setRatioPlans(data || []);
       } catch (e: unknown) {
@@ -168,7 +168,7 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
       }
     };
     fetchRatioPlans();
-  }, [symbol, selectedAccountId]);
+  }, [symbol, selectedAccountId, userId]);
 
   useEffect(() => {
     const fetchUnderlying = async () => {
