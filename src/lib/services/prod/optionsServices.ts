@@ -4,12 +4,22 @@ import type { CustomOptionsStrategy } from '../types';
 export const optionsService: OptionsService = {
   getOptionsData: async (symbol?: string) => {
     try {
+      if (symbol) {
+        const externalUrl = `https://stock.in.corvo.fun/api/options?symbol=${encodeURIComponent(symbol)}`;
+        const externalResp = await fetch(externalUrl);
+        if (externalResp.ok) {
+          const externalData = await externalResp.json();
+          if (externalData && Array.isArray(externalData.quotes) && Array.isArray(externalData.surface)) {
+            return { data: externalData, error: null };
+          }
+        }
+      }
       const queryParam = symbol ? `?symbol=${encodeURIComponent(symbol)}` : '';
-      const response = await fetch(`/api/options${queryParam}`);
-      if (!response.ok) {
+      const fallbackResp = await fetch(`/api/options${queryParam}`);
+      if (!fallbackResp.ok) {
         throw new Error('Failed to fetch options data');
       }
-      const data = await response.json();
+      const data = await fallbackResp.json();
       return { data, error: null };
     } catch (error) {
       console.error('Error fetching options data:', error);

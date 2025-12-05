@@ -29,6 +29,15 @@ export function OptionsChain({
     .filter(q => q.expiry === selectedExpiry)
     .sort((a, b) => a.strike - b.strike);
 
+  const [editableQuotes, setEditableQuotes] = React.useState<OptionQuote[]>(quotesByExpiry);
+  React.useEffect(() => {
+    setEditableQuotes(quotesByExpiry);
+  }, [optionsData, selectedExpiry]);
+
+  const onUpdateQuantity = (strike: number, key: keyof OptionQuote, value: number) => {
+    setEditableQuotes(prev => prev.map(q => q.strike === strike ? { ...q, [key]: value } : q));
+  };
+
   // 找到时间价值最大的期权合约作为平值合约
   const getAtTheMoneyStrike = (quotes: OptionQuote[]): number => {
     if (quotes.length === 0) return 0;
@@ -50,7 +59,7 @@ export function OptionsChain({
     return atmStrike;
   };
 
-  const atmStrike = getAtTheMoneyStrike(quotesByExpiry);
+  const atmStrike = getAtTheMoneyStrike(editableQuotes);
 
   // 可配置字段定义（保持左右镜像对称）
   type FieldId = 'lastPrice' | 'timeValue' | 'intrinsicValue' | 'impliedVol' | 'myBuyQty' | 'mySellQty';
@@ -65,17 +74,49 @@ export function OptionsChain({
   }> = [
     {
       id: 'mySellQty',
-      label: '我的卖出',
-      renderCall: (quote) => (quote.myCallSellQty ?? 0),
-      renderPut: (quote) => (quote.myPutSellQty ?? 0),
+      label: '义务仓',
+      renderCall: (quote) => (
+        <input
+          type="number"
+          min={0}
+          value={quote.myCallSellQty ?? 0}
+          onChange={(e) => onUpdateQuantity(quote.strike, 'myCallSellQty', Math.max(0, parseInt(e.currentTarget.value || '0', 10)))}
+          className={`px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text} w-full`}
+        />
+      ),
+      renderPut: (quote) => (
+        <input
+          type="number"
+          min={0}
+          value={quote.myPutSellQty ?? 0}
+          onChange={(e) => onUpdateQuantity(quote.strike, 'myPutSellQty', Math.max(0, parseInt(e.currentTarget.value || '0', 10)))}
+          className={`px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text} w-full`}
+        />
+      ),
       callAlign: 'right',
       putAlign: 'left',
     },
     {
       id: 'myBuyQty',
-      label: '我的买入',
-      renderCall: (quote) => (quote.myCallBuyQty ?? 0),
-      renderPut: (quote) => (quote.myPutBuyQty ?? 0),
+      label: '权利仓',
+      renderCall: (quote) => (
+        <input
+          type="number"
+          min={0}
+          value={quote.myCallBuyQty ?? 0}
+          onChange={(e) => onUpdateQuantity(quote.strike, 'myCallBuyQty', Math.max(0, parseInt(e.currentTarget.value || '0', 10)))}
+          className={`px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text} w-full`}
+        />
+      ),
+      renderPut: (quote) => (
+        <input
+          type="number"
+          min={0}
+          value={quote.myPutBuyQty ?? 0}
+          onChange={(e) => onUpdateQuantity(quote.strike, 'myPutBuyQty', Math.max(0, parseInt(e.currentTarget.value || '0', 10)))}
+          className={`px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text} w-full`}
+        />
+      ),
       callAlign: 'right',
       putAlign: 'left',
     },
@@ -428,7 +469,7 @@ export function OptionsChain({
                   </tr>
                 </thead>
                 <tbody ref={leftTbodyRef} className={`divide-y ${themes[theme].border}`}>
-                  {quotesByExpiry.map((quote: OptionQuote) => (
+                  {editableQuotes.map((quote: OptionQuote) => (
                     <tr key={`call-${quote.strike}`} className={themes[theme].cardHover}>
                       {callColumns.map((col, idx) => (
                         <td
@@ -466,7 +507,7 @@ export function OptionsChain({
                   </tr>
                 </thead>
                 <tbody ref={centerTbodyRef} className={`divide-y ${themes[theme].border}`}>
-                  {quotesByExpiry.map((quote: OptionQuote) => (
+                  {editableQuotes.map((quote: OptionQuote) => (
                     <tr key={`strike-${quote.strike}`}>
                       <td className={`px-4 ${cellPyClass} text-center font-bold ${textSizeClass} ${themes[theme].text} bg-opacity-50 ${themes[theme].background}`} style={{ width: `${colPx}px`, minWidth: `${colPx}px` }}>
                         {formatCurrency(quote.strike, currencyConfig)}
@@ -507,7 +548,7 @@ export function OptionsChain({
                   </tr>
                 </thead>
                 <tbody ref={rightTbodyRef} className={`divide-y ${themes[theme].border}`}>
-                  {quotesByExpiry.map((quote: OptionQuote) => (
+                  {editableQuotes.map((quote: OptionQuote) => (
                     <tr key={`put-${quote.strike}`} className={themes[theme].cardHover}>
                       {putColumns.map((col, idx) => (
                         <td
