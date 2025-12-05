@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { TrendingUp, TrendingDown, Target, FileText, Calendar, RefreshCw } from 'lucide-react';
+import { TrendingUp, TrendingDown, Target, FileText, Calendar, RefreshCw, X } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
@@ -26,12 +26,54 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
   const [atmFilter, setAtmFilter] = useState<'all' | 'itm' | 'atm' | 'otm'>('all');
   const [optionTypeFilter, setOptionTypeFilter] = useState<'all' | 'call' | 'put'>('all');
   const [savedFilter, setSavedFilter] = useState<'all' | 'saved' | 'unsaved'>('all');
-  const [sortKey, setSortKey] = useState<'leverage' | 'net' | 'buy' | 'sell'>('leverage');
+  const [sortKey, setSortKey] = useState<'leverage' | 'net' | 'buy' | 'sell'>('buy');
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() => {
     const cookie = typeof document !== 'undefined' ? (document.cookie ? (document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith('selectedAccountId='))?.split('=')[1] ?? null) : null) : null;
     return selectedAccountIdProp ?? cookie ?? null;
   });
   const [expandedPlanId, setExpandedPlanId] = useState<string | null>(null);
+  const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
+  const [editedConfig, setEditedConfig] = useState<{
+    expiry: string;
+    option_type: 'call' | 'put';
+    lower_strike: number;
+    upper_strike: number;
+    target_spread: number;
+    cover_contracts_needed: number;
+    label: string;
+  } | null>(null);
+  const openEditModal = (rp: RatioSpreadPlanResult) => {
+    setEditingPlanId(`${rp.plan.label}-${rp.plan.expiry}`);
+    setEditedConfig({
+      expiry: rp.plan.expiry,
+      option_type: rp.plan.option_type,
+      lower_strike: rp.plan.lower_strike,
+      upper_strike: rp.plan.upper_strike,
+      target_spread: rp.plan.target_spread,
+      cover_contracts_needed: rp.plan.cover_contracts_needed,
+      label: rp.plan.label,
+    });
+  };
+  const closeEditModal = () => {
+    setEditingPlanId(null);
+    setEditedConfig(null);
+  };
+  const submitEdit = async () => {
+    if (!editingPlanId || !editedConfig) return;
+    const existing = ratioPlans.find(p => `${p.plan.label}-${p.plan.expiry}` === editingPlanId);
+    if (!existing) { closeEditModal(); return; }
+    const updated: RatioSpreadPlanResult = {
+      ...existing,
+      plan: { ...editedConfig },
+    };
+    try {
+      const { data } = await optionsService.refreshRatioSpreadPlan(updated, selectedAccountId, userId ?? null);
+      const next = data || updated;
+      setRatioPlans(prev => prev.map(p => `${p.plan.label}-${p.plan.expiry}` === editingPlanId ? next : p));
+    } finally {
+      closeEditModal();
+    }
+  };
   const groupedByExpiry: Record<string, RatioSpreadPlanResult[]> = ratioPlans.reduce((acc, rp) => {
     const key = rp.plan.expiry;
     if (!acc[key]) acc[key] = [];
@@ -257,6 +299,7 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
   };
 
   return (
+    <>
     <div className="space-y-6">
       <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
         <div className="p-6 border-b border-gray-200">
@@ -397,7 +440,7 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
                                   <div className="mt-2 sm:hidden flex items-center gap-3">
                                     <div className="flex items-center gap-1">
                                       <span className={`text-xs ${themes[theme].text} opacity-75`}>净权利金</span>
-                                      <span className={`px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{formatCurrency(rp.best_net_premium, currencyConfig)}</span>
+                                      <span className={`px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{formatCurrency(rp.best_net_premium, currencyConfig, 4)}</span>
                                     </div>
                                     <div className="flex items-center gap-1">
                                       <span className={`text-xs ${themes[theme].text} opacity-75`}>杠杆</span>
@@ -417,6 +460,12 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
                                   className={`px-2 py-1 rounded text-xs ${rp.saved ? 'bg-green-600 text-white' : themes[theme].primary}`}
                                 >
                                   {rp.saved ? '已保存' : (savingIds[`${rp.plan.label}-${rp.plan.expiry}`] ? '保存中...' : '保存计划')}
+                                </button>
+                                <button
+                                  onClick={() => openEditModal(rp)}
+                                  className={`px-2 py-1 rounded text-xs ${themes[theme].secondary}`}
+                                >
+                                  编辑
                                 </button>
                                 <button
                                   onClick={() => setExpandedPlanId(prev => prev === `${rp.plan.label}-${rp.plan.expiry}` ? null : `${rp.plan.label}-${rp.plan.expiry}`)}
@@ -454,15 +503,15 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
                               <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
                                 <div className={`p-2 rounded border ${themes[theme].border}`}>
                                   <p className={`text-xs ${themes[theme].text} opacity-75`}>买入价格</p>
-                                  <span className={`inline-block px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{formatCurrency(rp.buy_price, currencyConfig)}</span>
+                                  <span className={`inline-block px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{formatCurrency(rp.buy_price, currencyConfig, 4)}</span>
                                 </div>
                                 <div className={`p-2 rounded border ${themes[theme].border}`}>
                                   <p className={`text-xs ${themes[theme].text} opacity-75`}>卖出价格</p>
-                                  <span className={`inline-block px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{formatCurrency(rp.sell_price, currencyConfig)}</span>
+                                  <span className={`inline-block px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{formatCurrency(rp.sell_price, currencyConfig, 4)}</span>
                                 </div>
                                 <div className={`p-2 rounded border ${themes[theme].border}`}>
                                   <p className={`text-xs ${themes[theme].text} opacity-75`}>净权利金</p>
-                                  <span className={`inline-block px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{formatCurrency(rp.best_net_premium, currencyConfig)}</span>
+                                  <span className={`inline-block px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{formatCurrency(rp.best_net_premium, currencyConfig, 4)}</span>
                                 </div>
                                 <div className={`p-2 rounded border ${themes[theme].border}`}>
                                   <p className={`text-xs ${themes[theme].text} opacity-75`}>杠杆</p>
@@ -505,7 +554,7 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
                                   <div className="mt-2 sm:hidden flex items-center gap-3">
                                     <div className="flex items-center gap-1">
                                       <span className={`text-xs ${themes[theme].text} opacity-75`}>净权利金</span>
-                                      <span className={`px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{formatCurrency(rp.best_net_premium, currencyConfig)}</span>
+                                      <span className={`px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{formatCurrency(rp.best_net_premium, currencyConfig, 4)}</span>
                                     </div>
                                     <div className="flex items-center gap-1">
                                       <span className={`text-xs ${themes[theme].text} opacity-75`}>杠杆</span>
@@ -525,6 +574,12 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
                                   className={`px-2 py-1 rounded text-xs ${rp.saved ? 'bg-green-600 text-white' : themes[theme].primary}`}
                                 >
                                   {rp.saved ? '已保存' : (savingIds[`${rp.plan.label}-${rp.plan.expiry}`] ? '保存中...' : '保存计划')}
+                                </button>
+                                <button
+                                  onClick={() => openEditModal(rp)}
+                                  className={`px-2 py-1 rounded text-xs ${themes[theme].secondary}`}
+                                >
+                                  编辑
                                 </button>
                                 <button
                                   onClick={() => setExpandedPlanId(prev => prev === `${rp.plan.label}-${rp.plan.expiry}` ? null : `${rp.plan.label}-${rp.plan.expiry}`)}
@@ -562,15 +617,15 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
                               <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
                                 <div className={`p-2 rounded border ${themes[theme].border}`}>
                                   <p className={`text-xs ${themes[theme].text} opacity-75`}>买入价格</p>
-                                  <span className={`inline-block px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{formatCurrency(rp.buy_price, currencyConfig)}</span>
+                                  <span className={`inline-block px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{formatCurrency(rp.buy_price, currencyConfig, 4)}</span>
                                 </div>
                                 <div className={`p-2 rounded border ${themes[theme].border}`}>
                                   <p className={`text-xs ${themes[theme].text} opacity-75`}>卖出价格</p>
-                                  <span className={`inline-block px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{formatCurrency(rp.sell_price, currencyConfig)}</span>
+                                  <span className={`inline-block px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{formatCurrency(rp.sell_price, currencyConfig, 4)}</span>
                                 </div>
                                 <div className={`p-2 rounded border ${themes[theme].border}`}>
                                   <p className={`text-xs ${themes[theme].text} opacity-75`}>净权利金</p>
-                                  <span className={`inline-block px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{formatCurrency(rp.best_net_premium, currencyConfig)}</span>
+                                  <span className={`inline-block px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{formatCurrency(rp.best_net_premium, currencyConfig, 4)}</span>
                                 </div>
                                 <div className={`p-2 rounded border ${themes[theme].border}`}>
                                   <p className={`text-xs ${themes[theme].text} opacity-75`}>杠杆</p>
@@ -604,5 +659,58 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
         </div>
       </div>
     </div>
+    {editingPlanId && editedConfig && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className={`${themes[theme].card} rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto`}>
+          <div className="sticky top-0 bg-inherit border-b border-gray-200 p-4 flex justify-between items-center">
+            <div>
+              <h2 className={`text-xl font-bold ${themes[theme].text}`}>编辑计划</h2>
+              <p className={`text-sm ${themes[theme].text} opacity-75`}>{editingPlanId}</p>
+            </div>
+            <button onClick={closeEditModal} className={`p-2 rounded-md ${themes[theme].secondary}`}><X className="w-5 h-5" /></button>
+          </div>
+          <div className="p-4 space-y-4">
+            <div>
+              <label className={`block text-sm font-medium ${themes[theme].text} mb-1`}>标签</label>
+              <input type="text" value={editedConfig.label} onChange={(e) => setEditedConfig(prev => prev ? { ...prev, label: e.target.value } : prev)} className={`w-full px-3 py-2 rounded-md ${themes[theme].input} ${themes[theme].text}`} />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className={`block text-sm font-medium ${themes[theme].text} mb-1`}>到期日</label>
+                <input type="date" value={editedConfig.expiry.split('T')[0] || ''} onChange={(e) => setEditedConfig(prev => prev ? { ...prev, expiry: e.target.value } : prev)} className={`w-full px-3 py-2 rounded-md ${themes[theme].input} ${themes[theme].text}`} />
+              </div>
+              <div>
+                <label className={`block text-sm font-medium ${themes[theme].text} mb-1`}>类型</label>
+                <select value={editedConfig.option_type} onChange={(e) => setEditedConfig(prev => prev ? { ...prev, option_type: e.target.value as 'call' | 'put' } : prev)} className={`w-full px-3 py-2 rounded-md ${themes[theme].input} ${themes[theme].text}`}>
+                  <option value="call">Call</option>
+                  <option value="put">Put</option>
+                </select>
+              </div>
+              <div>
+                <label className={`block text-sm font-medium ${themes[theme].text} mb-1`}>下限行权价</label>
+                <input type="number" value={editedConfig.lower_strike} onChange={(e) => setEditedConfig(prev => prev ? { ...prev, lower_strike: parseFloat(e.target.value) || 0 } : prev)} className={`w-full px-3 py-2 rounded-md ${themes[theme].input} ${themes[theme].text}`} />
+              </div>
+              <div>
+                <label className={`block text-sm font-medium ${themes[theme].text} mb-1`}>上限行权价</label>
+                <input type="number" value={editedConfig.upper_strike} onChange={(e) => setEditedConfig(prev => prev ? { ...prev, upper_strike: parseFloat(e.target.value) || 0 } : prev)} className={`w-full px-3 py-2 rounded-md ${themes[theme].input} ${themes[theme].text}`} />
+              </div>
+              <div>
+                <label className={`block text-sm font-medium ${themes[theme].text} mb-1`}>目标价差</label>
+                <input type="number" value={editedConfig.target_spread} onChange={(e) => setEditedConfig(prev => prev ? { ...prev, target_spread: parseFloat(e.target.value) || 0 } : prev)} className={`w-full px-3 py-2 rounded-md ${themes[theme].input} ${themes[theme].text}`} />
+              </div>
+              <div>
+                <label className={`block text-sm font-medium ${themes[theme].text} mb-1`}>备兑合约数</label>
+                <input type="number" value={editedConfig.cover_contracts_needed} onChange={(e) => setEditedConfig(prev => prev ? { ...prev, cover_contracts_needed: parseInt(e.target.value) || 0 } : prev)} className={`w-full px-3 py-2 rounded-md ${themes[theme].input} ${themes[theme].text}`} />
+              </div>
+            </div>
+          </div>
+          <div className="p-4 border-t border-gray-200 flex justify-end gap-2">
+            <button onClick={closeEditModal} className={`px-3 py-2 rounded-md ${themes[theme].secondary}`}>取消</button>
+            <button onClick={submitEdit} className={`px-3 py-2 rounded-md ${themes[theme].primary}`}>保存</button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

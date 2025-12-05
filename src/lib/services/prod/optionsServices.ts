@@ -164,6 +164,25 @@ export const optionsService: OptionsService = {
       return { data: null, error: error as Error };
     }
   },
+  updatePositions: async (payload: { updates: Array<{ id?: string; type: 'call' | 'put'; position_type: 'buy' | 'sell'; strike: number; expiry: string; quantity: number }>, accountId?: string | null, userId?: string | null }) => {
+    try {
+      const base = `/api/options/positions/sync${payload.accountId ? `/accounts/${encodeURIComponent(payload.accountId)}` : ''}`;
+      const url = payload.userId ? `${base}?userId=${encodeURIComponent(payload.userId)}` : base;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        throw new Error('Failed to sync positions');
+      }
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error syncing positions:', error);
+      return { data: null, error: error as Error };
+    }
+  },
   saveRatioSpreadPlan: async (plan, accountId?: string | null, userId?: string | null) => {
     try {
       const base = `/api/options/ratio-spread-plans${accountId ? `/accounts/${encodeURIComponent(accountId)}` : ''}`;

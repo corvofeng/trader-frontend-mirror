@@ -1,9 +1,9 @@
 import type { CurrencyConfig } from '../types';
 
-export function formatCurrency(amount: number, config: CurrencyConfig): string {
+export function formatCurrency(amount: number, config: CurrencyConfig, precision: number = 2): string {
   const formattedNumber = Math.abs(amount).toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: precision,
+    maximumFractionDigits: precision,
     useGrouping: true
   });
 

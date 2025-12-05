@@ -6,6 +6,7 @@ import type { OptionsPosition, OptionsStrategy } from '../../../lib/services/typ
 import { optionsService } from '../../../lib/services';
 import { stockService } from '../../../lib/services';
 import { logger } from '../../../shared/utils/logger';
+import toast from 'react-hot-toast';
 
 interface ExpiryGroupCardProps {
   theme: Theme;
@@ -55,11 +56,12 @@ export function ExpiryGroupCard({
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [confirmData, setConfirmData] = useState<{ ids: string[]; meta?: { action?: string; comboType?: 'call' | 'put'; strike?: number; expiry?: string; strategyIds?: string[]; category?: string; defaultComboCount?: number; perLegMaxQty?: Record<string, number> }; title: string; description: string } | null>(null);
   const [qtyOverrides, setQtyOverrides] = useState<Record<string, number>>({});
+  const [editValues, setEditValues] = useState<Record<string, number>>({});
   const basePositions = filterAndSortPositions(group.single);
   const filteredPositions = selectedSymbol
     ? basePositions.filter(p => p.opt_undl_code_full === selectedSymbol)
     : basePositions;
-  if (filteredPositions.length === 0) return null;
+  const hasPositions = filteredPositions.length > 0;
 
   const isSelectedPosition = (p: OptionsPosition) => {
     return !!selectedSymbol && (p.opt_undl_code_full === selectedSymbol);
@@ -145,6 +147,17 @@ export function ExpiryGroupCard({
       });
       setQtyOverrides(next);
       logger.info('[ExpiryGroupCard] init combo overrides', { defaultCount, ids: confirmData.ids });
+    } else if (confirmData.meta?.action === 'sync_category') {
+      const key = confirmData.ids[0];
+      const strike = Number(confirmData.meta?.strike || 0);
+      const category = String(confirmData.meta?.category || '') as 'call_right' | 'call_normal' | 'put_right' | 'put_normal' | 'call_covered' | 'put_covered';
+      const ids = collectIdsForCategory(category, strike);
+      const sum = ids.reduce((acc, id) => {
+        const pos = filteredPositions.find(x => x.id === id);
+        const qty = Number((pos as any)?.selectedQuantity ?? (pos as any)?.leg_quantity ?? pos?.quantity) || 0;
+        return acc + qty;
+      }, 0);
+      setQtyOverrides({ [key]: sum });
     } else {
       const map: Record<string, number> = {};
       confirmData.ids.forEach(id => {
@@ -155,6 +168,8 @@ export function ExpiryGroupCard({
       setQtyOverrides(map);
     }
   }, [confirmData]);
+
+  if (!hasPositions) return null;
 
   return (
     <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
@@ -235,6 +250,36 @@ export function ExpiryGroupCard({
                             <div className={`text-center text-sm ${themes[theme].text} opacity-75`}>暂无数据</div>
                           );
                         }
+                        const keyOf = (c: string, s: number) => `${c}-${s}`;
+                        const displayVal = (c: string, s: number, d: number) => (editValues[keyOf(c, s)] ?? d);
+                        const setDisplayVal = (c: 'call_right' | 'call_normal' | 'put_right' | 'put_normal' | 'call_covered' | 'put_covered', s: number, v: number) => {
+                          setEditValues(prev => ({ ...prev, [keyOf(c, s)]: Math.max(0, v) }));
+                        };
+                        const openAdjustConfirm = (c: 'call_right' | 'call_normal' | 'put_right' | 'put_normal' | 'call_covered' | 'put_covered', s: number) => {
+                          const title = '确认调整持仓数量';
+                          const categoryLabel: Record<string, string> = {
+                            call_right: 'Call 权利',
+                            call_normal: 'Call 义务',
+                            call_covered: 'Call 备兑',
+                            put_right: 'Put 权利',
+                            put_normal: 'Put 义务',
+                            put_covered: 'Put 备兑'
+                          };
+                          const ids = collectIdsForCategory(c, s);
+                          const currentSum = ids.reduce((acc, id) => {
+                            const pos = filteredPositions.find(x => x.id === id);
+                            const qty = Number((pos as any)?.selectedQuantity ?? (pos as any)?.leg_quantity ?? pos?.quantity) || 0;
+                            return acc + qty;
+                          }, 0);
+                          const desc = `${categoryLabel[c]} @${s}（到期 ${format(new Date(group.expiry), 'yyyy-MM-dd')}），当前数量 ${currentSum}`;
+                          const syntheticId = `sync-${c}-${s}`;
+                          setConfirmData({
+                            ids: [syntheticId],
+                            meta: { action: 'sync_category', category: c, strike: s, expiry: group.expiry },
+                            title,
+                            description: desc
+                          });
+                        };
                         return (
                           <div className="overflow-x-auto">
                             <table className="w-full text-sm">
@@ -323,11 +368,12 @@ export function ExpiryGroupCard({
                                     const c = theme === 'dark' ? `hsla(${h},70%,30%,0.35)` : `hsla(${h},85%,85%,0.65)`;
                                     const bg = `linear-gradient(to right, ${c} 0%, transparent 100%)`;
                                     return (
+                                      <>
                                       <tr key={`trow-top-${group.expiry}-${m.s}`} className={themes[theme].cardHover} style={{ backgroundImage: bg }}>
                                         <td className={`text-center py-2 ${themes[theme].text}`}>
-                                          {m.comboCallQty}
-                                          {m.comboCallQty > 0 && (
-                                            <div className="mt-1">
+                                          <div className="flex flex-col items-center gap-1">
+                                            <span className={`${themes[theme].text}`}>{m.comboCallQty}</span>
+                                            {m.comboCallQty > 0 && (
                                               <button
                                                 className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
                                                 onClick={() => {
@@ -372,41 +418,41 @@ export function ExpiryGroupCard({
                                                   }
                                                 }}
                                               >解除组合</button>
-                                            </div>
-                                          )}
+                                            )}
+                                          </div>
                                         </td>
                                         <td className={`text-center py-2 ${themes[theme].text}`}>
-                                          {m.callCovered}
-                                          {m.callCovered > 0 && (
-                                            <div className="mt-1">
+                                          <div className="flex items-center justify-center gap-1">
+                                            <div className="flex flex-col items-center gap-1">
+                                              <span className={`${themes[theme].text}`}>{displayVal('call_covered', m.s, m.callCovered)}</span>
                                               <button
                                                 className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
-                                                onClick={() => openConfirmFor('call_covered', m.s, '确认平仓', '将平仓：Call 备兑')}
-                                              >调平</button>
+                                                onClick={() => openAdjustConfirm('call_covered', m.s)}
+                                              >调整</button>
                                             </div>
-                                          )}
+                                          </div>
                                         </td>
                                         <td className={`text-center py-2 ${themes[theme].text}`}>
-                                          {m.callNormal}
-                                          {m.callNormal > 0 && (
-                                            <div className="mt-1">
+                                          <div className="flex items-center justify-center gap-1">
+                                            <div className="flex flex-col items-center gap-1">
+                                              <span className={`${themes[theme].text}`}>{displayVal('call_normal', m.s, m.callNormal)}</span>
                                               <button
                                                 className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
-                                                onClick={() => openConfirmFor('call_normal', m.s, '确认平仓', '将平仓：Call 义务')}
-                                              >调平</button>
+                                                onClick={() => openAdjustConfirm('call_normal', m.s)}
+                                              >调整</button>
                                             </div>
-                                          )}
+                                          </div>
                                         </td>
                                         <td className={`text-center py-2 px-3 w-20 border-r ${themes[theme].border} ${themes[theme].text}`}>
-                                          {m.callRight}
-                                          {m.callRight > 0 && (
-                                            <div className="mt-1">
+                                          <div className="flex items-center justify-center gap-1">
+                                            <div className="flex flex-col items-center gap-1">
+                                              <span className={`${themes[theme].text}`}>{displayVal('call_right', m.s, m.callRight)}</span>
                                               <button
                                                 className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
-                                                onClick={() => openConfirmFor('call_right', m.s, '确认平仓', '将平仓：Call 权利')}
-                                              >调平</button>
+                                                onClick={() => openAdjustConfirm('call_right', m.s)}
+                                              >调整</button>
                                             </div>
-                                          )}
+                                          </div>
                                         </td>
                                         <td className={`text-center py-2 px-4 w-24 ${themes[theme].text}`}>{m.s}
                                           {underlyingPrice != null && (
@@ -414,42 +460,42 @@ export function ExpiryGroupCard({
                                           )}
                                         </td>
                                         <td className={`text-center py-2 px-3 w-20 border-l ${themes[theme].border} ${themes[theme].text}`}>
-                                          {m.putRight}
-                                          {m.putRight > 0 && (
-                                            <div className="mt-1">
+                                          <div className="flex items-center justify-center gap-1">
+                                            <div className="flex flex-col items-center gap-1">
+                                              <span className={`${themes[theme].text}`}>{displayVal('put_right', m.s, m.putRight)}</span>
                                               <button
                                                 className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
-                                                onClick={() => openConfirmFor('put_right', m.s, '确认平仓', '将平仓：Put 权利')}
-                                              >调平</button>
+                                                onClick={() => openAdjustConfirm('put_right', m.s)}
+                                              >调整</button>
                                             </div>
-                                          )}
+                                          </div>
                                         </td>
                                         <td className={`text-center py-2 ${themes[theme].text}`}>
-                                          {m.putNormal}
-                                          {m.putNormal > 0 && (
-                                            <div className="mt-1">
+                                          <div className="flex items-center justify-center gap-1">
+                                            <div className="flex flex-col items-center gap-1">
+                                              <span className={`${themes[theme].text}`}>{displayVal('put_normal', m.s, m.putNormal)}</span>
                                               <button
                                                 className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
-                                                onClick={() => openConfirmFor('put_normal', m.s, '确认平仓', '将平仓：Put 义务')}
-                                              >调平</button>
+                                                onClick={() => openAdjustConfirm('put_normal', m.s)}
+                                              >调整</button>
                                             </div>
-                                          )}
+                                          </div>
                                         </td>
                                         <td className={`text-center py-2 ${themes[theme].text}`}>
-                                          {m.putCovered}
-                                          {m.putCovered > 0 && (
-                                            <div className="mt-1">
+                                          <div className="flex items-center justify-center gap-1">
+                                            <div className="flex flex-col items-center gap-1">
+                                              <span className={`${themes[theme].text}`}>{displayVal('put_covered', m.s, m.putCovered)}</span>
                                               <button
                                                 className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
-                                                onClick={() => openConfirmFor('put_covered', m.s, '确认平仓', '将平仓：Put 备兑')}
-                                              >调平</button>
+                                                onClick={() => openAdjustConfirm('put_covered', m.s)}
+                                              >调整</button>
                                             </div>
-                                          )}
+                                          </div>
                                         </td>
                                         <td className={`text-center py-2 ${themes[theme].text}`}>
-                                          {m.comboPutQty}
-                                          {m.comboPutQty > 0 && (
-                                            <div className="mt-1">
+                                          <div className="flex flex-col items-center gap-1">
+                                            <span className={`${themes[theme].text}`}>{m.comboPutQty}</span>
+                                            {m.comboPutQty > 0 && (
                                               <button
                                                 className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
                                                 onClick={() => {
@@ -494,10 +540,12 @@ export function ExpiryGroupCard({
                                                   }
                                                 }}
                                               >解除组合</button>
-                                            </div>
-                                          )}
+                                            )}
+                                          </div>
                                         </td>
                                       </tr>
+                                      
+                                      </>
                                     );
                                   });
                                 })()}
@@ -856,6 +904,24 @@ export function ExpiryGroupCard({
                 })}
               </div>
             </div>
+          ) : confirmData.meta?.action === 'sync_category' ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className={`text-xs ${themes[theme].text}`}>目标数量</div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={Object.values(qtyOverrides)[0] ?? 0}
+                    onChange={(e) => {
+                      const n = parseFloat(e.target.value) || 0;
+                      const key = confirmData.ids[0];
+                      setQtyOverrides(prev => ({ ...prev, [key]: n }));
+                    }}
+                    className={`w-24 px-2 py-1 rounded text-xs ${themes[theme].input} ${themes[theme].text}`}
+                  />
+                </div>
+              </div>
+            </div>
           ) : (
             (() => {
               const items = confirmData.ids.map(id => {
@@ -892,8 +958,30 @@ export function ExpiryGroupCard({
           <button
             className={`px-3 py-2 rounded-md text-sm bg-blue-600 text-white hover:bg-blue-700`}
             onClick={async () => {
-              await onClosePositions(confirmData.ids, confirmData.meta, qtyOverrides);
-              setConfirmData(null);
+              if (confirmData.meta?.action === 'sync_category') {
+                const key = confirmData.ids[0];
+                const q = qtyOverrides[key] ?? 0;
+                const category = String(confirmData.meta?.category || '') as 'call_right' | 'call_normal' | 'put_right' | 'put_normal' | 'call_covered' | 'put_covered';
+                const map: Record<string, { type: 'call' | 'put'; position_type: 'buy' | 'sell' }> = {
+                  call_right: { type: 'call', position_type: 'buy' },
+                  call_normal: { type: 'call', position_type: 'sell' },
+                  call_covered: { type: 'call', position_type: 'sell' },
+                  put_right: { type: 'put', position_type: 'buy' },
+                  put_normal: { type: 'put', position_type: 'sell' },
+                  put_covered: { type: 'put', position_type: 'sell' }
+                };
+                const p = map[category];
+                const resp = await optionsService.updatePositions({ updates: [{ type: p.type, position_type: p.position_type, strike: Number(confirmData.meta?.strike || 0), expiry: String(confirmData.meta?.expiry || group.expiry), quantity: q }] });
+                if (resp.error) {
+                  toast.error('同步失败');
+                } else {
+                  toast.success('已同步持仓数量');
+                }
+                setConfirmData(null);
+              } else {
+                await onClosePositions(confirmData.ids, confirmData.meta, qtyOverrides);
+                setConfirmData(null);
+              }
             }}
           >确认执行</button>
         </div>

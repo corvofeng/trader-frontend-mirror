@@ -34,10 +34,6 @@ export function OptionsChain({
     setEditableQuotes(quotesByExpiry);
   }, [optionsData, selectedExpiry]);
 
-  const onUpdateQuantity = (strike: number, key: keyof OptionQuote, value: number) => {
-    setEditableQuotes(prev => prev.map(q => q.strike === strike ? { ...q, [key]: value } : q));
-  };
-
   // 找到时间价值最大的期权合约作为平值合约
   const getAtTheMoneyStrike = (quotes: OptionQuote[]): number => {
     if (quotes.length === 0) return 0;
@@ -62,7 +58,7 @@ export function OptionsChain({
   const atmStrike = getAtTheMoneyStrike(editableQuotes);
 
   // 可配置字段定义（保持左右镜像对称）
-  type FieldId = 'lastPrice' | 'timeValue' | 'intrinsicValue' | 'impliedVol' | 'myBuyQty' | 'mySellQty';
+  type FieldId = 'lastPrice' | 'timeValue' | 'intrinsicValue' | 'impliedVol';
 
   const FIELD_CONFIG: Array<{
     id: FieldId;
@@ -72,54 +68,6 @@ export function OptionsChain({
     callAlign?: 'left' | 'right';
     putAlign?: 'left' | 'right';
   }> = [
-    {
-      id: 'mySellQty',
-      label: '义务仓',
-      renderCall: (quote) => (
-        <input
-          type="number"
-          min={0}
-          value={quote.myCallSellQty ?? 0}
-          onChange={(e) => onUpdateQuantity(quote.strike, 'myCallSellQty', Math.max(0, parseInt(e.currentTarget.value || '0', 10)))}
-          className={`px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text} w-full`}
-        />
-      ),
-      renderPut: (quote) => (
-        <input
-          type="number"
-          min={0}
-          value={quote.myPutSellQty ?? 0}
-          onChange={(e) => onUpdateQuantity(quote.strike, 'myPutSellQty', Math.max(0, parseInt(e.currentTarget.value || '0', 10)))}
-          className={`px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text} w-full`}
-        />
-      ),
-      callAlign: 'right',
-      putAlign: 'left',
-    },
-    {
-      id: 'myBuyQty',
-      label: '权利仓',
-      renderCall: (quote) => (
-        <input
-          type="number"
-          min={0}
-          value={quote.myCallBuyQty ?? 0}
-          onChange={(e) => onUpdateQuantity(quote.strike, 'myCallBuyQty', Math.max(0, parseInt(e.currentTarget.value || '0', 10)))}
-          className={`px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text} w-full`}
-        />
-      ),
-      renderPut: (quote) => (
-        <input
-          type="number"
-          min={0}
-          value={quote.myPutBuyQty ?? 0}
-          onChange={(e) => onUpdateQuantity(quote.strike, 'myPutBuyQty', Math.max(0, parseInt(e.currentTarget.value || '0', 10)))}
-          className={`px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text} w-full`}
-        />
-      ),
-      callAlign: 'right',
-      putAlign: 'left',
-    },
     {
       id: 'impliedVol',
       label: '隐含波动率',
@@ -147,16 +95,16 @@ export function OptionsChain({
     {
       id: 'intrinsicValue',
       label: '内在价值',
-      renderCall: (quote) => formatCurrency(quote.callIntrinsicValue || 0, currencyConfig),
-      renderPut: (quote) => formatCurrency(quote.putIntrinsicValue || 0, currencyConfig),
+      renderCall: (quote) => formatCurrency(quote.callIntrinsicValue || 0, currencyConfig, 4),
+      renderPut: (quote) => formatCurrency(quote.putIntrinsicValue || 0, currencyConfig, 4),
       callAlign: 'right',
       putAlign: 'left',
     },
     {
       id: 'timeValue',
       label: '时间价值',
-      renderCall: (quote) => formatCurrency(quote.callTimeValue || 0, currencyConfig),
-      renderPut: (quote) => formatCurrency(quote.putTimeValue || 0, currencyConfig),
+      renderCall: (quote) => formatCurrency(quote.callTimeValue || 0, currencyConfig, 4),
+      renderPut: (quote) => formatCurrency(quote.putTimeValue || 0, currencyConfig, 4),
       callAlign: 'right',
       putAlign: 'left',
     },
@@ -166,19 +114,19 @@ export function OptionsChain({
       renderCall: (quote) => (
         quote.callUrl ? (
           <a href={quote.callUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline font-medium">
-            {formatCurrency(quote.callPrice, currencyConfig)}
+            {formatCurrency(quote.callPrice, currencyConfig, 4)}
           </a>
         ) : (
-          <span className="font-medium">{formatCurrency(quote.callPrice, currencyConfig)}</span>
+          <span className="font-medium">{formatCurrency(quote.callPrice, currencyConfig, 4)}</span>
         )
       ),
       renderPut: (quote) => (
         quote.putUrl ? (
           <a href={quote.putUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline font-medium">
-            {formatCurrency(quote.putPrice, currencyConfig)}
+            {formatCurrency(quote.putPrice, currencyConfig, 4)}
           </a>
         ) : (
-          <span className="font-medium">{formatCurrency(quote.putPrice, currencyConfig)}</span>
+          <span className="font-medium">{formatCurrency(quote.putPrice, currencyConfig, 4)}</span>
         )
       ),
       callAlign: 'right',

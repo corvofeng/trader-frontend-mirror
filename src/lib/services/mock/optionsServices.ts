@@ -882,6 +882,11 @@ export const optionsService: OptionsService = {
     const ids = (payload?.positions || []).map(p => p.id);
     return { data: { closedIds: ids }, error: null };
   },
+  updatePositions: async (payload: { updates: Array<{ id?: string; type: 'call' | 'put'; position_type: 'buy' | 'sell'; strike: number; expiry: string; quantity: number }>, accountId?: string | null, userId?: string | null }) => {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    const updated = (payload?.updates || []).length;
+    return { data: { updated }, error: null };
+  },
   saveRatioSpreadPlan: async (plan, accountId?: string | null) => {
     await new Promise(resolve => setTimeout(resolve, 500));
     return { data: { ...plan, saved: true }, error: null };

@@ -463,6 +463,7 @@ export interface OptionsService {
   saveRatioSpreadPlan: (plan: RatioSpreadPlanResult, accountId?: string | null, userId?: string | null) => Promise<ServiceResponse<RatioSpreadPlanResult>>;
   refreshRatioSpreadPlan: (plan: RatioSpreadPlanResult, accountId?: string | null, userId?: string | null) => Promise<ServiceResponse<RatioSpreadPlanResult>>;
   closePositions: (payload: { positions: OptionsPosition[] }) => Promise<ServiceResponse<{ closedIds: string[] }>>;
+  updatePositions: (payload: { updates: Array<{ id?: string; type: 'call' | 'put'; position_type: 'buy' | 'sell'; strike: number; expiry: string; quantity: number }>, accountId?: string | null, userId?: string | null }) => Promise<ServiceResponse<{ updated: number }>>;
 }
 
 export interface CustomOptionsStrategy {
