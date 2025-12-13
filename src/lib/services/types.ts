@@ -387,6 +387,7 @@ export interface OptionsPosition {
   position_type_zh?: string; // 权利/义务/备兑
   leg_quantity?: number; // 该leg对应的持仓数量
   cost_price?: number; // 成本价格
+  is_covered?: boolean;
 }
 
 // 策略腿部结构体
@@ -448,6 +449,7 @@ export interface OptionsPortfolioData {
     profitLoss: number;
   }>;
   customStrategies?: CustomOptionsStrategy[]; // 自定义策略列表
+  advised_combinations?: AdvisedCombination[];
 }
 export interface OptionsService {
   getOptionsData: (symbol?: string) => Promise<ServiceResponse<OptionsData>>;
@@ -462,8 +464,26 @@ export interface OptionsService {
   getRatioSpreadPlans: (symbol?: string, accountId?: string | null, userId?: string | null) => Promise<ServiceResponse<RatioSpreadPlanResult[]>>;
   saveRatioSpreadPlan: (plan: RatioSpreadPlanResult, accountId?: string | null, userId?: string | null) => Promise<ServiceResponse<RatioSpreadPlanResult>>;
   refreshRatioSpreadPlan: (plan: RatioSpreadPlanResult, accountId?: string | null, userId?: string | null) => Promise<ServiceResponse<RatioSpreadPlanResult>>;
-  closePositions: (payload: { positions: OptionsPosition[] }) => Promise<ServiceResponse<{ closedIds: string[] }>>;
+  closePositions: (
+    payload: {
+      positions: OptionsPosition[];
+      meta?: { action?: string; comboType?: 'call' | 'put'; strike?: number; expiry?: string; strategyIds?: string[]; category?: string };
+      overrides?: Record<string, number>;
+    },
+    accountId?: string | null,
+    userId?: string | null
+  ) => Promise<ServiceResponse<{ closedIds: string[] }>>;
   updatePositions: (payload: { updates: Array<{ id?: string; type: 'call' | 'put'; position_type: 'buy' | 'sell'; strike: number; expiry: string; quantity: number }>, accountId?: string | null, userId?: string | null }) => Promise<ServiceResponse<{ updated: number }>>;
+  executeCombination: (combo: AdvisedCombination & { quantity: number }, accountId?: string | null, userId?: string | null) => Promise<ServiceResponse<{ executed: boolean; combinationId?: string }>>;
+  closeCombination: (
+    payload: {
+      positions: OptionsPosition[];
+      meta?: { action?: string; comboType?: 'call' | 'put'; strike?: number; expiry?: string; strategyIds?: string[]; category?: string };
+      overrides?: Record<string, number>;
+    },
+    accountId?: string | null,
+    userId?: string | null
+  ) => Promise<ServiceResponse<{ closedIds: string[] }>>;
 }
 
 export interface CustomOptionsStrategy {
@@ -497,6 +517,25 @@ export interface OptionContract {
   option_type: 'call' | 'put';
   strike_price: number;
   expiry: string;
+}
+
+export interface AdvisedLegPosition {
+  code: string;
+  name: string;
+  position: OptionsPosition;
+  strike: number;
+  volume: number;
+}
+
+export interface AdvisedCombination {
+  type: string;
+  description: string;
+  expiry: string;
+  quantity: number;
+  buy_position: AdvisedLegPosition;
+  sell_position: AdvisedLegPosition;
+  buy_strike: number;
+  sell_strike: number;
 }
 
 export interface RatioSpreadPlanConfig {

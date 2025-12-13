@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
-import type { OptionsPosition, OptionsStrategy } from '../../../lib/services/types';
+import type { OptionsPosition, OptionsStrategy, AdvisedCombination } from '../../../lib/services/types';
 import { optionsService } from '../../../lib/services';
 import { stockService } from '../../../lib/services';
 import { logger } from '../../../shared/utils/logger';
@@ -23,12 +23,17 @@ interface ExpiryGroupCardProps {
   getDaysToExpiryColor: (days: number) => string;
   getTypeIcon: (type: OptionsPosition['type']) => React.ReactNode;
   getStatusColor: (status: OptionsPosition['status']) => string;
-  getPositionTypeInfo2: (positionType: string, optionType: string, positionTypeZh?: string) => { icon: React.ReactNode; label: string; color: string; description?: string; borderColor: string };
+  getPositionTypeInfo2: (positionType: string, optionType: string, positionTypeZh?: string, isCovered?: boolean) => { icon: React.ReactNode; label: string; color: string; description?: string; borderColor: string };
   computeCombosForPositions: (strategy: OptionsStrategy, type: 'call' | 'put') => Map<number, number>;
   allExpiryBuckets: Array<{ expiry: string; daysToExpiry: number; single: OptionsPosition[]; complex: OptionsStrategy[] }>;
   selectedSymbol: string;
   underlyingPrice: number | null;
   onClosePositions: (ids: string[], meta?: { action?: string; comboType?: 'call' | 'put'; strike?: number; expiry?: string; strategyIds?: string[]; category?: string }, overrides?: Record<string, number>) => Promise<void>;
+  advisedCombinations?: AdvisedCombination[];
+  onLoadAdvised?: (combo: AdvisedCombination) => void;
+  onExecuteAdvised?: (combo: AdvisedCombination) => void;
+  selectedAccountId?: string | null;
+  userId?: string | null;
 }
 
 export function ExpiryGroupCard({
@@ -52,8 +57,14 @@ export function ExpiryGroupCard({
   selectedSymbol,
   underlyingPrice,
   onClosePositions,
+  advisedCombinations = [],
+  onLoadAdvised,
+  onExecuteAdvised,
+  selectedAccountId,
+  userId,
 }: ExpiryGroupCardProps) {
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [advisedModal, setAdvisedModal] = useState<{ combo: AdvisedCombination; quantity: number } | null>(null);
   const [confirmData, setConfirmData] = useState<{ ids: string[]; meta?: { action?: string; comboType?: 'call' | 'put'; strike?: number; expiry?: string; strategyIds?: string[]; category?: string; defaultComboCount?: number; perLegMaxQty?: Record<string, number> }; title: string; description: string } | null>(null);
   const [qtyOverrides, setQtyOverrides] = useState<Record<string, number>>({});
   const [editValues, setEditValues] = useState<Record<string, number>>({});
@@ -100,7 +111,7 @@ export function ExpiryGroupCard({
         const isPut = isPutLeg(p);
         const isSell = p.position_type === 'sell';
         const isBuy = p.position_type === 'buy';
-        const isCovered = p.position_type_zh === '备兑';
+        const isCovered = p.position_type_zh === '备兑' || !!p.is_covered;
         const sameStrike = p.strike === strike;
         const sameExpiry = p.expiry === group.expiry;
         if (!sameStrike || !sameExpiry) return false;
@@ -367,8 +378,7 @@ export function ExpiryGroupCard({
                                     const h = Math.round(0 + 120 * (1 - intensity));
                                     const c = theme === 'dark' ? `hsla(${h},70%,30%,0.35)` : `hsla(${h},85%,85%,0.65)`;
                                     const bg = `linear-gradient(to right, ${c} 0%, transparent 100%)`;
-                                    return (
-                                      <>
+                                  return (
                                       <tr key={`trow-top-${group.expiry}-${m.s}`} className={themes[theme].cardHover} style={{ backgroundImage: bg }}>
                                         <td className={`text-center py-2 ${themes[theme].text}`}>
                                           <div className="flex flex-col items-center gap-1">
@@ -544,8 +554,6 @@ export function ExpiryGroupCard({
                                           </div>
                                         </td>
                                       </tr>
-                                      
-                                      </>
                                     );
                                   });
                                 })()}
@@ -554,6 +562,33 @@ export function ExpiryGroupCard({
                           </div>
                         );
                       })()}
+                    </div>
+                  </div>
+                )}
+                {advisedCombinations.length > 0 && (
+                  <div className="mt-0">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-4 h-4 bg-purple-500 rounded"></div>
+                      <h4 className={`text-lg font-semibold ${themes[theme].text}`}>组合建议</h4>
+                    </div>
+                    <div className={`${themes[theme].background} rounded-lg p-4 border ${themes[theme].border} space-y-2`}>
+                      {advisedCombinations.map((c) => (
+                        <div key={`advised-${group.expiry}-${c.type}-${c.buy_strike}-${c.sell_strike}`} className="flex items-center justify-between gap-2">
+                          <div className={`text-sm ${themes[theme].text}`}>{c.description}</div>
+                          <div className="flex items-center gap-2">
+                            {!!onLoadAdvised && (
+                              <button
+                                className={`px-2 py-1 rounded text-xs ${themes[theme].secondary}`}
+                                onClick={() => onLoadAdvised(c)}
+                              >加载建议</button>
+                            )}
+                            <button
+                              className={`px-2 py-1 rounded text-xs bg-purple-600 text-white`}
+                              onClick={() => setAdvisedModal({ combo: c, quantity: Math.max(1, c.quantity || 1) })}
+                            >查看详情</button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -568,7 +603,7 @@ export function ExpiryGroupCard({
                       </div>
                       <div className="space-y-3">
                         {callPositions.map((position) => {
-                          const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh);
+                          const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh, position.is_covered);
                           return (
                             <div 
                               key={position.id}
@@ -647,9 +682,9 @@ export function ExpiryGroupCard({
                                             className={`w-20 px-2 py-1 rounded text-xs ${themes[theme].input} ${themes[theme].text}`}
                                           />
                                         )}
-                                      </div>
-                                    )}
-                                  </div>
+      </div>
+    )}
+  </div>
                                 </div>
                               </div>
                             </div>
@@ -674,7 +709,7 @@ export function ExpiryGroupCard({
                       </div>
                       <div className="space-y-3">
                         {putPositions.map((position) => {
-                          const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh);
+                          const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh, position.is_covered);
                           return (
                             <div 
                               key={position.id}
@@ -808,7 +843,7 @@ export function ExpiryGroupCard({
                             </div>
                             <div className="grid gap-3">
                               {positions.map((position) => {
-                                const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh);
+                                const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh, position.is_covered);
                                 return (
                                   <div key={`${position.id ?? 'noid'}-${position.symbol}-${position.strike}-${position.type}-${position.expiry}`} className={`${themes[theme].card} rounded-lg p-3 border ${themes[theme].border}`}>
                                     <div className="flex items-center justify-between">
@@ -971,7 +1006,7 @@ export function ExpiryGroupCard({
                   put_covered: { type: 'put', position_type: 'sell' }
                 };
                 const p = map[category];
-                const resp = await optionsService.updatePositions({ updates: [{ type: p.type, position_type: p.position_type, strike: Number(confirmData.meta?.strike || 0), expiry: String(confirmData.meta?.expiry || group.expiry), quantity: q }] });
+                const resp = await optionsService.updatePositions({ updates: [{ type: p.type, position_type: p.position_type, strike: Number(confirmData.meta?.strike || 0), expiry: String(confirmData.meta?.expiry || group.expiry), quantity: q }], accountId: selectedAccountId || null, userId: userId || null });
                 if (resp.error) {
                   toast.error('同步失败');
                 } else {
@@ -984,6 +1019,66 @@ export function ExpiryGroupCard({
               }
             }}
           >确认执行</button>
+        </div>
+      </div>
+    </div>
+  )}
+  {advisedModal && (
+    <div className="fixed inset-0 z-50">
+      <div className="absolute inset-0 bg-black/40" onClick={() => setAdvisedModal(null)}></div>
+      <div className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-md rounded-lg border ${themes[theme].card} ${themes[theme].border} p-6`}>
+        <div className={`text-lg font-semibold ${themes[theme].text}`}>{advisedModal.combo.description}</div>
+        <div className={`mt-1 text-xs ${themes[theme].text} opacity-75`}>到期 {format(new Date(advisedModal.combo.expiry), 'yyyy-MM-dd')}</div>
+        <div className="mt-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className={`text-sm ${themes[theme].text}`}>数量</div>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={1}
+                value={advisedModal.quantity}
+                onChange={(e) => {
+                  const n = parseInt(e.target.value) || 1;
+                  setAdvisedModal(prev => prev ? { ...prev, quantity: Math.max(1, n) } : prev);
+                }}
+                className={`w-24 px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
+              />
+            </div>
+          </div>
+          <div className={`${themes[theme].background} rounded p-3 border ${themes[theme].border}`}>
+            <div className={`text-sm font-medium ${themes[theme].text}`}>买入腿</div>
+            <div className={`text-xs ${themes[theme].text} opacity-75 mt-1`}>
+              {advisedModal.combo.buy_position.position.symbol} {advisedModal.combo.buy_position.position.strike} {String(advisedModal.combo.buy_position.position.type).toUpperCase()} • {advisedModal.combo.buy_position.position.position_type === 'buy' ? '买入' : '卖出'}
+            </div>
+            <div className={`text-xs ${themes[theme].text} opacity-60 mt-1`}>
+              可用 {advisedModal.combo.buy_position.position.available} • 数量 {advisedModal.combo.buy_position.position.quantity}
+            </div>
+          </div>
+          <div className={`${themes[theme].background} rounded p-3 border ${themes[theme].border}`}>
+            <div className={`text-sm font-medium ${themes[theme].text}`}>卖出腿</div>
+            <div className={`text-xs ${themes[theme].text} opacity-75 mt-1`}>
+              {advisedModal.combo.sell_position.position.symbol} {advisedModal.combo.sell_position.position.strike} {String(advisedModal.combo.sell_position.position.type).toUpperCase()} • {advisedModal.combo.sell_position.position.position_type === 'buy' ? '买入' : '卖出'}
+            </div>
+            <div className={`text-xs ${themes[theme].text} opacity-60 mt-1`}>
+              可用 {advisedModal.combo.sell_position.position.available} • 数量 {advisedModal.combo.sell_position.position.quantity}
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 flex items-center justify-end gap-2">
+          <button
+            className={`px-3 py-1 rounded text-sm ${themes[theme].secondary}`}
+            onClick={() => {
+              if (onLoadAdvised) onLoadAdvised({ ...advisedModal.combo, quantity: advisedModal.quantity });
+              setAdvisedModal(null);
+            }}
+          >加载到构建器</button>
+          <button
+            className={`px-3 py-1 rounded text-sm bg-purple-600 text-white`}
+            onClick={() => {
+              if (onExecuteAdvised) onExecuteAdvised({ ...advisedModal.combo, quantity: advisedModal.quantity });
+              setAdvisedModal(null);
+            }}
+          >执行组合</button>
         </div>
       </div>
     </div>

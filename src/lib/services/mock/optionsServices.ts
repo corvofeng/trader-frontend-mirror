@@ -887,6 +887,15 @@ export const optionsService: OptionsService = {
     const updated = (payload?.updates || []).length;
     return { data: { updated }, error: null };
   },
+  executeCombination: async (combo: any, accountId?: string | null, userId?: string | null) => {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    return { data: { executed: true, combinationId: `combo-${Date.now()}` }, error: null };
+  },
+  closeCombination: async (payload: any, accountId?: string | null, userId?: string | null) => {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    const ids = (payload?.positions || []).map((p: any) => p.id);
+    return { data: { closedIds: ids }, error: null };
+  },
   saveRatioSpreadPlan: async (plan, accountId?: string | null) => {
     await new Promise(resolve => setTimeout(resolve, 500));
     return { data: { ...plan, saved: true }, error: null };

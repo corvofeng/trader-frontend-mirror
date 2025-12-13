@@ -8,7 +8,7 @@ import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { optionsService, authService, stockService } from '../../../lib/services';
 import { emitAddLegToStrategy } from '../events/strategySelection';
 import { logger } from '../../../shared/utils/logger';
-import type { OptionsPortfolioData, CustomOptionsStrategy, OptionsPosition, OptionsStrategy } from '../../../lib/services/types';
+import type { OptionsPortfolioData, CustomOptionsStrategy, OptionsPosition, OptionsStrategy, AdvisedCombination } from '../../../lib/services/types';
 import { computeCombosForPositions as computeCombosForStrategy } from '../utils/strategyCombos';
 import toast from 'react-hot-toast';
 import { ExpiryGroupCard } from './ExpiryGroupCard';
@@ -31,11 +31,11 @@ interface ExtendedOptionsPosition extends OptionsPosition {
   is_single_leg?: boolean;
 }
 
-const getPositionTypeInfo2 = (positionType: string, optionType: string, positionTypeZh?: string) => {
+const getPositionTypeInfo2 = (positionType: string, optionType: string, positionTypeZh?: string, isCovered?: boolean) => {
   const isLong = positionType === 'buy';
   const isCall = optionType === 'call';
 
-  if (positionTypeZh === '备兑' && !isLong) {
+  if ((positionTypeZh === '备兑' || isCovered) && !isLong) {
     return {
       icon: <Target className="w-3 h-3" />,
       label: '备兑',
@@ -108,6 +108,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   const [saveStrategyDescription, setSaveStrategyDescription] = useState<string>('');
   const [isModalSaving, setIsModalSaving] = useState(false);
   const { currencyConfig } = useCurrency();
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   
   // 复杂策略编辑复用“保存确认弹窗”，不使用独立编辑器
 
@@ -121,6 +122,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
           const authRes = await authService.getUser();
           const user = authRes?.data?.user;
           userId = user?.id || null;
+          setCurrentUserId(userId);
         } catch (error) {
           console.log(error);
         }
@@ -262,18 +264,19 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
           ok = ok && (t === meta.comboType);
         }
         if (meta?.category) {
+          const isCovered = p.position_type_zh === '备兑' || !!p.is_covered;
           if (meta.category === 'call_normal') {
-            ok = ok && ((p.type === 'call' || p.contract_type_zh === 'call') && p.position_type === 'sell' && p.position_type_zh !== '备兑');
+            ok = ok && ((p.type === 'call' || p.contract_type_zh === 'call') && p.position_type === 'sell' && !isCovered);
           } else if (meta.category === 'put_normal') {
-            ok = ok && ((p.type === 'put' || p.contract_type_zh === 'put') && p.position_type === 'sell' && p.position_type_zh !== '备兑');
+            ok = ok && ((p.type === 'put' || p.contract_type_zh === 'put') && p.position_type === 'sell' && !isCovered);
           } else if (meta.category === 'call_right') {
             ok = ok && ((p.type === 'call' || p.contract_type_zh === 'call') && p.position_type === 'buy');
           } else if (meta.category === 'put_right') {
             ok = ok && ((p.type === 'put' || p.contract_type_zh === 'put') && p.position_type === 'buy');
           } else if (meta.category === 'call_covered') {
-            ok = ok && ((p.type === 'call' || p.contract_type_zh === 'call') && p.position_type === 'sell' && p.position_type_zh === '备兑');
+            ok = ok && ((p.type === 'call' || p.contract_type_zh === 'call') && p.position_type === 'sell' && isCovered);
           } else if (meta.category === 'put_covered') {
-            ok = ok && ((p.type === 'put' || p.contract_type_zh === 'put') && p.position_type === 'sell' && p.position_type_zh === '备兑');
+            ok = ok && ((p.type === 'put' || p.contract_type_zh === 'put') && p.position_type === 'sell' && isCovered);
           }
         }
         return ok;
@@ -302,8 +305,12 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       });
       const selectedIds = selectedPositions.map(p => p.id);
       logger.info('[OptionsPortfolio] closing payload', { meta, count: selectedIds.length });
-      const payload = { positions: selectedPositionsWithQty };
-      const { data, error } = await optionsService.closePositions(payload);
+      const payload = { positions: selectedPositionsWithQty, meta, overrides };
+      const isCombo = meta?.action === 'unwind_combo';
+      const resp = isCombo
+        ? await optionsService.closeCombination(payload, selectedAccountIdProp || null, currentUserId || null)
+        : await optionsService.closePositions(payload, selectedAccountIdProp || null, currentUserId || null);
+      const { data, error } = resp;
       if (error) throw error;
       setPortfolioData(prev => {
         if (!prev) return prev;
@@ -322,7 +329,8 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         }));
         return next;
       });
-      toast.success(`已平仓 ${data?.closedIds?.length ?? selectedIds.length} 个持仓${meta?.comboType ? `（解除${meta.comboType.toUpperCase()}组合 @${meta.strike}）` : ''}`);
+      const isUnwind = meta?.action === 'unwind_combo';
+      toast.success(isUnwind ? '解除组合成功' : '平仓成功');
     } catch (e) {
       console.error(e as Error);
       toast.error('平仓失败');
@@ -791,6 +799,35 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     openSaveModal(expiry);
   };
 
+  const loadAdvisedCombination = (combo: AdvisedCombination) => {
+    if (!combo || !combo.expiry) return;
+    setExpirySelectionMode(prev => ({ ...prev, [combo.expiry]: true }));
+    setModalExpiry(combo.expiry);
+    const ids: string[] = [];
+    const buyId = combo.buy_position?.position?.id;
+    const sellId = combo.sell_position?.position?.id;
+    if (buyId) ids.push(buyId);
+    if (sellId) ids.push(sellId);
+    ids.forEach(id => setPositionSelected(id, true));
+    ids.forEach(id => updateSelectedQuantity(id, Math.max(1, combo.quantity)));
+    setSaveStrategyName(combo.description || '组合建议');
+  };
+
+  const executeAdvisedCombination = async (combo: AdvisedCombination) => {
+    try {
+      const { data, error } = await optionsService.executeCombination({ ...combo, quantity: Math.max(1, combo.quantity) }, selectedAccountIdProp || null, currentUserId || null);
+      if (error) throw error;
+      toast.success('已执行组合建议');
+      try {
+        const { data: refreshed } = await optionsService.getOptionsPortfolio(currentUserId || DEMO_USER_ID, selectedAccountIdProp || null);
+        if (refreshed) setPortfolioData(refreshed);
+      } catch {}
+    } catch (e) {
+      toast.error('执行失败');
+      console.error(e);
+    }
+  };
+
   // 不再使用独立编辑器更新回调
 
   return (
@@ -952,7 +989,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                     </div>
                     <div className="grid gap-3">
                       {positions.map((position) => {
-                        const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh);
+                        const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh, position.is_covered);
                         const daysToExpiry = Math.ceil((new Date(position.expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
                         
                         return (
@@ -1015,7 +1052,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                   </div>
                   <div className="space-y-3">
                     {singleLegs.filter(p => p.type === 'call').map((position) => {
-                      const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh);
+                      const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh, position.is_covered);
                       const daysToExpiry = Math.ceil((new Date(position.expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
                       
                       return (
@@ -1098,7 +1135,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                   </div>
                   <div className="space-y-3">
                     {singleLegs.filter(p => p.type === 'put').map((position) => {
-                      const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh);
+                      const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh, position.is_covered);
                       const daysToExpiry = Math.ceil((new Date(position.expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
                       
                       return (
@@ -1268,7 +1305,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                               const adjustedCost = position.premium * (position.selectedQuantity || position.quantity) * 100;
                               const adjustedValue = position.currentValue * (position.selectedQuantity || position.quantity) * 100;
                               const adjustedProfitLoss = adjustedValue - adjustedCost;
-                              const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh);
+                              const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh, position.is_covered);
                               
                               return (
                                 <div key={position.id} className={`${themes[theme].card} rounded p-3 border ${themes[theme].border}`}>
@@ -1354,6 +1391,11 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
               selectedSymbol={selectedSymbol}
               underlyingPrice={underlyingCache[selectedSymbol] ?? null}
               onClosePositions={handleClosePositions}
+              advisedCombinations={(portfolioData.advised_combinations || []).filter(c => c.expiry === group.expiry)}
+              onLoadAdvised={loadAdvisedCombination}
+              onExecuteAdvised={executeAdvisedCombination}
+              selectedAccountId={selectedAccountIdProp || null}
+              userId={currentUserId || null}
             />
           ))}
         </div>
@@ -1435,7 +1477,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                                               </div>
                                 <div className="space-y-3">
                                   {callPositions.map((position) => {
-                                    const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh);
+                                    const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh, position.is_covered);
                                     
                                     return (
                                       <div 
@@ -1534,7 +1576,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                                               </div>
                                 <div className="space-y-3">
                                   {putPositions.map((position) => {
-                                    const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh);
+                                    const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh, position.is_covered);
                                     
                                     return (
                                       <div 
@@ -1635,7 +1677,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                               </div>
                               <div className="space-y-3">
                                 {spreadPositions.map((position) => {
-                                  const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh);
+                                  const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh, position.is_covered);
                                   
                                   return (
                                     <div 
@@ -1770,7 +1812,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
               <div className="border rounded p-3">
                 <div className={`text-sm font-medium ${themes[theme].text} mb-2`}>组合预览与编辑</div>
                 <div className="max-h-48 overflow-auto space-y-2">
-                  {(portfolioData?.expiryGroups.find(g => g.expiry === modalExpiry)?.positions || [])
+                  {(portfolioData?.expiryGroups?.find(g => g.expiry === modalExpiry)?.positions || [])
                     .map(p => {
                       const checked = !!selectedLegs[p.id] && selectedLegs[p.id] > 0;
                       const qty = selectedLegs[p.id] || 0;
@@ -1808,7 +1850,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                 </div>
                 {/* 实时识别提示 */}
                 {(() => {
-                  const group = portfolioData?.expiryGroups.find(g => g.expiry === modalExpiry);
+                  const group = portfolioData?.expiryGroups?.find(g => g.expiry === modalExpiry);
                   const selectedIds = Object.keys(selectedLegs).filter(id => selectedLegs[id] && selectedLegs[id] > 0);
                   const positions = group ? group.positions.filter(p => selectedIds.includes(p.id)) : [];
                   const inferred = inferStrategyFromLegs(positions);

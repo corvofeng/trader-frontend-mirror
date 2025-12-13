@@ -147,9 +147,11 @@ export const optionsService: OptionsService = {
     }
   }
   ,
-  closePositions: async (payload) => {
+  closePositions: async (payload, accountId?: string | null, userId?: string | null) => {
     try {
-      const response = await fetch('/api/options/positions/close', {
+      const base = `/api/options/positions/close${accountId ? `/accounts/${encodeURIComponent(accountId)}` : ''}`;
+      const url = userId ? `${base}?userId=${encodeURIComponent(userId)}` : base;
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -180,6 +182,44 @@ export const optionsService: OptionsService = {
       return { data, error: null };
     } catch (error) {
       console.error('Error syncing positions:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+  executeCombination: async (combo, accountId?: string | null, userId?: string | null) => {
+    try {
+      const base = `/api/options/combinations/execute${accountId ? `/accounts/${encodeURIComponent(accountId)}` : ''}`;
+      const url = userId ? `${base}?userId=${encodeURIComponent(userId)}` : base;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(combo)
+      });
+      if (!response.ok) {
+        throw new Error('Failed to execute combination');
+      }
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error executing combination:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+  closeCombination: async (payload, accountId?: string | null, userId?: string | null) => {
+    try {
+      const base = `/api/options/combinations/close${accountId ? `/accounts/${encodeURIComponent(accountId)}` : ''}`;
+      const url = userId ? `${base}?userId=${encodeURIComponent(userId)}` : base;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        throw new Error('Failed to close combination');
+      }
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error closing combination:', error);
       return { data: null, error: error as Error };
     }
   },

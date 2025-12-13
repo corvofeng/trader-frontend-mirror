@@ -427,7 +427,7 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
                           .filter(filterPlan)
                           .sort(sortPlans)
                           .map((rp, idx) => (
-                          <div key={`ratio-call-${exp}-${idx}`} className={`${themes[theme].background} rounded-lg p-2 sm:p-3 border ${themes[theme].border} relative group ${getPlanColor(rp)}`}>
+                          <div key={`ratio-call-${exp}-${idx}`} className={`${themes[theme].background} rounded-lg p-2 sm:p-3 border ${themes[theme].border} relative group ${getPlanColor(rp)} ${rp.action === 'hold' ? 'border-2 border-purple-400 bg-purple-50 dark:bg-purple-900/20 ring-2 ring-purple-300' : ''}`}>
                             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
                               <div className="flex items-start gap-3">
                                 <Target className="w-4 h-4 text-purple-500" />
@@ -443,15 +443,19 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
                                       <span className={`px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{formatCurrency(rp.best_net_premium, currencyConfig, 4)}</span>
                                     </div>
                                     <div className="flex items-center gap-1">
-                                      <span className={`text-xs ${themes[theme].text} opacity-75`}>杠杆</span>
-                                      <span className={`px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{rp.leverage}</span>
+                                      <span className={`text-xs ${themes[theme].text} opacity-75`}>{rp.action === 'hold' ? '当前价差' : '杠杆'}</span>
+                                      <span className={`px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>
+                                        {rp.action === 'hold' ? formatCurrency(rp.current_spread, currencyConfig, 4) : rp.leverage}
+                                      </span>
                                     </div>
                                   </div>
                                 </div>
                               </div>
                               <div className="hidden sm:block text-right">
-                                <p className={`text-xs ${themes[theme].text} opacity-75`}>杠杆</p>
-                                <p className={`text-sm font-semibold ${themes[theme].text}`}>{rp.leverage}</p>
+                                <p className={`text-xs ${themes[theme].text} opacity-75`}>{rp.action === 'hold' ? '当前价差' : '杠杆'}</p>
+                                <p className={`text-sm font-semibold ${themes[theme].text}`}>
+                                  {rp.action === 'hold' ? formatCurrency(rp.current_spread, currencyConfig, 4) : rp.leverage}
+                                </p>
                               </div>
                               <div className="w-full sm:w-auto mt-1 sm:mt-0 flex flex-wrap items-center gap-2 sm:ml-2">
                                 <button
@@ -514,13 +518,18 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
                                   <span className={`inline-block px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{formatCurrency(rp.best_net_premium, currencyConfig, 4)}</span>
                                 </div>
                                 <div className={`p-2 rounded border ${themes[theme].border}`}>
-                                  <p className={`text-xs ${themes[theme].text} opacity-75`}>杠杆</p>
-                                  <span className={`inline-block px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{rp.leverage}</span>
+                                  <p className={`text-xs ${themes[theme].text} opacity-75`}>{rp.action === 'hold' ? '当前价差' : '杠杆'}</p>
+                                  <span className={`inline-block px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>
+                                    {rp.action === 'hold' ? formatCurrency(rp.current_spread, currencyConfig, 4) : rp.leverage}
+                                  </span>
                                 </div>
                               </div>
                               <div className="mt-2 flex items-center gap-2">
                                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">买入 {rp.analysis.buy_count}</span>
                                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100">卖出 {rp.analysis.sell_count}</span>
+                                {rp.action === 'hold' && (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100">持仓数目 {Number(rp.current_spread ?? 0).toFixed(4)}</span>
+                                )}
                               </div>
                               <div className={`mt-3 ${themes[theme].card} rounded p-3 border ${themes[theme].border}`}>
                                 <p className={`text-sm ${themes[theme].text}`}>{rp.reason}</p>
@@ -541,7 +550,7 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
                           .filter(filterPlan)
                           .sort(sortPlans)
                           .map((rp, idx) => (
-                          <div key={`ratio-put-${exp}-${idx}`} className={`${themes[theme].background} rounded-lg p-2 sm:p-3 border ${themes[theme].border} relative group ${getPlanColor(rp)}`}>
+                          <div key={`ratio-put-${exp}-${idx}`} className={`${themes[theme].background} rounded-lg p-2 sm:p-3 border ${themes[theme].border} relative group ${getPlanColor(rp)} ${rp.action === 'hold' ? 'border-2 border-purple-400 bg-purple-50 dark:bg-purple-900/20 ring-2 ring-purple-300' : ''}`}>
                             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
                               <div className="flex items-start gap-3">
                                 <Target className="w-4 h-4 text-purple-500" />
@@ -557,8 +566,10 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
                                       <span className={`px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{formatCurrency(rp.best_net_premium, currencyConfig, 4)}</span>
                                     </div>
                                     <div className="flex items-center gap-1">
-                                      <span className={`text-xs ${themes[theme].text} opacity-75`}>杠杆</span>
-                                      <span className={`px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{rp.leverage}</span>
+                                      <span className={`text-xs ${themes[theme].text} opacity-75`}>{rp.action === 'hold' ? '当前价差' : '杠杆'}</span>
+                                      <span className={`px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>
+                                        {rp.action === 'hold' ? formatCurrency(rp.current_spread, currencyConfig, 4) : rp.leverage}
+                                      </span>
                                     </div>
                                   </div>
                                 </div>
@@ -628,13 +639,18 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
                                   <span className={`inline-block px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{formatCurrency(rp.best_net_premium, currencyConfig, 4)}</span>
                                 </div>
                                 <div className={`p-2 rounded border ${themes[theme].border}`}>
-                                  <p className={`text-xs ${themes[theme].text} opacity-75`}>杠杆</p>
-                                  <span className={`inline-block px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>{rp.leverage}</span>
+                                  <p className={`text-xs ${themes[theme].text} opacity-75`}>{rp.action === 'hold' ? '当前价差' : '杠杆'}</p>
+                                  <span className={`inline-block px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100`}>
+                                    {rp.action === 'hold' ? formatCurrency(rp.current_spread, currencyConfig, 4) : rp.leverage}
+                                  </span>
                                 </div>
                               </div>
                               <div className="mt-2 flex items-center gap-2">
                                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">买入 {rp.analysis.buy_count}</span>
                                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100">卖出 {rp.analysis.sell_count}</span>
+                                {rp.action === 'hold' && (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100">持仓数目 {Number(rp.current_spread ?? 0).toFixed(4)}</span>
+                                )}
                               </div>
                               <div className={`mt-3 ${themes[theme].card} rounded p-3 border ${themes[theme].border}`}>
                                 <p className={`text-sm ${themes[theme].text}`}>{rp.reason}</p>
