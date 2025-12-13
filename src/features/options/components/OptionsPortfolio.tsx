@@ -304,36 +304,30 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         return { ...p, selectedQuantity: qty } as OptionsPosition;
       });
       const selectedIds = selectedPositions.map(p => p.id);
-      logger.info('[OptionsPortfolio] closing payload', { meta, count: selectedIds.length });
-      const payload = { positions: selectedPositionsWithQty, meta, overrides };
-      const isCombo = meta?.action === 'unwind_combo';
-      const resp = isCombo
-        ? await optionsService.closeCombination(payload, selectedAccountIdProp || null, currentUserId || null)
-        : await optionsService.closePositions(payload, selectedAccountIdProp || null, currentUserId || null);
-      const { data, error } = resp;
-      if (error) throw error;
-      setPortfolioData(prev => {
-        if (!prev) return prev;
-        const next = { ...prev } as OptionsPortfolioData;
-        next.expiryBuckets = (next.expiryBuckets || []).map(bucket => ({
-          ...bucket,
-          single: bucket.single.map(p => (selectedIds.includes(p.id) ? { ...p, status: 'closed', closeDate: new Date().toISOString() } : p))
-        }));
-        next.expiryGroups = (next.expiryGroups || []).map(group => ({
-          ...group,
-          positions: group.positions.map(p => (selectedIds.includes(p.id) ? { ...p, status: 'closed', closeDate: new Date().toISOString() } : p))
-        }));
-        next.strategies = (next.strategies || []).map(s => ({
-          ...s,
-          positions: s.positions.map(p => (selectedIds.includes(p.id) ? { ...p, status: 'closed', closeDate: new Date().toISOString() } : p))
-        }));
-        return next;
+      logger.info('[OptionsPortfolio] syncing via updatePositions', { meta, count: selectedIds.length });
+      const updates = selectedPositionsWithQty.map(p => {
+        const base = Number(p.selectedQuantity ?? (p as any).leg_quantity ?? p.quantity) || 0;
+        const defaultTarget = Math.max(0, Math.min(base, Number((p as any).available ?? base) || 0));
+        const targetQty = Math.max(0, Math.min(base, overrides?.[p.id] ?? defaultTarget));
+        return {
+          id: p.id,
+          type: p.type as 'call' | 'put',
+          position_type: p.position_type,
+          strike: Number((p as any).contract_strike_price ?? p.strike),
+          expiry: p.expiry,
+          quantity: targetQty
+        };
       });
-      const isUnwind = meta?.action === 'unwind_combo';
-      toast.success(isUnwind ? '解除组合成功' : '平仓成功');
+      const { error } = await optionsService.updatePositions({ updates, accountId: selectedAccountIdProp || null, userId: currentUserId || null });
+      if (error) throw error;
+      toast.success('同步成功');
+      try {
+        const { data: refreshed } = await optionsService.getOptionsPortfolio(currentUserId || DEMO_USER_ID, selectedAccountIdProp || null);
+        if (refreshed) setPortfolioData(refreshed);
+      } catch {}
     } catch (e) {
       console.error(e as Error);
-      toast.error('平仓失败');
+      toast.error('同步失败');
     }
   };
 

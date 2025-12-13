@@ -165,16 +165,18 @@ export function ExpiryGroupCard({
       const ids = collectIdsForCategory(category, strike);
       const sum = ids.reduce((acc, id) => {
         const pos = filteredPositions.find(x => x.id === id);
-        const qty = Number((pos as any)?.selectedQuantity ?? (pos as any)?.leg_quantity ?? pos?.quantity) || 0;
-        return acc + qty;
+        const base = Number((pos as any)?.selectedQuantity ?? (pos as any)?.leg_quantity ?? pos?.quantity) || 0;
+        const avail = Number((pos as any)?.available ?? base) || 0;
+        return acc + avail;
       }, 0);
       setQtyOverrides({ [key]: sum });
     } else {
       const map: Record<string, number> = {};
       confirmData.ids.forEach(id => {
         const pos = filteredPositions.find(x => x.id === id);
-        const qty = Number((pos as any)?.selectedQuantity ?? (pos as any)?.leg_quantity ?? pos?.quantity);
-        map[id] = qty;
+        const base = Number((pos as any)?.selectedQuantity ?? (pos as any)?.leg_quantity ?? pos?.quantity) || 0;
+        const avail = Number((pos as any)?.available ?? base) || 0;
+        map[id] = avail;
       });
       setQtyOverrides(map);
     }
@@ -933,7 +935,7 @@ export function ExpiryGroupCard({
                       <div className={`text-xs ${themes[theme].text}`}>
                         {pos ? `${pos.symbol} ${pos.strike} ${pos.type.toUpperCase()} ${pos.position_type === 'buy' ? '权利' : (pos.position_type_zh === '备兑' ? '备兑' : '义务')}` : id}
                       </div>
-                      <div className={`text-xs ${themes[theme].text} opacity-60`}>数量 {val}（最大 {maxQty}）</div>
+                      <div className={`text-xs ${themes[theme].text} opacity-60`}>数量 {val}（总数 {maxQty}，可执行 {pos?.available ?? maxQty}）</div>
                     </div>
                   );
                 })}
@@ -961,22 +963,68 @@ export function ExpiryGroupCard({
             (() => {
               const items = confirmData.ids.map(id => {
                 const pos = filteredPositions.find(x => x.id === id);
+                const raw = (allExpiryBuckets || []).flatMap(b => b.single).find(x => x.id === id) || pos;
                 const val = qtyOverrides[id] ?? Number((pos as any)?.selectedQuantity ?? (pos as any)?.leg_quantity ?? pos?.quantity);
                 return (
-                  <div key={`confirm-pos-${id}`} className="flex items-center justify-between gap-2">
-                    <div className={`text-xs ${themes[theme].text}`}>
-                      {pos ? `${pos.symbol} ${pos.strike} ${pos.type.toUpperCase()} ${pos.position_type === 'buy' ? '权利' : (pos.position_type_zh === '备兑' ? '备兑' : '义务')}` : id}
+                  <div key={`confirm-pos-${id}`} className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className={`text-xs ${themes[theme].text}`}>
+                        {pos ? `${pos.symbol} ${pos.strike} ${pos.type.toUpperCase()} ${pos.position_type === 'buy' ? '权利' : (pos.position_type_zh === '备兑' ? '备兑' : '义务')}` : id}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          value={val}
+                          onChange={(e) => {
+                            const n = parseFloat(e.target.value);
+                            setQtyOverrides(prev => ({ ...prev, [id]: n }));
+                          }}
+                          className={`w-20 px-2 py-1 rounded text-xs ${themes[theme].input} ${themes[theme].text}`}
+                        />
+                        <button
+                          className="px-2 py-1 rounded text-xs bg-red-600 text-white hover:bg-red-700"
+                          onClick={() => {
+                            const base = Number((pos as any)?.selectedQuantity ?? (pos as any)?.leg_quantity ?? pos?.quantity) || 0;
+                            setQtyOverrides(prev => ({ ...prev, [id]: base }));
+                          }}
+                        >全平</button>
+                      <span className={`text-[11px] ${themes[theme].text} opacity-60`}>总数 {Number((pos as any)?.selectedQuantity ?? (pos as any)?.leg_quantity ?? pos?.quantity) || 0}，可执行 {Number((pos as any)?.available ?? (Number((pos as any)?.selectedQuantity ?? (pos as any)?.leg_quantity ?? pos?.quantity) || 0))}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        value={val}
-                        onChange={(e) => {
-                          const n = parseFloat(e.target.value);
-                          setQtyOverrides(prev => ({ ...prev, [id]: n }));
-                        }}
-                        className={`w-20 px-2 py-1 rounded text-xs ${themes[theme].input} ${themes[theme].text}`}
-                      />
+                    </div>
+                    <div className={`${themes[theme].background} rounded p-2 border ${themes[theme].border}`}>
+                      {(() => {
+                        const base = Number((raw as any)?.selectedQuantity ?? (raw as any)?.leg_quantity ?? raw?.quantity) || 0;
+                        const avail = (raw as any)?.available ?? base;
+                        const strikeVal = Number((raw as any)?.contract_strike_price ?? raw?.strike);
+                        const typeLabel = String(raw?.type || '').toUpperCase();
+                        const posLabel = raw?.position_type === 'buy' ? '权利' : ((raw as any)?.position_type_zh === '备兑' ? '备兑' : '义务');
+                        return (
+                          <div className={`text-[11px] ${themes[theme].text}`}>
+                            <div>标的 {raw?.symbol}</div>
+                            <div>类型 {typeLabel} • {posLabel}</div>
+                            <div>行权价 {strikeVal}</div>
+                            <div>到期 {raw?.expiry}</div>
+                            <div>总数 {base}</div>
+                            <div>可执行 {avail}</div>
+                            <div>合约名称 {(raw as any)?.contract_name ?? ''}</div>
+                            <div>合约代码 {(raw as any)?.contract_code ?? ''}</div>
+                            <div>标的代码 {(raw as any)?.opt_undl_code_full ?? ''}</div>
+                            <div>类型中文 {(raw as any)?.contract_type_zh ?? ''}</div>
+                            <div>仓位中文 {(raw as any)?.position_type_zh ?? ''}</div>
+                            <div>成本价 {typeof (raw as any)?.cost_price === 'number' ? (raw as any)?.cost_price : String((raw as any)?.cost_price || '')}</div>
+                            <div>权利金 {typeof (raw as any)?.premium === 'number' ? (raw as any)?.premium : String((raw as any)?.premium || '')}</div>
+                            <div>当前价值 {typeof (raw as any)?.currentValue === 'number' ? (raw as any)?.currentValue : String((raw as any)?.currentValue || '')}</div>
+                            <div>盈亏 {typeof (raw as any)?.profitLoss === 'number' ? (raw as any)?.profitLoss : String((raw as any)?.profitLoss || '')}</div>
+                            <div>隐含波动率 {typeof (raw as any)?.impliedVolatility === 'number' ? (raw as any)?.impliedVolatility : String((raw as any)?.impliedVolatility || '')}</div>
+                            <div>Greeks Δ {String((raw as any)?.delta ?? '')} • Γ {String((raw as any)?.gamma ?? '')} • Θ {String((raw as any)?.theta ?? '')} • ν {String((raw as any)?.vega ?? '')}</div>
+                            <div>原始数量 {String((raw as any)?.quantity ?? '')} • 组合腿数量 {String((raw as any)?.leg_quantity ?? '')}</div>
+                            <div>状态 {String((raw as any)?.status ?? '')}</div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                    <div className={`${themes[theme].background} rounded p-2 border ${themes[theme].border}`}>
+                      <pre className={`text-[11px] ${themes[theme].text} overflow-auto max-h-40`}>{JSON.stringify(raw, null, 2)}</pre>
                     </div>
                   </div>
                 );
@@ -984,12 +1032,91 @@ export function ExpiryGroupCard({
               return <div className="space-y-2">{items}</div>;
             })()
           )}
+        <div className={`mt-4 ${themes[theme].background} rounded p-3 border ${themes[theme].border}`}>
+          {(() => {
+            const positions = (() => {
+              if (confirmData?.meta?.action === 'sync_category') {
+                const strike = Number(confirmData.meta?.strike || 0);
+                const category = String(confirmData.meta?.category || '') as 'call_right' | 'call_normal' | 'put_right' | 'put_normal' | 'call_covered' | 'put_covered';
+                const allSingles = (allExpiryBuckets || []).flatMap(b => b.single);
+                return allSingles.filter(p => {
+                  const sameStrike = Number((p as any)?.contract_strike_price ?? p.strike) === strike;
+                  const sameExpiry = p.expiry === (confirmData?.meta?.expiry || group.expiry);
+                  const isCovered = (p as any)?.position_type_zh === '备兑' || !!(p as any)?.is_covered;
+                  const isCall = (p.type === 'call' || (p as any).contract_type_zh === 'call');
+                  const isPut = (p.type === 'put' || (p as any).contract_type_zh === 'put');
+                  const isSell = p.position_type === 'sell';
+                  const isBuy = p.position_type === 'buy';
+                  if (!sameStrike || !sameExpiry) return false;
+                  if (category === 'call_normal') return isCall && isSell && !isCovered;
+                  if (category === 'put_normal') return isPut && isSell && !isCovered;
+                  if (category === 'call_right') return isCall && isBuy;
+                  if (category === 'put_right') return isPut && isBuy;
+                  if (category === 'call_covered') return isCall && isSell && isCovered;
+                  if (category === 'put_covered') return isPut && isSell && isCovered;
+                  return false;
+                });
+              }
+              const allSingles = (allExpiryBuckets || []).flatMap(b => b.single);
+              return (confirmData?.ids || []).map(id => allSingles.find(x => x.id === id)).filter(Boolean) as any[];
+            })();
+            const data = {
+              ids: confirmData?.ids || [],
+              meta: confirmData?.meta || {},
+              overrides: qtyOverrides,
+              positions
+            };
+            return (
+              <pre className={`text-xs ${themes[theme].text} overflow-auto max-h-60`}>{JSON.stringify(data, null, 2)}</pre>
+            );
+          })()}
+        </div>
         </div>
         <div className="mt-4 flex justify-end gap-2">
           <button
             className={`px-3 py-2 rounded-md text-sm ${themes[theme].secondary}`}
             onClick={() => setConfirmData(null)}
           >取消</button>
+          <button
+            className={`px-3 py-2 rounded-md text-sm bg-red-600 text-white hover:bg-red-700`}
+            onClick={async () => {
+              if (confirmData?.meta?.action === 'sync_category') {
+                const strike = Number(confirmData.meta?.strike || 0);
+                const category = String(confirmData.meta?.category || '') as 'call_right' | 'call_normal' | 'put_right' | 'put_normal' | 'call_covered' | 'put_covered';
+                const ids = collectIdsForCategory(category, strike);
+                const sum = ids.reduce((acc, id) => {
+                  const pos = filteredPositions.find(x => x.id === id);
+                  const qty = Number((pos as any)?.selectedQuantity ?? (pos as any)?.leg_quantity ?? pos?.quantity) || 0;
+                  return acc + qty;
+                }, 0);
+                const map: Record<string, { type: 'call' | 'put'; position_type: 'buy' | 'sell' }> = {
+                  call_right: { type: 'call', position_type: 'buy' },
+                  call_normal: { type: 'call', position_type: 'sell' },
+                  call_covered: { type: 'call', position_type: 'sell' },
+                  put_right: { type: 'put', position_type: 'buy' },
+                  put_normal: { type: 'put', position_type: 'sell' },
+                  put_covered: { type: 'put', position_type: 'sell' }
+                };
+                const p = map[category];
+                const resp = await optionsService.updatePositions({ updates: [{ type: p.type, position_type: p.position_type, strike, expiry: String(confirmData.meta?.expiry || group.expiry), quantity: sum }], accountId: selectedAccountId || null, userId: userId || null });
+                if (resp.error) {
+                  toast.error('同步失败');
+                } else {
+                  toast.success('同步成功');
+                }
+                setConfirmData(null);
+              } else {
+                const localOverrides: Record<string, number> = {};
+                (confirmData?.ids || []).forEach(id => {
+                  const pos = filteredPositions.find(x => x.id === id);
+                  const base = Number((pos as any)?.selectedQuantity ?? (pos as any)?.leg_quantity ?? pos?.quantity) || 0;
+                  localOverrides[id] = base;
+                });
+                await onClosePositions(confirmData?.ids || [], confirmData?.meta, localOverrides);
+                setConfirmData(null);
+              }
+            }}
+          >清仓</button>
           <button
             className={`px-3 py-2 rounded-md text-sm bg-blue-600 text-white hover:bg-blue-700`}
             onClick={async () => {
