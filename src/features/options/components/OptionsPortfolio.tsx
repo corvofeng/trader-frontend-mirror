@@ -297,6 +297,8 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       };
       const selectedPositions = collectPositions();
       logger.debug('[OptionsPortfolio] selectedPositions', { ids: selectedPositions.map(p => p.id) });
+      const rawSingles = (portfolioData?.expiryBuckets || []).flatMap(b => b.single);
+      const rawPositions = selectedPositions.map(p => rawSingles.find(x => x.id === p.id) || p);
       const selectedPositionsWithQty = selectedPositions.map(p => {
         const override = overrides?.[p.id];
         const base = Number(p.selectedQuantity ?? p.leg_quantity ?? p.quantity);
@@ -321,7 +323,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
           change_quantity: targetQty - avail
         };
       });
-      const { error } = await optionsService.updatePositions({ updates, accountId: selectedAccountIdProp || null, userId: currentUserId || null });
+      const { error } = await optionsService.updatePositions({ updates, positions: rawPositions, accountId: selectedAccountIdProp || null, userId: currentUserId || null });
       if (error) throw error;
       toast.success('同步成功');
       try {
