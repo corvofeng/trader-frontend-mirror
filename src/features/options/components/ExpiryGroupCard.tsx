@@ -1161,6 +1161,23 @@ export function ExpiryGroupCard({
                   toast.success('已同步持仓数量');
                 }
                 setConfirmData(null);
+              } else if (confirmData.meta?.action === 'unwind_combo') {
+                const rawSingles = (allExpiryBuckets || []).flatMap(b => b.single);
+                const legs = confirmData.ids
+                  .map(id => rawSingles.find(x => x.id === id))
+                  .filter(Boolean) as typeof rawSingles;
+                const payload = {
+                  positions: legs,
+                  meta: confirmData.meta,
+                  overrides: qtyOverrides
+                };
+                const resp = await optionsService.closeCombination(payload, selectedAccountId || null, userId || null);
+                if (resp.error) {
+                  toast.error('解除组合失败');
+                } else {
+                  toast.success('解除组合成功');
+                }
+                setConfirmData(null);
               } else {
                 await onClosePositions(confirmData.ids, confirmData.meta, qtyOverrides);
                 setConfirmData(null);
