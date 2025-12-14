@@ -307,8 +307,9 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       logger.info('[OptionsPortfolio] syncing via updatePositions', { meta, count: selectedIds.length });
       const updates = selectedPositionsWithQty.map(p => {
         const base = Number(p.selectedQuantity ?? (p as any).leg_quantity ?? p.quantity) || 0;
-        const defaultTarget = Math.max(0, Math.min(base, Number((p as any).available ?? base) || 0));
-        const targetQty = Math.max(0, Math.min(base, overrides?.[p.id] ?? defaultTarget));
+        const avail = Number((p as any).available ?? base) || 0;
+        const defaultTarget = Math.max(0, Math.min(avail, avail));
+        const targetQty = Math.max(0, Math.min(avail, overrides?.[p.id] ?? defaultTarget));
         return {
           id: p.id,
           type: p.type as 'call' | 'put',
@@ -316,8 +317,8 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
           strike: Number((p as any).contract_strike_price ?? p.strike),
           expiry: p.expiry,
           quantity: targetQty,
-          original_quantity: base,
-          change_quantity: targetQty - base
+          original_quantity: avail,
+          change_quantity: targetQty - avail
         };
       });
       const { error } = await optionsService.updatePositions({ updates, accountId: selectedAccountIdProp || null, userId: currentUserId || null });

@@ -1152,9 +1152,9 @@ export function ExpiryGroupCard({
                   if (category === 'put_covered') return isPut && isSell && isCovered;
                   return false;
                 });
-                const origSum = matches.reduce((acc, x) => acc + (Number((x as any)?.selectedQuantity ?? (x as any)?.leg_quantity ?? x.quantity) || 0), 0);
-                const change = q - origSum;
-                const resp = await optionsService.updatePositions({ updates: [{ type: p.type, position_type: p.position_type, strike, expiry: String(confirmData.meta?.expiry || group.expiry), quantity: q, original_quantity: origSum, change_quantity: change }], accountId: selectedAccountId || null, userId: userId || null });
+                const origAvailSum = matches.reduce((acc, x) => acc + (Number((x as any)?.available ?? (Number((x as any)?.selectedQuantity ?? (x as any)?.leg_quantity ?? x.quantity) || 0)) || 0), 0);
+                const change = q - origAvailSum;
+                const resp = await optionsService.updatePositions({ updates: [{ type: p.type, position_type: p.position_type, strike, expiry: String(confirmData.meta?.expiry || group.expiry), quantity: q, original_quantity: origAvailSum, change_quantity: change }], accountId: selectedAccountId || null, userId: userId || null });
                 if (resp.error) {
                   toast.error('同步失败');
                 } else {
