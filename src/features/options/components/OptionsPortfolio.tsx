@@ -315,7 +315,9 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
           position_type: p.position_type,
           strike: Number((p as any).contract_strike_price ?? p.strike),
           expiry: p.expiry,
-          quantity: targetQty
+          quantity: targetQty,
+          original_quantity: base,
+          change_quantity: targetQty - base
         };
       });
       const { error } = await optionsService.updatePositions({ updates, accountId: selectedAccountIdProp || null, userId: currentUserId || null });

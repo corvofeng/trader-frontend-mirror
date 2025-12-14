@@ -1133,7 +1133,28 @@ export function ExpiryGroupCard({
                   put_covered: { type: 'put', position_type: 'sell' }
                 };
                 const p = map[category];
-                const resp = await optionsService.updatePositions({ updates: [{ type: p.type, position_type: p.position_type, strike: Number(confirmData.meta?.strike || 0), expiry: String(confirmData.meta?.expiry || group.expiry), quantity: q }], accountId: selectedAccountId || null, userId: userId || null });
+                const strike = Number(confirmData.meta?.strike || 0);
+                const allSingles = (allExpiryBuckets || []).flatMap(b => b.single);
+                const matches = allSingles.filter(x => {
+                  const sameStrike = Number((x as any)?.contract_strike_price ?? x.strike) === strike;
+                  const sameExpiry = x.expiry === (confirmData?.meta?.expiry || group.expiry);
+                  const isCovered = (x as any)?.position_type_zh === '备兑' || !!(x as any)?.is_covered;
+                  const isCall = (x.type === 'call' || (x as any).contract_type_zh === 'call');
+                  const isPut = (x.type === 'put' || (x as any).contract_type_zh === 'put');
+                  const isSell = x.position_type === 'sell';
+                  const isBuy = x.position_type === 'buy';
+                  if (!sameStrike || !sameExpiry) return false;
+                  if (category === 'call_normal') return isCall && isSell && !isCovered;
+                  if (category === 'put_normal') return isPut && isSell && !isCovered;
+                  if (category === 'call_right') return isCall && isBuy;
+                  if (category === 'put_right') return isPut && isBuy;
+                  if (category === 'call_covered') return isCall && isSell && isCovered;
+                  if (category === 'put_covered') return isPut && isSell && isCovered;
+                  return false;
+                });
+                const origSum = matches.reduce((acc, x) => acc + (Number((x as any)?.selectedQuantity ?? (x as any)?.leg_quantity ?? x.quantity) || 0), 0);
+                const change = q - origSum;
+                const resp = await optionsService.updatePositions({ updates: [{ type: p.type, position_type: p.position_type, strike, expiry: String(confirmData.meta?.expiry || group.expiry), quantity: q, original_quantity: origSum, change_quantity: change }], accountId: selectedAccountId || null, userId: userId || null });
                 if (resp.error) {
                   toast.error('同步失败');
                 } else {
