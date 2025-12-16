@@ -882,7 +882,7 @@ export const optionsService: OptionsService = {
     const ids = (payload?.positions || []).map(p => p.id);
     return { data: { closedIds: ids }, error: null };
   },
-  updatePositions: async (payload: { updates: Array<{ id?: string; type: 'call' | 'put'; position_type: 'buy' | 'sell'; strike: number; expiry: string; quantity: number; original_quantity?: number; change_quantity?: number; is_covered?: boolean; symbol?: string }>, positions?: OptionsPosition[], accountId?: string | null, userId?: string | null }) => {
+  updatePositions: async (payload: { updates: Array<{ id?: string; type: 'call' | 'put'; position_type: 'buy' | 'sell'; strike: number; expiry: string; quantity: number; original_quantity?: number; change_quantity?: number; is_covered?: boolean; symbol?: string; option_type?: string; strike_price?: string | number }>, positions?: OptionsPosition[], accountId?: string | null, userId?: string | null }) => {
     await new Promise(resolve => setTimeout(resolve, 300));
     const updated = (payload?.updates || []).length;
     return { data: { updated }, error: null };

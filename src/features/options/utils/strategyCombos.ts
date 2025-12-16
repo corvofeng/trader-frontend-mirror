@@ -11,10 +11,28 @@ export type ComboMap = Map<number, number>;
  * 
  */
 export const computeCombosForPositions = (strategy: OptionsStrategy, type: 'call' | 'put'): ComboMap => {
-  if (!strategy.name.includes('认购牛市价差策略') && !strategy.name.includes('认沽熊市价差策略')) {
+  console.log('[computeCombosForPositions] Input:', { strategyName: strategy.name, type, positionsCount: strategy.positions.length });
+
+  // 扩展支持的策略名称列表
+  const supportedStrategies = [
+    '认购牛市价差策略', 
+    '认沽熊市价差策略',
+    '牛市看涨价差',
+    '熊市看涨价差',
+    '牛市看跌价差',
+    '熊市看跌价差',
+    '认沽熊市价差',
+    '认购牛市价差',
+  ];
+
+  const isSupported = supportedStrategies.some(s => strategy.name.includes(s));
+
+  if (!isSupported) {
+    console.log('[computeCombosForPositions] Strategy not supported, returning empty map');
     return new Map();
   }
   if (strategy.positions[0].type !== type) {
+    console.log('[computeCombosForPositions] Type mismatch, returning empty map');
     return new Map();
   }
 
@@ -25,5 +43,6 @@ export const computeCombosForPositions = (strategy: OptionsStrategy, type: 'call
       break;
     }
   }
+  console.log('[computeCombosForPositions] Result:', combosByStrike);
   return combosByStrike;
 };

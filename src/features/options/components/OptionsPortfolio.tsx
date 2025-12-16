@@ -298,7 +298,11 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       const selectedPositions = collectPositions();
       logger.debug('[OptionsPortfolio] selectedPositions', { ids: selectedPositions.map(p => p.id) });
       const rawSingles = (portfolioData?.expiryBuckets || []).flatMap(b => b.single);
-      const rawPositions = selectedPositions.map(p => rawSingles.find(x => x.id === p.id) || p);
+      const rawPositions = selectedPositions.map(p => rawSingles.find(x => x.id === p.id) || p).map(pos => ({
+        ...pos,
+        option_type: pos.type,
+        strike_price: String(pos.strike)
+      }));
       const selectedPositionsWithQty = selectedPositions.map(p => {
         const override = overrides?.[p.id];
         const base = Number(p.selectedQuantity ?? p.leg_quantity ?? p.quantity);
@@ -322,7 +326,9 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
           original_quantity: avail,
           change_quantity: targetQty - avail,
           is_covered: (p as any).position_type_zh === '备兑' || !!(p as any).is_covered,
-          symbol: p.symbol
+          symbol: p.symbol,
+          option_type: p.type,
+          strike_price: String(p.strike)
         };
       });
       const { error } = await optionsService.updatePositions({ updates, positions: rawPositions, accountId: selectedAccountIdProp || null, userId: currentUserId || null });
@@ -505,7 +511,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     confidence: number; // 0~1
   };
 
-  const inferStrategyFromLegs = (legs: OptionsPosition[]): InferredResult | null => {
+  const inferStrategyFromLegsInternal = (legs: OptionsPosition[]): InferredResult | null => {
     if (!legs || legs.length === 0) return null;
 
     const byType = {
@@ -593,6 +599,13 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
 
     // 兜底：返回中性分类
     return { nameZh: '自选组合', category: 'neutral', confidence: 0.5 };
+  };
+
+  const inferStrategyFromLegs = (legs: OptionsPosition[]): InferredResult | null => {
+    console.log('[inferStrategyFromLegs] Input legs:', legs);
+    const result = inferStrategyFromLegsInternal(legs);
+    console.log('[inferStrategyFromLegs] Result:', result);
+    return result;
   };
 
   // 生成策略ID的逻辑
@@ -1369,7 +1382,14 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
 
       {viewMode === 'expiry' ? (
         <div className="space-y-6">
-          {(portfolioData.expiryBuckets || []).map((group) => (
+          {(portfolioData.expiryBuckets && portfolioData.expiryBuckets.length > 0
+            ? portfolioData.expiryBuckets
+            : (portfolioData.expiryGroups || []).map(g => ({
+                ...g,
+                single: (g as any).single || g.positions,
+                complex: (g as any).complex || []
+              }))
+          ).map((group) => (
             <ExpiryGroupCard
               key={group.expiry}
               theme={theme}

@@ -247,7 +247,13 @@ export function ExpiryGroupCard({
                     </div>
                     <div className={`${themes[theme].background} rounded-lg p-4 border ${themes[theme].border}`}>
                       {(() => {
-                        const strikes = Array.from(new Set(filteredPositions.map(p => p.strike))).sort((a, b) => a - b);
+                        const complexStrikes = (group.complex || []).flatMap(s => 
+                          s.positions
+                            .filter(p => p.expiry === group.expiry && (!selectedSymbol || p.opt_undl_code_full === selectedSymbol))
+                            .map(p => Number(p.contract_strike_price ?? p.strike))
+                        );
+                        const singleStrikes = filteredPositions.map(p => p.strike);
+                        const strikes = Array.from(new Set([...singleStrikes, ...complexStrikes])).sort((a, b) => a - b);
                         const rows = strikes.map(strike => {
                           const callSell = filteredPositions
                             .filter(p => p.strike === strike && p.type === 'call' && p.position_type === 'sell')
@@ -257,6 +263,7 @@ export function ExpiryGroupCard({
                             .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
                           return { strike, callSell, putSell };
                         });
+
                         const hasData = filteredPositions.length > 0;
                         if (!hasData) {
                           return (
@@ -397,7 +404,7 @@ export function ExpiryGroupCard({
                                                     bucket.complex.forEach(s => {
                                                       if (
                                                         s.positions.some(p => p.expiry === group.expiry) &&
-                                                        s.name.includes('认购牛市价差策略') &&
+                                                        (s.name.includes('认购牛市价差策略') || s.name.includes('牛市看涨价差') || s.name.includes('熊市看涨价差')) &&
                                                         (s.positions[0]?.type === 'call' || (s.positions[0]?.contract_type_zh as any) === 'call')
                                                       ) {
                                                         const buyLeg = s.positions.find(p => p.position_type === 'buy');
@@ -519,7 +526,7 @@ export function ExpiryGroupCard({
                                                     bucket.complex.forEach(s => {
                                                       if (
                                                         s.positions.some(p => p.expiry === group.expiry) &&
-                                                        s.name.includes('认沽熊市价差策略') &&
+                                                        (s.name.includes('认沽熊市价差策略') || s.name.includes('牛市看跌价差') || s.name.includes('熊市看跌价差')) &&
                                                         (s.positions[0]?.type === 'put' || (s.positions[0]?.contract_type_zh as any) === 'put')
                                                       ) {
                                                         const buyLeg = s.positions.find(p => p.position_type === 'buy');
@@ -1098,7 +1105,7 @@ export function ExpiryGroupCard({
                   put_covered: { type: 'put', position_type: 'sell' }
                 };
                 const p = map[category];
-                const resp = await optionsService.updatePositions({ updates: [{ type: p.type, position_type: p.position_type, strike, expiry: String(confirmData.meta?.expiry || group.expiry), quantity: sum }], accountId: selectedAccountId || null, userId: userId || null });
+                const resp = await optionsService.updatePositions({ updates: [{ type: p.type, position_type: p.position_type, strike, expiry: String(confirmData.meta?.expiry || group.expiry), quantity: sum, option_type: p.type, strike_price: String(strike) }], accountId: selectedAccountId || null, userId: userId || null });
                 if (resp.error) {
                   toast.error('同步失败');
                 } else {
@@ -1168,16 +1175,20 @@ export function ExpiryGroupCard({
                   );
                 }
 
-                const positionsToSend = matches.length > 0 ? matches : (referencePos ? [{
+                const positionsToSend = (matches.length > 0 ? matches.map(m => ({ ...m })) : (referencePos ? [{
                   ...referencePos,
                   id: '', // Clear ID to avoid updating the reference position
                   type: p.type,
                   position_type: p.position_type,
                   is_covered: category === 'call_covered' || category === 'put_covered',
                   position_type_zh: (category === 'call_covered' || category === 'put_covered') ? '备兑' : ((p.position_type === 'sell') ? '义务' : '权利')
-                } as OptionsPosition] : []);
+                } as OptionsPosition] : [])).map(pos => ({
+                  ...pos,
+                  option_type: pos.type,
+                  strike_price: String(pos.strike)
+                }));
 
-                const resp = await optionsService.updatePositions({ updates: [{ type: p.type, position_type: p.position_type, strike, expiry: String(confirmData.meta?.expiry || group.expiry), quantity: q, original_quantity: origAvailSum, change_quantity: change, is_covered: category === 'call_covered' || category === 'put_covered', symbol: foundSymbol }], positions: positionsToSend, accountId: selectedAccountId || null, userId: userId || null });
+                const resp = await optionsService.updatePositions({ updates: [{ type: p.type, position_type: p.position_type, strike, expiry: String(confirmData.meta?.expiry || group.expiry), quantity: q, original_quantity: origAvailSum, change_quantity: change, is_covered: category === 'call_covered' || category === 'put_covered', symbol: foundSymbol, option_type: p.type, strike_price: String(strike) }], positions: positionsToSend, accountId: selectedAccountId || null, userId: userId || null });
                 if (resp.error) {
                   toast.error('同步失败');
                 } else {

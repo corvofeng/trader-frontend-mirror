@@ -114,8 +114,10 @@ export interface OptionsPosition {
   symbol: string;
   strategy: string;
   type: 'call' | 'put' | 'spread' | 'straddle' | 'strangle' | 'iron_condor' | 'butterfly';
+  option_type?: string;
   position_type: 'buy' | 'sell';
   strike: number;
+  strike_price?: string | number;
   expiry: string;
   quantity: number;
   premium: number;
