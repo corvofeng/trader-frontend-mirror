@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { format } from 'date-fns';
 import { Activity, RefreshCw, CheckCircle, XCircle, Calendar, Filter, Eye, EyeOff } from 'lucide-react';
 import { Theme, themes } from '../../../../lib/theme';
@@ -21,7 +21,7 @@ export function OperationsView({ theme }: OperationsViewProps) {
   const [filter, setFilter] = useState<'all' | 'success' | 'failed'>('all');
   const [showDetails, setShowDetails] = useState(false);
 
-  const fetchOperations = async (refresh = false) => {
+  const fetchOperations = useCallback(async (refresh = false) => {
     try {
       if (refresh) {
         setIsRefreshing(true);
@@ -42,11 +42,11 @@ export function OperationsView({ theme }: OperationsViewProps) {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  };
+  }, [dateRange.startDate, dateRange.endDate]);
 
   useEffect(() => {
     fetchOperations();
-  }, [dateRange, fetchOperations]);
+  }, [fetchOperations]);
 
   const filteredOperations = operations.filter(op => 
     filter === 'all' || op.result === filter
