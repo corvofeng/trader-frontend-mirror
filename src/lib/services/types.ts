@@ -452,6 +452,7 @@ export interface OptionsPortfolioData {
   }>;
   customStrategies?: CustomOptionsStrategy[]; // 自定义策略列表
   advised_combinations?: AdvisedCombination[];
+  is_snapshot?: boolean;
 }
 export interface OptionsService {
   getOptionsData: (symbol?: string) => Promise<ServiceResponse<OptionsData>>;

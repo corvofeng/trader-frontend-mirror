@@ -164,6 +164,7 @@ export interface OptionsPortfolioData {
     totalCost: number;
     profitLoss: number;
   }>;
+  is_snapshot?: boolean;
 }
 
 export interface OptionsService {

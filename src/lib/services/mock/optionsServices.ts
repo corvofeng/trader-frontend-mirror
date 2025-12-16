@@ -591,7 +591,8 @@ const generateMockOptionsPortfolio = (): OptionsPortfolioData => {
     totalCost,
     totalProfitLoss,
     totalProfitLossPercentage,
-    expiryGroups: []
+    expiryGroups: [],
+    is_snapshot: true
   };
 };
 

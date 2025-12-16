@@ -98,6 +98,20 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
       {/* Tab Content */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
+          {portfolioData?.is_snapshot && (
+            <div className="bg-amber-50 border-l-4 border-amber-500 p-4 mb-4 dark:bg-amber-900/30">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <Activity className="h-5 w-5 text-amber-400" aria-hidden="true" />
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm text-amber-700 dark:text-amber-200">
+                    当前显示的数据为快照数据，可能与实时市场状态存在延迟。
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
           {isLoading ? (
             <div className="text-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>

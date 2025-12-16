@@ -846,6 +846,20 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
 
   return (
     <div className="space-y-6">
+      {portfolioData.is_snapshot && (
+        <div className="bg-amber-50 border-l-4 border-amber-500 p-4 mb-4 dark:bg-amber-900/30">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <Activity className="h-5 w-5 text-amber-400" aria-hidden="true" />
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-amber-700 dark:text-amber-200">
+                当前显示的数据为快照数据，可能与实时市场状态存在延迟。
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Portfolio Overview */}
       <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
         <div className="p-6 border-b border-gray-200">
