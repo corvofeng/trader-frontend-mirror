@@ -1154,7 +1154,30 @@ export function ExpiryGroupCard({
                 });
                 const origAvailSum = matches.reduce((acc, x) => acc + (Number((x as any)?.available ?? (Number((x as any)?.selectedQuantity ?? (x as any)?.leg_quantity ?? x.quantity) || 0)) || 0), 0);
                 const change = q - origAvailSum;
-                const resp = await optionsService.updatePositions({ updates: [{ type: p.type, position_type: p.position_type, strike, expiry: String(confirmData.meta?.expiry || group.expiry), quantity: q, original_quantity: origAvailSum, change_quantity: change }], positions: matches, accountId: selectedAccountId || null, userId: userId || null });
+                const foundSymbol = selectedSymbol || filteredPositions.find(pos => Number((pos as any)?.contract_strike_price ?? pos.strike) === strike)?.symbol;
+                
+                // Try to find a reference position to supply contract details
+                let referencePos = matches.length > 0 ? matches[0] : undefined;
+                if (!referencePos) {
+                  // If no direct matches, look for any position with same expiry, strike and type (Call/Put)
+                  // to get the contract details (contract_code, etc.)
+                  referencePos = filteredPositions.find(pos => 
+                    pos.expiry === group.expiry && 
+                    Number((pos as any)?.contract_strike_price ?? pos.strike) === strike &&
+                    (pos.type === p.type || (pos as any).contract_type_zh === p.type)
+                  );
+                }
+
+                const positionsToSend = matches.length > 0 ? matches : (referencePos ? [{
+                  ...referencePos,
+                  id: '', // Clear ID to avoid updating the reference position
+                  type: p.type,
+                  position_type: p.position_type,
+                  is_covered: category === 'call_covered' || category === 'put_covered',
+                  position_type_zh: (category === 'call_covered' || category === 'put_covered') ? '备兑' : ((p.position_type === 'sell') ? '义务' : '权利')
+                } as OptionsPosition] : []);
+
+                const resp = await optionsService.updatePositions({ updates: [{ type: p.type, position_type: p.position_type, strike, expiry: String(confirmData.meta?.expiry || group.expiry), quantity: q, original_quantity: origAvailSum, change_quantity: change, is_covered: category === 'call_covered' || category === 'put_covered', symbol: foundSymbol }], positions: positionsToSend, accountId: selectedAccountId || null, userId: userId || null });
                 if (resp.error) {
                   toast.error('同步失败');
                 } else {

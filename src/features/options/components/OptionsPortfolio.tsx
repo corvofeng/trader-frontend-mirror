@@ -320,7 +320,9 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
           expiry: p.expiry,
           quantity: targetQty,
           original_quantity: avail,
-          change_quantity: targetQty - avail
+          change_quantity: targetQty - avail,
+          is_covered: (p as any).position_type_zh === '备兑' || !!(p as any).is_covered,
+          symbol: p.symbol
         };
       });
       const { error } = await optionsService.updatePositions({ updates, positions: rawPositions, accountId: selectedAccountIdProp || null, userId: currentUserId || null });

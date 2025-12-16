@@ -473,7 +473,7 @@ export interface OptionsService {
     accountId?: string | null,
     userId?: string | null
   ) => Promise<ServiceResponse<{ closedIds: string[] }>>;
-  updatePositions: (payload: { updates: Array<{ id?: string; type: 'call' | 'put'; position_type: 'buy' | 'sell'; strike: number; expiry: string; quantity: number; original_quantity?: number; change_quantity?: number }>, positions?: OptionsPosition[], accountId?: string | null, userId?: string | null }) => Promise<ServiceResponse<{ updated: number }>>;
+  updatePositions: (payload: { updates: Array<{ id?: string; type: 'call' | 'put'; position_type: 'buy' | 'sell'; strike: number; expiry: string; quantity: number; original_quantity?: number; change_quantity?: number; is_covered?: boolean; symbol?: string }>, positions?: OptionsPosition[], accountId?: string | null, userId?: string | null }) => Promise<ServiceResponse<{ updated: number }>>;
   executeCombination: (combo: AdvisedCombination & { quantity: number }, accountId?: string | null, userId?: string | null) => Promise<ServiceResponse<{ executed: boolean; combinationId?: string }>>;
   closeCombination: (
     payload: {
