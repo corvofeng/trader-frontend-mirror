@@ -1228,8 +1228,18 @@ export function ExpiryGroupCard({
                   return (
                     <div className={`text-xs ${themes[theme].text} flex items-center gap-2 mb-2 p-2 rounded border ${themes[theme].border}`}>
                         <span className="font-medium">最新价: {priceData.price}</span>
-                        {priceData.bid && <span className="text-red-500">买: {priceData.bid}</span>}
-                        {priceData.ask && <span className="text-green-500">卖: {priceData.ask}</span>}
+                        {priceData.bid && (
+                          <span className="text-red-500">
+                            买: {priceData.bid}
+                            {priceData.bid_vol && priceData.bid_vol.length > 0 && <span className="opacity-75 ml-1">({priceData.bid_vol[0]})</span>}
+                          </span>
+                        )}
+                        {priceData.ask && (
+                          <span className="text-green-500">
+                            卖: {priceData.ask}
+                            {priceData.ask_vol && priceData.ask_vol.length > 0 && <span className="opacity-75 ml-1">({priceData.ask_vol[0]})</span>}
+                          </span>
+                        )}
                         <span className="opacity-50 text-[10px] ml-auto">{format(new Date(priceData.timestamp), 'HH:mm:ss')}</span>
                     </div>
                   );
