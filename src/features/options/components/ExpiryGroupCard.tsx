@@ -452,18 +452,20 @@ export function ExpiryGroupCard({
                             <table className="w-full text-sm">
                               <thead>
                                 <tr className={`${themes[theme].text} opacity-75`}>
-                                  <th className="text-center py-2" colSpan={5}>Calls</th>
+                                  <th className="text-center py-2" colSpan={6}>Calls</th>
                                   <th className={`text-center py-2 border-l border-r ${themes[theme].border}`}></th>
-                                  <th className="text-center py-2" colSpan={5}>Puts</th>
+                                  <th className="text-center py-2" colSpan={6}>Puts</th>
                                 </tr>
                                 <tr className={`text-xs ${themes[theme].text} opacity-70`}>
                                   <th className="text-center py-2">Call 组合</th>
                                   <th className="text-center py-2">Call 备兑</th>
                                   <th className="text-center py-2">Call 义务</th>
                                   <th className="text-center py-2 px-3">Call 权利</th>
+                                  <th className="text-center py-2 px-3">Call 时间价值</th>
                                   <th className={`text-center py-2 px-3 border-r ${themes[theme].border}`}>Call 现价</th>
                                   <th className="text-center py-2 px-4">行权价</th>
                                   <th className={`text-center py-2 px-3 border-l ${themes[theme].border}`}>Put 现价</th>
+                                  <th className="text-center py-2 px-3">Put 时间价值</th>
                                   <th className="text-center py-2 px-3">Put 权利</th>
                                   <th className="text-center py-2">Put 义务</th>
                                   <th className="text-center py-2">Put 备兑</th>
@@ -582,13 +584,21 @@ export function ExpiryGroupCard({
 
                                     // Time Value Highlight
                                     let timeValueColor = 'transparent';
+                                    let displayCallTV = '-';
+                                    let displayPutTV = '-';
+
                                     if (underlyingPrice != null) {
                                       const cp = parseFloat(callPrice);
                                       const pp = parseFloat(putPrice);
-                                      if (!isNaN(cp) || !isNaN(pp)) {
-                                        const callTV = !isNaN(cp) ? Math.max(0, cp - Math.max(0, underlyingPrice - m.s)) : 0;
-                                        const putTV = !isNaN(pp) ? Math.max(0, pp - Math.max(0, m.s - underlyingPrice)) : 0;
-                                        const maxTV = Math.max(callTV, putTV);
+                                      
+                                      const callTV = !isNaN(cp) ? Math.max(0, cp - Math.max(0, underlyingPrice - m.s)) : null;
+                                      const putTV = !isNaN(pp) ? Math.max(0, pp - Math.max(0, m.s - underlyingPrice)) : null;
+
+                                      if (callTV !== null) displayCallTV = callTV.toFixed(4);
+                                      if (putTV !== null) displayPutTV = putTV.toFixed(4);
+
+                                      if (callTV !== null || putTV !== null) {
+                                        const maxTV = Math.max(callTV || 0, putTV || 0);
                                         const tvRatio = maxTV / underlyingPrice;
                                         // Intensity logic: High TV (e.g. ATM) -> Vivid Color
                                         const intensity = Math.min(1, tvRatio * 25); // 4% TV = 100% intensity
@@ -681,6 +691,9 @@ export function ExpiryGroupCard({
                                             </div>
                                           </div>
                                         </td>
+                                        <td className={`text-center py-2 px-3 w-24 ${themes[theme].text}`}>
+                                            <span className="font-mono text-gray-500">{displayCallTV}</span>
+                                        </td>
                                         <td className={`text-center py-2 px-3 w-24 border-r ${themes[theme].border} ${themes[theme].text}`}>
                                             <span className="font-mono">{callPrice || '-'}</span>
                                         </td>
@@ -691,6 +704,9 @@ export function ExpiryGroupCard({
                                         </td>
                                         <td className={`text-center py-2 px-3 w-24 border-l ${themes[theme].border} ${themes[theme].text}`}>
                                             <span className="font-mono">{putPrice || '-'}</span>
+                                        </td>
+                                        <td className={`text-center py-2 px-3 w-24 ${themes[theme].text}`}>
+                                            <span className="font-mono text-gray-500">{displayPutTV}</span>
                                         </td>
                                         <td className={`text-center py-2 px-3 w-20 ${themes[theme].text}`}>
                                           <div className="flex items-center justify-center gap-1">
