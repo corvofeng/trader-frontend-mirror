@@ -29,7 +29,7 @@ interface ExpiryGroupCardProps {
   allExpiryBuckets: Array<{ expiry: string; daysToExpiry: number; single: OptionsPosition[]; complex: OptionsStrategy[] }>;
   selectedSymbol: string;
   underlyingPrice: number | null;
-  onClosePositions: (ids: string[], meta?: { action?: string; comboType?: 'call' | 'put'; strike?: number; expiry?: string; strategyIds?: string[]; category?: string; quote?: OptionQuote }, overrides?: Record<string, number>) => Promise<void>;
+  onClosePositions: (ids: string[], meta?: { action?: string; comboType?: 'call' | 'put'; strike?: number; expiry?: string; strategyIds?: string[]; category?: string; quote?: OptionQuote; contract_code?: string; contract_code_full?: string }, overrides?: Record<string, number>) => Promise<void>;
   advisedCombinations?: AdvisedCombination[];
   onLoadAdvised?: (combo: AdvisedCombination) => void;
   onExecuteAdvised?: (combo: AdvisedCombination) => void;
@@ -74,7 +74,7 @@ export function ExpiryGroupCard({
   const { data: localOptionsData, symbol: localDataSymbol } = localState;
 
   const [advisedModal, setAdvisedModal] = useState<{ combo: AdvisedCombination; quantity: number } | null>(null);
-  const [confirmData, setConfirmData] = useState<{ ids: string[]; meta?: { action?: string; comboType?: 'call' | 'put'; strike?: number; expiry?: string; strategyIds?: string[]; category?: string; defaultComboCount?: number; perLegMaxQty?: Record<string, number>; quote?: OptionQuote }; title: string; description: string } | null>(null);
+  const [confirmData, setConfirmData] = useState<{ ids: string[]; meta?: { action?: string; comboType?: 'call' | 'put'; strike?: number; expiry?: string; strategyIds?: string[]; category?: string; defaultComboCount?: number; perLegMaxQty?: Record<string, number>; quote?: OptionQuote; contract_code?: string; contract_code_full?: string }; title: string; description: string } | null>(null);
   const [qtyOverrides, setQtyOverrides] = useState<Record<string, number>>({});
   const [editValues, setEditValues] = useState<Record<string, number>>({});
   const basePositions = filterAndSortPositions(group.single);
@@ -570,7 +570,7 @@ export function ExpiryGroupCard({
                                                   if (uniqueIds.length > 0) {
                                                     setConfirmData({
                                                       ids: uniqueIds,
-                                                      meta: { action: 'unwind_combo', comboType: 'call', strike: m.s, expiry: group.expiry, strategyIds: uniqueStrategyIds, defaultComboCount: defaultComboCountSum, perLegMaxQty, quote },
+                                                      meta: { action: 'unwind_combo', comboType: 'call', strike: m.s, expiry: group.expiry, strategyIds: uniqueStrategyIds, defaultComboCount: defaultComboCountSum, perLegMaxQty, quote, contract_code: quote?.call_contract_code, contract_code_full: quote?.call_contract_code_full },
                                                       title: '确认解除组合',
                                                       description: `将解除组合：CALL 组合 @${m.s}（到期 ${format(new Date(group.expiry), 'yyyy-MM-dd')}），涉及腿数 ${uniqueIds.length}`
                                                     });
@@ -693,7 +693,7 @@ export function ExpiryGroupCard({
                                                   if (uniqueIds.length > 0) {
                                                     setConfirmData({
                                                       ids: uniqueIds,
-                                                      meta: { action: 'unwind_combo', comboType: 'put', strike: m.s, expiry: group.expiry, strategyIds: uniqueStrategyIds, defaultComboCount: defaultComboCountSum, perLegMaxQty, quote },
+                                                      meta: { action: 'unwind_combo', comboType: 'put', strike: m.s, expiry: group.expiry, strategyIds: uniqueStrategyIds, defaultComboCount: defaultComboCountSum, perLegMaxQty, quote, contract_code: quote?.put_contract_code, contract_code_full: quote?.put_contract_code_full },
                                                       title: '确认解除组合',
                                                       description: `将解除组合：PUT 组合 @${m.s}（到期 ${format(new Date(group.expiry), 'yyyy-MM-dd')}），涉及腿数 ${uniqueIds.length}`
                                                     });
