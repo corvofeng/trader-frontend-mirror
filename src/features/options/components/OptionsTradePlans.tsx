@@ -83,7 +83,8 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
   const sortedExpiries = Object.keys(groupedByExpiry).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
   const getMoneyness = (rp: RatioSpreadPlanResult): 'itm' | 'atm' | 'otm' => {
-    const strike = rp.analysis?.buy_strike_price;
+    // Explicitly check for analysis to prevent "Cannot read properties of null" error
+    const strike = (rp.analysis && rp.analysis.buy_strike_price != null) ? rp.analysis.buy_strike_price : null;
     const type = rp.plan.option_type;
     const threshold = 0.005;
     if (strike == null) return 'otm';

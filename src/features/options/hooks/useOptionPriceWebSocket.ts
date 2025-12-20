@@ -1,7 +1,17 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 
-// Use environment variable or default to localhost
-const WS_URL = (import.meta as any).env?.VITE_WS_URL || 'ws://localhost:8000/ws/option-prices';
+// Use environment variable or construct from current host
+const getWebSocketUrl = () => {
+  if ((import.meta as any).env?.VITE_WS_URL) {
+    return (import.meta as any).env.VITE_WS_URL;
+  }
+  // Check if window is defined (browser environment)
+  if (typeof window !== 'undefined') {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${protocol}//${window.location.host}/api/ws/option-prices`;
+  }
+  return 'ws://localhost:8000/ws/option-prices'; // Fallback
+};
 
 export interface PriceUpdate {
   contract_code: string;
@@ -19,7 +29,7 @@ export function useOptionPriceWebSocket() {
   useEffect(() => {
     // Initialize WebSocket connection
     try {
-        ws.current = new WebSocket(WS_URL);
+        ws.current = new WebSocket(getWebSocketUrl());
 
         ws.current.onopen = () => {
           console.log('Option Price WebSocket Connected');
