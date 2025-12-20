@@ -106,22 +106,9 @@ export function ExpiryGroupCard({
 
   // Calculate codes for pricing
   const codes = useMemo(() => {
-    const positionCodes = filteredPositions.map(p => p.contract_code_full).filter(Boolean) as string[];
-    
-    // Collect codes from all available data sources
-    const dataSources = [optionsData, localOptionsData, ...(optionsDataMap ? Object.values(optionsDataMap) : [])].filter(Boolean);
-    
-    const allOptionCodes = dataSources.flatMap(data => 
-      (data?.quotes || [])
-        .filter(q => q.expiry === group.expiry)
-        .flatMap(q => [
-          q.call_contract_code_full,
-          q.put_contract_code_full
-        ])
-    ).filter(Boolean) as string[];
-    
-    return Array.from(new Set([...positionCodes, ...allOptionCodes])).sort();
-  }, [filteredPositions, optionsData, localOptionsData, optionsDataMap, group.expiry]);
+    // Only query prices for positions held by the user
+    return filteredPositions.map(p => p.contract_code_full).filter(Boolean).sort();
+  }, [filteredPositions]);
   const codesKey = JSON.stringify(codes);
 
   useEffect(() => {
@@ -593,8 +580,28 @@ export function ExpiryGroupCard({
                                       putPrice = getPrice(putCode, putFullCode, quote.put_last_price);
                                     }
 
+                                    // Time Value Highlight
+                                    let timeValueColor = 'transparent';
+                                    if (underlyingPrice != null) {
+                                      const cp = parseFloat(callPrice);
+                                      const pp = parseFloat(putPrice);
+                                      if (!isNaN(cp) || !isNaN(pp)) {
+                                        const callTV = !isNaN(cp) ? Math.max(0, cp - Math.max(0, underlyingPrice - m.s)) : 0;
+                                        const putTV = !isNaN(pp) ? Math.max(0, pp - Math.max(0, m.s - underlyingPrice)) : 0;
+                                        const maxTV = Math.max(callTV, putTV);
+                                        const tvRatio = maxTV / underlyingPrice;
+                                        // Intensity logic: High TV (e.g. ATM) -> Vivid Color
+                                        const intensity = Math.min(1, tvRatio * 25); // 4% TV = 100% intensity
+                                        if (intensity > 0.01) {
+                                          // Gold/Orange for time value
+                                          const alpha = theme === 'dark' ? 0.3 : 0.5;
+                                          timeValueColor = `rgba(255, 170, 0, ${intensity * alpha})`;
+                                        }
+                                      }
+                                    }
+
                                   return (
-                                      <tr key={`trow-top-${group.expiry}-${m.s}`} className={themes[theme].cardHover} style={{ backgroundImage: bg }}>
+                                      <tr key={`trow-top-${group.expiry}-${m.s}`} className={themes[theme].cardHover} style={{ backgroundImage: bg, backgroundColor: timeValueColor }}>
                                         <td className={`text-center py-2 ${themes[theme].text}`}>
                                           <div className="flex flex-col items-center gap-1">
                                             <span className={`${themes[theme].text}`}>{m.comboCallQty}</span>
