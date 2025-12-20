@@ -50,6 +50,9 @@ def option_prices(ws):
                     # Send response back to client
                     # Can send as a list or individual updates
                     ws.send(json.dumps(response_data))
+
+                elif action == 'ping':
+                    ws.send(json.dumps({"action": "pong", "timestamp": int(time.time() * 1000)}))
                     
             except json.JSONDecodeError:
                 print(f"Invalid JSON received: {data}")

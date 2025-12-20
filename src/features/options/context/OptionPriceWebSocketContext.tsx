@@ -53,6 +53,7 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
   const ws = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [prices, setPrices] = useState<Record<string, PriceUpdate>>({});
+  const lastPongTime = useRef<number>(Date.now());
 
   const connect = useCallback(() => {
     // If a connection exists, close it first
@@ -67,6 +68,7 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
       ws.current.onopen = () => {
         console.log('Option Price WebSocket Connected');
         setIsConnected(true);
+        lastPongTime.current = Date.now();
       };
 
       ws.current.onclose = () => {
@@ -81,6 +83,12 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
       ws.current.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          
+          if (data.action === 'pong') {
+            lastPongTime.current = Date.now();
+            return;
+          }
+
           // Assuming the server returns { contract_code: "...", price: ... } or a list
           if (Array.isArray(data)) {
             const updates: Record<string, PriceUpdate> = {};
@@ -120,6 +128,28 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
         ws.current.close();
       }
     };
+  }, [connect]);
+
+  useEffect(() => {
+    const PING_INTERVAL = 3000;
+    const PONG_TIMEOUT = 5000;
+
+    const intervalId = setInterval(() => {
+      if (ws.current?.readyState === WebSocket.OPEN) {
+        try {
+          ws.current.send(JSON.stringify({ action: 'ping' }));
+          
+          if (Date.now() - lastPongTime.current > PONG_TIMEOUT) {
+            console.warn('WebSocket heartbeat timeout - Reconnecting...');
+            connect();
+          }
+        } catch (e) {
+          console.error('Failed to send ping:', e);
+        }
+      }
+    }, PING_INTERVAL);
+
+    return () => clearInterval(intervalId);
   }, [connect]);
 
   const queryPrice = useCallback((contractCodes: string[]) => {
