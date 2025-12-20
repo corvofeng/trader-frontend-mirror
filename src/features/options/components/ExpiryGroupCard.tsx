@@ -7,6 +7,7 @@ import { optionsService } from '../../../lib/services';
 import { stockService } from '../../../lib/services';
 import { logger } from '../../../shared/utils/logger';
 import toast from 'react-hot-toast';
+import { useOptionPriceWebSocket } from '../hooks/useOptionPriceWebSocket';
 
 interface ExpiryGroupCardProps {
   theme: Theme;
@@ -293,9 +294,14 @@ export function ExpiryGroupCard({
                           }, 0);
                           const desc = `${categoryLabel[c]} @${s}（到期 ${format(new Date(group.expiry), 'yyyy-MM-dd')}），当前数量 ${currentSum}`;
                           const syntheticId = `sync-${c}-${s}`;
-                          setConfirmData({
-                            ids: [syntheticId],
-                            meta: { action: 'sync_category', category: c, strike: s, expiry: group.expiry },
+          // 触发价格查询
+          const codes = ids.map(id => filteredPositions.find(p => p.id === id)?.contract_code).filter(Boolean) as string[];
+          if (codes.length > 0) {
+            queryPrice(codes);
+          }
+          setConfirmData({
+            ids: [syntheticId],
+            meta: { action: 'sync_category', category: c, strike: s, expiry: group.expiry },
                             title,
                             description: desc
                           });
@@ -950,6 +956,23 @@ export function ExpiryGroupCard({
             </div>
           ) : confirmData.meta?.action === 'sync_category' ? (
             <div className="space-y-2">
+              {(() => {
+                  const s = Number(confirmData.meta?.strike || 0);
+                  const c = String(confirmData.meta?.category || '') as any;
+                  const ids = collectIdsForCategory(c, s);
+                  const pos = filteredPositions.find(p => p.id === ids[0]);
+                  const code = pos?.contract_code;
+                  const priceData = code ? prices[code] : null;
+                  if (!priceData) return null;
+                  return (
+                    <div className={`text-xs ${themes[theme].text} flex items-center gap-2 mb-2 p-2 rounded border ${themes[theme].border}`}>
+                        <span className="font-medium">最新价: {priceData.price}</span>
+                        {priceData.bid && <span className="text-red-500">买: {priceData.bid}</span>}
+                        {priceData.ask && <span className="text-green-500">卖: {priceData.ask}</span>}
+                        <span className="opacity-50 text-[10px] ml-auto">{format(new Date(priceData.timestamp), 'HH:mm:ss')}</span>
+                    </div>
+                  );
+              })()}
               <div className="flex items-center justify-between gap-2">
                 <div className={`text-xs ${themes[theme].text}`}>目标数量</div>
                 <div className="flex items-center gap-2">
