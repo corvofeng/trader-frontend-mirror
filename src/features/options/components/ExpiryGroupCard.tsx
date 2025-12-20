@@ -68,7 +68,7 @@ export function ExpiryGroupCard({
   optionsData,
   optionsDataMap,
 }: ExpiryGroupCardProps) {
-  const { queryPrice, prices, isConnected } = useOptionPriceWebSocket();
+  const { queryPrice, prices, isConnected, connect } = useOptionPriceWebSocket();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [localState, setLocalState] = useState<{ data: OptionsData | null; symbol: string | null }>({ data: null, symbol: null });
   const { data: localOptionsData, symbol: localDataSymbol } = localState;
