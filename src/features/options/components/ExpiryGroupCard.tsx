@@ -591,7 +591,6 @@ export function ExpiryGroupCard({
                                         return last ? last.toFixed(4) : '-';
                                       };
                                       
-                                      debugger;
                                       callPrice = getPrice(callCode, callFullCode, quote.call_last_price);
                                       putPrice = getPrice(putCode, putFullCode, quote.put_last_price);
                                     }
