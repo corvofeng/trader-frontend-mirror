@@ -10,7 +10,7 @@ const getWebSocketUrl = () => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     return `${protocol}//${window.location.host}/api/ws/option-prices`;
   }
-  return 'ws://localhost:8000/ws/option-prices'; // Fallback
+  return 'ws://localhost:8000/api/ws/option-prices'; // Fallback
 };
 
 export interface PriceUpdate {
