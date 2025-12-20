@@ -159,7 +159,7 @@ export function ExpiryGroupCard({
   };
 
   const collectIdsForCategory = (
-    category: 'call_normal' | 'put_normal' | 'call_right' | 'put_right' | 'call_covered' | 'put_covered',
+    category: 'call_obligation' | 'put_obligation' | 'call_right' | 'put_right' | 'call_covered' | 'put_covered',
     strike: number
   ): string[] => {
     const isCallLeg = (p: OptionsPosition) => {
@@ -182,8 +182,8 @@ export function ExpiryGroupCard({
         const sameStrike = p.strike === strike;
         const sameExpiry = p.expiry === group.expiry;
         if (!sameStrike || !sameExpiry) return false;
-        if (category === 'call_normal') return isCall && isSell && !isCovered;
-        if (category === 'put_normal') return isPut && isSell && !isCovered;
+        if (category === 'call_obligation') return isCall && isSell && !isCovered;
+        if (category === 'put_obligation') return isPut && isSell && !isCovered;
         if (category === 'call_right') return isCall && isBuy;
         if (category === 'put_right') return isPut && isBuy;
         if (category === 'call_covered') return isCall && isSell && isCovered;
@@ -196,7 +196,7 @@ export function ExpiryGroupCard({
   };
 
   const openConfirmFor = (
-    category: 'call_normal' | 'put_normal' | 'call_right' | 'put_right' | 'call_covered' | 'put_covered',
+    category: 'call_obligation' | 'put_obligation' | 'call_right' | 'put_right' | 'call_covered' | 'put_covered',
     strike: number,
     title: string,
     descriptionPrefix: string
@@ -228,7 +228,7 @@ export function ExpiryGroupCard({
     } else if (confirmData.meta?.action === 'sync_category') {
       const key = confirmData.ids[0];
       const strike = Number(confirmData.meta?.strike || 0);
-      const category = String(confirmData.meta?.category || '') as 'call_right' | 'call_normal' | 'put_right' | 'put_normal' | 'call_covered' | 'put_covered';
+      const category = String(confirmData.meta?.category || '') as 'call_right' | 'call_obligation' | 'put_right' | 'put_obligation' | 'call_covered' | 'put_covered';
       const ids = collectIdsForCategory(category, strike);
       const sum = ids.reduce((acc, id) => {
         const pos = filteredPositions.find(x => x.id === id);
@@ -366,17 +366,17 @@ export function ExpiryGroupCard({
                         }
                         const keyOf = (c: string, s: number) => `${c}-${s}`;
                         const displayVal = (c: string, s: number, d: number) => (editValues[keyOf(c, s)] ?? d);
-                        const setDisplayVal = (c: 'call_right' | 'call_normal' | 'put_right' | 'put_normal' | 'call_covered' | 'put_covered', s: number, v: number) => {
+                        const setDisplayVal = (c: 'call_right' | 'call_obligation' | 'put_right' | 'put_obligation' | 'call_covered' | 'put_covered', s: number, v: number) => {
                           setEditValues(prev => ({ ...prev, [keyOf(c, s)]: Math.max(0, v) }));
                         };
-                        const openAdjustConfirm = (c: 'call_right' | 'call_normal' | 'put_right' | 'put_normal' | 'call_covered' | 'put_covered', s: number) => {
+                        const openAdjustConfirm = (c: 'call_right' | 'call_obligation' | 'put_right' | 'put_obligation' | 'call_covered' | 'put_covered', s: number) => {
                           const title = '确认调整持仓数量';
                           const categoryLabel: Record<string, string> = {
                             call_right: 'Call 权利',
-                            call_normal: 'Call 义务',
+                            call_obligation: 'Call 义务',
                             call_covered: 'Call 备兑',
                             put_right: 'Put 权利',
-                            put_normal: 'Put 义务',
+                            put_obligation: 'Put 义务',
                             put_covered: 'Put 备兑'
                           };
                           const ids = collectIdsForCategory(c, s);
@@ -387,6 +387,25 @@ export function ExpiryGroupCard({
                           }, 0);
                           const desc = `${categoryLabel[c]} @${s}（到期 ${format(new Date(group.expiry), 'yyyy-MM-dd')}），当前数量 ${currentSum}`;
                           const syntheticId = `sync-${c}-${s}`;
+
+                          // Find quote logic
+                          const findQuote = (data: OptionsData) => {
+                            return data.quotes?.find(q => q.expiry === group.expiry && Number(q.strike_price) === s);
+                          };
+                          let quote: OptionQuote | undefined;
+                          if (optionsData) quote = findQuote(optionsData);
+                          if (!quote && optionsDataMap) {
+                            for (const data of Object.values(optionsDataMap)) {
+                              quote = findQuote(data);
+                              if (quote) break;
+                            }
+                          }
+                          if (!quote && localOptionsData) quote = findQuote(localOptionsData);
+
+                          const isCall = c.startsWith('call');
+                          const contract_code = isCall ? quote?.call_contract_code : quote?.put_contract_code;
+                          const contract_code_full = isCall ? quote?.call_contract_code_full : quote?.put_contract_code_full;
+
           // 触发价格查询
           const codes = ids.map(id => filteredPositions.find(p => p.id === id)?.contract_code_full).filter(Boolean) as string[];
           if (codes.length > 0) {
@@ -394,7 +413,15 @@ export function ExpiryGroupCard({
           }
           setConfirmData({
             ids: [syntheticId],
-            meta: { action: 'sync_category', category: c, strike: s, expiry: group.expiry },
+            meta: { 
+              action: 'sync_category', 
+              category: c, 
+              strike: s, 
+              expiry: group.expiry, 
+              quote,
+              contract_code,
+              contract_code_full
+            },
                             title,
                             description: desc
                           });
@@ -453,10 +480,10 @@ export function ExpiryGroupCard({
                                     const callCovered = filteredPositions
                                       .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh === '备兑')
                                       .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
-                                    const callNormal = filteredPositions
+                                    const callObligation = filteredPositions
                                       .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh !== '备兑')
                                       .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
-                                    const putNormal = filteredPositions
+                                    const putObligation = filteredPositions
                                       .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'sell' && p.position_type_zh !== '备兑')
                                       .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
                                     const putCovered = filteredPositions
@@ -474,13 +501,13 @@ export function ExpiryGroupCard({
                                       const pr = Math.max(0, (s - up) / Math.max(s, 1));
                                       const wCovered = 0.3;
                                       const wCombo = 0.2;
-                                      const shortCall = callNormal + callCovered * wCovered + comboCallQty * wCombo;
-                                      const shortPut = putNormal + putCovered * wCovered + comboPutQty * wCombo;
+                                      const shortCall = callObligation + callCovered * wCovered + comboCallQty * wCombo;
+                                      const shortPut = putObligation + putCovered * wCovered + comboPutQty * wCombo;
                                       risk = shortCall * cr + shortPut * pr;
                                       const near = Math.max(0, 0.02 - Math.abs(up - s) / Math.max(s, 1)) / 0.02;
-                                      risk += near * (callNormal + putNormal) * 0.5;
+                                      risk += near * (callObligation + putObligation) * 0.5;
                                     }
-                                    return { s, getM, callRight, callNormal, callCovered, comboCallQty, putRight, putNormal, putCovered, comboPutQty, risk };
+                                    return { s, getM, callRight, callObligation, callCovered, comboCallQty, putRight, putObligation, putCovered, comboPutQty, risk };
                                   });
                                   const maxRisk = Math.max(1, ...metrics.map(m => m.risk));
                                   return metrics.map(m => {
@@ -594,10 +621,10 @@ export function ExpiryGroupCard({
                                         <td className={`text-center py-2 ${themes[theme].text}`}>
                                           <div className="flex items-center justify-center gap-1">
                                             <div className="flex flex-col items-center gap-1">
-                                              <span className={`${themes[theme].text}`}>{displayVal('call_normal', m.s, m.callNormal)}</span>
+                                              <span className={`${themes[theme].text}`}>{displayVal('call_obligation', m.s, m.callObligation)}</span>
                                               <button
                                                 className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
-                                                onClick={() => openAdjustConfirm('call_normal', m.s)}
+                                                onClick={() => openAdjustConfirm('call_obligation', m.s)}
                                               >调整</button>
                                             </div>
                                           </div>
@@ -638,10 +665,10 @@ export function ExpiryGroupCard({
                                         <td className={`text-center py-2 ${themes[theme].text}`}>
                                           <div className="flex items-center justify-center gap-1">
                                             <div className="flex flex-col items-center gap-1">
-                                              <span className={`${themes[theme].text}`}>{displayVal('put_normal', m.s, m.putNormal)}</span>
+                                              <span className={`${themes[theme].text}`}>{displayVal('put_obligation', m.s, m.putObligation)}</span>
                                               <button
                                                 className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
-                                                onClick={() => openAdjustConfirm('put_normal', m.s)}
+                                                onClick={() => openAdjustConfirm('put_obligation', m.s)}
                                               >调整</button>
                                             </div>
                                           </div>
@@ -1100,24 +1127,29 @@ export function ExpiryGroupCard({
                   let fullCode = pos?.contract_code_full;
 
                   if (!fullCode) {
-                    const type = c.startsWith('call') ? 'call' : 'put';
-                    const activeData = optionsData || localOptionsData;
-                    
-                    if (activeData && activeData.quotes) {
-                       const quote = activeData.quotes.find(q => q.expiry === group.expiry && Number(q.strike_price) === s);
-                       if (quote) {
-                          fullCode = type === 'call' ? quote.call_contract_code_full : quote.put_contract_code_full;
-                          code = type === 'call' ? quote.call_contract_code : quote.put_contract_code;
-                       }
-                    } else if (optionsDataMap) {
-                       for (const data of Object.values(optionsDataMap)) {
-                          const quote = data.quotes?.find(q => q.expiry === group.expiry && Number(q.strike_price) === s);
-                          if (quote) {
-                             fullCode = type === 'call' ? quote.call_contract_code_full : quote.put_contract_code_full;
-                             code = type === 'call' ? quote.call_contract_code : quote.put_contract_code;
-                             break;
-                          }
-                       }
+                    if (confirmData.meta?.contract_code_full) {
+                        fullCode = confirmData.meta.contract_code_full;
+                        code = confirmData.meta.contract_code;
+                    } else {
+                        const type = c.startsWith('call') ? 'call' : 'put';
+                        const activeData = optionsData || localOptionsData;
+                        
+                        if (activeData && activeData.quotes) {
+                           const quote = activeData.quotes.find(q => q.expiry === group.expiry && Number(q.strike_price) === s);
+                           if (quote) {
+                              fullCode = type === 'call' ? quote.call_contract_code_full : quote.put_contract_code_full;
+                              code = type === 'call' ? quote.call_contract_code : quote.put_contract_code;
+                           }
+                        } else if (optionsDataMap) {
+                           for (const data of Object.values(optionsDataMap)) {
+                              const quote = data.quotes?.find(q => q.expiry === group.expiry && Number(q.strike_price) === s);
+                              if (quote) {
+                                 fullCode = type === 'call' ? quote.call_contract_code_full : quote.put_contract_code_full;
+                                 code = type === 'call' ? quote.call_contract_code : quote.put_contract_code;
+                                 break;
+                              }
+                           }
+                        }
                     }
                   }
 
@@ -1226,7 +1258,7 @@ export function ExpiryGroupCard({
             const positions = (() => {
               if (confirmData?.meta?.action === 'sync_category') {
                 const strike = Number(confirmData.meta?.strike || 0);
-                const category = String(confirmData.meta?.category || '') as 'call_right' | 'call_normal' | 'put_right' | 'put_normal' | 'call_covered' | 'put_covered';
+                const category = String(confirmData.meta?.category || '') as 'call_right' | 'call_obligation' | 'put_right' | 'put_obligation' | 'call_covered' | 'put_covered';
                 const allSingles = (allExpiryBuckets || []).flatMap(b => b.single);
                 return allSingles.filter(p => {
                   const sameStrike = Number((p as any)?.contract_strike_price ?? p.strike) === strike;
@@ -1237,8 +1269,8 @@ export function ExpiryGroupCard({
                   const isSell = p.position_type === 'sell';
                   const isBuy = p.position_type === 'buy';
                   if (!sameStrike || !sameExpiry) return false;
-                  if (category === 'call_normal') return isCall && isSell && !isCovered;
-                  if (category === 'put_normal') return isPut && isSell && !isCovered;
+                  if (category === 'call_obligation') return isCall && isSell && !isCovered;
+                  if (category === 'put_obligation') return isPut && isSell && !isCovered;
                   if (category === 'call_right') return isCall && isBuy;
                   if (category === 'put_right') return isPut && isBuy;
                   if (category === 'call_covered') return isCall && isSell && isCovered;
@@ -1271,7 +1303,7 @@ export function ExpiryGroupCard({
             onClick={async () => {
               if (confirmData?.meta?.action === 'sync_category') {
                 const strike = Number(confirmData.meta?.strike || 0);
-                const category = String(confirmData.meta?.category || '') as 'call_right' | 'call_normal' | 'put_right' | 'put_normal' | 'call_covered' | 'put_covered';
+                const category = String(confirmData.meta?.category || '') as 'call_right' | 'call_obligation' | 'put_right' | 'put_obligation' | 'call_covered' | 'put_covered';
                 const ids = collectIdsForCategory(category, strike);
                 const sum = ids.reduce((acc, id) => {
                   const pos = filteredPositions.find(x => x.id === id);
@@ -1280,10 +1312,10 @@ export function ExpiryGroupCard({
                 }, 0);
                 const map: Record<string, { type: 'call' | 'put'; position_type: 'buy' | 'sell' }> = {
                   call_right: { type: 'call', position_type: 'buy' },
-                  call_normal: { type: 'call', position_type: 'sell' },
+                  call_obligation: { type: 'call', position_type: 'sell' },
                   call_covered: { type: 'call', position_type: 'sell' },
                   put_right: { type: 'put', position_type: 'buy' },
-                  put_normal: { type: 'put', position_type: 'sell' },
+                  put_obligation: { type: 'put', position_type: 'sell' },
                   put_covered: { type: 'put', position_type: 'sell' }
                 };
                 const p = map[category];
@@ -1312,13 +1344,13 @@ export function ExpiryGroupCard({
               if (confirmData.meta?.action === 'sync_category') {
                 const key = confirmData.ids[0];
                 const q = qtyOverrides[key] ?? 0;
-                const category = String(confirmData.meta?.category || '') as 'call_right' | 'call_normal' | 'put_right' | 'put_normal' | 'call_covered' | 'put_covered';
+                const category = String(confirmData.meta?.category || '') as 'call_right' | 'call_obligation' | 'put_right' | 'put_obligation' | 'call_covered' | 'put_covered';
                 const map: Record<string, { type: 'call' | 'put'; position_type: 'buy' | 'sell' }> = {
                   call_right: { type: 'call', position_type: 'buy' },
-                  call_normal: { type: 'call', position_type: 'sell' },
+                  call_obligation: { type: 'call', position_type: 'sell' },
                   call_covered: { type: 'call', position_type: 'sell' },
                   put_right: { type: 'put', position_type: 'buy' },
-                  put_normal: { type: 'put', position_type: 'sell' },
+                  put_obligation: { type: 'put', position_type: 'sell' },
                   put_covered: { type: 'put', position_type: 'sell' }
                 };
                 const p = map[category];
@@ -1333,8 +1365,8 @@ export function ExpiryGroupCard({
                   const isSell = x.position_type === 'sell';
                   const isBuy = x.position_type === 'buy';
                   if (!sameStrike || !sameExpiry) return false;
-                  if (category === 'call_normal') return isCall && isSell && !isCovered;
-                  if (category === 'put_normal') return isPut && isSell && !isCovered;
+                  if (category === 'call_obligation') return isCall && isSell && !isCovered;
+                  if (category === 'put_obligation') return isPut && isSell && !isCovered;
                   if (category === 'call_right') return isCall && isBuy;
                   if (category === 'put_right') return isPut && isBuy;
                   if (category === 'call_covered') return isCall && isSell && isCovered;
@@ -1357,6 +1389,40 @@ export function ExpiryGroupCard({
                   );
                 }
 
+                // If still no referencePos, create a synthetic one from quote if available
+                if (!referencePos && confirmData.meta?.quote) {
+                    const q = confirmData.meta.quote;
+                    const isCall = p.type === 'call';
+                    const code = isCall ? q.call_contract_code : q.put_contract_code;
+                    const fullCode = isCall ? q.call_contract_code_full : q.put_contract_code_full;
+                    const val = isCall ? q.call_current_value : q.put_current_value;
+                    
+                    referencePos = {
+                        id: '',
+                        symbol: selectedSymbol || '',
+                        type: p.type,
+                        position_type: p.position_type,
+                        strike: strike,
+                        expiry: group.expiry,
+                        quantity: 0,
+                        premium: 0,
+                        currentValue: Number(val || 0),
+                        profitLoss: 0,
+                        profitLossPercentage: 0,
+                        impliedVolatility: 0,
+                        delta: 0,
+                        gamma: 0,
+                        theta: 0,
+                        vega: 0,
+                        status: 'open',
+                        openDate: new Date().toISOString(),
+                        contract_code: code,
+                        contract_code_full: fullCode,
+                        is_covered: category === 'call_covered' || category === 'put_covered',
+                        position_type_zh: (category === 'call_covered' || category === 'put_covered') ? '备兑' : ((p.position_type === 'sell') ? '义务' : '权利')
+                    } as OptionsPosition;
+                }
+
                 const positionsToSend = (matches.length > 0 ? matches.map(m => ({ ...m })) : (referencePos ? [{
                   ...referencePos,
                   id: '', // Clear ID to avoid updating the reference position
@@ -1364,11 +1430,23 @@ export function ExpiryGroupCard({
                   position_type: p.position_type,
                   is_covered: category === 'call_covered' || category === 'put_covered',
                   position_type_zh: (category === 'call_covered' || category === 'put_covered') ? '备兑' : ((p.position_type === 'sell') ? '义务' : '权利')
-                } as OptionsPosition] : [])).map(pos => ({
-                  ...pos,
-                  option_type: pos.type,
-                  strike_price: String(pos.strike)
-                }));
+                } as OptionsPosition] : [])).map(pos => {
+                  const isCall = pos.type === 'call';
+                  const q = confirmData.meta?.quote;
+                  const val = q ? (isCall ? q.call_current_value : q.put_current_value) : pos.currentValue;
+                  const code = q ? (isCall ? q.call_contract_code : q.put_contract_code) : pos.contract_code;
+                  const fullCode = q ? (isCall ? q.call_contract_code_full : q.put_contract_code_full) : pos.contract_code_full;
+
+                  return {
+                    ...pos,
+                    option_type: pos.type,
+                    strike_price: String(pos.strike),
+                    currentValue: Number(val || 0),
+                    contract_code: code,
+                    contract_code_full: fullCode,
+                    is_covered: category === 'call_covered' || category === 'put_covered'
+                  };
+                });
 
                 const resp = await optionsService.updatePositions({ updates: [{ type: p.type, position_type: p.position_type, strike, expiry: String(confirmData.meta?.expiry || group.expiry), quantity: q, original_quantity: origAvailSum, change_quantity: change, is_covered: category === 'call_covered' || category === 'put_covered', symbol: foundSymbol, option_type: p.type, strike_price: String(strike) }], positions: positionsToSend, accountId: selectedAccountId || null, userId: userId || null });
                 if (resp.error) {

@@ -341,6 +341,8 @@ export interface OptionQuote {
   call_contract_code_full?: string;
   put_contract_code?: string;
   put_contract_code_full?: string;
+  call_last_price?: number;
+  put_last_price?: number;
   // 用户持仓相关（可选）：展示在期权链中的我的买入/卖出数量
   myCallBuyQty?: number;
   myCallSellQty?: number;

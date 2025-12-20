@@ -321,9 +321,9 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         }
         if (meta?.category) {
           const isCovered = p.position_type_zh === '备兑' || !!p.is_covered;
-          if (meta.category === 'call_normal') {
+          if (meta.category === 'call_obligation') {
             ok = ok && ((p.type === 'call' || p.contract_type_zh === 'call') && p.position_type === 'sell' && !isCovered);
-          } else if (meta.category === 'put_normal') {
+          } else if (meta.category === 'put_obligation') {
             ok = ok && ((p.type === 'put' || p.contract_type_zh === 'put') && p.position_type === 'sell' && !isCovered);
           } else if (meta.category === 'call_right') {
             ok = ok && ((p.type === 'call' || p.contract_type_zh === 'call') && p.position_type === 'buy');
