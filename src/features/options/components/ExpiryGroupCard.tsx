@@ -106,9 +106,22 @@ export function ExpiryGroupCard({
 
   // Calculate codes for pricing
   const codes = useMemo(() => {
-    // Only query prices for positions held by the user
-    return filteredPositions.map(p => p.contract_code_full).filter(Boolean).sort();
-  }, [filteredPositions]);
+    const positionCodes = filteredPositions.map(p => p.contract_code_full).filter(Boolean) as string[];
+    
+    // Collect codes from all available data sources
+    const dataSources = [optionsData, localOptionsData, ...(optionsDataMap ? Object.values(optionsDataMap) : [])].filter(Boolean);
+    
+    const allOptionCodes = dataSources.flatMap(data => 
+      (data?.quotes || [])
+        .filter(q => q.expiry === group.expiry)
+        .flatMap(q => [
+          q.call_contract_code_full,
+          q.put_contract_code_full
+        ])
+    ).filter(Boolean) as string[];
+    
+    return Array.from(new Set([...positionCodes, ...allOptionCodes])).sort();
+  }, [filteredPositions, optionsData, localOptionsData, optionsDataMap, group.expiry]);
   const codesKey = JSON.stringify(codes);
 
   useEffect(() => {
@@ -578,6 +591,7 @@ export function ExpiryGroupCard({
                                         return last ? last.toFixed(4) : '-';
                                       };
                                       
+                                      debugger;
                                       callPrice = getPrice(callCode, callFullCode, quote.call_last_price);
                                       putPrice = getPrice(putCode, putFullCode, quote.put_last_price);
                                     }
