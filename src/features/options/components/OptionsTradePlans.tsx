@@ -83,9 +83,10 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
   const sortedExpiries = Object.keys(groupedByExpiry).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
   const getMoneyness = (rp: RatioSpreadPlanResult): 'itm' | 'atm' | 'otm' => {
-    const strike = rp.analysis.buy_strike_price;
+    const strike = rp.analysis?.buy_strike_price;
     const type = rp.plan.option_type;
     const threshold = 0.005;
+    if (strike == null) return 'otm';
     if (underlyingPrice != null) {
       const diffRatio = Math.abs(underlyingPrice - strike) / Math.max(strike, 1);
       if (diffRatio <= threshold) return 'atm';
@@ -495,13 +496,13 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                                 <div>
                                   <p className={`text-xs ${themes[theme].text} opacity-75`}>买入腿</p>
-                                  <p className={`text-sm font-medium ${themes[theme].text}`}>{rp.analysis.buy_strike.name}</p>
-                                  <p className={`text-xs ${themes[theme].text} opacity-60`}>代码 {rp.analysis.buy_strike.code}</p>
+                                  <p className={`text-sm font-medium ${themes[theme].text}`}>{rp.analysis?.buy_strike?.name || '-'}</p>
+                                  <p className={`text-xs ${themes[theme].text} opacity-60`}>代码 {rp.analysis?.buy_strike?.code || '-'}</p>
                                 </div>
                                 <div>
                                   <p className={`text-xs ${themes[theme].text} opacity-75`}>卖出腿</p>
-                                  <p className={`text-sm font-medium ${themes[theme].text}`}>{rp.analysis.sell_strike.name}</p>
-                                  <p className={`text-xs ${themes[theme].text} opacity-60`}>代码 {rp.analysis.sell_strike.code}</p>
+                                  <p className={`text-sm font-medium ${themes[theme].text}`}>{rp.analysis?.sell_strike?.name || '-'}</p>
+                                  <p className={`text-xs ${themes[theme].text} opacity-60`}>代码 {rp.analysis?.sell_strike?.code || '-'}</p>
                                 </div>
                               </div>
                               <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -525,8 +526,8 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
                                 </div>
                               </div>
                               <div className="mt-2 flex items-center gap-2">
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">买入 {rp.analysis.buy_count}</span>
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100">卖出 {rp.analysis.sell_count}</span>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">买入 {rp.analysis?.buy_count || 0}</span>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100">卖出 {rp.analysis?.sell_count || 0}</span>
                                 {rp.action === 'hold' && (
                                   <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100">持仓数目 {Number(rp.current_spread ?? 0).toFixed(4)}</span>
                                 )}
@@ -616,13 +617,13 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                                 <div>
                                   <p className={`text-xs ${themes[theme].text} opacity-75`}>买入腿</p>
-                                  <p className={`text-sm font-medium ${themes[theme].text}`}>{rp.analysis.buy_strike.name}</p>
-                                  <p className={`text-xs ${themes[theme].text} opacity-60`}>代码 {rp.analysis.buy_strike.code}</p>
+                                  <p className={`text-sm font-medium ${themes[theme].text}`}>{rp.analysis?.buy_strike?.name || '-'}</p>
+                                  <p className={`text-xs ${themes[theme].text} opacity-60`}>代码 {rp.analysis?.buy_strike?.code || '-'}</p>
                                 </div>
                                 <div>
                                   <p className={`text-xs ${themes[theme].text} opacity-75`}>卖出腿</p>
-                                  <p className={`text-sm font-medium ${themes[theme].text}`}>{rp.analysis.sell_strike.name}</p>
-                                  <p className={`text-xs ${themes[theme].text} opacity-60`}>代码 {rp.analysis.sell_strike.code}</p>
+                                  <p className={`text-sm font-medium ${themes[theme].text}`}>{rp.analysis?.sell_strike?.name || '-'}</p>
+                                  <p className={`text-xs ${themes[theme].text} opacity-60`}>代码 {rp.analysis?.sell_strike?.code || '-'}</p>
                                 </div>
                               </div>
                               <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -646,8 +647,8 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
                                 </div>
                               </div>
                               <div className="mt-2 flex items-center gap-2">
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">买入 {rp.analysis.buy_count}</span>
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100">卖出 {rp.analysis.sell_count}</span>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">买入 {rp.analysis?.buy_count || 0}</span>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100">卖出 {rp.analysis?.sell_count || 0}</span>
                                 {rp.action === 'hold' && (
                                   <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100">持仓数目 {Number(rp.current_spread ?? 0).toFixed(4)}</span>
                                 )}

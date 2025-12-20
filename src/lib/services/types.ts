@@ -562,7 +562,7 @@ export interface RatioSpreadPlanResult {
   buy_price: number;
   sell_price: number;
   saved?: boolean;
-  analysis: {
+  analysis?: {
     strike_type: 'call' | 'put';
     buy_strike: OptionContract;
     sell_strike: OptionContract;
