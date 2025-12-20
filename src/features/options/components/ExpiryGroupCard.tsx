@@ -249,6 +249,27 @@ export function ExpiryGroupCard({
     }
   }, [confirmData]);
 
+  useEffect(() => {
+    if (confirmData?.meta?.action === 'sync_category' && isConnected) {
+      const codes: string[] = [];
+      if (confirmData.meta.contract_code_full) codes.push(confirmData.meta.contract_code_full);
+      
+      const s = Number(confirmData.meta.strike);
+      const c = confirmData.meta.category as 'call_obligation' | 'put_obligation' | 'call_right' | 'put_right' | 'call_covered' | 'put_covered';
+      const ids = collectIdsForCategory(c, s);
+      ids.forEach(id => {
+        const p = filteredPositions.find(x => x.id === id);
+        if (p?.contract_code_full) codes.push(p.contract_code_full);
+      });
+      
+      const unique = Array.from(new Set(codes));
+      if (unique.length > 0) {
+        queryPrice(unique);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [confirmData, isConnected]);
+
   if (!hasPositions) return null;
 
   return (
@@ -408,8 +429,14 @@ export function ExpiryGroupCard({
 
           // 触发价格查询
           const codes = ids.map(id => filteredPositions.find(p => p.id === id)?.contract_code_full).filter(Boolean) as string[];
-          if (codes.length > 0) {
-            queryPrice(codes);
+          if (contract_code_full) codes.push(contract_code_full);
+          const uniqueCodes = Array.from(new Set(codes));
+          
+          if (uniqueCodes.length > 0) {
+            if (!isConnected) {
+              connect();
+            }
+            queryPrice(uniqueCodes);
           }
           setConfirmData({
             ids: [syntheticId],
