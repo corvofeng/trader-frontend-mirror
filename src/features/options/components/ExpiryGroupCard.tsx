@@ -1225,22 +1225,59 @@ export function ExpiryGroupCard({
 
                   const priceData = (code && prices[code]) || (fullCode && prices[fullCode]) || null;
                   if (!priceData) return null;
+                  
                   return (
-                    <div className={`text-xs ${themes[theme].text} flex items-center gap-2 mb-2 p-2 rounded border ${themes[theme].border}`}>
+                    <div className={`flex flex-col gap-2 mb-2 p-2 rounded border ${themes[theme].border}`}>
+                      <div className={`text-xs ${themes[theme].text} flex items-center justify-between`}>
                         <span className="font-medium">最新价: {priceData.price}</span>
-                        {priceData.bid && (
-                          <span className="text-red-500">
-                            买: {priceData.bid}
-                            {priceData.bid_vol && priceData.bid_vol.length > 0 && <span className="opacity-75 ml-1">({priceData.bid_vol[0]})</span>}
-                          </span>
-                        )}
-                        {priceData.ask && (
-                          <span className="text-green-500">
-                            卖: {priceData.ask}
-                            {priceData.ask_vol && priceData.ask_vol.length > 0 && <span className="opacity-75 ml-1">({priceData.ask_vol[0]})</span>}
-                          </span>
-                        )}
-                        <span className="opacity-50 text-[10px] ml-auto">{format(new Date(priceData.timestamp), 'HH:mm:ss')}</span>
+                        <span className="opacity-50 text-[10px]">{format(new Date(priceData.timestamp), 'HH:mm:ss')}</span>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-2 text-[10px]">
+                        {/* Bid Side (Buy) */}
+                        <div className="flex flex-col">
+                          <div className={`text-center font-medium border-b ${themes[theme].border} mb-1 text-red-500`}>买盘</div>
+                          <div className="grid grid-cols-3 gap-1 px-1 opacity-70 mb-1">
+                            <div className="text-left">档位</div>
+                            <div className="text-right">价格</div>
+                            <div className="text-right">量</div>
+                          </div>
+                          {[0, 1, 2, 3, 4].map(i => {
+                             const price = priceData.bid_prices?.[i] ?? (i === 0 ? priceData.bid : undefined);
+                             const vol = priceData.bid_vol?.[i];
+                             if (price === undefined && vol === undefined) return null;
+                             return (
+                               <div key={`bid-${i}`} className="grid grid-cols-3 gap-1 px-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded">
+                                 <div className="text-left opacity-75">{i + 1}</div>
+                                 <div className="text-right text-red-500 font-medium">{price?.toFixed(4) ?? '-'}</div>
+                                 <div className="text-right opacity-90">{vol ?? '-'}</div>
+                               </div>
+                             );
+                          })}
+                        </div>
+                        
+                        {/* Ask Side (Sell) */}
+                        <div className="flex flex-col">
+                          <div className={`text-center font-medium border-b ${themes[theme].border} mb-1 text-green-500`}>卖盘</div>
+                          <div className="grid grid-cols-3 gap-1 px-1 opacity-70 mb-1">
+                            <div className="text-left">档位</div>
+                            <div className="text-right">价格</div>
+                            <div className="text-right">量</div>
+                          </div>
+                          {[0, 1, 2, 3, 4].map(i => {
+                             const price = priceData.ask_prices?.[i] ?? (i === 0 ? priceData.ask : undefined);
+                             const vol = priceData.ask_vol?.[i];
+                             if (price === undefined && vol === undefined) return null;
+                             return (
+                               <div key={`ask-${i}`} className="grid grid-cols-3 gap-1 px-1 hover:bg-green-50 dark:hover:bg-green-900/20 rounded">
+                                 <div className="text-left opacity-75">{i + 1}</div>
+                                 <div className="text-right text-green-500 font-medium">{price?.toFixed(4) ?? '-'}</div>
+                                 <div className="text-right opacity-90">{vol ?? '-'}</div>
+                               </div>
+                             );
+                          })}
+                        </div>
+                      </div>
                     </div>
                   );
               })()}

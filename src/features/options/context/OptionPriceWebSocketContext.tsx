@@ -19,8 +19,10 @@ export interface PriceUpdate {
   last_price?: number;
   bid?: number;
   bid_price?: number;
+  bid_prices?: number[];
   ask?: number;
   ask_price?: number;
+  ask_prices?: number[];
   ask_vol?: number[];
   bid_vol?: number[];
   timestamp: number;
@@ -88,7 +90,9 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
                   ...item,
                   price: item.last_price ?? item.price,
                   bid: item.bid_price ?? item.bid,
-                  ask: item.ask_price ?? item.ask
+                  ask: item.ask_price ?? item.ask,
+                  bid_prices: item.bid_prices ?? (Array.isArray(item.bid) ? item.bid : (item.bid_price ? [item.bid_price] : (item.bid ? [item.bid] : []))),
+                  ask_prices: item.ask_prices ?? (Array.isArray(item.ask) ? item.ask : (item.ask_price ? [item.ask_price] : (item.ask ? [item.ask] : [])))
                 };
               }
             });
