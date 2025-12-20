@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
-import type { OptionsPosition, OptionsStrategy, AdvisedCombination } from '../../../lib/services/types';
+import type { OptionsPosition, OptionsStrategy, AdvisedCombination, OptionsData } from '../../../lib/services/types';
 import { optionsService } from '../../../lib/services';
 import { stockService } from '../../../lib/services';
 import { logger } from '../../../shared/utils/logger';
@@ -35,6 +35,8 @@ interface ExpiryGroupCardProps {
   onExecuteAdvised?: (combo: AdvisedCombination) => void;
   selectedAccountId?: string | null;
   userId?: string | null;
+  optionsData?: OptionsData | null;
+  optionsDataMap?: Record<string, OptionsData>;
 }
 
 export function ExpiryGroupCard({
@@ -63,8 +65,14 @@ export function ExpiryGroupCard({
   onExecuteAdvised,
   selectedAccountId,
   userId,
+  optionsData,
+  optionsDataMap,
 }: ExpiryGroupCardProps) {
+  const { queryPrice, prices, isConnected } = useOptionPriceWebSocket();
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [localState, setLocalState] = useState<{ data: OptionsData | null; symbol: string | null }>({ data: null, symbol: null });
+  const { data: localOptionsData, symbol: localDataSymbol } = localState;
+
   const [advisedModal, setAdvisedModal] = useState<{ combo: AdvisedCombination; quantity: number } | null>(null);
   const [confirmData, setConfirmData] = useState<{ ids: string[]; meta?: { action?: string; comboType?: 'call' | 'put'; strike?: number; expiry?: string; strategyIds?: string[]; category?: string; defaultComboCount?: number; perLegMaxQty?: Record<string, number> }; title: string; description: string } | null>(null);
   const [qtyOverrides, setQtyOverrides] = useState<Record<string, number>>({});
@@ -74,6 +82,64 @@ export function ExpiryGroupCard({
     ? basePositions.filter(p => p.opt_undl_code_full === selectedSymbol)
     : basePositions;
   const hasPositions = filteredPositions.length > 0;
+
+  // Ensure options data is available when needed (especially for adjust dialog)
+  useEffect(() => {
+    if (confirmData && !optionsData) {
+      const posId = confirmData.ids[0];
+      const pos = filteredPositions.find(p => p.id === posId);
+      // Use full underlying code if available, otherwise selectedSymbol or fallback
+      const symbol = pos?.opt_undl_code_full || selectedSymbol;
+      
+      if (symbol && (!localOptionsData || localDataSymbol !== symbol)) {
+        logger.info('[ExpiryGroupCard] Fetching missing options data for', symbol);
+        optionsService.getOptionsData(symbol).then(({ data }) => {
+          if (data) {
+            setLocalState({ data, symbol });
+          }
+        }).catch(err => {
+          logger.error('[ExpiryGroupCard] Failed to fetch local options data', err);
+        });
+      }
+    }
+  }, [confirmData, optionsData, filteredPositions, selectedSymbol, localOptionsData, localDataSymbol]);
+
+  // Calculate codes for pricing
+  const codes = useMemo(() => {
+    const positionCodes = filteredPositions.map(p => p.contract_code_full).filter(Boolean) as string[];
+    
+    // Collect codes from all available data sources
+    const dataSources = [optionsData, localOptionsData, ...(optionsDataMap ? Object.values(optionsDataMap) : [])].filter(Boolean);
+    
+    const allOptionCodes = dataSources.flatMap(data => 
+      (data?.quotes || [])
+        .filter(q => q.expiry === group.expiry)
+        .flatMap(q => [
+          q.call_contract_code_full,
+          q.put_contract_code_full
+        ])
+    ).filter(Boolean) as string[];
+    
+    return Array.from(new Set([...positionCodes, ...allOptionCodes])).sort();
+  }, [filteredPositions, optionsData, localOptionsData, optionsDataMap, group.expiry]);
+  const codesKey = JSON.stringify(codes);
+
+  useEffect(() => {
+    if (isConnected && codes.length > 0) {
+      const runQuery = () => {
+        queryPrice(codes);
+      };
+
+      // Initial query to ensure data is displayed
+      runQuery();
+
+      // Only poll when details are open or confirmation dialog is active
+      if (detailsOpen || confirmData) {
+        const interval = setInterval(runQuery, 1000);
+        return () => clearInterval(interval);
+      }
+    }
+  }, [isConnected, codesKey, queryPrice, detailsOpen, confirmData]);
 
   const isSelectedPosition = (p: OptionsPosition) => {
     return !!selectedSymbol && (p.opt_undl_code_full === selectedSymbol);
@@ -254,7 +320,34 @@ export function ExpiryGroupCard({
                             .map(p => Number(p.contract_strike_price ?? p.strike))
                         );
                         const singleStrikes = filteredPositions.map(p => p.strike);
-                        const strikes = Array.from(new Set([...singleStrikes, ...complexStrikes])).sort((a, b) => a - b);
+                        
+                        // Collect all strikes from options data
+                        const activeData = optionsData || localOptionsData;
+                        const dataStrikes = new Set<number>();
+                        
+                        // From main optionsData
+                        if (activeData?.quotes) {
+                          activeData.quotes.forEach(q => {
+                            if (q.expiry === group.expiry) {
+                              dataStrikes.add(Number(q.strike_price));
+                            }
+                          });
+                        }
+                        
+                        // From optionsDataMap (if available via context or prop - assuming it was passed as prop in previous step)
+                        if (optionsDataMap) {
+                          Object.values(optionsDataMap).forEach(data => {
+                             if (data.quotes) {
+                               data.quotes.forEach(q => {
+                                 if (q.expiry === group.expiry) {
+                                   dataStrikes.add(Number(q.strike_price));
+                                 }
+                               });
+                             }
+                          });
+                        }
+
+                        const strikes = Array.from(new Set([...singleStrikes, ...complexStrikes, ...dataStrikes])).sort((a, b) => a - b);
                         const rows = strikes.map(strike => {
                           const callSell = filteredPositions
                             .filter(p => p.strike === strike && p.type === 'call' && p.position_type === 'sell')
@@ -265,7 +358,7 @@ export function ExpiryGroupCard({
                           return { strike, callSell, putSell };
                         });
 
-                        const hasData = filteredPositions.length > 0;
+                        const hasData = strikes.length > 0;
                         if (!hasData) {
                           return (
                             <div className={`text-center text-sm ${themes[theme].text} opacity-75`}>暂无数据</div>
@@ -295,7 +388,7 @@ export function ExpiryGroupCard({
                           const desc = `${categoryLabel[c]} @${s}（到期 ${format(new Date(group.expiry), 'yyyy-MM-dd')}），当前数量 ${currentSum}`;
                           const syntheticId = `sync-${c}-${s}`;
           // 触发价格查询
-          const codes = ids.map(id => filteredPositions.find(p => p.id === id)?.contract_code).filter(Boolean) as string[];
+          const codes = ids.map(id => filteredPositions.find(p => p.id === id)?.contract_code_full).filter(Boolean) as string[];
           if (codes.length > 0) {
             queryPrice(codes);
           }
@@ -311,17 +404,19 @@ export function ExpiryGroupCard({
                             <table className="w-full text-sm">
                               <thead>
                                 <tr className={`${themes[theme].text} opacity-75`}>
-                                  <th className="text-center py-2" colSpan={4}>Calls</th>
+                                  <th className="text-center py-2" colSpan={5}>Calls</th>
                                   <th className={`text-center py-2 border-l border-r ${themes[theme].border}`}></th>
-                                  <th className="text-center py-2" colSpan={4}>Puts</th>
+                                  <th className="text-center py-2" colSpan={5}>Puts</th>
                                 </tr>
                                 <tr className={`text-xs ${themes[theme].text} opacity-70`}>
                                   <th className="text-center py-2">Call 组合</th>
                                   <th className="text-center py-2">Call 备兑</th>
                                   <th className="text-center py-2">Call 义务</th>
-                                  <th className={`text-center py-2 px-3 border-r ${themes[theme].border}`}>Call 权利</th>
+                                  <th className="text-center py-2 px-3">Call 权利</th>
+                                  <th className={`text-center py-2 px-3 border-r ${themes[theme].border}`}>Call 现价</th>
                                   <th className="text-center py-2 px-4">行权价</th>
-                                  <th className={`text-center py-2 px-3 border-l ${themes[theme].border}`}>Put 权利</th>
+                                  <th className={`text-center py-2 px-3 border-l ${themes[theme].border}`}>Put 现价</th>
+                                  <th className="text-center py-2 px-3">Put 权利</th>
                                   <th className="text-center py-2">Put 义务</th>
                                   <th className="text-center py-2">Put 备兑</th>
                                   <th className="text-center py-2">Put 组合</th>
@@ -393,6 +488,50 @@ export function ExpiryGroupCard({
                                     const h = Math.round(0 + 120 * (1 - intensity));
                                     const c = theme === 'dark' ? `hsla(${h},70%,30%,0.35)` : `hsla(${h},85%,85%,0.65)`;
                                     const bg = `linear-gradient(to right, ${c} 0%, transparent 100%)`;
+
+                                    // Determine prices for Call and Put at this strike
+                                    const activeData = optionsData || localOptionsData;
+                                    let callPrice = '';
+                                    let putPrice = '';
+                                    
+                                    let callCode = '';
+                                    let putCode = '';
+                                    let callFullCode = '';
+                                    let putFullCode = '';
+                                    
+                                    // Helper to find quote
+                                    const findQuote = (data: OptionsData) => {
+                                      return data.quotes?.find(q => q.expiry === group.expiry && Number(q.strike_price) === m.s);
+                                    };
+
+                                    let quote;
+                                    if (activeData) {
+                                      quote = findQuote(activeData);
+                                    }
+
+                                    if (!quote && optionsDataMap) {
+                                      for (const data of Object.values(optionsDataMap)) {
+                                        quote = findQuote(data);
+                                        if (quote) break;
+                                      }
+                                    }
+
+                                    if (quote) {
+                                      callCode = quote.call_contract_code;
+                                      callFullCode = quote.call_contract_code_full;
+                                      putCode = quote.put_contract_code;
+                                      putFullCode = quote.put_contract_code_full;
+                                      
+                                      const getPrice = (code: string, fullCode: string, last: number) => {
+                                        const p = (code && prices[code]) || (fullCode && prices[fullCode]);
+                                        if (p) return p.price.toFixed(4);
+                                        return last ? last.toFixed(4) : '-';
+                                      };
+                                      
+                                      callPrice = getPrice(callCode, callFullCode, quote.call_last_price);
+                                      putPrice = getPrice(putCode, putFullCode, quote.put_last_price);
+                                    }
+
                                   return (
                                       <tr key={`trow-top-${group.expiry}-${m.s}`} className={themes[theme].cardHover} style={{ backgroundImage: bg }}>
                                         <td className={`text-center py-2 ${themes[theme].text}`}>
@@ -408,22 +547,17 @@ export function ExpiryGroupCard({
                                                   const perLegMaxQty: Record<string, number> = {};
                                                   (allExpiryBuckets || []).forEach(bucket => {
                                                     bucket.complex.forEach(s => {
-                                                      if (
-                                                        s.positions.some(p => p.expiry === group.expiry) &&
-                                                        (s.name.includes('认购牛市价差策略') || s.name.includes('牛市看涨价差') || s.name.includes('熊市看涨价差')) &&
-                                                        (s.positions[0]?.type === 'call' || (s.positions[0]?.contract_type_zh as any) === 'call')
-                                                      ) {
-                                                        const buyLeg = s.positions.find(p => p.position_type === 'buy');
-                                                        const buyStrike = Number((buyLeg as any)?.contract_strike_price ?? buyLeg?.strike);
-                                                        if (buyLeg && buyStrike === m.s) {
+                                                      if (s.positions.some(p => p.expiry === group.expiry)) {
+                                                        const comboMap = computeCombosForPositions(s, 'call');
+                                                        const count = comboMap.get(m.s) || 0;
+                                                        if (count > 0) {
                                                           ids.push(
                                                             ...s.positions
                                                               .filter(p => p.expiry === group.expiry)
                                                               .map(p => p.id)
                                                           );
                                                           strategyIds.push(s.id as any);
-                                                          const comboMap = computeCombosForPositions(s, 'call');
-                                                          defaultComboCountSum += comboMap.get(m.s) || 0;
+                                                          defaultComboCountSum += count;
                                                           s.positions
                                                             .filter(p => p.expiry === group.expiry)
                                                             .forEach(p => { perLegMaxQty[p.id] = p.quantity; });
@@ -468,7 +602,7 @@ export function ExpiryGroupCard({
                                             </div>
                                           </div>
                                         </td>
-                                        <td className={`text-center py-2 px-3 w-20 border-r ${themes[theme].border} ${themes[theme].text}`}>
+                                        <td className={`text-center py-2 px-3 w-20 ${themes[theme].text}`}>
                                           <div className="flex items-center justify-center gap-1">
                                             <div className="flex flex-col items-center gap-1">
                                               <span className={`${themes[theme].text}`}>{displayVal('call_right', m.s, m.callRight)}</span>
@@ -479,12 +613,18 @@ export function ExpiryGroupCard({
                                             </div>
                                           </div>
                                         </td>
+                                        <td className={`text-center py-2 px-3 w-24 border-r ${themes[theme].border} ${themes[theme].text}`}>
+                                            <span className="font-mono">{callPrice || '-'}</span>
+                                        </td>
                                         <td className={`text-center py-2 px-4 w-24 ${themes[theme].text}`}>{m.s}
                                           {underlyingPrice != null && (
                                             <div className={`mt-1 text-[10px] opacity-75`}>{m.getM()}</div>
                                           )}
                                         </td>
-                                        <td className={`text-center py-2 px-3 w-20 border-l ${themes[theme].border} ${themes[theme].text}`}>
+                                        <td className={`text-center py-2 px-3 w-24 border-l ${themes[theme].border} ${themes[theme].text}`}>
+                                            <span className="font-mono">{putPrice || '-'}</span>
+                                        </td>
+                                        <td className={`text-center py-2 px-3 w-20 ${themes[theme].text}`}>
                                           <div className="flex items-center justify-center gap-1">
                                             <div className="flex flex-col items-center gap-1">
                                               <span className={`${themes[theme].text}`}>{displayVal('put_right', m.s, m.putRight)}</span>
@@ -530,22 +670,17 @@ export function ExpiryGroupCard({
                                                   const perLegMaxQty: Record<string, number> = {};
                                                   (allExpiryBuckets || []).forEach(bucket => {
                                                     bucket.complex.forEach(s => {
-                                                      if (
-                                                        s.positions.some(p => p.expiry === group.expiry) &&
-                                                        (s.name.includes('认沽熊市价差策略') || s.name.includes('牛市看跌价差') || s.name.includes('熊市看跌价差')) &&
-                                                        (s.positions[0]?.type === 'put' || (s.positions[0]?.contract_type_zh as any) === 'put')
-                                                      ) {
-                                                        const buyLeg = s.positions.find(p => p.position_type === 'buy');
-                                                        const buyStrike = Number((buyLeg as any)?.contract_strike_price ?? buyLeg?.strike);
-                                                        if (buyLeg && buyStrike === m.s) {
+                                                      if (s.positions.some(p => p.expiry === group.expiry)) {
+                                                        const comboMap = computeCombosForPositions(s, 'put');
+                                                        const count = comboMap.get(m.s) || 0;
+                                                        if (count > 0) {
                                                           ids.push(
                                                             ...s.positions
                                                               .filter(p => p.expiry === group.expiry)
                                                               .map(p => p.id)
                                                           );
                                                           strategyIds.push(s.id as any);
-                                                          const comboMap = computeCombosForPositions(s, 'put');
-                                                          defaultComboCountSum += comboMap.get(m.s) || 0;
+                                                          defaultComboCountSum += count;
                                                           s.positions
                                                             .filter(p => p.expiry === group.expiry)
                                                             .forEach(p => { perLegMaxQty[p.id] = p.quantity; });
@@ -961,8 +1096,32 @@ export function ExpiryGroupCard({
                   const c = String(confirmData.meta?.category || '') as any;
                   const ids = collectIdsForCategory(c, s);
                   const pos = filteredPositions.find(p => p.id === ids[0]);
-                  const code = pos?.contract_code;
-                  const priceData = code ? prices[code] : null;
+                  let code = pos?.contract_code;
+                  let fullCode = pos?.contract_code_full;
+
+                  if (!fullCode) {
+                    const type = c.startsWith('call') ? 'call' : 'put';
+                    const activeData = optionsData || localOptionsData;
+                    
+                    if (activeData && activeData.quotes) {
+                       const quote = activeData.quotes.find(q => q.expiry === group.expiry && Number(q.strike_price) === s);
+                       if (quote) {
+                          fullCode = type === 'call' ? quote.call_contract_code_full : quote.put_contract_code_full;
+                          code = type === 'call' ? quote.call_contract_code : quote.put_contract_code;
+                       }
+                    } else if (optionsDataMap) {
+                       for (const data of Object.values(optionsDataMap)) {
+                          const quote = data.quotes?.find(q => q.expiry === group.expiry && Number(q.strike_price) === s);
+                          if (quote) {
+                             fullCode = type === 'call' ? quote.call_contract_code_full : quote.put_contract_code_full;
+                             code = type === 'call' ? quote.call_contract_code : quote.put_contract_code;
+                             break;
+                          }
+                       }
+                    }
+                  }
+
+                  const priceData = (code && prices[code]) || (fullCode && prices[fullCode]) || null;
                   if (!priceData) return null;
                   return (
                     <div className={`text-xs ${themes[theme].text} flex items-center gap-2 mb-2 p-2 rounded border ${themes[theme].border}`}>

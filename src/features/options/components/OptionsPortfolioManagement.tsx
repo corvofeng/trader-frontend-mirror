@@ -9,18 +9,25 @@ import { SavedStrategiesManager } from './SavedStrategiesManager';
 
 interface OptionsPortfolioManagementProps {
   theme: Theme;
+  selectedSymbol?: string;
 }
 
 type ManagementTab = 'overview' | 'create' | 'saved' | 'settings';
 
 const DEMO_USER_ID = 'mock-user-id';
 
-export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagementProps) {
+export function OptionsPortfolioManagement({ theme, selectedSymbol: propSelectedSymbol }: OptionsPortfolioManagementProps) {
   const [activeTab, setActiveTab] = useState<ManagementTab>('overview');
   const [portfolioData, setPortfolioData] = useState<OptionsPortfolioData | null>(null);
   const [savedStrategies, setSavedStrategies] = useState<CustomOptionsStrategy[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedSymbol, setSelectedSymbol] = useState('SPY');
+  const [selectedSymbol, setSelectedSymbol] = useState(propSelectedSymbol || 'SPY');
+
+  useEffect(() => {
+    if (propSelectedSymbol) {
+      setSelectedSymbol(propSelectedSymbol);
+    }
+  }, [propSelectedSymbol]);
 
   useEffect(() => {
     fetchPortfolioData();
@@ -168,23 +175,6 @@ export function OptionsPortfolioManagement({ theme }: OptionsPortfolioManagement
           </div>
 
           <div className="space-y-6">
-            <div>
-              <label className={`block text-sm font-medium ${themes[theme].text} mb-2`}>
-                默认标的
-              </label>
-              <select
-                value={selectedSymbol}
-                onChange={(e) => setSelectedSymbol(e.target.value)}
-                className={`w-full md:w-auto px-3 py-2 rounded-md ${themes[theme].input} ${themes[theme].text}`}
-              >
-                <option value="SPY">SPY - SPDR S&P 500 ETF</option>
-                <option value="QQQ">QQQ - Invesco QQQ Trust</option>
-                <option value="AAPL">AAPL - Apple Inc.</option>
-                <option value="TSLA">TSLA - Tesla Inc.</option>
-                <option value="MSFT">MSFT - Microsoft Corporation</option>
-              </select>
-            </div>
-
             <div className={`${themes[theme].background} rounded-lg p-4`}>
               <h3 className={`text-lg font-semibold ${themes[theme].text} mb-3`}>风险管理设置</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

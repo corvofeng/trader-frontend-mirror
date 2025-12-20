@@ -10,6 +10,7 @@ import { OptionsCalculatorModal } from '../options/OptionsCalculatorModal';
 import { optionsService } from '../../lib/services';
 import { Theme } from '../../lib/theme';
 import type { OptionsData } from '../../lib/services/types';
+import { OptionPriceWebSocketProvider } from '../../features/options/context/OptionPriceWebSocketContext';
 
 interface OptionsProps {
   theme: Theme;
@@ -71,8 +72,9 @@ export function Options({ theme }: OptionsProps) {
   // Fetch options data when selected symbol changes (only for data tab)
   React.useEffect(() => {
     const fetchOptionsData = async () => {
-      if (!selectedSymbol || activeTab !== 'data') {
-        logger.debug('[Pages/Options] Guard: selectedSymbol missing or tab not data', {
+      // Allow fetching for 'portfolio' tab as well to support contract code lookup
+      if (!selectedSymbol || (activeTab !== 'data' && activeTab !== 'portfolio')) {
+        logger.debug('[Pages/Options] Guard: selectedSymbol missing or tab not data/portfolio', {
           selectedSymbol,
           activeTab,
         });
@@ -116,48 +118,50 @@ export function Options({ theme }: OptionsProps) {
   ];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="space-y-6">
-        <OptionsHeader
-          theme={theme}
-          selectedSymbol={selectedSymbol}
-          availableSymbols={availableSymbols}
-          isLoading={isLoading || isLoadingSymbols}
-          onSymbolChange={setSelectedSymbol}
-          activeTab={activeTab}
-        />
+    <OptionPriceWebSocketProvider>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="space-y-6">
+          <OptionsHeader
+            theme={theme}
+            selectedSymbol={selectedSymbol}
+            availableSymbols={availableSymbols}
+            isLoading={isLoading || isLoadingSymbols}
+            onSymbolChange={setSelectedSymbol}
+            activeTab={activeTab}
+          />
 
-        <OptionsTabNavigation
-          tabs={tabs}
-          activeTab={activeTab}
-          theme={theme}
-          onTabChange={(tab) => handleTabChange(tab as OptionsTab)}
-        />
+          <OptionsTabNavigation
+            tabs={tabs}
+            activeTab={activeTab}
+            theme={theme}
+            onTabChange={(tab) => handleTabChange(tab as OptionsTab)}
+          />
 
-        <OptionsTabContent
-          activeTab={activeTab}
-          theme={theme}
-          selectedSymbol={selectedSymbol}
-          optionsData={optionsData}
-          selectedExpiry={selectedExpiry}
-          onExpiryChange={setSelectedExpiry}
-          isLoading={isLoading}
-          isLoadingSymbols={isLoadingSymbols}
-          error={error}
-          onOpenCalculator={() => setShowCalculatorModal(true)}
-          onRetry={() => setSelectedSymbol(selectedSymbol)}
-        />
+          <OptionsTabContent
+            activeTab={activeTab}
+            theme={theme}
+            selectedSymbol={selectedSymbol}
+            optionsData={optionsData}
+            selectedExpiry={selectedExpiry}
+            onExpiryChange={setSelectedExpiry}
+            isLoading={isLoading}
+            isLoadingSymbols={isLoadingSymbols}
+            error={error}
+            onOpenCalculator={() => setShowCalculatorModal(true)}
+            onRetry={() => setSelectedSymbol(selectedSymbol)}
+          />
+        </div>
+
+        {/* Options Calculator Modal */}
+        {showCalculatorModal && (
+          <OptionsCalculatorModal
+            theme={theme}
+            optionsData={optionsData}
+            selectedSymbol={selectedSymbol}
+            onClose={() => setShowCalculatorModal(false)}
+          />
+        )}
       </div>
-
-      {/* Options Calculator Modal */}
-      {showCalculatorModal && (
-        <OptionsCalculatorModal
-          theme={theme}
-          optionsData={optionsData}
-          selectedSymbol={selectedSymbol}
-          onClose={() => setShowCalculatorModal(false)}
-        />
-      )}
-    </div>
+    </OptionPriceWebSocketProvider>
   );
 }

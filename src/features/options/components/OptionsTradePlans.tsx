@@ -15,14 +15,11 @@ interface OptionsTradePlansProps {
 
 export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: selectedAccountIdProp, userId }: OptionsTradePlansProps) {
   const { currencyConfig } = useCurrency();
-  const [symbol, setSymbol] = useState<string>(selectedSymbol);
   const [ratioPlans, setRatioPlans] = useState<RatioSpreadPlanResult[]>([]);
   const [savingIds, setSavingIds] = useState<Record<string, boolean>>({});
   const [isLoadingRatio, setIsLoadingRatio] = useState(false);
   const [ratioError, setRatioError] = useState<string | null>(null);
   const [underlyingPrice, setUnderlyingPrice] = useState<number | null>(null);
-  const [availableSymbols, setAvailableSymbols] = useState<string[]>([]);
-  const [isLoadingSymbols, setIsLoadingSymbols] = useState(false);
   const [atmFilter, setAtmFilter] = useState<'all' | 'itm' | 'atm' | 'otm'>('all');
   const [optionTypeFilter, setOptionTypeFilter] = useState<'all' | 'call' | 'put'>('all');
   const [savedFilter, setSavedFilter] = useState<'all' | 'saved' | 'unsaved'>('all');
@@ -134,7 +131,7 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
   };
 
   const refreshRatioPlans = async () => {
-    if (!symbol) {
+    if (!selectedSymbol) {
       setRatioPlans([]);
       setRatioError(null);
       return;
@@ -142,7 +139,7 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
     try {
       setIsLoadingRatio(true);
       setRatioError(null);
-      const { data, error } = await optionsService.getRatioSpreadPlans(symbol, selectedAccountId, userId ?? null);
+      const { data, error } = await optionsService.getRatioSpreadPlans(selectedSymbol, selectedAccountId, userId ?? null);
       if (error) throw error;
       setRatioPlans(data || []);
     } catch (e: unknown) {
@@ -193,7 +190,7 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
 
   useEffect(() => {
     const fetchRatioPlans = async () => {
-      if (!symbol) {
+      if (!selectedSymbol) {
         setRatioPlans([]);
         setRatioError(null);
         return;
@@ -201,7 +198,7 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
       try {
         setIsLoadingRatio(true);
         setRatioError(null);
-        const { data, error } = await optionsService.getRatioSpreadPlans(symbol, selectedAccountId, userId ?? null);
+        const { data, error } = await optionsService.getRatioSpreadPlans(selectedSymbol, selectedAccountId, userId ?? null);
         if (error) throw error;
         setRatioPlans(data || []);
       } catch (e: unknown) {
@@ -212,53 +209,27 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
       }
     };
     fetchRatioPlans();
-  }, [symbol, selectedAccountId, userId]);
+  }, [selectedSymbol, selectedAccountId, userId]);
 
   useEffect(() => {
     const fetchUnderlying = async () => {
-      if (!symbol) {
+      if (!selectedSymbol) {
         setUnderlyingPrice(null);
         return;
       }
       try {
-        const { data } = await stockService.getCurrentPrice(symbol);
+        const { data } = await stockService.getCurrentPrice(selectedSymbol);
         setUnderlyingPrice(data?.price ?? null);
       } catch {
         setUnderlyingPrice(null);
       }
     };
     fetchUnderlying();
-  }, [symbol]);
-
-  useEffect(() => {
-    let active = true;
-    const fetchSymbols = async () => {
-      try {
-        setIsLoadingSymbols(true);
-        const { data } = await optionsService.getAvailableSymbols();
-        if (active) {
-          const list = Array.isArray(data) ? data : [];
-          setAvailableSymbols(list);
-        }
-      } finally {
-        if (active) setIsLoadingSymbols(false);
-      }
-    };
-    fetchSymbols();
-    return () => {
-      active = false;
-    };
-  }, []);
+  }, [selectedSymbol]);
 
   useEffect(() => {
     setSelectedAccountId(selectedAccountIdProp ?? null);
   }, [selectedAccountIdProp]);
-
-  useEffect(() => {
-    if (availableSymbols.length > 0) {
-      setSymbol(prev => prev || availableSymbols[0]);
-    }
-  }, [availableSymbols]);
 
   
 
@@ -309,31 +280,10 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
             <Target className="w-6 h-6 text-purple-500" />
             <h2 className={`text-xl font-bold ${themes[theme].text}`}>比率价差计划</h2>
             <div className="ml-auto flex items-center gap-2">
-              <label className={`text-sm ${themes[theme].text}`}>标的</label>
-              {availableSymbols.length > 0 ? (
-                <select
-                  value={symbol}
-                  onChange={(e) => setSymbol(e.target.value)}
-                  className={`px-3 py-2 rounded-md text-sm ${themes[theme].input} ${themes[theme].text}`}
-                  disabled={isLoadingSymbols}
-                >
-                  <option value="">请选择标的</option>
-                  {availableSymbols.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  value={symbol}
-                  onChange={(e) => setSymbol(e.target.value.trim())}
-                  className={`px-3 py-2 rounded-md text-sm ${themes[theme].input} ${themes[theme].text}`}
-                  placeholder="例如: SPY"
-                />
-              )}
               <button
                 type="button"
                 onClick={refreshRatioPlans}
-                disabled={isLoadingRatio || !symbol}
+                disabled={isLoadingRatio || !selectedSymbol}
                 className={`inline-flex items-center px-2 py-1 rounded ${themes[theme].secondary}`}
               >
                 <RefreshCw className="w-4 h-4 mr-1" />

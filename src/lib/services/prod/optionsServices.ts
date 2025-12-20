@@ -1,30 +1,46 @@
 import type { OptionsService, OptionsPosition } from '../types';
 import type { CustomOptionsStrategy } from '../types';
 
+// Cache for options data to prevent redundant requests
+const optionsDataCache: Record<string, Promise<{ data: any; error: Error | null }>> = {};
+
 export const optionsService: OptionsService = {
   getOptionsData: async (symbol?: string) => {
-    try {
-      if (symbol) {
-        const externalUrl = `https://stock.in.corvo.fun/api/options?symbol=${encodeURIComponent(symbol)}`;
-        const externalResp = await fetch(externalUrl);
-        if (externalResp.ok) {
-          const externalData = await externalResp.json();
-          if (externalData && Array.isArray(externalData.quotes) && Array.isArray(externalData.surface)) {
-            return { data: externalData, error: null };
+    const cacheKey = symbol || '__default__';
+    
+    if (optionsDataCache[cacheKey]) {
+      return optionsDataCache[cacheKey];
+    }
+
+    const fetchPromise = (async () => {
+      try {
+        if (symbol) {
+          const externalUrl = `https://stock.in.corvo.fun/api/options?symbol=${encodeURIComponent(symbol)}`;
+          const externalResp = await fetch(externalUrl);
+          if (externalResp.ok) {
+            const externalData = await externalResp.json();
+            if (externalData && Array.isArray(externalData.quotes) && Array.isArray(externalData.surface)) {
+              return { data: externalData, error: null };
+            }
           }
         }
+        const queryParam = symbol ? `?symbol=${encodeURIComponent(symbol)}` : '';
+        const fallbackResp = await fetch(`/api/options${queryParam}`);
+        if (!fallbackResp.ok) {
+          throw new Error('Failed to fetch options data');
+        }
+        const data = await fallbackResp.json();
+        return { data, error: null };
+      } catch (error) {
+        console.error('Error fetching options data:', error);
+        // Remove from cache on error to allow retries
+        delete optionsDataCache[cacheKey];
+        return { data: null, error: error as Error };
       }
-      const queryParam = symbol ? `?symbol=${encodeURIComponent(symbol)}` : '';
-      const fallbackResp = await fetch(`/api/options${queryParam}`);
-      if (!fallbackResp.ok) {
-        throw new Error('Failed to fetch options data');
-      }
-      const data = await fallbackResp.json();
-      return { data, error: null };
-    } catch (error) {
-      console.error('Error fetching options data:', error);
-      return { data: null, error: error as Error };
-    }
+    })();
+
+    optionsDataCache[cacheKey] = fetchPromise;
+    return fetchPromise;
   },
 
   getAvailableSymbols: async () => {

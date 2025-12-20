@@ -95,6 +95,10 @@ export interface OptionQuote {
   putImpliedVol: number;
   callUrl?: string;
   putUrl?: string;
+  callCurrentValue?: number;
+  putCurrentValue?: number;
+  call_current_value?: number;
+  put_current_value?: number;
 }
 
 export interface OptionSurfacePoint {

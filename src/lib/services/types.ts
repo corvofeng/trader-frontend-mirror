@@ -333,6 +333,14 @@ export interface OptionQuote {
   putImpliedVol: number;
   callUrl?: string;
   putUrl?: string;
+  callCurrentValue?: number;
+  putCurrentValue?: number;
+  call_current_value?: number;
+  put_current_value?: number;
+  call_contract_code?: string;
+  call_contract_code_full?: string;
+  put_contract_code?: string;
+  put_contract_code_full?: string;
   // 用户持仓相关（可选）：展示在期权链中的我的买入/卖出数量
   myCallBuyQty?: number;
   myCallSellQty?: number;
@@ -382,6 +390,7 @@ export interface OptionsPosition {
   selectedQuantity?: number; // 在策略中选择的数量
   // 新增：策略腿部详细信息
   contract_code?: string;
+  contract_code_full?: string;
   contract_name?: string;
   contract_type?: string; // 认购/认沽
   contract_type_zh?: string; // call/put

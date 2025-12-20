@@ -14,6 +14,7 @@ import { RelatedLinks, AccountSelector } from '../shared/components';
 import { optionsService, authService } from '../lib/services';
 import { OptionsPortfolioManagement } from '../features/options/components/OptionsPortfolioManagement';
 import type { OptionsData } from '../lib/services/types';
+import { OptionPriceWebSocketProvider } from '../features/options/context/OptionPriceWebSocketContext';
 
 interface OptionsProps {
   theme: Theme;
@@ -135,8 +136,9 @@ export function Options({ theme }: OptionsProps) {
   ];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="space-y-6">
+    <OptionPriceWebSocketProvider>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="space-y-6">
         {/* Header */}
         <div className={`${themes[theme].card} rounded-lg p-4`}>
           <div className="flex items-center justify-between">
@@ -187,33 +189,31 @@ export function Options({ theme }: OptionsProps) {
                   刷新
                 </button>
               </div>
-              {activeTab === 'data' && (
-                <div className="flex items-center gap-2">
-                  <label className={`text-sm font-medium ${themes[theme].text}`}>
-                    Symbol:
-                  </label>
-                  {availableSymbols.length > 0 ? (
-                    <select
-                      value={selectedSymbol}
-                      onChange={(e) => setSelectedSymbol(e.target.value)}
-                      disabled={isLoading || isLoadingSymbols}
-                      className={`px-3 py-2 rounded-md text-sm ${themes[theme].input} ${themes[theme].text} ${
-                        isLoading || isLoadingSymbols ? 'opacity-50 cursor-not-allowed' : ''
-                      }`}
-                    >
-                      {availableSymbols.map(symbol => (
-                        <option key={symbol} value={symbol}>
-                          {symbol}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <span className={`text-sm ${themes[theme].text} opacity-70`}>
-                      No symbols available
-                    </span>
-                  )}
-                </div>
-              )}
+              <div className="flex items-center gap-2">
+                <label className={`text-sm font-medium ${themes[theme].text}`}>
+                  Symbol:
+                </label>
+                {availableSymbols.length > 0 ? (
+                  <select
+                    value={selectedSymbol}
+                    onChange={(e) => setSelectedSymbol(e.target.value)}
+                    disabled={isLoading || isLoadingSymbols}
+                    className={`px-3 py-2 rounded-md text-sm ${themes[theme].input} ${themes[theme].text} ${
+                      isLoading || isLoadingSymbols ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    {availableSymbols.map(symbol => (
+                      <option key={symbol} value={symbol}>
+                        {symbol}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className={`text-sm ${themes[theme].text} opacity-70`}>
+                    No symbols available
+                  </span>
+                )}
+              </div>
               {(isLoading || isLoadingSymbols) && activeTab === 'data' && (
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
               )}
@@ -314,7 +314,7 @@ export function Options({ theme }: OptionsProps) {
 
         {activeTab === 'portfolio' && (
           <div className="space-y-6">
-              <OptionsPortfolio theme={theme} selectedAccountId={selectedAccountId} refreshKey={refreshKey} />
+              <OptionsPortfolio theme={theme} selectedAccountId={selectedAccountId} refreshKey={refreshKey} selectedSymbol={selectedSymbol} />
             <RelatedLinks 
               theme={theme}
               currentPath="/options?tab=portfolio" 
@@ -336,7 +336,7 @@ export function Options({ theme }: OptionsProps) {
 
         {activeTab === 'management' && (
           <div className="space-y-6">
-            <OptionsPortfolioManagement theme={theme} />
+            <OptionsPortfolioManagement theme={theme} selectedSymbol={selectedSymbol} />
             <RelatedLinks 
               theme={theme}
               currentPath="/options?tab=management" 
@@ -355,6 +355,7 @@ export function Options({ theme }: OptionsProps) {
           onClose={() => setShowCalculatorModal(false)}
         />
       )}
-    </div>
+      </div>
+    </OptionPriceWebSocketProvider>
   );
 }

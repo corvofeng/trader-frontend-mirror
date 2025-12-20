@@ -8,7 +8,7 @@ import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { optionsService, authService, stockService } from '../../../lib/services';
 import { emitAddLegToStrategy } from '../events/strategySelection';
 import { logger } from '../../../shared/utils/logger';
-import type { OptionsPortfolioData, CustomOptionsStrategy, OptionsPosition, OptionsStrategy, AdvisedCombination } from '../../../lib/services/types';
+import type { OptionsPortfolioData, CustomOptionsStrategy, OptionsPosition, OptionsStrategy, AdvisedCombination, OptionsData } from '../../../lib/services/types';
 import { computeCombosForPositions as computeCombosForStrategy } from '../utils/strategyCombos';
 import toast from 'react-hot-toast';
 import { ExpiryGroupCard } from './ExpiryGroupCard';
@@ -17,6 +17,8 @@ interface OptionsPortfolioProps {
   theme: Theme;
   selectedAccountId?: string | null;
   refreshKey?: number;
+  optionsData?: OptionsData | null;
+  selectedSymbol?: string;
 }
 
 type OptionsViewMode = 'expiry' | 'strategy' | 'grouped';
@@ -84,7 +86,7 @@ const getPositionTypeInfo2 = (positionType: string, optionType: string, position
   };
 };
 
-export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdProp, refreshKey = 0 }: OptionsPortfolioProps) {
+export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdProp, refreshKey = 0, optionsData, selectedSymbol }: OptionsPortfolioProps) {
   const [portfolioData, setPortfolioData] = useState<OptionsPortfolioData | null>(null);
   const [customStrategies, setCustomStrategies] = useState<CustomOptionsStrategy[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -96,6 +98,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [expandedStrategies, setExpandedStrategies] = useState<string[]>([]);
   const [underlyingCache, setUnderlyingCache] = useState<Record<string, number>>({});
+  const [internalOptionsDataMap, setInternalOptionsDataMap] = useState<Record<string, OptionsData>>({});
   // 到期分组选择模式（每个到期日单独开启多选）
   const [expirySelectionMode, setExpirySelectionMode] = useState<Record<string, boolean>>({});
   // 选中的腿及数量（positionId -> quantity）
@@ -109,7 +112,45 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   const [isModalSaving, setIsModalSaving] = useState(false);
   const { currencyConfig } = useCurrency();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  
+  const [activeSymbol, setActiveSymbol] = useState<string>(selectedSymbol || '');
+
+  // Sync prop to state
+  useEffect(() => {
+    if (selectedSymbol !== undefined) {
+      setActiveSymbol(selectedSymbol);
+    }
+  }, [selectedSymbol]);
+
+  // Fetch data when active symbol changes
+  useEffect(() => {
+    if (activeSymbol) {
+      // Ensure we have the current price
+      const sanitized = getSanitizedUnderlying(activeSymbol);
+      ensureUnderlyingPrice(sanitized);
+
+      // Ensure we have the options chain data (market data)
+      if (!internalOptionsDataMap[activeSymbol]) {
+        optionsService.getOptionsData(activeSymbol).then(({ data: optData }) => {
+          if (optData) {
+            setInternalOptionsDataMap(prev => ({ ...prev, [activeSymbol]: optData }));
+          }
+        }).catch(err => {
+          console.error('Error fetching options data for active symbol:', activeSymbol, err);
+        });
+      } else {
+        // If already in map, we might want to refresh it if it's stale? 
+        // With the new caching service, calling it again is cheap if cached, or refreshes if needed.
+        // Actually, the cache service we implemented caches the PROMISE.
+        // If we want to force refresh, we would need a mechanism, but for now let's just ensure we call it.
+        optionsService.getOptionsData(activeSymbol).then(({ data: optData }) => {
+            if (optData) {
+              setInternalOptionsDataMap(prev => ({ ...prev, [activeSymbol]: optData }));
+            }
+        });
+      }
+    }
+  }, [activeSymbol]);
+
   // 复杂策略编辑复用“保存确认弹窗”，不使用独立编辑器
 
   useEffect(() => {
@@ -132,7 +173,40 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         }
         const { data, error } = await optionsService.getOptionsPortfolio(userId, selectedAccountIdProp || null);
         if (error) throw error;
-        if (data) setPortfolioData(data);
+        if (data) {
+          setPortfolioData(data);
+          
+          // Identify unique symbols and fetch their options data if needed
+          const symbols = new Set<string>();
+          if (activeSymbol) {
+             // If activeSymbol is set, ensure we fetch it
+             symbols.add(activeSymbol);
+          }
+          
+          // Collect all symbols from positions to ensure we have data for everything if needed
+          // But maybe we only fetch for activeSymbol to save bandwidth?
+          // The user said "request with THIS symbol". 
+          // Let's keep fetching for all found symbols to be safe, but prioritize activeSymbol logic above.
+             (data.expiryBuckets || []).forEach(bucket => {
+               bucket.single.forEach(pos => {
+                 if (pos.opt_undl_code_full) symbols.add(pos.opt_undl_code_full);
+               });
+             });
+
+          // Fetch missing options data
+          for (const sym of Array.from(symbols)) {
+             // We rely on the effect above for activeSymbol, but this loop handles others too
+             if (!internalOptionsDataMap[sym]) {
+               optionsService.getOptionsData(sym).then(({ data: optData }) => {
+                 if (optData) {
+                   setInternalOptionsDataMap(prev => ({ ...prev, [sym]: optData }));
+                 }
+               }).catch(err => {
+                 console.error('Error fetching options data for symbol:', sym, err);
+               });
+             }
+          }
+        }
       } catch (error) {
         console.error('Error fetching portfolio data:', error);
       } finally {
@@ -211,26 +285,8 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     );
   };
 
-  const [selectedSymbol, setSelectedSymbol] = useState<string>('');
-  useEffect(() => {
-    if (!selectedSymbol && portfolioData?.expiryBuckets && portfolioData.expiryBuckets.length > 0) {
-      const first = portfolioData.expiryBuckets[0].single[0];
-      const code = first?.opt_undl_code_full || '';
-      if (code) setSelectedSymbol(code);
-    }
-  }, [portfolioData?.expiryBuckets, selectedSymbol]);
-
-  useEffect(() => {
-    const loadSelectedPrice = async () => {
-      if (!selectedSymbol) return;
-      const sanitized = getSanitizedUnderlying(selectedSymbol);
-      await ensureUnderlyingPrice(sanitized);
-    };
-    loadSelectedPrice();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSymbol]);
   const isSelectedPosition = (p: OptionsPosition) => {
-    return !!selectedSymbol && (p.opt_undl_code_full === selectedSymbol);
+    return !!activeSymbol && (p.opt_undl_code_full === activeSymbol);
   };
   const getRowHighlightClass = (p: OptionsPosition) => {
     if (!isSelectedPosition(p)) return '';
@@ -864,28 +920,16 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between">
-            <h2 className={`text-xl font-bold ${themes[theme].text}`}>
-              期权投资组合概览
-            </h2>
-            <div className="flex items-center gap-2">
-              <label className={`text-sm font-medium ${themes[theme].text}`}>标的</label>
-              <select
-                value={selectedSymbol}
-                onChange={(e) => setSelectedSymbol(e.target.value)}
-                className={`px-3 py-2 rounded-md text-sm ${themes[theme].input} ${themes[theme].text}`}
-              >
-                <option value="">请选择</option>
-                {Array.from(new Set((portfolioData?.expiryBuckets || []).flatMap(b => b.single)
-                  .map(p => p.opt_undl_code_full)
-                  .filter(Boolean)))
-                  .map(full => (<option key={full!} value={full!}>{full!.replace('US.', '')}</option>))}
-              </select>
-              {selectedSymbol && underlyingCache[selectedSymbol] != null && (
-                <span className={`text-sm ${themes[theme].text}`}>当前价 {underlyingCache[selectedSymbol]!.toFixed(2)}</span>
+              <div className="flex items-center gap-3">
+                <h2 className={`text-xl font-bold ${themes[theme].text}`}>
+                  期权投资组合概览
+                </h2>
+              </div>
+              {activeSymbol && underlyingCache[activeSymbol] != null && (
+                <span className={`text-sm ${themes[theme].text}`}>当前价 {underlyingCache[activeSymbol]!.toFixed(2)}</span>
               )}
             </div>
           </div>
-        </div>
         
         <div className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -1423,14 +1467,16 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
               getPositionTypeInfo2={getPositionTypeInfo2}
               computeCombosForPositions={computeCombosForPositions}
               allExpiryBuckets={portfolioData.expiryBuckets || []}
-              selectedSymbol={selectedSymbol}
-              underlyingPrice={underlyingCache[selectedSymbol] ?? null}
+              selectedSymbol={activeSymbol}
+              underlyingPrice={underlyingCache[activeSymbol] ?? null}
               onClosePositions={handleClosePositions}
               advisedCombinations={(portfolioData.advised_combinations || []).filter(c => c.expiry === group.expiry)}
               onLoadAdvised={loadAdvisedCombination}
               onExecuteAdvised={executeAdvisedCombination}
               selectedAccountId={selectedAccountIdProp || null}
               userId={currentUserId || null}
+              optionsData={optionsData}
+              optionsDataMap={internalOptionsDataMap}
             />
           ))}
         </div>

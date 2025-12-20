@@ -109,7 +109,7 @@ export function OptionsTabContent({
     return (
       <div className="space-y-6">
         <HoldingsStrategyBuilder theme={theme} />
-        <OptionsPortfolio theme={theme} />
+        <OptionsPortfolio theme={theme} optionsData={optionsData} selectedSymbol={selectedSymbol} />
         <RelatedLinks 
           theme={theme}
           currentPath="/options?tab=portfolio" 

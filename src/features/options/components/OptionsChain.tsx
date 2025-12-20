@@ -58,7 +58,7 @@ export function OptionsChain({
   const atmStrike = getAtTheMoneyStrike(editableQuotes);
 
   // 可配置字段定义（保持左右镜像对称）
-  type FieldId = 'lastPrice' | 'timeValue' | 'intrinsicValue' | 'impliedVol';
+  type FieldId = 'volume' | 'openInterest' | 'lastPrice' | 'timeValue' | 'intrinsicValue' | 'impliedVol';
 
   const FIELD_CONFIG: Array<{
     id: FieldId;
@@ -68,6 +68,22 @@ export function OptionsChain({
     callAlign?: 'left' | 'right';
     putAlign?: 'left' | 'right';
   }> = [
+    {
+      id: 'volume',
+      label: '成交量',
+      renderCall: (quote) => <span className="text-gray-600 dark:text-gray-400">{quote.callVolume}</span>,
+      renderPut: (quote) => <span className="text-gray-600 dark:text-gray-400">{quote.putVolume}</span>,
+      callAlign: 'right',
+      putAlign: 'left',
+    },
+    {
+      id: 'openInterest',
+      label: '持仓量',
+      renderCall: (quote) => <span className="text-gray-600 dark:text-gray-400">{quote.callOpenInterest}</span>,
+      renderPut: (quote) => <span className="text-gray-600 dark:text-gray-400">{quote.putOpenInterest}</span>,
+      callAlign: 'right',
+      putAlign: 'left',
+    },
     {
       id: 'impliedVol',
       label: '隐含波动率',
@@ -114,19 +130,19 @@ export function OptionsChain({
       renderCall: (quote) => (
         quote.callUrl ? (
           <a href={quote.callUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline font-medium">
-            {formatCurrency(quote.callPrice, currencyConfig, 4)}
+            {formatCurrency(quote.callCurrentValue ?? quote.call_current_value ?? quote.callPrice, currencyConfig, 4)}
           </a>
         ) : (
-          <span className="font-medium">{formatCurrency(quote.callPrice, currencyConfig, 4)}</span>
+          <span className="font-medium">{formatCurrency(quote.callCurrentValue ?? quote.call_current_value ?? quote.callPrice, currencyConfig, 4)}</span>
         )
       ),
       renderPut: (quote) => (
         quote.putUrl ? (
           <a href={quote.putUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline font-medium">
-            {formatCurrency(quote.putPrice, currencyConfig, 4)}
+            {formatCurrency(quote.putCurrentValue ?? quote.put_current_value ?? quote.putPrice, currencyConfig, 4)}
           </a>
         ) : (
-          <span className="font-medium">{formatCurrency(quote.putPrice, currencyConfig, 4)}</span>
+          <span className="font-medium">{formatCurrency(quote.putCurrentValue ?? quote.put_current_value ?? quote.putPrice, currencyConfig, 4)}</span>
         )
       ),
       callAlign: 'right',
