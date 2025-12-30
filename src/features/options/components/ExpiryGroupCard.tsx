@@ -1242,18 +1242,20 @@ export function ExpiryGroupCard({
                             <div className="text-right">价格</div>
                             <div className="text-right">量</div>
                           </div>
-                          {[0, 1, 2, 3, 4].map(i => {
-                             const price = priceData.bid_prices?.[i] ?? (i === 0 ? priceData.bid : undefined);
-                             const vol = priceData.bid_vol?.[i];
-                             if (price === undefined && vol === undefined) return null;
-                             return (
-                               <div key={`bid-${i}`} className="grid grid-cols-3 gap-1 px-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded">
-                                 <div className="text-left opacity-75">{i + 1}</div>
-                                 <div className="text-right text-red-500 font-medium">{price?.toFixed(4) ?? '-'}</div>
-                                 <div className="text-right opacity-90">{vol ?? '-'}</div>
-                               </div>
-                             );
-                          })}
+                          <div className="overflow-y-auto max-h-[200px] scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
+                            {Array.from({ length: Math.max(priceData.bid_prices?.length ?? 0, priceData.bid_vol?.length ?? 0, 5) }).map((_, i) => {
+                               const price = priceData.bid_prices?.[i] ?? (i === 0 ? priceData.bid : undefined);
+                               const vol = priceData.bid_vol?.[i];
+                               if (price === undefined && vol === undefined && i >= 5) return null;
+                               return (
+                                 <div key={`bid-${i}`} className="grid grid-cols-3 gap-1 px-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded">
+                                   <div className="text-left opacity-75">{i + 1}</div>
+                                   <div className="text-right text-red-500 font-medium">{price?.toFixed(4) ?? '-'}</div>
+                                   <div className="text-right opacity-90">{vol ?? '-'}</div>
+                                 </div>
+                               );
+                            })}
+                          </div>
                         </div>
                         
                         {/* Ask Side (Sell) */}
@@ -1264,18 +1266,20 @@ export function ExpiryGroupCard({
                             <div className="text-right">价格</div>
                             <div className="text-right">量</div>
                           </div>
-                          {[0, 1, 2, 3, 4].map(i => {
-                             const price = priceData.ask_prices?.[i] ?? (i === 0 ? priceData.ask : undefined);
-                             const vol = priceData.ask_vol?.[i];
-                             if (price === undefined && vol === undefined) return null;
-                             return (
-                               <div key={`ask-${i}`} className="grid grid-cols-3 gap-1 px-1 hover:bg-green-50 dark:hover:bg-green-900/20 rounded">
-                                 <div className="text-left opacity-75">{i + 1}</div>
-                                 <div className="text-right text-green-500 font-medium">{price?.toFixed(4) ?? '-'}</div>
-                                 <div className="text-right opacity-90">{vol ?? '-'}</div>
-                               </div>
-                             );
-                          })}
+                          <div className="overflow-y-auto max-h-[200px] scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
+                            {Array.from({ length: Math.max(priceData.ask_prices?.length ?? 0, priceData.ask_vol?.length ?? 0, 5) }).map((_, i) => {
+                               const price = priceData.ask_prices?.[i] ?? (i === 0 ? priceData.ask : undefined);
+                               const vol = priceData.ask_vol?.[i];
+                               if (price === undefined && vol === undefined && i >= 5) return null;
+                               return (
+                                 <div key={`ask-${i}`} className="grid grid-cols-3 gap-1 px-1 hover:bg-green-50 dark:hover:bg-green-900/20 rounded">
+                                   <div className="text-left opacity-75">{i + 1}</div>
+                                   <div className="text-right text-green-500 font-medium">{price?.toFixed(4) ?? '-'}</div>
+                                   <div className="text-right opacity-90">{vol ?? '-'}</div>
+                                 </div>
+                               );
+                            })}
+                          </div>
                         </div>
                       </div>
                     </div>
