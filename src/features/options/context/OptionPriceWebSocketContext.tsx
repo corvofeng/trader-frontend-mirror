@@ -94,21 +94,68 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
             const updates: Record<string, PriceUpdate> = {};
             data.forEach((item: any) => {
               if (item.contract_code) {
+                // Helper to parse price fields which might be scalars or arrays
+                const parsePriceField = (val: any): { scalar: number | undefined, array: number[] | undefined } => {
+                  if (Array.isArray(val)) {
+                    return { scalar: val.length > 0 ? val[0] : undefined, array: val };
+                  }
+                  if (typeof val === 'number') {
+                    return { scalar: val, array: [val] };
+                  }
+                  return { scalar: undefined, array: undefined };
+                };
+
+                const bidSource = item.bid_prices ?? item.bid_price ?? item.bid;
+                const askSource = item.ask_prices ?? item.ask_price ?? item.ask;
+
+                const bidData = parsePriceField(bidSource);
+                const askData = parsePriceField(askSource);
+
                 updates[item.contract_code] = {
                   ...item,
                   price: item.last_price ?? item.price,
-                  bid: item.bid_price ?? item.bid,
-                  ask: item.ask_price ?? item.ask,
-                  bid_prices: item.bid_prices ?? (Array.isArray(item.bid) ? item.bid : (item.bid_price ? [item.bid_price] : (item.bid ? [item.bid] : []))),
-                  ask_prices: item.ask_prices ?? (Array.isArray(item.ask) ? item.ask : (item.ask_price ? [item.ask_price] : (item.ask ? [item.ask] : [])))
+                  bid: bidData.scalar,
+                  bid_price: bidData.scalar,
+                  ask: askData.scalar,
+                  ask_price: askData.scalar,
+                  bid_prices: bidData.array ?? [],
+                  ask_prices: askData.array ?? []
                 };
               }
             });
             setPrices(prev => ({ ...prev, ...updates }));
           } else if (data.contract_code) {
+             // Helper to parse price fields which might be scalars or arrays
+             const parsePriceField = (val: any): { scalar: number | undefined, array: number[] | undefined } => {
+              if (Array.isArray(val)) {
+                return { scalar: val.length > 0 ? val[0] : undefined, array: val };
+              }
+              if (typeof val === 'number') {
+                return { scalar: val, array: [val] };
+              }
+              return { scalar: undefined, array: undefined };
+            };
+
+            const bidSource = data.bid_prices ?? data.bid_price ?? data.bid;
+            const askSource = data.ask_prices ?? data.ask_price ?? data.ask;
+
+            const bidData = parsePriceField(bidSource);
+            const askData = parsePriceField(askSource);
+
+            const processedData = {
+              ...data,
+              price: data.last_price ?? data.price,
+              bid: bidData.scalar,
+              bid_price: bidData.scalar,
+              ask: askData.scalar,
+              ask_price: askData.scalar,
+              bid_prices: bidData.array ?? [],
+              ask_prices: askData.array ?? []
+            };
+
             setPrices(prev => ({
               ...prev,
-              [data.contract_code]: data
+              [data.contract_code]: processedData
             }));
           }
         } catch (e) {
