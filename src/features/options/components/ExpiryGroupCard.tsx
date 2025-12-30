@@ -1243,8 +1243,8 @@ export function ExpiryGroupCard({
                             <div className="text-right">量</div>
                           </div>
                           <div className="overflow-y-auto max-h-[200px] scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
-                            {Array.from({ length: Math.max(priceData.bid_prices?.length ?? 0, priceData.bid_vol?.length ?? 0, 5) }).map((_, i) => {
-                               const price = priceData.bid_prices?.[i] ?? (i === 0 ? priceData.bid : undefined);
+                            {Array.from({ length: Math.max(priceData.bid_price?.length ?? 0, priceData.bid_vol?.length ?? 0, 5) }).map((_, i) => {
+                               const price = priceData.bid_price?.[i] ?? (i === 0 ? priceData.bid : undefined);
                                const vol = priceData.bid_vol?.[i];
                                if (price === undefined && vol === undefined && i >= 5) return null;
                                return (
@@ -1267,8 +1267,8 @@ export function ExpiryGroupCard({
                             <div className="text-right">量</div>
                           </div>
                           <div className="overflow-y-auto max-h-[200px] scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
-                            {Array.from({ length: Math.max(priceData.ask_prices?.length ?? 0, priceData.ask_vol?.length ?? 0, 5) }).map((_, i) => {
-                               const price = priceData.ask_prices?.[i] ?? (i === 0 ? priceData.ask : undefined);
+                            {Array.from({ length: Math.max(priceData.ask_price?.length ?? 0, priceData.ask_vol?.length ?? 0, 5) }).map((_, i) => {
+                               const price = priceData.ask_price?.[i] ?? (i === 0 ? priceData.ask : undefined);
                                const vol = priceData.ask_vol?.[i];
                                if (price === undefined && vol === undefined && i >= 5) return null;
                                return (

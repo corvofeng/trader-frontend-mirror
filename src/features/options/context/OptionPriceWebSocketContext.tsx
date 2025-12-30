@@ -18,11 +18,9 @@ export interface PriceUpdate {
   price: number;
   last_price?: number;
   bid?: number;
-  bid_price?: number;
-  bid_prices?: number[];
+  bid_price?: number[];
   ask?: number;
-  ask_price?: number;
-  ask_prices?: number[];
+  ask_price?: number[];
   ask_vol?: number[];
   bid_vol?: number[];
   timestamp: number;
@@ -115,11 +113,11 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
                   ...item,
                   price: item.last_price ?? item.price,
                   bid: bidData.scalar,
-                  bid_price: bidData.scalar,
+                  bid_price: bidData.array ?? [],
                   ask: askData.scalar,
-                  ask_price: askData.scalar,
-                  bid_prices: bidData.array ?? [],
-                  ask_prices: askData.array ?? []
+                  ask_price: askData.array ?? [],
+                  bid_vol: item.bid_vol ?? [],
+                  ask_vol: item.ask_vol ?? []
                 };
               }
             });
@@ -146,11 +144,11 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
               ...data,
               price: data.last_price ?? data.price,
               bid: bidData.scalar,
-              bid_price: bidData.scalar,
+              bid_price: bidData.array ?? [],
               ask: askData.scalar,
-              ask_price: askData.scalar,
-              bid_prices: bidData.array ?? [],
-              ask_prices: askData.array ?? []
+              ask_price: askData.array ?? [],
+              bid_vol: data.bid_vol ?? [],
+              ask_vol: data.ask_vol ?? []
             };
 
             setPrices(prev => ({
