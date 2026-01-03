@@ -6,7 +6,6 @@ import { Theme, themes } from '../../../../lib/theme';
 import { useCurrency } from '../../../../lib/context/CurrencyContext';
 import type { Stock } from '../../../../lib/services/types';
 import { formatCurrency } from '../../../../shared/utils/format';
-import { StockChart } from '../StockChart';
 import { StockConfigEditor } from '../StockConfigEditor';
 
 interface TradeFormProps {
@@ -77,8 +76,6 @@ export function TradeForm({ selectedStock, theme }: TradeFormProps) {
 
   return (
     <div className="space-y-6">
-      <StockChart stockCode={selectedStock?.stock_code} theme={theme} />
-      
       {showConfigEditor && selectedStock ? (
         <StockConfigEditor
           stockCode={selectedStock.stock_code}

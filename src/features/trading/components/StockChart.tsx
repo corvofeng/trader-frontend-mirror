@@ -14,6 +14,7 @@ type ChartType = 'candlestick' | 'line' | 'bar';
 interface StockChartProps {
   stockCode?: string;
   theme: Theme;
+  pendingTrades?: Trade[];
 }
 
 interface CostBasisPoint {
@@ -35,12 +36,13 @@ const isValidDataPoint = (item: StockData) => {
   );
 };
 
-export function StockChart({ stockCode, theme }: StockChartProps) {
+export function StockChart({ stockCode, theme, pendingTrades }: StockChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candlestickSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const costBasisSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const priceLinesRef = useRef<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCostBasis, setShowCostBasis] = useState(true);
   const { currencyConfig, getThemedColors } = useCurrency();
@@ -288,6 +290,49 @@ export function StockChart({ stockCode, theme }: StockChartProps) {
       console.error('Error setting markers:', e);
     }
   };
+
+  // Add pending trade price lines
+  useEffect(() => {
+    if (isLoading || !candlestickSeriesRef.current || !pendingTrades) return;
+
+    // Clear existing price lines
+    priceLinesRef.current.forEach(line => {
+      candlestickSeriesRef.current?.removePriceLine(line);
+    });
+    priceLinesRef.current = [];
+
+    // Add new price lines
+    pendingTrades.forEach(trade => {
+      const isBuy = trade.operation === 'buy';
+      const color = isBuy ? '#22c55e' : '#ef4444'; // green-500 : red-500
+      
+      const priceLine = candlestickSeriesRef.current?.createPriceLine({
+        price: trade.target_price,
+        color: color,
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: `${isBuy ? 'BUY' : 'SELL'} PLAN @ ${trade.quantity}`,
+      });
+
+      if (priceLine) {
+        priceLinesRef.current.push(priceLine);
+      }
+    });
+
+    return () => {
+      if (candlestickSeriesRef.current && !isDisposed.current) {
+        priceLinesRef.current.forEach(line => {
+          try {
+            candlestickSeriesRef.current?.removePriceLine(line);
+          } catch (e) {
+            // Ignore cleanup errors
+          }
+        });
+        priceLinesRef.current = [];
+      }
+    };
+  }, [pendingTrades, theme, isLoading]);
 
   useEffect(() => {
     const fetchStockInfo = async () => {

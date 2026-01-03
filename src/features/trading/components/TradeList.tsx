@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import { ArrowUpCircle, ArrowDownCircle, DollarSign, Calendar, BarChart2, ClipboardCheck, Check, X, Clock, Edit2, Save, ListFilter, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 import { authService, tradeService } from '../../../lib/services';
 import { Theme, themes } from '../../../lib/theme';
+import { StockChart } from './StockChart';
 import type { Trade } from '../../../lib/services/types';
 import toast from 'react-hot-toast';
 
@@ -22,6 +23,42 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false }: T
   const [editedNote, setEditedNote] = useState('');
   const [showAllTrades, setShowAllTrades] = useState(false);
   const [expandedTrades, setExpandedTrades] = useState<number[]>([]);
+  const [expandedStocks, setExpandedStocks] = useState<string[]>([]);
+
+  const groupedTrades = useMemo(() => {
+    const groups: Record<string, Trade[]> = {};
+    trades.forEach(trade => {
+      if (!groups[trade.stock_code]) {
+        groups[trade.stock_code] = [];
+      }
+      groups[trade.stock_code].push(trade);
+    });
+
+    // Sort trades within groups by date descending
+    Object.keys(groups).forEach(key => {
+      groups[key].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    });
+
+    // Sort groups by latest trade date descending
+    return Object.entries(groups).sort(([, tradesA], [, tradesB]) => {
+      const latestA = tradesA[0]?.created_at ? new Date(tradesA[0].created_at).getTime() : 0;
+      const latestB = tradesB[0]?.created_at ? new Date(tradesB[0].created_at).getTime() : 0;
+      return latestB - latestA;
+    });
+  }, [trades]);
+
+  useEffect(() => {
+    // Default to collapsed state (empty expandedStocks)
+    setExpandedStocks([]);
+  }, [trades]);
+
+  const toggleStockExpansion = (stockCode: string) => {
+    setExpandedStocks(prev => 
+      prev.includes(stockCode)
+        ? prev.filter(c => c !== stockCode)
+        : [...prev, stockCode]
+    );
+  };
 
   const fetchTrades = async () => {
     try {
@@ -244,8 +281,27 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false }: T
     return null;
   };
 
+  const animations = `
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-slide-down {
+      animation: slideDown 0.3s ease-out forwards;
+    }
+    .animate-fade-in {
+      animation: fadeIn 0.4s ease-out forwards;
+      opacity: 0;
+    }
+  `;
+
   return (
     <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden transition-colors duration-200`}>
+      <style>{animations}</style>
       <div className={`px-4 sm:px-6 py-4 border-b ${themes[theme].border}`}>
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
           <div className="flex items-center gap-2">
@@ -315,108 +371,165 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false }: T
             </div>
           </div>
         ) : (
-          trades.map((trade) => {
-            const isExpanded = expandedTrades.includes(trade.id);
-            const operationStyle = getOperationStyle(trade.operation);
-            const OperationIcon = operationStyle.icon;
+          groupedTrades.map(([stockCode, stockTrades], index) => {
+            const pendingCount = stockTrades.filter(t => t.status === 'pending').length;
+            const completedCount = stockTrades.filter(t => t.status === 'completed').length;
+            const isStockExpanded = expandedStocks.includes(stockCode);
+            const stockName = stockTrades[0]?.stock_name || '';
             
             return (
               <div 
-                key={trade.id} 
-                className={`p-4 sm:p-6 ${themes[theme].cardHover} transition duration-150`}
+                key={stockCode} 
+                className={`mb-4 mx-4 rounded-lg border ${themes[theme].border} overflow-hidden shadow-sm animate-fade-in`}
+                style={{ animationDelay: `${index * 0.05}s` }}
               >
                 <div 
-                  className="flex items-start justify-between cursor-pointer"
-                  onClick={() => toggleTradeExpansion(trade.id)}
+                  className={`px-4 py-3 flex items-center justify-between cursor-pointer ${
+                    theme === 'dark' ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-50 hover:bg-gray-100'
+                  } transition-all duration-200 hover:shadow-md`}
+                  onClick={() => toggleStockExpansion(stockCode)}
                 >
-                  <div className="flex items-start space-x-3">
-                    <div className={`p-2 rounded-full ${operationStyle.className}`}>
-                      <OperationIcon className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <div className="flex items-baseline gap-2">
-                        <h3 className={`text-base sm:text-lg font-medium ${themes[theme].text}`}>
-                          {trade.stock_code}
-                        </h3>
-                        <span className={`text-sm ${themes[theme].text} opacity-75`}>
-                          {trade.stock_name}
+                  <div className="flex items-center gap-4">
+                    <h3 className={`text-lg font-semibold ${themes[theme].text}`}>
+                      {stockName} <span className="text-sm font-normal opacity-75">({stockCode})</span>
+                    </h3>
+                    <div className="flex flex-wrap gap-2 text-xs sm:text-sm">
+                      {pendingCount > 0 && (
+                        <span className={`px-2 py-0.5 rounded-full font-medium ${
+                          theme === 'dark' ? 'bg-yellow-900/50 text-yellow-200' : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {pendingCount} Pending
                         </span>
-                      </div>
-                      <div className={`text-sm ${themes[theme].text} opacity-75 mt-1`}>
-                        <span className="font-medium">{operationStyle.label}</span> at ${trade.target_price.toFixed(2)} × {trade.quantity}
-                      </div>
-                      <div className={`flex flex-col text-sm ${themes[theme].text} opacity-75 mt-0.5`}>
-                        <span>Created: {format(new Date(trade.created_at), 'MMM d, yyyy HH:mm')}</span>
-                        {trade.updated_at !== trade.created_at && (
-                          <span>Updated: {format(new Date(trade.updated_at), 'MMM d, yyyy HH:mm')}</span>
-                        )}
-                      </div>
+                      )}
+                      {completedCount > 0 && (
+                        <span className={`px-2 py-0.5 rounded-full font-medium ${
+                          theme === 'dark' ? 'bg-green-900/50 text-green-200' : 'bg-green-100 text-green-800'
+                        }`}>
+                          {completedCount} Completed
+                        </span>
+                      )}
+                      <span className={`px-2 py-0.5 rounded-full ${themes[theme].text} opacity-60`}>
+                        {stockTrades.length} Total
+                      </span>
                     </div>
                   </div>
-                  <div className="flex items-center">
-                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                      getStatusColor(trade.status)
-                    }`}>
-                      {trade.status.charAt(0).toUpperCase() + trade.status.slice(1)}
-                    </span>
-                    {isExpanded ? (
-                      <ChevronUp className={`w-5 h-5 ml-2 ${themes[theme].text}`} />
-                    ) : (
-                      <ChevronDown className={`w-5 h-5 ml-2 ${themes[theme].text}`} />
-                    )}
-                  </div>
+                  <ChevronDown 
+                    className={`w-5 h-5 ${themes[theme].text} opacity-75 transition-transform duration-300 ${isStockExpanded ? 'rotate-180' : ''}`} 
+                  />
                 </div>
 
-                {isExpanded && (
-                  <div className="mt-4 space-y-3">
-                    <div className={`p-3 rounded-md ${themes[theme].background}`}>
-                      {editingNoteId === trade.id ? (
-                        <div className="flex flex-col space-y-2">
-                          <textarea
-                            value={editedNote}
-                            onChange={(e) => setEditedNote(e.target.value)}
-                            className={`w-full p-3 rounded-md ${themes[theme].input} ${themes[theme].text} focus:ring-2 focus:ring-blue-500`}
-                            rows={3}
-                          />
-                          <div className="flex justify-end space-x-2">
-                            <button
-                              onClick={() => setEditingNoteId(null)}
-                              className={`px-3 py-1.5 rounded-md text-sm ${themes[theme].secondary}`}
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              onClick={() => handleSaveNote(trade.id)}
-                              className={`px-3 py-1.5 rounded-md text-sm ${themes[theme].primary} inline-flex items-center`}
-                            >
-                              <Save className="w-4 h-4 mr-1" />
-                              Save
-                            </button>
+                {isStockExpanded && (
+                  <div className={`divide-y ${themes[theme].border} border-t ${themes[theme].border} animate-slide-down`}>
+                    <div className="p-4">
+                      <StockChart 
+                        stockCode={stockCode} 
+                        theme={theme} 
+                        pendingTrades={stockTrades.filter(t => t.status === 'pending')}
+                      />
+                    </div>
+                    {stockTrades.map((trade) => {
+                      const isExpanded = expandedTrades.includes(trade.id);
+                      const operationStyle = getOperationStyle(trade.operation);
+                      const OperationIcon = operationStyle.icon;
+                      
+                      return (
+                        <div 
+                          key={trade.id} 
+                          className={`p-4 sm:p-6 ${themes[theme].cardHover} transition duration-150`}
+                        >
+                          <div 
+                            className="flex items-start justify-between cursor-pointer"
+                            onClick={() => toggleTradeExpansion(trade.id)}
+                          >
+                            <div className="flex items-start space-x-3">
+                              <div className={`p-2 rounded-full ${operationStyle.className}`}>
+                                <OperationIcon className="w-5 h-5" />
+                              </div>
+                              <div>
+                                <div className="flex items-baseline gap-2">
+                                  <h3 className={`text-base sm:text-lg font-medium ${themes[theme].text}`}>
+                                    {trade.stock_code}
+                                  </h3>
+                                  <span className={`text-sm ${themes[theme].text} opacity-75`}>
+                                    {trade.stock_name}
+                                  </span>
+                                </div>
+                                <div className={`text-sm ${themes[theme].text} opacity-75 mt-1`}>
+                                  <span className="font-medium">{operationStyle.label}</span> at ${trade.target_price.toFixed(2)} × {trade.quantity}
+                                </div>
+                                <div className={`flex flex-col text-sm ${themes[theme].text} opacity-75 mt-0.5`}>
+                                  <span>Created: {format(new Date(trade.created_at), 'MMM d, yyyy HH:mm')}</span>
+                                  {trade.updated_at !== trade.created_at && (
+                                    <span>Updated: {format(new Date(trade.updated_at), 'MMM d, yyyy HH:mm')}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center">
+                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                getStatusColor(trade.status)
+                              }`}>
+                                {trade.status.charAt(0).toUpperCase() + trade.status.slice(1)}
+                              </span>
+                              <ChevronDown className={`w-5 h-5 ml-2 ${themes[theme].text} transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
+                            </div>
                           </div>
-                        </div>
-                      ) : (
-                        <div className="group relative">
-                          <div className={`text-sm ${themes[theme].text} opacity-90 pr-10`}>
-                            {trade.notes || 'No notes added'}
-                          </div>
-                          {trade.status !== 'pending' && (
-                            <div className={`text-xs ${themes[theme].text} opacity-75 mt-2`}>
-                              {trade.status === 'completed' ? 'Completed' : 'Cancelled'} on {format(new Date(trade.updated_at), 'MMM d, yyyy HH:mm')}
+
+                          {isExpanded && (
+                            <div className="mt-4 space-y-3 animate-slide-down">
+                              <div className={`p-3 rounded-md ${themes[theme].background}`}>
+                                {editingNoteId === trade.id ? (
+                                  <div className="flex flex-col space-y-2">
+                                    <textarea
+                                      value={editedNote}
+                                      onChange={(e) => setEditedNote(e.target.value)}
+                                      className={`w-full p-3 rounded-md ${themes[theme].input} ${themes[theme].text} focus:ring-2 focus:ring-blue-500`}
+                                      rows={3}
+                                    />
+                                    <div className="flex justify-end space-x-2">
+                                      <button
+                                        onClick={() => setEditingNoteId(null)}
+                                        className={`px-3 py-1.5 rounded-md text-sm ${themes[theme].secondary}`}
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button
+                                        onClick={() => handleSaveNote(trade.id)}
+                                        className={`px-3 py-1.5 rounded-md text-sm ${themes[theme].primary} inline-flex items-center`}
+                                      >
+                                        <Save className="w-4 h-4 mr-1" />
+                                        Save
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="group relative">
+                                    <div className={`text-sm ${themes[theme].text} opacity-90 pr-10`}>
+                                      {trade.notes || 'No notes added'}
+                                    </div>
+                                    {trade.status !== 'pending' && (
+                                      <div className={`text-xs ${themes[theme].text} opacity-75 mt-2`}>
+                                        {trade.status === 'completed' ? 'Completed' : 'Cancelled'} on {format(new Date(trade.updated_at), 'MMM d, yyyy HH:mm')}
+                                      </div>
+                                    )}
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleEditNote(trade);
+                                      }}
+                                      className={`absolute top-0 right-0 p-1.5 rounded-md ${themes[theme].secondary}`}
+                                    >
+                                      <Edit2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                              <StatusButtons trade={trade} />
                             </div>
                           )}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEditNote(trade);
-                            }}
-                            className={`absolute top-0 right-0 p-1.5 rounded-md ${themes[theme].secondary}`}
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
                         </div>
-                      )}
-                    </div>
-                    <StatusButtons trade={trade} />
+                      );
+                    })}
                   </div>
                 )}
               </div>
