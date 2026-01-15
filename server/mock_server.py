@@ -8,12 +8,12 @@ from datetime import datetime
 app = Flask(__name__)
 sock = Sock(app)
 
-@sock.route('/api/ws/option-prices')
-def option_prices(ws):
+@sock.route('/api/ws/option')
+def option(ws):
     """
-    WebSocket endpoint for querying real-time option prices.
+    WebSocket endpoint for querying real-time option data.
     """
-    print("Client connected to /ws/option-prices")
+    print("Client connected to /api/ws/option")
     try:
         while True:
             # Receive message from client

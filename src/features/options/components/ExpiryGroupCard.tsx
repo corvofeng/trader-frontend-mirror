@@ -513,21 +513,63 @@ export function ExpiryGroupCard({
                                     const callRight = filteredPositions
                                       .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'buy')
                                       .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
+                                    const callRightAvail = filteredPositions
+                                      .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'buy')
+                                      .reduce((sum, p) => {
+                                        const base = p.selectedQuantity ?? p.quantity;
+                                        const avail = Number((p as any).available ?? base) || 0;
+                                        return sum + avail;
+                                      }, 0);
                                     const callCovered = filteredPositions
                                       .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh === '备兑')
                                       .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
+                                    const callCoveredAvail = filteredPositions
+                                      .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh === '备兑')
+                                      .reduce((sum, p) => {
+                                        const base = p.selectedQuantity ?? p.quantity;
+                                        const avail = Number((p as any).available ?? base) || 0;
+                                        return sum + avail;
+                                      }, 0);
                                     const callObligation = filteredPositions
                                       .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh !== '备兑')
                                       .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
+                                    const callObligationAvail = filteredPositions
+                                      .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh !== '备兑')
+                                      .reduce((sum, p) => {
+                                        const base = p.selectedQuantity ?? p.quantity;
+                                        const avail = Number((p as any).available ?? base) || 0;
+                                        return sum + avail;
+                                      }, 0);
                                     const putObligation = filteredPositions
                                       .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'sell' && p.position_type_zh !== '备兑')
                                       .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
+                                    const putObligationAvail = filteredPositions
+                                      .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'sell' && p.position_type_zh !== '备兑')
+                                      .reduce((sum, p) => {
+                                        const base = p.selectedQuantity ?? p.quantity;
+                                        const avail = Number((p as any).available ?? base) || 0;
+                                        return sum + avail;
+                                      }, 0);
                                     const putCovered = filteredPositions
                                       .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'sell' && p.position_type_zh === '备兑')
                                       .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
+                                    const putCoveredAvail = filteredPositions
+                                      .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'sell' && p.position_type_zh === '备兑')
+                                      .reduce((sum, p) => {
+                                        const base = p.selectedQuantity ?? p.quantity;
+                                        const avail = Number((p as any).available ?? base) || 0;
+                                        return sum + avail;
+                                      }, 0);
                                     const putRight = filteredPositions
                                       .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'buy')
                                       .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
+                                    const putRightAvail = filteredPositions
+                                      .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'buy')
+                                      .reduce((sum, p) => {
+                                        const base = p.selectedQuantity ?? p.quantity;
+                                        const avail = Number((p as any).available ?? base) || 0;
+                                        return sum + avail;
+                                      }, 0);
                                     const comboCallQty = callCombos.get(s) ?? 0;
                                     const comboPutQty = putCombos.get(s) ?? 0;
                                     let risk = 0;
@@ -543,7 +585,25 @@ export function ExpiryGroupCard({
                                       const near = Math.max(0, 0.02 - Math.abs(up - s) / Math.max(s, 1)) / 0.02;
                                       risk += near * (callObligation + putObligation) * 0.5;
                                     }
-                                    return { s, getM, callRight, callObligation, callCovered, comboCallQty, putRight, putObligation, putCovered, comboPutQty, risk };
+                                    return { 
+                                      s, 
+                                      getM, 
+                                      callRight, 
+                                      callRightAvail,
+                                      callObligation, 
+                                      callObligationAvail,
+                                      callCovered, 
+                                      callCoveredAvail,
+                                      comboCallQty, 
+                                      putRight, 
+                                      putRightAvail,
+                                      putObligation, 
+                                      putObligationAvail,
+                                      putCovered, 
+                                      putCoveredAvail,
+                                      comboPutQty, 
+                                      risk 
+                                    };
                                   });
                                   const maxRisk = Math.max(1, ...metrics.map(m => m.risk));
                                   return metrics.map(m => {
@@ -674,7 +734,10 @@ export function ExpiryGroupCard({
                                         <td className={`text-center py-2 ${themes[theme].text}`}>
                                           <div className="flex items-center justify-center gap-1">
                                             <div className="flex flex-col items-center gap-1">
-                                              <span className={`${themes[theme].text}`}>{displayVal('call_covered', m.s, m.callCovered)}</span>
+                                              <span className={`${themes[theme].text}`}>
+                                                {displayVal('call_covered', m.s, m.callCovered)}
+                                                {m.callCoveredAvail !== m.callCovered ? `（${m.callCoveredAvail}）` : ''}
+                                              </span>
                                               <button
                                                 className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
                                                 onClick={() => openAdjustConfirm('call_covered', m.s)}
@@ -685,7 +748,10 @@ export function ExpiryGroupCard({
                                         <td className={`text-center py-2 ${themes[theme].text}`}>
                                           <div className="flex items-center justify-center gap-1">
                                             <div className="flex flex-col items-center gap-1">
-                                              <span className={`${themes[theme].text}`}>{displayVal('call_obligation', m.s, m.callObligation)}</span>
+                                              <span className={`${themes[theme].text}`}>
+                                                {displayVal('call_obligation', m.s, m.callObligation)}
+                                                {m.callObligationAvail !== m.callObligation ? `（${m.callObligationAvail}）` : ''}
+                                              </span>
                                               <button
                                                 className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
                                                 onClick={() => openAdjustConfirm('call_obligation', m.s)}
@@ -696,7 +762,10 @@ export function ExpiryGroupCard({
                                         <td className={`text-center py-2 px-3 w-20 ${themes[theme].text}`}>
                                           <div className="flex items-center justify-center gap-1">
                                             <div className="flex flex-col items-center gap-1">
-                                              <span className={`${themes[theme].text}`}>{displayVal('call_right', m.s, m.callRight)}</span>
+                                              <span className={`${themes[theme].text}`}>
+                                                {displayVal('call_right', m.s, m.callRight)}
+                                                {m.callRightAvail !== m.callRight ? `（${m.callRightAvail}）` : ''}
+                                              </span>
                                               <button
                                                 className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
                                                 onClick={() => openAdjustConfirm('call_right', m.s)}
@@ -724,7 +793,10 @@ export function ExpiryGroupCard({
                                         <td className={`text-center py-2 px-3 w-20 ${themes[theme].text}`}>
                                           <div className="flex items-center justify-center gap-1">
                                             <div className="flex flex-col items-center gap-1">
-                                              <span className={`${themes[theme].text}`}>{displayVal('put_right', m.s, m.putRight)}</span>
+                                              <span className={`${themes[theme].text}`}>
+                                                {displayVal('put_right', m.s, m.putRight)}
+                                                {m.putRightAvail !== m.putRight ? `（${m.putRightAvail}）` : ''}
+                                              </span>
                                               <button
                                                 className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
                                                 onClick={() => openAdjustConfirm('put_right', m.s)}
@@ -735,7 +807,10 @@ export function ExpiryGroupCard({
                                         <td className={`text-center py-2 ${themes[theme].text}`}>
                                           <div className="flex items-center justify-center gap-1">
                                             <div className="flex flex-col items-center gap-1">
-                                              <span className={`${themes[theme].text}`}>{displayVal('put_obligation', m.s, m.putObligation)}</span>
+                                              <span className={`${themes[theme].text}`}>
+                                                {displayVal('put_obligation', m.s, m.putObligation)}
+                                                {m.putObligationAvail !== m.putObligation ? `（${m.putObligationAvail}）` : ''}
+                                              </span>
                                               <button
                                                 className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
                                                 onClick={() => openAdjustConfirm('put_obligation', m.s)}
@@ -746,7 +821,10 @@ export function ExpiryGroupCard({
                                         <td className={`text-center py-2 ${themes[theme].text}`}>
                                           <div className="flex items-center justify-center gap-1">
                                             <div className="flex flex-col items-center gap-1">
-                                              <span className={`${themes[theme].text}`}>{displayVal('put_covered', m.s, m.putCovered)}</span>
+                                              <span className={`${themes[theme].text}`}>
+                                                {displayVal('put_covered', m.s, m.putCovered)}
+                                                {m.putCoveredAvail !== m.putCovered ? `（${m.putCoveredAvail}）` : ''}
+                                              </span>
                                               <button
                                                 className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
                                                 onClick={() => openAdjustConfirm('put_covered', m.s)}
@@ -876,7 +954,11 @@ export function ExpiryGroupCard({
                                     </div>
                                     <div className="flex items-center gap-3 mt-2 text-xs">
                                       <span className={`${themes[theme].text} opacity-75`}>
-                                        数量: {position.quantity}
+                                        {(() => {
+                                          const base = position.quantity;
+                                          const avail = Number((position as any).available ?? base) || 0;
+                                          return <>数量: {base}{avail !== base ? `（${avail}）` : ''}</>;
+                                        })()}
                                       </span>
                                       <span className={`${themes[theme].text} opacity-75`}>
                                         权利金: {formatCurrency(position.premium, currencyConfig)}
@@ -982,7 +1064,11 @@ export function ExpiryGroupCard({
                                     </div>
                                     <div className="flex items-center gap-3 mt-2 text-xs">
                                       <span className={`${themes[theme].text} opacity-75`}>
-                                        数量: {position.quantity}
+                                        {(() => {
+                                          const base = position.quantity;
+                                          const avail = Number((position as any).available ?? base) || 0;
+                                          return <>数量: {base}{avail !== base ? `（${avail}）` : ''}</>;
+                                        })()}
                                       </span>
                                       <span className={`${themes[theme].text} opacity-75`}>
                                         权利金: {formatCurrency(position.premium, currencyConfig)}
@@ -1112,7 +1198,18 @@ export function ExpiryGroupCard({
                                           {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
                                         </div>
                                         <div className={`text-xs ${themes[theme].text} opacity-60`}>
-                                          数量: {position.quantity} | 成本: {formatCurrency(position.premium * position.quantity * 100, currencyConfig)}
+                                          {(() => {
+                                            const base = position.quantity;
+                                            const avail = Number((position as any).available ?? base) || 0;
+                                            return (
+                                              <>
+                                                数量: {base}
+                                                {avail !== base ? `（${avail}）` : ''}
+                                                {' | '}
+                                                成本: {formatCurrency(position.premium * position.quantity * 100, currencyConfig)}
+                                              </>
+                                            );
+                                          })()}
                                         </div>
                                       </div>
                                     </div>
@@ -1175,12 +1272,15 @@ export function ExpiryGroupCard({
                   const pos = filteredPositions.find(x => x.id === id);
                   const maxQty = pos?.quantity ?? 1;
                   const val = qtyOverrides[id] ?? 1;
+                  const avail = Number((pos as any)?.available ?? maxQty) || 0;
                   return (
                     <div key={`confirm-pos-${id}`} className="flex items-center justify-between">
                       <div className={`text-xs ${themes[theme].text}`}>
                         {pos ? `${pos.symbol} ${pos.strike} ${pos.type.toUpperCase()} ${pos.position_type === 'buy' ? '权利' : (pos.position_type_zh === '备兑' ? '备兑' : '义务')}` : id}
                       </div>
-                      <div className={`text-xs ${themes[theme].text} opacity-60`}>数量 {val}（总数 {maxQty}，可执行 {pos?.available ?? maxQty}）</div>
+                      <div className={`text-xs ${themes[theme].text} opacity-60`}>
+                        数量 {val}（总数 {maxQty}{avail !== maxQty ? `，${avail}` : ''}）
+                      </div>
                     </div>
                   );
                 })}
@@ -1330,8 +1430,14 @@ export function ExpiryGroupCard({
                             setQtyOverrides(prev => ({ ...prev, [id]: base }));
                           }}
                         >全平</button>
-                      <span className={`text-[11px] ${themes[theme].text} opacity-60`}>总数 {Number((pos as any)?.selectedQuantity ?? (pos as any)?.leg_quantity ?? pos?.quantity) || 0}，可执行 {Number((pos as any)?.available ?? (Number((pos as any)?.selectedQuantity ?? (pos as any)?.leg_quantity ?? pos?.quantity) || 0))}</span>
-                    </div>
+                        <span className={`text-[11px] ${themes[theme].text} opacity-60`}>
+                          {(() => {
+                            const base = Number((pos as any)?.selectedQuantity ?? (pos as any)?.leg_quantity ?? pos?.quantity) || 0;
+                            const avail = Number((pos as any)?.available ?? base) || 0;
+                            return `总数 ${base}${avail !== base ? `（${avail}）` : ''}`;
+                          })()}
+                        </span>
+                      </div>
                     </div>
                     <div className={`${themes[theme].background} rounded p-2 border ${themes[theme].border}`}>
                       {(() => {
@@ -1346,8 +1452,7 @@ export function ExpiryGroupCard({
                             <div>类型 {typeLabel} • {posLabel}</div>
                             <div>行权价 {strikeVal}</div>
                             <div>到期 {raw?.expiry}</div>
-                            <div>总数 {base}</div>
-                            <div>可执行 {avail}</div>
+                            <div>总数 {base}{avail !== base ? `（${avail}）` : ''}</div>
                             <div>合约名称 {(raw as any)?.contract_name ?? ''}</div>
                             <div>合约代码 {(raw as any)?.contract_code ?? ''}</div>
                             <div>标的代码 {(raw as any)?.opt_undl_code_full ?? ''}</div>
@@ -1631,7 +1736,12 @@ export function ExpiryGroupCard({
               {advisedModal.combo.buy_position.position.symbol} {advisedModal.combo.buy_position.position.strike} {String(advisedModal.combo.buy_position.position.type).toUpperCase()} • {advisedModal.combo.buy_position.position.position_type === 'buy' ? '买入' : '卖出'}
             </div>
             <div className={`text-xs ${themes[theme].text} opacity-60 mt-1`}>
-              可用 {advisedModal.combo.buy_position.position.available} • 数量 {advisedModal.combo.buy_position.position.quantity}
+              {(() => {
+                const p = advisedModal.combo.buy_position.position;
+                const avail = p.available;
+                const qty = p.quantity;
+                return <>数量 {qty}{avail !== qty ? `（${avail}）` : ''}</>;
+              })()}
             </div>
           </div>
           <div className={`${themes[theme].background} rounded p-3 border ${themes[theme].border}`}>
@@ -1640,7 +1750,12 @@ export function ExpiryGroupCard({
               {advisedModal.combo.sell_position.position.symbol} {advisedModal.combo.sell_position.position.strike} {String(advisedModal.combo.sell_position.position.type).toUpperCase()} • {advisedModal.combo.sell_position.position.position_type === 'buy' ? '买入' : '卖出'}
             </div>
             <div className={`text-xs ${themes[theme].text} opacity-60 mt-1`}>
-              可用 {advisedModal.combo.sell_position.position.available} • 数量 {advisedModal.combo.sell_position.position.quantity}
+              {(() => {
+                const p = advisedModal.combo.sell_position.position;
+                const avail = p.available;
+                const qty = p.quantity;
+                return <>数量 {qty}{avail !== qty ? `（${avail}）` : ''}</>;
+              })()}
             </div>
           </div>
         </div>

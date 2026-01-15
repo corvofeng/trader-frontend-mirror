@@ -12,6 +12,7 @@ import type { OptionsPortfolioData, CustomOptionsStrategy, OptionsPosition, Opti
 import { computeCombosForPositions as computeCombosForStrategy } from '../utils/strategyCombos';
 import toast from 'react-hot-toast';
 import { ExpiryGroupCard } from './ExpiryGroupCard';
+import { useOptionPriceWebSocket } from '../hooks/useOptionPriceWebSocket';
 
 interface OptionsPortfolioProps {
   theme: Theme;
@@ -113,6 +114,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   const { currencyConfig } = useCurrency();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [activeSymbol, setActiveSymbol] = useState<string>(selectedSymbol || '');
+  const { isConnected, send, portfolioSnapshot } = useOptionPriceWebSocket();
 
   // Sync prop to state
   useEffect(() => {
@@ -216,6 +218,32 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
 
     fetchData();
   }, [selectedAccountIdProp, refreshKey]);
+
+  useEffect(() => {
+    if (!isConnected) return;
+    const accountId = selectedAccountIdProp || null;
+    const userId = currentUserId || null;
+    if (!accountId && !userId) return;
+
+    const payload = {
+      action: 'query_options_portfolio',
+      accountId,
+      userId
+    };
+
+    const sendRequest = () => {
+      send(payload);
+    };
+
+    sendRequest();
+    const intervalId = setInterval(sendRequest, 3000);
+    return () => clearInterval(intervalId);
+  }, [isConnected, selectedAccountIdProp, currentUserId, send]);
+
+  useEffect(() => {
+    if (!portfolioSnapshot) return;
+    setPortfolioData(portfolioSnapshot);
+  }, [portfolioSnapshot]);
 
   
 

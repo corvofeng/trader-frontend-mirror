@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback, ReactNode } from 'react';
+import type { OptionsPortfolioData } from '../../../lib/services/types';
 
 // Use environment variable or construct from current host
 const getWebSocketUrl = () => {
@@ -8,9 +9,9 @@ const getWebSocketUrl = () => {
   // Check if window is defined (browser environment)
   if (typeof window !== 'undefined') {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${protocol}//${window.location.host}/api/ws/option-prices`;
+    return `${protocol}//${window.location.host}/api/ws/option`;
   }
-  return 'ws://localhost:8000/api/ws/option-prices'; // Fallback
+  return 'ws://localhost:8000/api/ws/option'; // Fallback
 };
 
 export interface PriceUpdate {
@@ -31,6 +32,8 @@ interface OptionPriceWebSocketContextType {
   prices: Record<string, PriceUpdate>;
   queryPrice: (contractCodes: string[]) => void;
   connect: () => void;
+  send: (payload: unknown) => void;
+  portfolioSnapshot: OptionsPortfolioData | null;
 }
 
 const OptionPriceWebSocketContext = createContext<OptionPriceWebSocketContextType | null>(null);
@@ -52,6 +55,7 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
   const [isConnected, setIsConnected] = useState(false);
   const [prices, setPrices] = useState<Record<string, PriceUpdate>>({});
   const lastPongTime = useRef<number>(Date.now());
+   const [portfolioSnapshot, setPortfolioSnapshot] = useState<OptionsPortfolioData | null>(null);
 
   const connect = useCallback(() => {
     // If a connection exists, close it first
@@ -84,6 +88,14 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
           
           if (data.action === 'pong') {
             lastPongTime.current = Date.now();
+            return;
+          }
+
+          if (data.action === 'options_portfolio' || data.action === 'options_portfolio_snapshot') {
+            const payload = data.portfolio ?? data.data ?? data.payload;
+            if (payload) {
+              setPortfolioSnapshot(payload as OptionsPortfolioData);
+            }
             return;
           }
 
@@ -203,5 +215,19 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
     }
   }, []);
 
-  return <OptionPriceWebSocketContext.Provider value={{ isConnected, prices, queryPrice, connect }}>{children}</OptionPriceWebSocketContext.Provider>;
+  const send = useCallback((payload: unknown) => {
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      try {
+        if (typeof payload === 'string') {
+          ws.current.send(payload);
+        } else {
+          ws.current.send(JSON.stringify(payload));
+        }
+      } catch (e) {
+        console.error('Failed to send message:', e);
+      }
+    }
+  }, []);
+
+  return <OptionPriceWebSocketContext.Provider value={{ isConnected, prices, queryPrice, connect, send, portfolioSnapshot }}>{children}</OptionPriceWebSocketContext.Provider>;
 }
