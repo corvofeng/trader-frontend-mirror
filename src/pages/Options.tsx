@@ -46,6 +46,7 @@ export function Options({ theme }: OptionsProps) {
   });
   const [refreshKey, setRefreshKey] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
+  const effectiveUserId = userId ?? 'demo';
 
   const handleTabChange = (newTab: OptionsTab) => {
     setActiveTab(newTab);
@@ -155,32 +156,28 @@ export function Options({ theme }: OptionsProps) {
                 <label className={`text-sm font-medium ${themes[theme].text}`}>
                   账户:
                 </label>
-                {userId ? (
-                  <AccountSelector
-                    userId={userId}
-                    theme={theme}
-                    selectedAccountId={selectedAccountId}
-                    onAccountChange={(id) => {
-                      setSelectedAccountId(id);
-                      try {
-                        localStorage.setItem('selectedAccountId', id);
-                      } catch {
-                        // ignore localStorage errors
-                      }
-                      try {
-                        const expiryDate = new Date();
-                        expiryDate.setDate(expiryDate.getDate() + 30);
-                        document.cookie = `selectedAccountId=${encodeURIComponent(id)}; expires=${expiryDate.toUTCString()}; path=/`;
-                      } catch {
-                        // ignore cookie errors
-                      }
-                      setRefreshKey((k) => k + 1);
-                    }}
-                    refreshKey={refreshKey}
-                  />
-                ) : (
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500" />
-                )}
+                <AccountSelector
+                  userId={effectiveUserId}
+                  theme={theme}
+                  selectedAccountId={selectedAccountId}
+                  onAccountChange={(id) => {
+                    setSelectedAccountId(id);
+                    try {
+                      localStorage.setItem('selectedAccountId', id);
+                    } catch {
+                      logger.debug('[Pages/Options] Failed to persist selectedAccountId to localStorage');
+                    } 
+                    try {
+                      const expiryDate = new Date();
+                      expiryDate.setDate(expiryDate.getDate() + 30);
+                      document.cookie = `selectedAccountId=${encodeURIComponent(id)}; expires=${expiryDate.toUTCString()}; path=/`;
+                    } catch {
+                      logger.debug('[Pages/Options] Failed to persist selectedAccountId to cookie');
+                    } 
+                    setRefreshKey((k) => k + 1);
+                  }}
+                  refreshKey={refreshKey}
+                />
                 <button
                   onClick={() => setRefreshKey((k) => k + 1)}
                   className={`inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm ${themes[theme].secondary}`}
