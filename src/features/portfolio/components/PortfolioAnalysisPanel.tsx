@@ -31,6 +31,7 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid, userId, selectedA
     let html = '';
     let paragraph = '';
     let inList = false;
+    let listTag: 'ul' | 'ol' | null = null;
 
     const flushParagraph = () => {
       const text = paragraph.trim();
@@ -38,15 +39,16 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid, userId, selectedA
         const formatted = text
           .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
           .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>');
-        html += `<p class="mb-2 leading-relaxed ${themes[theme].text}">${formatted}</p>`;
+        html += `<p class="mb-2 leading-relaxed text-sm ${themes[theme].text}">${formatted}</p>`;
       }
       paragraph = '';
     };
 
     const closeList = () => {
-      if (inList) {
-        html += '</ul>';
+      if (inList && listTag) {
+        html += `</${listTag}>`;
         inList = false;
+        listTag = null;
       }
     };
 
@@ -68,28 +70,39 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid, userId, selectedA
         const text = headingMatch[2]
           .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
           .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>');
-        const common = 'leading-tight whitespace-normal';
-        if (level === 1) html += `<h1 class="text-xl font-bold mt-3 mb-2 text-blue-800 dark:text-blue-200 ${common}">${text}</h1>`;
-        else if (level === 2) html += `<h2 class="text-lg font-bold mt-3 mb-2 text-blue-700 dark:text-blue-300 ${common}">${text}</h2>`;
-        else if (level === 3) html += `<h3 class="text-base font-semibold mt-2 mb-1 text-blue-600 dark:text-blue-400 ${common}">${text}</h3>`;
-        else html += `<h4 class="text-sm font-semibold mt-2 mb-1 text-purple-600 dark:text-purple-400 ${common}">${text}</h4>`;
+        const common = `leading-tight whitespace-normal ${themes[theme].text}`;
+        if (level === 1) html += `<h1 class="text-lg font-semibold mt-3 mb-2 ${common}">${text}</h1>`;
+        else if (level === 2) html += `<h2 class="text-base font-semibold mt-3 mb-2 ${common}">${text}</h2>`;
+        else if (level === 3) html += `<h3 class="text-sm font-semibold mt-2 mb-1 ${common}">${text}</h3>`;
+        else html += `<h4 class="text-xs font-medium mt-2 mb-1 ${common}">${text}</h4>`;
         continue;
       }
 
-      // 列表项（支持两级缩进）
-      const listMatch = /^\s{0,2}-\s+(.*)$/.exec(line);
-      if (listMatch) {
+      // 列表项（支持 * / - 和有序列表）
+      const unorderedMatch = /^\s{0,4}[\-\*]\s+(.*)$/.exec(line);
+      const orderedMatch = /^\s{0,4}\d+\.\s+(.*)$/.exec(line);
+      if (unorderedMatch || orderedMatch) {
         flushParagraph();
-        if (!inList) {
-          html += `<ul class="ml-4 list-disc space-y-1">`;
+
+        const isOrdered = !!orderedMatch;
+        const tag: 'ul' | 'ol' = isOrdered ? 'ol' : 'ul';
+        const rawItem = (unorderedMatch ? unorderedMatch[1] : orderedMatch![1]) || '';
+
+        if (!inList || listTag !== tag) {
+          closeList();
+          const listClass = isOrdered ? 'list-decimal' : 'list-disc';
+          html += `<${tag} class="ml-4 ${listClass} space-y-1">`;
           inList = true;
+          listTag = tag;
         }
-        const item = listMatch[1]
+
+        const item = rawItem
           .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
           .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>');
-        // 判断缩进
-        const indentClass = /^\s{2}-/.test(line) ? 'ml-4' : '';
-        html += `<li class="${themes[theme].text} ${indentClass}">${item}</li>`;
+
+        // 判断缩进（简单按前导空格判断二级列表）
+        const indentClass = /^\s{2,}/.test(line) ? 'ml-4' : '';
+        html += `<li class="text-sm ${themes[theme].text} ${indentClass}">${item}</li>`;
         continue;
       }
 
@@ -188,19 +201,18 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid, userId, selectedA
           </div>
         </div>
 
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           <div className="flex items-center gap-2 mb-4">
             <FileText className="w-5 h-5 text-blue-500" />
             <h3 className={`text-lg font-semibold leading-tight whitespace-nowrap flex-shrink-0 ${themes[theme].text}`}>分析报告</h3>
           </div>
           <div 
-            className={`max-w-none ${themes[theme].text} text-sm leading-relaxed space-y-2`}
+            className={`${themes[theme].text} text-sm leading-relaxed space-y-2 break-words`}
             dangerouslySetInnerHTML={{ 
               __html: renderMarkdownContent(analysis.content) 
             }}
             style={{
-              lineHeight: '1.6',
-              color: theme === 'dark' ? '#e5e7eb' : '#374151'
+              lineHeight: '1.6'
             }}
           />
         </div>

@@ -1,7 +1,6 @@
 import React from 'react';
 import { RefreshCw } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
-import { AccountSelector } from '../../../shared/components';
 
 interface OverviewControlsProps {
   theme: Theme;
@@ -32,21 +31,6 @@ export function OverviewControls({
     <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center mb-6">
       <div className="flex items-center gap-4">
         <h2 className={`text-xl font-bold ${themes[theme].text}`}>Portfolio Overview</h2>
-        {userId && onAccountChange && (
-          <AccountSelector
-            userId={userId}
-            theme={theme}
-            selectedAccountId={selectedAccountId || null}
-            onAccountChange={(id) => {
-              onAccountChange && onAccountChange(id);
-              localStorage.setItem('journalAccountId', id);
-              const expiryDate = new Date();
-              expiryDate.setDate(expiryDate.getDate() + 30);
-              document.cookie = `journalAccountId=${encodeURIComponent(id)}; expires=${expiryDate.toUTCString()}; path=/`;
-            }}
-            preferOptions={false}
-          />
-        )}
       </div>
 
       {(!isSharedView || portfolioUuid) && (
@@ -79,7 +63,7 @@ export function OverviewControls({
             {onRefresh && (
               <button
                 onClick={onRefresh}
-                className={`inline-flex items-center gap-2 px-3 py-1 rounded-md text-sm ${themes[theme].secondary}`}
+                className={`inline-flex items-center gap-2 px-3 py-1 rounded-md text-sm whitespace-nowrap ${themes[theme].secondary} hide-in-screenshot hover:opacity-80 transition-opacity`}
               >
                 <RefreshCw className="w-4 h-4" />
                 刷新

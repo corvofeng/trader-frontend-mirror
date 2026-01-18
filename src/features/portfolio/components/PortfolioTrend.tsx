@@ -291,14 +291,14 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
     <>
       <div className="p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className={`text-lg font-semibold ${themes[theme].text}`}>
+          <h3 className={`text-lg font-semibold whitespace-nowrap ${themes[theme].text}`}>
             {viewMode === 'return' ? '收益率趋势' : '资产趋势'}
           </h3>
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <button
                 onClick={() => setViewMode('absolute')}
-                className={`px-3 py-1 rounded-md text-sm ${
+                className={`px-3 py-1 rounded-md text-sm whitespace-nowrap ${
                   viewMode === 'absolute' ? themes[theme].primary : themes[theme].secondary
                 }`}
               >
@@ -306,7 +306,7 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
               </button>
               <button
                 onClick={() => setViewMode('return')}
-                className={`px-3 py-1 rounded-md text-sm ${
+                className={`px-3 py-1 rounded-md text-sm whitespace-nowrap ${
                   viewMode === 'return' ? themes[theme].primary : themes[theme].secondary
                 }`}
               >
@@ -339,27 +339,27 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
               <>
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-0.5" style={{ backgroundColor: themedColors.chart.upColor }}></div>
-                  <span className={`text-sm ${themes[theme].text} opacity-75`}>总资产</span>
+                  <span className={`text-sm whitespace-nowrap ${themes[theme].text} opacity-75`}>总资产</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-0.5 border-dashed" style={{ 
                     borderTop: `1px dashed ${themedColors.chart.downColor}` 
                   }}></div>
-                  <span className={`text-sm ${themes[theme].text} opacity-75`}>持仓市值</span>
+                  <span className={`text-sm whitespace-nowrap ${themes[theme].text} opacity-75`}>持仓市值</span>
                 </div>
               </>
             ) : (
               <>
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-0.5" style={{ backgroundColor: themedColors.chart.upColor }}></div>
-                  <span className={`text-sm ${themes[theme].text} opacity-75`}>总资产收益率</span>
+                  <span className={`text-sm whitespace-nowrap ${themes[theme].text} opacity-75`}>总资产收益率</span>
                 </div>
                 {showComparison && sseData.length > 0 && (
                   <div className="flex items-center gap-2">
-                    <div className="w-3 h-0.5 border-dashed" style={{ 
-                      borderTop: '1px dashed #9ca3af' 
-                    }}></div>
-                    <span className={`text-sm ${themes[theme].text} opacity-75`}>上证指数</span>
+                  <div className="w-3 h-0.5 border-dashed" style={{ 
+                    borderTop: '1px dashed #9ca3af' 
+                  }}></div>
+                  <span className={`text-sm whitespace-nowrap ${themes[theme].text} opacity-75`}>上证指数</span>
                   </div>
                 )}
               </>

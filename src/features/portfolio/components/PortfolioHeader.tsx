@@ -18,7 +18,7 @@ export function PortfolioHeader({
   onScreenshot,
 }: PortfolioHeaderProps) {
   return (
-    <div className="flex justify-between items-center mb-4">
+    <div className="flex justify-between items-center mb-4 px-6">
       <div className="flex items-center gap-2">
         <h2 className={`text-xl font-semibold leading-tight whitespace-nowrap flex-shrink-0 ${themes[theme].text}`}>{title}</h2>
         <button 

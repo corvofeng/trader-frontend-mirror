@@ -15,6 +15,7 @@ import { optionsService, authService } from '../lib/services';
 import { OptionsPortfolioManagement } from '../features/options/components/OptionsPortfolioManagement';
 import type { OptionsData } from '../lib/services/types';
 import { OptionPriceWebSocketProvider } from '../features/options/context/OptionPriceWebSocketContext';
+import { TabNavigation } from './Journal/components/TabNavigation';
 
 interface OptionsProps {
   theme: Theme;
@@ -138,9 +139,8 @@ export function Options({ theme }: OptionsProps) {
 
   return (
     <OptionPriceWebSocketProvider>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
         <div className="space-y-6">
-        {/* Header */}
         <div className={`${themes[theme].card} rounded-lg p-4`}>
           <div className="flex items-center justify-between">
             <div>
@@ -218,30 +218,13 @@ export function Options({ theme }: OptionsProps) {
           </div>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-          <div className="flex space-x-2 min-w-max sm:min-w-0">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => handleTabChange(tab.id)}
-                  className={`inline-flex items-center px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 whitespace-nowrap ${
-                    activeTab === tab.id
-                      ? themes[theme].primary
-                      : themes[theme].secondary
-                  }`}
-                >
-                  <Icon className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">{tab.name}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        <TabNavigation
+          tabs={tabs}
+          activeTab={activeTab}
+          theme={theme}
+          onTabChange={handleTabChange}
+        />
 
-        {/* Tab Content */}
         {activeTab === 'data' && (
           <div className="space-y-6">
             {(isLoading || isLoadingSymbols) && (
@@ -351,8 +334,8 @@ export function Options({ theme }: OptionsProps) {
           selectedSymbol={selectedSymbol}
           onClose={() => setShowCalculatorModal(false)}
         />
-      )}
-      </div>
+        )}
+      </main>
     </OptionPriceWebSocketProvider>
   );
 }

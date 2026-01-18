@@ -12,7 +12,8 @@ import { Theme, themes } from '../lib/theme';
 import { portfolioService, accountService } from '../lib/services';
 import { StockChart } from '../features/trading/components/StockChart';
 import { AccountSelector } from '../shared/components/AccountSelector';
-import type { Stock, Holding, Trade, Account } from '../lib/services/types';
+import type { Stock, Holding, Trade } from '../lib/services/types';
+import { TabNavigation } from './Journal/components/TabNavigation';
 
 interface JournalProps {
   selectedStock: Stock | null;
@@ -40,7 +41,6 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
     startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0]
   });
-  const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() => {
     const cookie = typeof document !== 'undefined' ? (document.cookie ? (document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith('journalAccountId='))?.split('=')[1] ?? null) : null) : null;
     return cookie || localStorage.getItem('journalAccountId') || localStorage.getItem('selectedAccountId') || null;
@@ -69,30 +69,34 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
           if (holdingsResponse.data) setHoldings(holdingsResponse.data);
           if (tradesResponse.data) setRecentTrades(tradesResponse.data);
         } else {
-          // Fetch regular user portfolio data and accounts
-  if (!selectedAccountId) {
-    logger.debug('[Journal] Guard: selectedAccountId missing');
-    return;
-  }
+          if (!selectedAccountId) {
+            logger.debug('[Journal] Guard: selectedAccountId missing');
+          }
 
           const [holdingsResponse, tradesResponse, accountsResponse] = await Promise.all([
-            portfolioService.getHoldings(selectedAccountId),
-            portfolioService.getRecentTrades(DEMO_USER_ID, dateRange.startDate, dateRange.endDate, selectedAccountId),
+            selectedAccountId ? portfolioService.getHoldings(selectedAccountId) : Promise.resolve({ data: null, error: null }),
+            selectedAccountId
+              ? portfolioService.getRecentTrades(DEMO_USER_ID, dateRange.startDate, dateRange.endDate, selectedAccountId)
+              : Promise.resolve({ data: null, error: null }),
             accountService.getAccounts(DEMO_USER_ID)
           ]);
           
           if (holdingsResponse.data) setHoldings(holdingsResponse.data);
           if (tradesResponse.data) setRecentTrades(tradesResponse.data);
-          if (accountsResponse.data) {
-            setAccounts(accountsResponse.data);
-            // Set default account if none selected
-            if (!selectedAccountId && accountsResponse.data.length > 0) {
-              const def = accountsResponse.data.find(a => a.is_default) || accountsResponse.data[0];
-              setSelectedAccountId(def.id);
+          if (!selectedAccountId && accountsResponse.data && accountsResponse.data.length > 0) {
+            const def = accountsResponse.data.find(a => a.is_default) || accountsResponse.data[0];
+            setSelectedAccountId(def.id);
+            try {
               localStorage.setItem('journalAccountId', def.id);
+            } catch {
+              logger.debug('[Journal] Failed to persist journalAccountId to localStorage');
+            }
+            try {
               const expiryDate = new Date();
               expiryDate.setDate(expiryDate.getDate() + 30);
               document.cookie = `journalAccountId=${encodeURIComponent(def.id)}; expires=${expiryDate.toUTCString()}; path=/`;
+            } catch {
+              logger.debug('[Journal] Failed to persist journalAccountId to cookie');
             }
           }
         }
@@ -114,40 +118,56 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
 
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
-      <div className="mb-6">
-        <div className="flex flex-col gap-4">
-          {/* Only show stock search if not viewing shared portfolio */}
-          {!portfolioUuid && (
-            <div className="w-full">
-              <StockSearch
-                onSelect={onStockSelect}
-                selectedStockCode={selectedStock?.stock_code}
+      <div className="space-y-6 mb-6">
+        <div className={`${themes[theme].card} rounded-lg p-4`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className={`text-2xl font-bold ${themes[theme].text}`}>
+                Stock Trading Journal
+              </h1>
+              <p className={`text-sm ${themes[theme].text} opacity-75 mt-1`}>
+                Review your portfolio, trades and performance in one place
+              </p>
+            </div>
+            {!portfolioUuid && (
+              <AccountSelector
+                userId={DEMO_USER_ID}
+                theme={theme}
+                selectedAccountId={selectedAccountId}
+                onAccountChange={(accountId) => {
+                  setSelectedAccountId(accountId);
+                  try {
+                    localStorage.setItem('journalAccountId', accountId);
+                  } catch {
+                    logger.debug('[Journal] Failed to persist journalAccountId to localStorage from header');
+                  }
+                  try {
+                    const expiryDate = new Date();
+                    expiryDate.setDate(expiryDate.getDate() + 30);
+                    document.cookie = `journalAccountId=${encodeURIComponent(accountId)}; expires=${expiryDate.toUTCString()}; path=/`;
+                  } catch {
+                    logger.debug('[Journal] Failed to persist journalAccountId to cookie from header');
+                  }
+                }}
+                preferOptions={false}
               />
-            </div>
-          )}
-          
-          <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-            <div className="flex space-x-2 min-w-max sm:min-w-0">
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => handleTabChange(tab.id)}
-                    className={`inline-flex items-center px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 whitespace-nowrap ${
-                      activeTab === tab.id
-                        ? themes[theme].primary
-                        : themes[theme].secondary
-                    }`}
-                  >
-                    <Icon className="w-4 h-4 sm:mr-2" />
-                    <span className="hidden sm:inline">{tab.name}</span>
-                  </button>
-                );
-              })}
-            </div>
+            )}
           </div>
         </div>
+        {!portfolioUuid && (
+          <div className="w-full">
+            <StockSearch
+              onSelect={onStockSelect}
+              selectedStockCode={selectedStock?.stock_code}
+            />
+          </div>
+        )}
+        <TabNavigation
+          tabs={tabs}
+          activeTab={activeTab}
+          theme={theme}
+          onTabChange={handleTabChange}
+        />
       </div>
 
       {/* Show portfolio UUID info if viewing shared portfolio */}
@@ -187,16 +207,6 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
 
       {activeTab === 'history' && !portfolioUuid && (
         <div className="space-y-4 sm:space-y-6">
-          <div className="flex justify-end">
-            <AccountSelector
-              userId={DEMO_USER_ID}
-              theme={theme}
-              selectedAccountId={selectedAccountId}
-              onAccountChange={(accountId) => {
-                setSelectedAccountId(accountId);
-              }}
-            />
-          </div>
           {selectedStock?.stock_code && (
             <StockChart stockCode={selectedStock.stock_code} theme={theme} />
           )}
