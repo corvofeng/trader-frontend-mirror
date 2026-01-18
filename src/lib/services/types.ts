@@ -20,6 +20,7 @@ export interface StockConfig {
 export interface Trade {
   id: number;
   user_id: string;
+  account_alias?: string;
   stock_code: string;
   stock_name?: string;
   operation: 'buy' | 'sell';
@@ -235,7 +236,7 @@ export interface AuthService {
 
 export interface TradeService {
   getTrades: (userId: string, stockCode?: string, status?: string) => Promise<ServiceResponse<Trade[]>>;
-  createTrade: (trade: Omit<Trade, 'id' | 'created_at'>) => Promise<ServiceResponse<Trade>>;
+  createTrade: (trade: Omit<Trade, 'id' | 'created_at' | 'updated_at'>) => Promise<ServiceResponse<Trade>>;
   updateTrade: (trade: Trade) => Promise<ServiceResponse<Trade>>;
 }
 

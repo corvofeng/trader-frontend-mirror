@@ -44,8 +44,18 @@ export function TradeForm({ selectedStock, theme }: TradeFormProps) {
         return;
       }
 
+      let accountAlias: string | null = null;
+      try {
+        accountAlias =
+          localStorage.getItem('journalAccountId') ||
+          localStorage.getItem('selectedAccountAlias');
+      } catch {
+        accountAlias = null;
+      }
+
       const { error } = await tradeService.createTrade({
         user_id: user.id,
+        account_alias: accountAlias || undefined,
         stock_code: stockCode.toUpperCase(),
         stock_name: stockName,
         operation,

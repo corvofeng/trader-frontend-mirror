@@ -11,9 +11,10 @@ interface TradeListProps {
   selectedStockCode?: string;
   theme: Theme;
   showCompleted?: boolean;
+  selectedAccountId?: string | null;
 }
 
-export function TradeList({ selectedStockCode, theme, showCompleted = false }: TradeListProps) {
+export function TradeList({ selectedStockCode, theme, showCompleted = false, selectedAccountId }: TradeListProps) {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -137,11 +138,11 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false }: T
   useEffect(() => {
     setIsLoading(true);
     fetchTrades();
-  }, [selectedStockCode, filter, showAllTrades]);
+  }, [selectedStockCode, filter, showAllTrades, selectedAccountId]);
 
   useEffect(() => {
     setShowAllTrades(false);
-  }, [selectedStockCode]);
+  }, [selectedStockCode, selectedAccountId]);
 
   const getTotalValue = (trade: Trade) => {
     return trade.quantity * trade.target_price;

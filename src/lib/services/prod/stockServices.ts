@@ -58,9 +58,26 @@ export const authService: AuthService = {
   }
 };
 
+const getCurrentAccountAlias = () => {
+  try {
+    const fromLocalStorage =
+      (typeof localStorage !== 'undefined' && localStorage.getItem('journalAccountId')) ||
+      (typeof localStorage !== 'undefined' && localStorage.getItem('selectedAccountAlias'));
+    return fromLocalStorage || undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 export const tradeService: TradeService = {
   getTrades: async (userId: string, stock_code?: string, status?: string) => {
-    let filteredTrades = await (await fetch('/api/actions')).json();
+    const accountAlias = getCurrentAccountAlias();
+    const params = new URLSearchParams();
+    if (accountAlias) {
+      params.set('account_alias', accountAlias);
+    }
+    const url = params.toString() ? `/api/actions?${params.toString()}` : '/api/actions';
+    let filteredTrades = await (await fetch(url)).json();
     console.log(userId, stock_code, status, filteredTrades);
 
     if (stock_code) {
@@ -74,13 +91,19 @@ export const tradeService: TradeService = {
     return { data: filteredTrades, error: null };
   },
 
-  createTrade: async (trade: Omit<Trade, 'id' | 'created_at'>) => {
+  createTrade: async (trade: Omit<Trade, 'id' | 'created_at' | 'updated_at'>) => {
+    const accountAlias = getCurrentAccountAlias();
+    const payload = {
+      ...trade,
+      account_alias: trade.account_alias || accountAlias
+    };
+
     const response = await fetch('/api/actions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(trade)
+      body: JSON.stringify(payload)
     });
 
     if (!response.ok) {
@@ -92,12 +115,18 @@ export const tradeService: TradeService = {
   },
 
   updateTrade: async (trade: Trade) => {
+    const accountAlias = getCurrentAccountAlias();
+    const payload = {
+      ...trade,
+      account_alias: trade.account_alias || accountAlias
+    };
+
     const response = await fetch('/api/actions', {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(trade)
+      body: JSON.stringify(payload)
     });
 
     if (!response.ok) {

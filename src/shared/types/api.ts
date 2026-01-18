@@ -44,6 +44,7 @@ export interface StockConfig {
 export interface Trade {
   id: number;
   user_id: string;
+  account_alias?: string;
   stock_code: string;
   stock_name?: string;
   operation: 'buy' | 'sell';
