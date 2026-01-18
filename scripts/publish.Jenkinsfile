@@ -40,16 +40,16 @@ podTemplateLibrary {
                 sh '''
                 set -e
                 cid=$(docker create trader-frontend:latest)
-                rm -rf dist-publish
-                mkdir -p dist-publish
-                docker cp "$cid":/app/dist/. dist-publish/
+
+                tmpdir=$(mktemp -d /tmp/dist-publish.XXXXXX)
+                docker cp "$cid":/app/dist/. "$tmpdir"/
                 docker rm "$cid"
 
                 git fetch mirror
                 git checkout -B dist
                 rm -rf *
-                cp -r dist-publish/* .
-                rm -rf dist-publish
+                cp -r "$tmpdir"/* .
+                rm -rf "$tmpdir"
 
                 git config user.name "jenkins"
                 git config user.email "jenkins@example.com"
