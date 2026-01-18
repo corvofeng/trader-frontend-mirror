@@ -21,7 +21,6 @@ podTemplateLibrary {
         '''
 
         if (env.TAG_NAME) {
-            return // Only test
             sshagent(credentials: ['id_ed25519_ansible']) {
                 sh """
                 git checkout -b main
