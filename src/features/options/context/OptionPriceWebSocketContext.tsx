@@ -189,8 +189,8 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
   }, [connect]);
 
   useEffect(() => {
-    const PING_INTERVAL = 3000;
-    const PONG_TIMEOUT = 5000;
+    const PING_INTERVAL = 10000;
+    const PONG_TIMEOUT = 20000;
 
     const intervalId = setInterval(() => {
       if (ws.current?.readyState === WebSocket.OPEN) {

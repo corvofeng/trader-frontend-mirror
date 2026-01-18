@@ -249,8 +249,7 @@ export function ExpiryGroupCard({
         queryPrice(unique);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [confirmData, isConnected]);
+  }, [confirmData, isConnected, collectIdsForCategory, filteredPositions, queryPrice]);
 
   if (!hasPositions) return null;
 

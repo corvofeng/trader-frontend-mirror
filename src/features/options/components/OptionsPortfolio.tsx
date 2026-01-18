@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
 import { Calendar, TrendingUp, TrendingDown, Activity, Shield, Target, Layers, ChevronDown, ChevronUp } from 'lucide-react';
 import { Hash } from 'lucide-react';
@@ -115,6 +115,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [activeSymbol, setActiveSymbol] = useState<string>(selectedSymbol || '');
   const { isConnected, send, portfolioSnapshot } = useOptionPriceWebSocket();
+  const requestedSymbolsRef = useRef<Set<string>>(new Set());
 
   // Sync prop to state
   useEffect(() => {
@@ -146,19 +147,14 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     ensurePrice();
 
     // Ensure we have the options chain data (market data)
-    if (!internalOptionsDataMap[activeSymbol]) {
+    if (!internalOptionsDataMap[activeSymbol] && !requestedSymbolsRef.current.has(activeSymbol)) {
+      requestedSymbolsRef.current.add(activeSymbol);
       optionsService.getOptionsData(activeSymbol).then(({ data: optData }) => {
         if (optData) {
           setInternalOptionsDataMap(prev => ({ ...prev, [activeSymbol]: optData }));
         }
       }).catch(err => {
         console.error('Error fetching options data for active symbol:', activeSymbol, err);
-      });
-    } else {
-      optionsService.getOptionsData(activeSymbol).then(({ data: optData }) => {
-        if (optData) {
-          setInternalOptionsDataMap(prev => ({ ...prev, [activeSymbol]: optData }));
-        }
       });
     }
   }, [activeSymbol, internalOptionsDataMap, underlyingCache]);
@@ -219,7 +215,8 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
 
     // Fetch missing options data
     for (const sym of Array.from(symbols)) {
-       if (!internalOptionsDataMap[sym]) {
+       if (!internalOptionsDataMap[sym] && !requestedSymbolsRef.current.has(sym)) {
+         requestedSymbolsRef.current.add(sym);
          optionsService.getOptionsData(sym).then(({ data: optData }) => {
            if (optData) {
              setInternalOptionsDataMap(prev => ({ ...prev, [sym]: optData }));
@@ -243,13 +240,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       userId
     };
 
-    const sendRequest = () => {
-      send(payload);
-    };
-
-    sendRequest();
-    const intervalId = setInterval(sendRequest, 3000);
-    return () => clearInterval(intervalId);
+    send(payload);
   }, [isConnected, selectedAccountIdProp, currentUserId, send]);
 
   useEffect(() => {
@@ -691,10 +682,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   };
 
   const inferStrategyFromLegs = (legs: OptionsPosition[]): InferredResult | null => {
-    console.log('[inferStrategyFromLegs] Input legs:', legs);
-    const result = inferStrategyFromLegsInternal(legs);
-    console.log('[inferStrategyFromLegs] Result:', result);
-    return result;
+    return inferStrategyFromLegsInternal(legs);
   };
 
   // 生成策略ID的逻辑
