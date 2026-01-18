@@ -1,4 +1,4 @@
-import type { OptionsPosition, OptionsStrategy } from '../../../lib/services/types';
+import type { OptionsStrategy } from '../../../lib/services/types';
 
 export type ComboMap = Map<number, number>;
 

@@ -3,7 +3,7 @@ import { BarChart2, TrendingUp, TrendingDown, Target, Activity, Eye, EyeOff, Fil
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
-import type { OptionsStrategy, OptionsPosition } from '../../../lib/services/types';
+import type { OptionsStrategy } from '../../../lib/services/types';
 
 interface StrategyDisplayProps {
   theme: Theme;
@@ -164,7 +164,7 @@ export function StrategyDisplay({
               <label className={`text-sm font-medium ${themes[theme].text}`}>分类:</label>
               <select
                 value={filters.category}
-                onChange={(e) => setFilters(prev => ({ ...prev, category: e.target.value as any }))}
+                onChange={(e) => setFilters(prev => ({ ...prev, category: e.target.value as StrategyFilters['category'] }))}
                 className={`px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
               >
                 <option value="all">全部</option>
@@ -179,7 +179,7 @@ export function StrategyDisplay({
               <label className={`text-sm font-medium ${themes[theme].text}`}>风险:</label>
               <select
                 value={filters.riskLevel}
-                onChange={(e) => setFilters(prev => ({ ...prev, riskLevel: e.target.value as any }))}
+                onChange={(e) => setFilters(prev => ({ ...prev, riskLevel: e.target.value as StrategyFilters['riskLevel'] }))}
                 className={`px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
               >
                 <option value="all">全部</option>
@@ -193,7 +193,7 @@ export function StrategyDisplay({
               <label className={`text-sm font-medium ${themes[theme].text}`}>状态:</label>
               <select
                 value={filters.status}
-                onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value as any }))}
+                onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value as StrategyFilters['status'] }))}
                 className={`px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
               >
                 <option value="all">全部</option>

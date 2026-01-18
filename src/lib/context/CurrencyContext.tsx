@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { CurrencyConfig, RegionalColorConfig } from '../../shared/types';
 import { getThemeColors } from '../theme';
+import type { ThemeColors } from '../theme';
 import { currencyConfigs, regionalColorConfigs } from '../../shared/constants';
 import { currencyService } from '../services';
 import type { Theme } from '../theme';
@@ -10,7 +11,7 @@ interface CurrencyContextType {
   setCurrency: (currency: string) => void;
   currencyConfig: CurrencyConfig;
   regionalColors: RegionalColorConfig;
-  getThemedColors: (theme: Theme) => any;
+  getThemedColors: (theme: Theme) => ThemeColors;
   isLoading: boolean;
 }
 
@@ -61,6 +62,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useCurrency() {
   const context = useContext(CurrencyContext);
   if (context === undefined) {

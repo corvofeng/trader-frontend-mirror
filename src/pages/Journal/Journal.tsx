@@ -6,7 +6,7 @@ import { StockSearchSection } from './components/StockSearchSection';
 import { SharedPortfolioInfo } from './components/SharedPortfolioInfo';
 import { TabContent } from './components/TabContent';
 import { portfolioService, accountService } from '../../lib/services';
-import type { Stock, Holding, Trade, Account } from '../../lib/services/types';
+import type { Stock, Holding, Trade } from '../../lib/services/types';
 import type { Theme } from '../../lib/theme';
 
 interface JournalProps {
@@ -31,7 +31,6 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
   });
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [recentTrades, setRecentTrades] = useState<Trade[]>([]);
-  const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() => {
     const alias = localStorage.getItem('selectedAccountAlias');
     const legacy = localStorage.getItem('selectedAccountId');
@@ -57,7 +56,6 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
       if (!portfolioUuid) {
         const resp = await accountService.getAccounts(DEMO_USER_ID);
         if (resp?.data) {
-          setAccounts(resp.data);
           const stored = localStorage.getItem('selectedAccountAlias') || localStorage.getItem('selectedAccountId');
           const storedExists = stored && resp.data.some(acc => (acc.alias || acc.id) === stored);
           if (storedExists) {

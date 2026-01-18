@@ -14,12 +14,14 @@ export interface Position {
   expiry: string;
 }
 
+type PositionFieldValue = string | number;
+
 interface PositionManagerProps {
   theme: Theme;
   positions: Position[];
   onAddPosition: () => void;
   onRemovePosition: (id: string) => void;
-  onUpdatePosition: (id: string, field: keyof Position, value: any) => void;
+  onUpdatePosition: (id: string, field: keyof Position, value: PositionFieldValue) => void;
 }
 
 export function PositionManager({

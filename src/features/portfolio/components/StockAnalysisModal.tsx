@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { X, RefreshCw, TrendingUp, TrendingDown, Minus, Target, Shield, Brain, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 import { Theme, themes } from '../../../shared/constants/theme';
 import { analysisService } from '../../../lib/services';
@@ -18,9 +18,9 @@ export function StockAnalysisModal({ stockCode, stockName, theme, onClose }: Sto
   const [analysis, setAnalysis] = useState<StockAnalysis | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const { currencyConfig, regionalColors } = useCurrency();
+  const { currencyConfig } = useCurrency();
 
-  const fetchAnalysis = async (refresh = false) => {
+  const fetchAnalysis = useCallback(async (refresh = false) => {
     try {
       if (refresh) {
         setIsRefreshing(true);
@@ -43,11 +43,11 @@ export function StockAnalysisModal({ stockCode, stockName, theme, onClose }: Sto
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  };
+  }, [stockCode]);
 
   useEffect(() => {
     fetchAnalysis();
-  }, [stockCode]);
+  }, [fetchAnalysis]);
 
   const getTrendIcon = (trend: string) => {
     switch (trend) {

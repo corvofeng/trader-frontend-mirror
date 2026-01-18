@@ -139,8 +139,8 @@ export const tradeService: TradeService = {
 };
 
 export const stockService: StockService = {
-  getStockName: (_stockCode: string) => {
-    throw new Error('Not implemented');
+  getStockName: (stockCode: string) => {
+    throw new Error(`Not implemented: ${stockCode}`);
   },
   
   getStocks: async () => {

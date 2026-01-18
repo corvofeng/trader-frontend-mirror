@@ -125,33 +125,37 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
 
   // Fetch data when active symbol changes
   useEffect(() => {
-    if (activeSymbol) {
-      // Ensure we have the current price
-      const sanitized = getSanitizedUnderlying(activeSymbol);
-      ensureUnderlyingPrice(sanitized);
+    if (!activeSymbol) return;
 
-      // Ensure we have the options chain data (market data)
-      if (!internalOptionsDataMap[activeSymbol]) {
-        optionsService.getOptionsData(activeSymbol).then(({ data: optData }) => {
-          if (optData) {
-            setInternalOptionsDataMap(prev => ({ ...prev, [activeSymbol]: optData }));
-          }
-        }).catch(err => {
-          console.error('Error fetching options data for active symbol:', activeSymbol, err);
-        });
-      } else {
-        // If already in map, we might want to refresh it if it's stale? 
-        // With the new caching service, calling it again is cheap if cached, or refreshes if needed.
-        // Actually, the cache service we implemented caches the PROMISE.
-        // If we want to force refresh, we would need a mechanism, but for now let's just ensure we call it.
-        optionsService.getOptionsData(activeSymbol).then(({ data: optData }) => {
-            if (optData) {
-              setInternalOptionsDataMap(prev => ({ ...prev, [activeSymbol]: optData }));
-            }
-        });
-      }
+    const sanitized = getSanitizedUnderlying(activeSymbol);
+
+    const ensurePrice = async () => {
+      if (!sanitized) return;
+      if (underlyingCache[sanitized] != null) return;
+      const { data } = await stockService.getCurrentPrice(sanitized);
+      const price = data?.price ?? null;
+      setUnderlyingCache(prev => ({ ...prev, [sanitized]: price ?? prev[sanitized] }));
+    };
+
+    ensurePrice();
+
+    // Ensure we have the options chain data (market data)
+    if (!internalOptionsDataMap[activeSymbol]) {
+      optionsService.getOptionsData(activeSymbol).then(({ data: optData }) => {
+        if (optData) {
+          setInternalOptionsDataMap(prev => ({ ...prev, [activeSymbol]: optData }));
+        }
+      }).catch(err => {
+        console.error('Error fetching options data for active symbol:', activeSymbol, err);
+      });
+    } else {
+      optionsService.getOptionsData(activeSymbol).then(({ data: optData }) => {
+        if (optData) {
+          setInternalOptionsDataMap(prev => ({ ...prev, [activeSymbol]: optData }));
+        }
+      });
     }
-  }, [activeSymbol]);
+  }, [activeSymbol, internalOptionsDataMap, underlyingCache]);
 
   // 复杂策略编辑复用“保存确认弹窗”，不使用独立编辑器
 
@@ -178,36 +182,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         if (data) {
           setPortfolioData(data);
           
-          // Identify unique symbols and fetch their options data if needed
-          const symbols = new Set<string>();
-          if (activeSymbol) {
-             // If activeSymbol is set, ensure we fetch it
-             symbols.add(activeSymbol);
-          }
-          
-          // Collect all symbols from positions to ensure we have data for everything if needed
-          // But maybe we only fetch for activeSymbol to save bandwidth?
-          // The user said "request with THIS symbol". 
-          // Let's keep fetching for all found symbols to be safe, but prioritize activeSymbol logic above.
-             (data.expiryBuckets || []).forEach(bucket => {
-               bucket.single.forEach(pos => {
-                 if (pos.opt_undl_code_full) symbols.add(pos.opt_undl_code_full);
-               });
-             });
 
-          // Fetch missing options data
-          for (const sym of Array.from(symbols)) {
-             // We rely on the effect above for activeSymbol, but this loop handles others too
-             if (!internalOptionsDataMap[sym]) {
-               optionsService.getOptionsData(sym).then(({ data: optData }) => {
-                 if (optData) {
-                   setInternalOptionsDataMap(prev => ({ ...prev, [sym]: optData }));
-                 }
-               }).catch(err => {
-                 console.error('Error fetching options data for symbol:', sym, err);
-               });
-             }
-          }
         }
       } catch (error) {
         console.error('Error fetching portfolio data:', error);
@@ -218,6 +193,37 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
 
     fetchData();
   }, [selectedAccountIdProp, refreshKey]);
+
+  useEffect(() => {
+    if (!portfolioData) return;
+
+    // Identify unique symbols and fetch their options data if needed
+    const symbols = new Set<string>();
+    if (activeSymbol) {
+       // If activeSymbol is set, ensure we fetch it
+       symbols.add(activeSymbol);
+    }
+    
+    // Collect all symbols from positions to ensure we have data for everything if needed
+    (portfolioData.expiryBuckets || []).forEach(bucket => {
+      bucket.single.forEach(pos => {
+        if (pos.opt_undl_code_full) symbols.add(pos.opt_undl_code_full);
+      });
+    });
+
+    // Fetch missing options data
+    for (const sym of Array.from(symbols)) {
+       if (!internalOptionsDataMap[sym]) {
+         optionsService.getOptionsData(sym).then(({ data: optData }) => {
+           if (optData) {
+             setInternalOptionsDataMap(prev => ({ ...prev, [sym]: optData }));
+           }
+         }).catch(err => {
+           console.error('Error fetching options data for symbol:', sym, err);
+         });
+       }
+    }
+  }, [portfolioData, activeSymbol, internalOptionsDataMap]);
 
   useEffect(() => {
     if (!isConnected) return;
@@ -249,15 +255,6 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
 
   const getSanitizedUnderlying = (code: string) => {
     return code?.startsWith('US.') ? code.replace('US.', '') : code;
-  };
-
-  const ensureUnderlyingPrice = async (code: string) => {
-    if (!code) return null;
-    if (underlyingCache[code] != null) return underlyingCache[code];
-    const { data } = await stockService.getCurrentPrice(code);
-    const price = data?.price ?? null;
-    setUnderlyingCache(prev => ({ ...prev, [code]: price ?? prev[code] }));
-    return price;
   };
 
   const getMoneynessTag = (p: OptionsPosition) => {
@@ -396,20 +393,20 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       const selectedIds = selectedPositions.map(p => p.id);
       logger.info('[OptionsPortfolio] syncing via updatePositions', { meta, count: selectedIds.length });
       const updates = selectedPositionsWithQty.map(p => {
-        const base = Number(p.selectedQuantity ?? (p as any).leg_quantity ?? p.quantity) || 0;
-        const avail = Number((p as any).available ?? base) || 0;
+        const base = Number(p.selectedQuantity ?? p.leg_quantity ?? p.quantity) || 0;
+        const avail = Number(p.available ?? base) || 0;
         const defaultTarget = Math.max(0, Math.min(avail, avail));
         const targetQty = Math.max(0, Math.min(avail, overrides?.[p.id] ?? defaultTarget));
         return {
           id: p.id,
           type: p.type as 'call' | 'put',
           position_type: p.position_type,
-          strike: Number((p as any).contract_strike_price ?? p.strike),
+          strike: Number(p.contract_strike_price ?? p.strike),
           expiry: p.expiry,
           quantity: targetQty,
           original_quantity: avail,
           change_quantity: targetQty - avail,
-          is_covered: (p as any).position_type_zh === '备兑' || !!(p as any).is_covered,
+          is_covered: p.position_type_zh === '备兑' || !!p.is_covered,
           symbol: p.symbol,
           option_type: p.type,
           strike_price: String(p.strike)
@@ -421,7 +418,9 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       try {
         const { data: refreshed } = await optionsService.getOptionsPortfolio(currentUserId || DEMO_USER_ID, selectedAccountIdProp || null);
         if (refreshed) setPortfolioData(refreshed);
-      } catch {}
+      } catch (refreshError) {
+        console.error(refreshError);
+      }
     } catch (e) {
       console.error(e as Error);
       toast.error('同步失败');
@@ -913,13 +912,15 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
 
   const executeAdvisedCombination = async (combo: AdvisedCombination) => {
     try {
-      const { data, error } = await optionsService.executeCombination({ ...combo, quantity: Math.max(1, combo.quantity) }, selectedAccountIdProp || null, currentUserId || null);
+      const { error } = await optionsService.executeCombination({ ...combo, quantity: Math.max(1, combo.quantity) }, selectedAccountIdProp || null, currentUserId || null);
       if (error) throw error;
       toast.success('已执行组合建议');
       try {
         const { data: refreshed } = await optionsService.getOptionsPortfolio(currentUserId || DEMO_USER_ID, selectedAccountIdProp || null);
         if (refreshed) setPortfolioData(refreshed);
-      } catch {}
+      } catch (refreshError) {
+        console.error(refreshError);
+      }
     } catch (e) {
       toast.error('执行失败');
       console.error(e);
@@ -1471,9 +1472,10 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
           {(portfolioData.expiryBuckets && portfolioData.expiryBuckets.length > 0
             ? portfolioData.expiryBuckets
             : (portfolioData.expiryGroups || []).map(g => ({
-                ...g,
-                single: (g as any).single || g.positions,
-                complex: (g as any).complex || []
+                expiry: g.expiry,
+                daysToExpiry: g.daysToExpiry,
+                single: g.positions,
+                complex: []
               }))
           ).map((group) => (
             <ExpiryGroupCard

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { logger } from '../../../shared/utils/logger';
 import { createChart, ColorType, IChartApi, ISeriesApi, CrosshairMode, LineStyle, PriceScaleMode } from 'lightweight-charts';
 import { format } from 'date-fns';
@@ -6,7 +6,7 @@ import { Theme, themes } from '../../../shared/constants/theme';
 import { stockService, authService, portfolioService } from '../../../lib/services';
 import { formatCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
-import { ChevronDown, ChevronUp, ZoomIn, ZoomOut, RefreshCw, Lock, Unlock, Maximize2, Minimize2, Grid, LineChart, CandlestickChart, BarChart } from 'lucide-react';
+import { ZoomIn, ZoomOut, Lock, Unlock, Maximize2, Minimize2, Grid, LineChart, CandlestickChart, BarChart } from 'lucide-react';
 import type { StockData, Trade, Stock } from '../../../lib/services/types';
 
 type ChartType = 'candlestick' | 'line' | 'bar';
@@ -23,6 +23,22 @@ interface CostBasisPoint {
   quantity: number;
   totalCost: number;
 }
+
+interface CandlestickPoint {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
+
+interface VolumePoint {
+  time: number;
+  value: number;
+  color?: string;
+}
+
+type PriceLineHandle = ReturnType<ISeriesApi<'Candlestick'>['createPriceLine']>;
 
 const isValidDataPoint = (item: StockData) => {
   return (
@@ -42,7 +58,7 @@ export function StockChart({ stockCode, theme, pendingTrades }: StockChartProps)
   const candlestickSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const costBasisSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
-  const priceLinesRef = useRef<any[]>([]);
+  const priceLinesRef = useRef<PriceLineHandle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCostBasis, setShowCostBasis] = useState(true);
   const { currencyConfig, getThemedColors } = useCurrency();
@@ -59,8 +75,8 @@ export function StockChart({ stockCode, theme, pendingTrades }: StockChartProps)
   const [autoScale, setAutoScale] = useState(true);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [chartData, setChartData] = useState<{
-    candlestick: any[];
-    volume: any[];
+    candlestick: CandlestickPoint[];
+    volume: VolumePoint[];
     trades: Trade[];
     costBasis: CostBasisPoint[];
   }>({ candlestick: [], volume: [], trades: [], costBasis: [] });
@@ -78,32 +94,32 @@ export function StockChart({ stockCode, theme, pendingTrades }: StockChartProps)
       if (candlestickSeriesRef.current) {
         try {
           chartRef.current.removeSeries(candlestickSeriesRef.current);
-        } catch (e) {
-          // Ignore errors during cleanup
+        } catch (error) {
+          logger.debug('[StockChart] Error removing candlestick series during dispose', { error });
         }
         candlestickSeriesRef.current = null;
       }
       if (volumeSeriesRef.current) {
         try {
           chartRef.current.removeSeries(volumeSeriesRef.current);
-        } catch (e) {
-          // Ignore errors during cleanup
+        } catch (error) {
+          logger.debug('[StockChart] Error removing volume series during dispose', { error });
         }
         volumeSeriesRef.current = null;
       }
       if (costBasisSeriesRef.current) {
         try {
           chartRef.current.removeSeries(costBasisSeriesRef.current);
-        } catch (e) {
-          // Ignore errors during cleanup
+        } catch (error) {
+          logger.debug('[StockChart] Error removing cost basis series during dispose', { error });
         }
         costBasisSeriesRef.current = null;
       }
       
       try {
         chartRef.current.remove();
-      } catch (e) {
-        // Ignore errors during cleanup
+      } catch (error) {
+        logger.debug('[StockChart] Error removing chart instance during dispose', { error });
       }
       chartRef.current = null;
     }
@@ -199,8 +215,7 @@ export function StockChart({ stockCode, theme, pendingTrades }: StockChartProps)
     // Remove existing series
     try {
       chart.removeSeries(candlestickSeriesRef.current);
-    } catch (e) {
-      // Ignore errors during series removal
+    } catch {
       return;
     }
     candlestickSeriesRef.current = null;
@@ -208,7 +223,7 @@ export function StockChart({ stockCode, theme, pendingTrades }: StockChartProps)
     let newSeries;
     try {
       switch (type) {
-        case 'line':
+        case 'line': {
           newSeries = chartRef.current.addLineSeries({
             color: themes[theme].chart.upColor,
             lineWidth: 2,
@@ -221,8 +236,9 @@ export function StockChart({ stockCode, theme, pendingTrades }: StockChartProps)
             }));
           newSeries.setData(sortedLineData);
           break;
+        }
         
-        case 'bar':
+        case 'bar': {
           newSeries = chartRef.current.addBarSeries({
             upColor: themes[theme].chart.upColor,
             downColor: themes[theme].chart.downColor,
@@ -230,8 +246,9 @@ export function StockChart({ stockCode, theme, pendingTrades }: StockChartProps)
           const sortedBarData = [...chartData.candlestick].sort((a, b) => a.time - b.time);
           newSeries.setData(sortedBarData);
           break;
+        }
         
-        default:
+        default: {
           newSeries = chartRef.current.addCandlestickSeries({
             upColor: themes[theme].chart.upColor,
             downColor: themes[theme].chart.downColor,
@@ -241,6 +258,7 @@ export function StockChart({ stockCode, theme, pendingTrades }: StockChartProps)
           });
           const sortedCandlestickData = [...chartData.candlestick].sort((a, b) => a.time - b.time);
           newSeries.setData(sortedCandlestickData);
+        }
       }
       
       candlestickSeriesRef.current = newSeries;
@@ -257,8 +275,8 @@ export function StockChart({ stockCode, theme, pendingTrades }: StockChartProps)
     }
   };
 
-  const addTradeMarkers = (
-    candlestickSeries: ISeriesApi<any>,
+  const addTradeMarkers = useCallback((
+    candlestickSeries: ISeriesApi<"Candlestick">,
     trades: Trade[],
     chartColors: { upColor: string; downColor: string }
   ) => {
@@ -289,7 +307,7 @@ export function StockChart({ stockCode, theme, pendingTrades }: StockChartProps)
     } catch (e) {
       console.error('Error setting markers:', e);
     }
-  };
+  }, [currencyConfig]);
 
   // Add pending trade price lines
   useEffect(() => {
@@ -325,8 +343,8 @@ export function StockChart({ stockCode, theme, pendingTrades }: StockChartProps)
         priceLinesRef.current.forEach(line => {
           try {
             candlestickSeriesRef.current?.removePriceLine(line);
-          } catch (e) {
-            // Ignore cleanup errors
+          } catch (error) {
+            logger.debug('[StockChart] Error removing pending trade price line', { error });
           }
         });
         priceLinesRef.current = [];
@@ -616,7 +634,7 @@ export function StockChart({ stockCode, theme, pendingTrades }: StockChartProps)
       disposeChart();
       isInitializing.current = false;
     };
-  }, [stockCode, theme, currencyConfig, showCostBasis, showGrid, showVolume, isLocked, autoScale]);
+  }, [stockCode, theme, currencyConfig, showCostBasis, showGrid, showVolume, isLocked, autoScale, getThemedColors, addTradeMarkers]);
 
   useEffect(() => {
     if (volumeSeriesRef.current && !isDisposed.current) {

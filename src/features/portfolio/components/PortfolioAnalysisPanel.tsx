@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, TrendingUp, TrendingDown, PieChart, Shield, Target, AlertTriangle, ChevronDown, ChevronUp, FileText } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { analysisService } from '../../../lib/services';
 import type { PortfolioAnalysis } from '../../../lib/services/types';
-import { formatCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import toast from 'react-hot-toast';
 
@@ -21,7 +20,7 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid, userId, selectedA
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [expandedSections, setExpandedSections] = useState<string[]>(['overview']);
-  const { currencyConfig, regionalColors } = useCurrency();
+  const { regionalColors } = useCurrency();
 
   // 优化的 markdown 渲染，控制间距，消除过度留白
   const renderMarkdownContent = (raw: string) => {
@@ -79,7 +78,7 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid, userId, selectedA
       }
 
       // 列表项（支持 * / - 和有序列表）
-      const unorderedMatch = /^\s{0,4}[\-\*]\s+(.*)$/.exec(line);
+      const unorderedMatch = /^\s{0,4}[-*]\s+(.*)$/.exec(line);
       const orderedMatch = /^\s{0,4}\d+\.\s+(.*)$/.exec(line);
       if (unorderedMatch || orderedMatch) {
         flushParagraph();
@@ -122,7 +121,7 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid, userId, selectedA
     return html;
   };
 
-  const fetchAnalysis = async (refresh = false) => {
+  const fetchAnalysis = useCallback(async (refresh = false) => {
     try {
       if (refresh) {
         setIsRefreshing(true);
@@ -149,11 +148,11 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid, userId, selectedA
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  };
+  }, [portfolioUuid, selectedAccountId, userId]);
 
   useEffect(() => {
     fetchAnalysis();
-  }, [portfolioUuid, userId, selectedAccountId]);
+  }, [fetchAnalysis]);
 
   const toggleSection = (section: string) => {
     setExpandedSections(prev =>

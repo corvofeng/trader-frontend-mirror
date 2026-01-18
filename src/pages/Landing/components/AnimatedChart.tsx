@@ -203,7 +203,7 @@ export function AnimatedChart({ theme }: AnimatedChartProps) {
         cancelAnimationFrame(animationFrame);
       }
     };
-  }, [theme, containerReady]);
+  }, [theme, containerReady, getThemedColors]);
 
   return (
     <div className="w-full h-[400px] relative">

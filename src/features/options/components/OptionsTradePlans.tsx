@@ -251,46 +251,6 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
     setSelectedAccountId(selectedAccountIdProp ?? null);
   }, [selectedAccountIdProp]);
 
-  
-
-  const getStatusColor = (status: OptionsTradePlan['status']) => {
-    switch (status) {
-      case 'pending':
-        return theme === 'dark' 
-          ? 'bg-yellow-900 text-yellow-100' 
-          : 'bg-yellow-100 text-yellow-800';
-      case 'active':
-        return theme === 'dark' 
-          ? 'bg-blue-900 text-blue-100' 
-          : 'bg-blue-100 text-blue-800';
-      case 'completed':
-        return theme === 'dark' 
-          ? 'bg-green-900 text-green-100' 
-          : 'bg-green-100 text-green-800';
-      case 'cancelled':
-        return theme === 'dark'
-          ? 'bg-red-900 text-red-100'
-          : 'bg-red-100 text-red-800';
-      default:
-        return theme === 'dark'
-          ? 'bg-gray-700 text-gray-100'
-          : 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getTypeIcon = (type: OptionsTradePlan['type']) => {
-    switch (type) {
-      case 'call':
-        return <TrendingUp className="w-4 h-4 text-green-500" />;
-      case 'put':
-        return <TrendingDown className="w-4 h-4 text-red-500" />;
-      case 'spread':
-        return <Target className="w-4 h-4 text-purple-500" />;
-      default:
-        return <FileText className="w-4 h-4 text-gray-500" />;
-    }
-  };
-
   return (
     <>
     <div className="space-y-6">

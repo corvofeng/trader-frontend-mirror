@@ -158,7 +158,7 @@ export function CalculatorSummary({ theme, positions, currentPrice }: Calculator
           仓位详情
         </h4>
         <div className="space-y-2">
-          {positions.map((position, index) => (
+          {positions.map((position) => (
             <div key={position.id} className="flex justify-between items-center text-sm">
               <span className={themes[theme].text}>
                 {position.action === 'buy' ? '买入' : '卖出'} {position.quantity} 手 {position.type.toUpperCase()} {position.strike}

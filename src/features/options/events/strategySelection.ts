@@ -22,7 +22,6 @@ export function emitAddLegToStrategy(event: AddLegEvent) {
       listener(event);
     } catch (e) {
       // swallow to avoid breaking other listeners
-      // eslint-disable-next-line no-console
       console.error('AddLegToStrategy listener error:', e);
     }
   }
@@ -65,7 +64,6 @@ export function emitOpenStrategyEditor(event: OpenEditorEvent) {
     try {
       listener(event);
     } catch (e) {
-      // eslint-disable-next-line no-console
       console.error('OpenStrategyEditor listener error:', e);
     }
   }

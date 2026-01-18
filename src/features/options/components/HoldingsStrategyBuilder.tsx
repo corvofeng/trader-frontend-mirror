@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { logger } from '../../../shared/utils/logger';
-import { Save, Layers, Filter, CheckSquare, Square } from 'lucide-react';
+import { Save, Layers, CheckSquare, Square } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { formatCurrency } from '../../../shared/utils/format';
@@ -89,7 +89,6 @@ export function HoldingsStrategyBuilder({ theme, onStrategyCreated }: HoldingsSt
       toast.success('已加入策略构建器');
     });
     return unsubscribe;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allPositions]);
 
   const toggleSelect = (pos: OptionsPosition) => {

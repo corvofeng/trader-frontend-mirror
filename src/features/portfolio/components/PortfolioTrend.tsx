@@ -5,7 +5,6 @@ import { Line } from 'react-chartjs-2';
 import { Theme, themes } from '../../../shared/constants/theme';
 import { stockService } from '../../../lib/services';
 import type { TrendData } from '../../../lib/services/types';
-import type { CurrencyConfig } from '../../../shared/types';
 import { formatCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 
@@ -18,10 +17,25 @@ interface PortfolioTrendProps {
   };
 }
 
+interface SSEPoint {
+  date: string;
+  close: number;
+  returnRate: number;
+}
+
+interface TooltipLabelContext {
+  dataset: { label?: string };
+  raw: number | null;
+}
+
+interface TooltipItem {
+  raw: number;
+}
+
 export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendProps) {
   const { currencyConfig, getThemedColors } = useCurrency();
   const themedColors = getThemedColors(theme);
-  const [sseData, setSseData] = React.useState<any[]>([]);
+  const [sseData, setSseData] = React.useState<SSEPoint[]>([]);
   const [showComparison, setShowComparison] = React.useState(true);
   const [isLoadingSSE, setIsLoadingSSE] = React.useState(false);
   const [viewMode, setViewMode] = React.useState<'absolute' | 'return'>('absolute');
@@ -43,11 +57,11 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
           });
           
           // Helper function to fill missing trading days for SSE data
-          const fillMissingSSEDays = (data: any[]): any[] => {
-            if (data.length === 0) return data;
+          const fillMissingSSEDays = (input: SSEPoint[]): SSEPoint[] => {
+            if (input.length === 0) return input;
             
-            const filledData: any[] = [];
-            const sortedData = [...data].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            const filledData: SSEPoint[] = [];
+            const sortedData = [...input].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
             
             for (let i = 0; i < sortedData.length; i++) {
               filledData.push(sortedData[i]);
@@ -88,7 +102,12 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
           // Calculate SSE return rates
           if (filteredData.length > 0) {
             // First fill missing days, then calculate returns
-            const smoothedSSEData = fillMissingSSEDays(filteredData);
+            const sseInputData: SSEPoint[] = filteredData.map(item => ({
+              date: item.date,
+              close: item.close,
+              returnRate: 0,
+            }));
+            const smoothedSSEData = fillMissingSSEDays(sseInputData);
             const basePrice = filteredData[0].close;
             const sseReturnData = smoothedSSEData.map(item => ({
               date: item.date,
@@ -121,11 +140,6 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
             return baseValue > 0 ? ((point.value - baseValue) / baseValue) * 100 : 0;
           })
         : [];
-      
-      const positionReturns = trendData.map(point => {
-        if (!point.position_value || !trendData[0]?.position_value) return 0;
-        return ((point.position_value - trendData[0].position_value) / trendData[0].position_value) * 100;
-      });
       
       const datasets = [
         {
@@ -228,7 +242,7 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
         borderColor: theme === 'dark' ? '#4b5563' : '#e5e7eb',
         borderWidth: 1,
         callbacks: {
-          label: (context: any) => {
+          label: (context: TooltipLabelContext) => {
             const label = context.dataset.label || '';
             if (viewMode === 'return') {
               const value = context.raw;
@@ -238,7 +252,7 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
               return `${label}: ${value}`;
             }
           },
-          afterBody: (tooltipItems: any[]) => {
+          afterBody: (tooltipItems: TooltipItem[]) => {
             if (viewMode === 'absolute' && tooltipItems.length >= 2) {
               const assetValue = tooltipItems[0].raw;
               const positionValue = tooltipItems[1].raw;
@@ -267,7 +281,7 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
         },
         ticks: {
           color: theme === 'dark' ? '#e5e7eb' : '#374151',
-          callback: (value: any) => {
+          callback: (value: number) => {
             if (viewMode === 'return') {
               return value.toFixed(1) + '%';
             } else {

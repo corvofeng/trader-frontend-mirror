@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { logger } from '../../../shared/utils/logger';
 import * as echarts from 'echarts';
-import { Filter, X } from 'lucide-react';
+import { Filter } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import type { Holding, StockConfig } from '../../../lib/services/types';
 import { formatCurrency } from '../../../shared/utils/format';
-import type { CurrencyConfig } from '../../../shared/types';
+import type { RegionalColorConfig } from '../../../shared/types';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { stockConfigService } from '../../../lib/services';
 
@@ -16,16 +16,31 @@ interface PortfolioHeatmapProps {
 
 type GroupingDimension = 'category' | 'tags';
 
-interface GroupStats {
-  totalValue: number;
-  profitLoss: number;
-  profitLossPercentage: number;
-  dailyProfitLoss: number;
-  dailyProfitLossPercentage: number;
-  holdings: Holding[];
+interface TreemapTooltipData {
+  name: string;
+  value: number;
+  dailyPLPercentage: number;
+  stock_code?: string;
 }
 
-function getColorByPercentage(percentage: number, isDark: boolean, regionalColors: any): string {
+interface TreemapLabelData extends TreemapTooltipData {
+  children?: TreemapLabelData[];
+}
+
+interface TreemapTooltipParams {
+  data: TreemapTooltipData;
+  value: number;
+  name: string;
+}
+
+interface TreemapLabelParams {
+  data: TreemapLabelData;
+  value: number;
+  name: string;
+  depth: number;
+}
+
+function getColorByPercentage(percentage: number, isDark: boolean, regionalColors: RegionalColorConfig): string {
   const colors = {
     positive: {
       veryStrong: regionalColors.upColor,
@@ -281,7 +296,7 @@ export function PortfolioHeatmap({ holdings, theme }: PortfolioHeatmapProps) {
     const option = {
       grid: { left: 24, right: 24, top: 24, bottom: 24, containLabel: true },
       tooltip: {
-        formatter: (params: any) => {
+        formatter: (params: TreemapTooltipParams) => {
           const { name, value, dailyPLPercentage, stock_code } = params.data;
           const percentage = formatPercentage(dailyPLPercentage);
           const formattedValue = formatCurrency(value, currencyConfig);
@@ -353,7 +368,7 @@ export function PortfolioHeatmap({ holdings, theme }: PortfolioHeatmapProps) {
         ],
         label: {
           show: true,
-          formatter: (params: any) => {
+          formatter: (params: TreemapLabelParams) => {
             const value = formatCurrency(params.value, currencyConfig)
               .replace(/,(\d{3})+$/, 'M')
               .replace(/,(\d{3})/, 'K');
@@ -366,22 +381,19 @@ export function PortfolioHeatmap({ holdings, theme }: PortfolioHeatmapProps) {
                 value,
                 `(${params.data.children?.length || 0} holdings)`
               ].join('\n');
-            } else {
-              if (params.data.stock_code ) {
-                return [
-                  `${params.name}`,
-                  `${params.data.stock_code}`,
-                  `${percentage}%`,
-                  value
-                ].join('\n');
-              } else {
-                return [
-                  `${params.name}`,
-                  `${percentage}%`,
-                  value
-                ].join('\n');
-              }
+            } else if (params.data.stock_code) {
+              return [
+                `${params.name}`,
+                `${params.data.stock_code}`,
+                `${percentage}%`,
+                value
+              ].join('\n');
             }
+            return [
+              `${params.name}`,
+              `${percentage}%`,
+              value
+            ].join('\n');
           },
           color: isDark ? '#e5e7eb' : '#111827',
           fontWeight: 500
@@ -410,7 +422,7 @@ export function PortfolioHeatmap({ holdings, theme }: PortfolioHeatmapProps) {
         chartInstance.current.dispose();
       }
     };
-  }, [holdings, theme, currencyConfig, groupingDimension, stockConfigs, isLoading, isMobile]);
+  }, [holdings, theme, currencyConfig, groupingDimension, stockConfigs, isLoading, isMobile, regionalColors]);
 
   return (
     <div className={`${themes[theme].card} rounded-lg shadow-md`}>

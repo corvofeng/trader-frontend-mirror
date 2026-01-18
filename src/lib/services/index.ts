@@ -1,22 +1,11 @@
-import type {
-  AuthService,
-  TradeService,
-  StockService,
-  PortfolioService,
-  CurrencyService,
-  UploadService,
-  AnalysisService,
-  AccountService,
-  AccountPromptService
-} from './types';
-import type { OptionsService } from './types';
+import type { Services } from './types';
 import * as mockServices from './mock';
 import * as prodServices from './prod';
 
 const isProduction = import.meta.env.VITE_ENV === 'production';
 console.log(`Running in ${isProduction ? 'production' : 'development'} mode`);
 
-const services = isProduction ? prodServices : mockServices;
+const services: Services = isProduction ? prodServices : mockServices;
 
 export const {
   authService,

@@ -90,7 +90,31 @@ export function ProfitLossChart({ theme, positions, currentPrice }: ProfitLossCh
       }
 
       // 计算关键点位
-      const markers: any[] = [];
+      const markers: {
+        coord: [number, number];
+        label?: {
+          show: boolean;
+          position?: string;
+          formatter?: string;
+          backgroundColor?: string;
+          borderColor?: string;
+          borderWidth?: number;
+          borderRadius?: number;
+          padding?: [number, number] | [number, number, number, number];
+          textStyle?: {
+            color?: string;
+            fontSize?: number;
+            fontWeight?: string;
+          };
+        };
+        symbol?: string;
+        symbolSize?: number;
+        itemStyle?: {
+          color?: string;
+          borderColor?: string;
+          borderWidth?: number;
+        };
+      }[] = [];
       const calculatedBreakEvenPoints: { price: number; profit: number }[] = [];
       const extremePoints: { price: number; profit: number; type: 'max' | 'min' }[] = [];
 
@@ -241,12 +265,12 @@ export function ProfitLossChart({ theme, positions, currentPrice }: ProfitLossCh
     const maxDisplayPrice = Math.max(maxStrike, currentPrice) + priceRange * 0.3;
 
     // 过滤数据到显示范围内
-    const { data: profitLossData, markers, calculatedBreakEvenPoints, extremePoints } = generateProfitLossData();
-    const filteredData = profitLossData.filter(([price, _]) =>
+    const { data: profitLossData, markers } = generateProfitLossData();
+    const filteredData = profitLossData.filter(([price]) =>
       price >= minDisplayPrice && price <= maxDisplayPrice
     );
 
-    const hasValidData = positions.length > 0 && filteredData.some(([_, profit]) => profit !== 0);
+    const hasValidData = positions.length > 0 && filteredData.some(([, profit]) => profit !== 0);
 
     const option = {
       title: {
@@ -264,23 +288,25 @@ export function ProfitLossChart({ theme, positions, currentPrice }: ProfitLossCh
         textStyle: {
           color: isDark ? '#e5e7eb' : '#111827'
         },
-        formatter: (params: any) => {
-          // 确保params是数组格式
+        formatter: (params: unknown) => {
           const paramsArray = Array.isArray(params) ? params : [params];
-          const param = paramsArray[0];
-          
-          if (!param || !param.data || !Array.isArray(param.data) || param.data.length < 2) {
+          const param = paramsArray[0] as { data?: unknown };
+
+          if (!param || !Array.isArray(param.data) || param.data.length < 2) {
             return '';
           }
 
-          const [price, profit] = param.data;
-          
-          if (typeof price !== 'number' || typeof profit !== 'number' || 
-              isNaN(price) || isNaN(profit)) {
+          const [price, profit] = param.data as [number, number];
+
+          if (
+            typeof price !== 'number' ||
+            typeof profit !== 'number' ||
+            Number.isNaN(price) ||
+            Number.isNaN(profit)
+          ) {
             return '';
           }
 
-          // 检查是否是当前股价点
           const isCurrentPrice = Math.abs(price - currentPrice) < 0.01;
           const priceLabel = isCurrentPrice ? '当前股价' : '股价';
 
@@ -409,7 +435,7 @@ export function ProfitLossChart({ theme, positions, currentPrice }: ProfitLossCh
     return () => {
       window.removeEventListener('resize', handleResize);
     };
-  }, [theme, positions, currentPrice, currencyConfig]);
+  }, [theme, positions, currentPrice, currencyConfig, getThemedColors]);
 
   useEffect(() => {
     return () => {

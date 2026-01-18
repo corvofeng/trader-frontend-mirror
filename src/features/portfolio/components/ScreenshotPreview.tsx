@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Download, Share2 } from 'lucide-react';
+import { X, Download } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 
 interface ScreenshotPreviewProps {

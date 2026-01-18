@@ -17,9 +17,6 @@ interface OverviewControlsProps {
 
 export function OverviewControls({
   theme,
-  userId,
-  selectedAccountId,
-  onAccountChange,
   dateRange,
   onDateRangeChange,
   isSharedView,

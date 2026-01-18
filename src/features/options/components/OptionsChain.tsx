@@ -32,7 +32,7 @@ export function OptionsChain({
   const [editableQuotes, setEditableQuotes] = React.useState<OptionQuote[]>(quotesByExpiry);
   React.useEffect(() => {
     setEditableQuotes(quotesByExpiry);
-  }, [optionsData, selectedExpiry]);
+  }, [optionsData, selectedExpiry, quotesByExpiry]);
 
   // 找到时间价值最大的期权合约作为平值合约
   const getAtTheMoneyStrike = (quotes: OptionQuote[]): number => {
@@ -167,33 +167,13 @@ export function OptionsChain({
     if (w < 400) return 0.85;
     return 1;
   });
-  // 稳健读取 Cookie 的工具函数
-  const getCookie = (name: string): string | null => {
-    try {
-      const all = document.cookie;
-      if (!all) return null;
-      const parts = all.split(';');
-      for (let i = 0; i < parts.length; i++) {
-        const cookie = parts[i].trim();
-        if (cookie.startsWith(name + '=')) {
-          const value = cookie.substring(name.length + 1);
-          try {
-            return decodeURIComponent(value);
-          } catch {
-            return value;
-          }
-        }
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  };
   const setCookie = (name: string, value: string, days: number) => {
     try {
       const expires = new Date(Date.now() + days * 864e5).toUTCString();
       document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
-    } catch {}
+    } catch {
+      return;
+    }
   };
   // 取消初始读取副作用，以免首次渲染覆盖 Cookie 值
   // 缩放变化时写入 Cookie（180 天）
@@ -201,7 +181,9 @@ export function OptionsChain({
     try {
       const days = 180;
       setCookie('optionsChainZoom', String(zoom), days);
-    } catch {}
+    } catch {
+      return;
+    }
   }, [zoom]);
   const colPx = Math.max(56, Math.round(112 * zoom)); // 基础列宽 112px，最小 56px（支持50%缩放）
   const textSizeClass = zoom <= 0.7 ? 'text-xs' : 'text-sm';

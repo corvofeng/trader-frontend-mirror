@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { X, Save, Plus, Trash2 } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
@@ -65,7 +65,7 @@ export function StrategyEditModal({
     setPositions([...positions, newPosition]);
   };
 
-  const updatePosition = (id: string, field: keyof EditablePosition, value: any) => {
+  const updatePosition = (id: string, field: keyof EditablePosition, value: string | number) => {
     setPositions(positions.map(pos => {
       if (pos.id === id) {
         const updatedPos = { ...pos, [field]: value };
@@ -127,7 +127,8 @@ export function StrategyEditModal({
       const updatedStrategy: CustomOptionsStrategy = {
         ...editedStrategy,
         positions: positions.map(pos => {
-          const { isNew, ...cleanPos } = pos;
+          const cleanPos: EditablePosition = { ...pos };
+          delete cleanPos.isNew;
           return cleanPos;
         }),
         updatedAt: new Date().toISOString()

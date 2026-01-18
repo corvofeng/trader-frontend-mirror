@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Calculator, Settings, Briefcase, Plus } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { optionsService } from '../../../lib/services';
-import type { OptionsPortfolioData, CustomOptionsStrategy } from '../../../lib/services/types';
+import type { OptionsPortfolioData } from '../../../lib/services/types';
 import { StrategyCreator } from './StrategyCreator';
 import { StrategyDisplay } from './StrategyDisplay';
 import { SavedStrategiesManager } from './SavedStrategiesManager';
@@ -19,7 +19,6 @@ const DEMO_USER_ID = 'mock-user-id';
 export function OptionsPortfolioManagement({ theme, selectedSymbol: propSelectedSymbol }: OptionsPortfolioManagementProps) {
   const [activeTab, setActiveTab] = useState<ManagementTab>('overview');
   const [portfolioData, setPortfolioData] = useState<OptionsPortfolioData | null>(null);
-  const [savedStrategies, setSavedStrategies] = useState<CustomOptionsStrategy[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedSymbol, setSelectedSymbol] = useState(propSelectedSymbol || 'SPY');
 
@@ -31,7 +30,6 @@ export function OptionsPortfolioManagement({ theme, selectedSymbol: propSelected
 
   useEffect(() => {
     fetchPortfolioData();
-    fetchSavedStrategies();
   }, []);
 
   const fetchPortfolioData = async () => {
@@ -49,25 +47,12 @@ export function OptionsPortfolioManagement({ theme, selectedSymbol: propSelected
     }
   };
 
-  const fetchSavedStrategies = async () => {
-    try {
-      const { data, error } = await optionsService.getCustomStrategies(DEMO_USER_ID, null);
-      if (error) throw error;
-      if (data) {
-        setSavedStrategies(data);
-      }
-    } catch (error) {
-      console.error('Error fetching saved strategies:', error);
-    }
-  };
-
-  const handleStrategyCreated = (strategy: CustomOptionsStrategy) => {
-    setSavedStrategies(prev => [strategy, ...prev]);
+  const handleStrategyCreated = () => {
     setActiveTab('saved'); // 切换到已保存策略页面
   };
 
   const handleStrategyUpdated = () => {
-    fetchSavedStrategies(); // 重新获取已保存策略
+    // Strategy list updated via component
   };
 
   const tabs = [

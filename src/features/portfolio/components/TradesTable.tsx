@@ -62,30 +62,55 @@ export function TradesTable({
                 onClick={() => onSort('created_at')}
               >
                 日期
+                {sort.field === 'created_at' && (
+                  <span className="ml-1">
+                    {sort.direction === 'asc' ? '↑' : '↓'}
+                  </span>
+                )}
               </th>
               <th 
                 className={`px-6 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
                 onClick={() => onSort('stock_code')}
               >
                 股票
+                {sort.field === 'stock_code' && (
+                  <span className="ml-1">
+                    {sort.direction === 'asc' ? '↑' : '↓'}
+                  </span>
+                )}
               </th>
               <th 
                 className={`px-6 py-3 text-center text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
                 onClick={() => onSort('operation')}
               >
                 方向
+                {sort.field === 'operation' && (
+                  <span className="ml-1">
+                    {sort.direction === 'asc' ? '↑' : '↓'}
+                  </span>
+                )}
               </th>
               <th 
                 className={`px-6 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
                 onClick={() => onSort('target_price')}
               >
                 价格
+                {sort.field === 'target_price' && (
+                  <span className="ml-1">
+                    {sort.direction === 'asc' ? '↑' : '↓'}
+                  </span>
+                )}
               </th>
               <th 
                 className={`px-6 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
                 onClick={() => onSort('quantity')}
               >
                 数量
+                {sort.field === 'quantity' && (
+                  <span className="ml-1">
+                    {sort.direction === 'asc' ? '↑' : '↓'}
+                  </span>
+                )}
               </th>
               <th className={`px-6 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
                 金额

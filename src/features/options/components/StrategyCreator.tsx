@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { logger } from '../../../shared/utils/logger';
 import { Plus, Save, X, Target, TrendingUp, TrendingDown, Activity } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
@@ -161,7 +161,7 @@ export function StrategyCreator({ theme, selectedSymbol, onStrategyCreated }: St
     setPositions([...positions, newPosition]);
   };
 
-  const updatePosition = (id: string, field: keyof NewPosition, value: any) => {
+  const updatePosition = (id: string, field: keyof NewPosition, value: string | number) => {
     setPositions(positions.map(pos => 
       pos.id === id ? { ...pos, [field]: value } : pos
     ));

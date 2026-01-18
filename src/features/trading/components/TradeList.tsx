@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { format } from 'date-fns';
-import { ArrowUpCircle, ArrowDownCircle, DollarSign, Calendar, BarChart2, ClipboardCheck, Check, X, Clock, Edit2, Save, ListFilter, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
+import { ArrowUpCircle, ArrowDownCircle, BarChart2, Check, X, Clock, Edit2, Save, ListFilter, ChevronDown, RefreshCw } from 'lucide-react';
 import { authService, tradeService, stockConfigService } from '../../../lib/services';
 import { Theme, themes } from '../../../lib/theme';
 import { StockChart } from './StockChart';
@@ -109,7 +109,7 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
     );
   };
 
-  const fetchTrades = async () => {
+  const fetchTrades = useCallback(async () => {
     try {
       const { data: { user } } = await authService.getUser();
       
@@ -128,7 +128,7 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  };
+  }, [showAllTrades, selectedStockCode, filter]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -138,15 +138,11 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
   useEffect(() => {
     setIsLoading(true);
     fetchTrades();
-  }, [selectedStockCode, filter, showAllTrades, selectedAccountId]);
+  }, [fetchTrades]);
 
   useEffect(() => {
     setShowAllTrades(false);
   }, [selectedStockCode, selectedAccountId]);
-
-  const getTotalValue = (trade: Trade) => {
-    return trade.quantity * trade.target_price;
-  };
 
   const getStatusColor = (status: Trade['status']) => {
     switch (status) {

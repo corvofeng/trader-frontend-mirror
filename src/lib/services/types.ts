@@ -415,6 +415,7 @@ export interface OptionsPosition {
   strike_price?: string | number;
   expiry: string;
   quantity: number;
+  available?: number;
   premium: number;
   currentValue: number;
   profitLoss: number;

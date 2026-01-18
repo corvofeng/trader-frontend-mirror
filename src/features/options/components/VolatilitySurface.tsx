@@ -171,7 +171,7 @@ export function VolatilitySurface({ theme, optionsData, selectedSymbol }: Volati
     return () => {
       window.removeEventListener('resize', handleResize);
     };
-  }, [theme, optionsData, selectedSymbol]);
+  }, [theme, optionsData, selectedSymbol, getThemedColors]);
 
   return (
     <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>

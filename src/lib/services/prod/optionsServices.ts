@@ -2,7 +2,7 @@ import type { OptionsService, OptionsPosition } from '../types';
 import type { CustomOptionsStrategy } from '../types';
 
 // Cache for options data to prevent redundant requests
-const optionsDataCache: Record<string, Promise<{ data: any; error: Error | null }>> = {};
+const optionsDataCache: Record<string, Promise<{ data: unknown; error: Error | null }>> = {};
 
 export const optionsService: OptionsService = {
   getOptionsData: async (symbol?: string) => {

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { logger } from '../../../shared/utils/logger';
 import * as echarts from 'echarts';
+import type { CallbackDataParams } from 'echarts';
 import { format, differenceInDays } from 'date-fns';
 import { Theme, themes } from '../../../lib/theme';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
@@ -110,8 +111,10 @@ export function TimeValueChart({ theme, optionsData, selectedSymbol }: TimeValue
         textStyle: {
           color: isDark ? '#e5e7eb' : '#111827'
         },
-        formatter: (params: any) => {
-          const dataIndex = params[0].dataIndex;
+        formatter: (params: CallbackDataParams | CallbackDataParams[]) => {
+          const paramsArray = Array.isArray(params) ? params : [params];
+          const first = paramsArray[0];
+          const dataIndex = first?.dataIndex ?? 0;
           const item = timeValueData[dataIndex];
           return `
             <div>
@@ -231,7 +234,7 @@ export function TimeValueChart({ theme, optionsData, selectedSymbol }: TimeValue
     return () => {
       window.removeEventListener('resize', handleResize);
     };
-  }, [theme, optionsData, selectedSymbol, timeDisplayMode, currencyConfig]);
+  }, [theme, optionsData, selectedSymbol, timeDisplayMode, currencyConfig, getThemedColors]);
 
   return (
     <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>

@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { format, differenceInDays } from 'date-fns';
 import { Calendar, CreditCard as Edit, Trash2, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Target, Activity } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { optionsService } from '../../../lib/services';
-import type { CustomOptionsStrategy, OptionsPosition } from '../../../lib/services/types';
+import type { CustomOptionsStrategy } from '../../../lib/services/types';
 import { StrategyEditModal } from './StrategyEditModal';
 import toast from 'react-hot-toast';
 
@@ -32,11 +32,7 @@ export function SavedStrategiesManager({ theme, onStrategyUpdated }: SavedStrate
   const [editingStrategy, setEditingStrategy] = useState<CustomOptionsStrategy | null>(null);
   const { currencyConfig } = useCurrency();
 
-  useEffect(() => {
-    fetchSavedStrategies();
-  }, []);
-
-  const fetchSavedStrategies = async () => {
+  const fetchSavedStrategies = useCallback(async () => {
     try {
       setIsLoading(true);
       const { data, error } = await optionsService.getCustomStrategies(DEMO_USER_ID, null);
@@ -55,7 +51,11 @@ export function SavedStrategiesManager({ theme, onStrategyUpdated }: SavedStrate
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchSavedStrategies();
+  }, [fetchSavedStrategies]);
 
   const groupStrategiesByMonth = (strategies: CustomOptionsStrategy[]): StrategyGroup[] => {
     const groups = new Map<string, {
@@ -328,7 +328,7 @@ export function SavedStrategiesManager({ theme, onStrategyUpdated }: SavedStrate
                       <div className="mb-4">
                         <h4 className={`text-sm font-medium ${themes[theme].text} mb-2`}>腿部构成</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                          {strategy.positions.map((position, index) => (
+                          {strategy.positions.map((position) => (
                             <div key={position.id} className={`${themes[theme].card} rounded p-2 text-sm`}>
                               <div className="flex justify-between items-center">
                                 <span className={`font-medium ${themes[theme].text}`}>

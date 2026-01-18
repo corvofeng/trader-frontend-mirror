@@ -3,8 +3,9 @@ import type { OptionsPortfolioData } from '../../../lib/services/types';
 
 // Use environment variable or construct from current host
 const getWebSocketUrl = () => {
-  if ((import.meta as any).env?.VITE_WS_URL) {
-    return (import.meta as any).env.VITE_WS_URL;
+  const meta = import.meta as unknown as { env?: { VITE_WS_URL?: string } };
+  if (meta.env?.VITE_WS_URL) {
+    return meta.env.VITE_WS_URL;
   }
   // Check if window is defined (browser environment)
   if (typeof window !== 'undefined') {
@@ -12,6 +13,27 @@ const getWebSocketUrl = () => {
     return `${protocol}//${window.location.host}/api/ws/option`;
   }
   return 'ws://localhost:8000/api/ws/option'; // Fallback
+};
+
+type PriceFieldSource = number | number[] | undefined;
+
+interface ServerPriceMessage extends PriceUpdate {
+  bid_prices?: number[];
+  bid_price?: number | number[];
+  ask_prices?: number[];
+  ask_price?: number | number[];
+}
+
+const parsePriceField = (
+  val: PriceFieldSource
+): { scalar: number | undefined; array: number[] | undefined } => {
+  if (Array.isArray(val)) {
+    return { scalar: val.length > 0 ? val[0] : undefined, array: val };
+  }
+  if (typeof val === 'number') {
+    return { scalar: val, array: [val] };
+  }
+  return { scalar: undefined, array: undefined };
 };
 
 export interface PriceUpdate {
@@ -38,6 +60,7 @@ interface OptionPriceWebSocketContextType {
 
 const OptionPriceWebSocketContext = createContext<OptionPriceWebSocketContextType | null>(null);
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useOptionPriceWebSocketContext() {
   const context = useContext(OptionPriceWebSocketContext);
   if (!context) {
@@ -102,19 +125,8 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
           // Assuming the server returns { contract_code: "...", price: ... } or a list
           if (Array.isArray(data)) {
             const updates: Record<string, PriceUpdate> = {};
-            data.forEach((item: any) => {
+            data.forEach((item: ServerPriceMessage) => {
               if (item.contract_code) {
-                // Helper to parse price fields which might be scalars or arrays
-                const parsePriceField = (val: any): { scalar: number | undefined, array: number[] | undefined } => {
-                  if (Array.isArray(val)) {
-                    return { scalar: val.length > 0 ? val[0] : undefined, array: val };
-                  }
-                  if (typeof val === 'number') {
-                    return { scalar: val, array: [val] };
-                  }
-                  return { scalar: undefined, array: undefined };
-                };
-
                 const bidSource = item.bid_prices ?? item.bid_price ?? item.bid;
                 const askSource = item.ask_prices ?? item.ask_price ?? item.ask;
 
@@ -135,17 +147,6 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
             });
             setPrices(prev => ({ ...prev, ...updates }));
           } else if (data.contract_code) {
-             // Helper to parse price fields which might be scalars or arrays
-             const parsePriceField = (val: any): { scalar: number | undefined, array: number[] | undefined } => {
-              if (Array.isArray(val)) {
-                return { scalar: val.length > 0 ? val[0] : undefined, array: val };
-              }
-              if (typeof val === 'number') {
-                return { scalar: val, array: [val] };
-              }
-              return { scalar: undefined, array: undefined };
-            };
-
             const bidSource = data.bid_prices ?? data.bid_price ?? data.bid;
             const askSource = data.ask_prices ?? data.ask_price ?? data.ask;
 

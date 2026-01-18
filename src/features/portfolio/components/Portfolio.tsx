@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { logger } from '../../../shared/utils/logger';
-import { format, subDays } from 'date-fns';
-import { ArrowUpCircle, ArrowDownCircle, Calendar, Filter, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, BarChart2, Briefcase, ExternalLink, Camera } from 'lucide-react';
+import { subDays } from 'date-fns';
+import { Filter, ExternalLink } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
 import type { Holding, Trade, TrendData } from '../../../lib/services/types';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement } from 'chart.js';
+import type { TooltipItem } from 'chart.js';
 import { Pie } from 'react-chartjs-2';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { portfolioService } from '../../../lib/services';
@@ -13,8 +14,7 @@ import { PortfolioTrend } from './PortfolioTrend';
 import { PortfolioHeatmap } from './PortfolioHeatmap';
 import { StockAnalysisModal } from './StockAnalysisModal';
 import { PortfolioAnalysisPanel } from './PortfolioAnalysisPanel';
-import { AccountSelector } from '../../../shared/components';
-import { X, Download, Share2 } from 'lucide-react';
+import { X, Download } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { ScreenshotPreview } from './ScreenshotPreview';
 import { HoldingsTable } from './HoldingsTable';
@@ -48,9 +48,6 @@ interface PortfolioProps {
   onAccountChange?: (accountId: string) => void;
 }
 
-const DEMO_USER_ID = 'mock-user-id';
-const DEMO_ACCOUNT_ID = 'mock-account-id';
-
 export function Portfolio({ 
   holdings, 
   theme, 
@@ -77,7 +74,7 @@ export function Portfolio({
   const [showPreview, setShowPreview] = useState(false);
   const journalRef = useRef<HTMLDivElement>(null);
   const { currencyConfig } = useCurrency();
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [, setIsRefreshing] = useState(false);
   
   // Calculate portfolio metrics
   const totalHoldingsValue = holdings.reduce((sum, holding) => sum + holding.total_value, 0);
@@ -137,7 +134,7 @@ export function Portfolio({
     }
     setIsRefreshing(true);
     try {
-      const [holdingsResp, tradesResp, trendResp] = await Promise.all([
+      const [, , trendResp] = await Promise.all([
         portfolioService.getHoldings(userId, selectedAccountId),
         portfolioService.getRecentTrades(userId, dateRange.startDate, dateRange.endDate, selectedAccountId),
         portfolioService.getTrendData(userId, dateRange.startDate, dateRange.endDate, selectedAccountId),
@@ -281,25 +278,17 @@ export function Portfolio({
       },
       tooltip: {
         callbacks: {
-          label: function(context: any) {
+          label: function(context: TooltipItem<'pie'>) {
             const label = context.label || '';
-            const value = context.parsed;
-            const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
-            const percentage = ((value / total) * 100).toFixed(1);
+            const value = typeof context.parsed === 'number' ? context.parsed : 0;
+            const data = context.dataset.data as number[];
+            const total = data.reduce((a, b) => a + b, 0);
+            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
             return `${label}: ${formatCurrency(value, currencyConfig)} (${percentage}%)`;
           }
         }
       }
-    },
-  };
-
-  const SortIcon = ({ field, currentSort }: { field: string, currentSort: { field: string; direction: 'asc' | 'desc' } }) => {
-    if (field !== currentSort.field) {
-      return <ArrowUp className="w-4 h-4 opacity-30" />;
     }
-    return currentSort.direction === 'asc' ? 
-      <ArrowUp className="w-4 h-4" /> : 
-      <ArrowDown className="w-4 h-4" />;
   };
 
   const handleHoldingsSort = (field: string) => {

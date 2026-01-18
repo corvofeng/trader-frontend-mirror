@@ -62,7 +62,7 @@ export function Navigation({
               {showThemeDropdown && (
                 <div className={`absolute right-0 mt-2 w-48 rounded-md shadow-lg ${themes[theme].card} ring-1 ring-black ring-opacity-5 z-50`}>
                   <div className="py-1" role="menu" aria-orientation="vertical">
-                    {Object.entries(themes).map(([themeName, _]) => (
+                    {Object.keys(themes).map((themeName) => (
                       <button
                         key={themeName}
                         onClick={() => onThemeChange(themeName as Theme)}
@@ -133,7 +133,7 @@ export function Navigation({
           <div className={`md:hidden ${themes[theme].card} border-t ${themes[theme].border} py-4 absolute left-0 right-0 shadow-lg`}>
             <div className="flex flex-col space-y-4 px-4">
               <div className="flex justify-center space-x-2">
-                {Object.entries(themes).map(([themeName, _]) => (
+                {Object.keys(themes).map((themeName) => (
                   <button
                     key={themeName}
                     onClick={() => onThemeChange(themeName as Theme)}
