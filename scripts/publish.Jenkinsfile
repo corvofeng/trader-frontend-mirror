@@ -30,4 +30,33 @@ podTemplateLibrary {
             }
         }
     }
+    stage('Build and publish') {
+        sh '''
+        docker build . -f scripts/Dockerfile -t trader-frontend:latest
+        '''
+        if (env.TAG_NAME) {
+            sshagent(credentials: ['id_ed25519_ansible']) {
+                sh '''
+                set -e
+                cid=$(docker create trader-frontend:latest)
+                rm -rf dist-publish
+                mkdir -p dist-publish
+                docker cp "$cid":/app/dist/. dist-publish/
+                docker rm "$cid"
+
+                git fetch mirror
+                git checkout -B dist
+                rm -rf *
+                cp -r dist-publish/* .
+                rm -rf dist-publish
+
+                git config user.name "jenkins"
+                git config user.email "jenkins@example.com"
+                git add .
+                git commit -m "chore: publish dist for ${TAG_NAME:-$BRANCH_NAME} $(date +%Y%m%d%H%M%S)" || echo "No changes to commit"
+                git push -u mirror dist
+                '''
+            }
+        }
+    }
 }
