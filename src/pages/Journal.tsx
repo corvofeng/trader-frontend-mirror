@@ -154,7 +154,13 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
             )}
           </div>
         </div>
-        {!portfolioUuid && (
+        <TabNavigation
+          tabs={tabs}
+          activeTab={activeTab}
+          theme={theme}
+          onTabChange={handleTabChange}
+        />
+        {activeTab === 'trades' && !portfolioUuid && (
           <div className="w-full">
             <StockSearch
               onSelect={onStockSelect}
@@ -162,12 +168,6 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
             />
           </div>
         )}
-        <TabNavigation
-          tabs={tabs}
-          activeTab={activeTab}
-          theme={theme}
-          onTabChange={handleTabChange}
-        />
       </div>
 
       {/* Show portfolio UUID info if viewing shared portfolio */}
