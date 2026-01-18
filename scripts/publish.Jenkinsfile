@@ -45,8 +45,12 @@ podTemplateLibrary {
                 docker cp "$cid":/app/dist/. "$tmpdir"/
                 docker rm "$cid"
 
-                git fetch mirror
-                git checkout -B dist
+                git fetch mirror dist || true
+                if git show-ref --verify --quiet refs/remotes/mirror/dist; then
+                  git checkout -B dist mirror/dist
+                else
+                  git checkout -B dist
+                fi
                 rm -rf *
                 cp -r "$tmpdir"/* .
                 rm -rf "$tmpdir"
@@ -55,7 +59,7 @@ podTemplateLibrary {
                 git config user.email "jenkins@example.com"
                 git add .
                 git commit -m "chore: publish dist for ${TAG_NAME:-$BRANCH_NAME} $(date +%Y%m%d%H%M%S)" || echo "No changes to commit"
-                git push -u mirror dist
+                git push -u mirror dist || git push -u mirror dist --force-with-lease
                 '''
             }
         }
