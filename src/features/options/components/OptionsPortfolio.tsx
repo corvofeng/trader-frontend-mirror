@@ -131,10 +131,16 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
 
     const ensurePrice = async () => {
       if (!sanitized) return;
-      if (underlyingCache[sanitized] != null) return;
-      const { data } = await stockService.getCurrentPrice(sanitized);
-      const price = data?.price ?? null;
-      setUnderlyingCache(prev => ({ ...prev, [sanitized]: price ?? prev[sanitized] }));
+      if (underlyingCache[sanitized] !== undefined) return;
+      try {
+        const { data } = await stockService.getCurrentPrice(sanitized);
+        const price = data?.price ?? null;
+        setUnderlyingCache(prev => ({ ...prev, [sanitized]: price }));
+      } catch (e) {
+        console.error('Error fetching price for', sanitized, e);
+        // Set to null to avoid infinite retry loop on error
+        setUnderlyingCache(prev => ({ ...prev, [sanitized]: null }));
+      }
     };
 
     ensurePrice();
