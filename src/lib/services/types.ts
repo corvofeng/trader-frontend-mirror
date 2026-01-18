@@ -273,6 +273,17 @@ export interface PortfolioService {
   getTrendDataByUuid: (uuid: string, startDate: string, endDate: string) => Promise<ServiceResponse<TrendData[]>>;
 }
 
+export interface AccountPrompt {
+  id: number;
+  account_alias: string;
+  prompt_name: string;
+  prompt_content: string;
+  prompt_type: 'stock_analysis' | 'option_analysis';
+  is_active: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AnalysisService {
   getStockAnalysis: (stockCode: string) => Promise<ServiceResponse<StockAnalysis>>;
   getPortfolioAnalysis: (userId: string, accountId?: string) => Promise<ServiceResponse<PortfolioAnalysis>>;
@@ -280,6 +291,32 @@ export interface AnalysisService {
   refreshStockAnalysis: (stockCode: string) => Promise<ServiceResponse<StockAnalysis>>;
   refreshPortfolioAnalysis: (userId: string, accountId?: string) => Promise<ServiceResponse<PortfolioAnalysis>>;
   refreshPortfolioAnalysisByUuid: (uuid: string) => Promise<ServiceResponse<PortfolioAnalysis>>;
+}
+
+export interface AccountPromptService {
+  listPrompts: (accountAlias: string, promptType?: 'stock_analysis' | 'option_analysis') => Promise<ServiceResponse<AccountPrompt[]>>;
+  getPrompt: (id: number) => Promise<ServiceResponse<AccountPrompt>>;
+  createPrompt: (payload: {
+    account_alias: string;
+    prompt_name: string;
+    prompt_content: string;
+    prompt_type: 'stock_analysis' | 'option_analysis';
+    is_active: number;
+  }) => Promise<ServiceResponse<AccountPrompt>>;
+  updatePrompt: (id: number, payload: {
+    prompt_name?: string;
+    prompt_content?: string;
+    prompt_type?: 'stock_analysis' | 'option_analysis';
+    is_active?: number;
+  }) => Promise<ServiceResponse<AccountPrompt>>;
+  deletePrompt: (id: number) => Promise<ServiceResponse<void>>;
+  activatePrompt: (id: number) => Promise<ServiceResponse<AccountPrompt>>;
+  deactivatePrompt: (id: number) => Promise<ServiceResponse<AccountPrompt>>;
+  getActivePrompt: (accountAlias: string, promptType: 'stock_analysis' | 'option_analysis') => Promise<ServiceResponse<AccountPrompt>>;
+  previewPrompt: (accountAlias: string, promptType: 'stock_analysis' | 'option_analysis') => Promise<ServiceResponse<{
+    has_custom_prompt: boolean;
+    prompt: string;
+  }>>;
 }
 
 export interface CurrencyService {
@@ -313,6 +350,7 @@ export interface Services {
   uploadService: UploadService;
   optionsService: OptionsService;
   accountService: AccountService;
+  accountPromptService: AccountPromptService;
 }
 
 // Options Service Types

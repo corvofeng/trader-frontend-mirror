@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Check, Briefcase } from 'lucide-react';
 import { accountService } from '../../lib/services';
-import type { Account } from '../../shared/types/api';
+import type { Account } from '../../lib/services/types';
 import { Theme, themes } from '../../lib/theme';
 
 interface AccountSelectorProps {
@@ -33,7 +33,7 @@ export function AccountSelector({ userId, theme, selectedAccountId, onAccountCha
       // Auto-select default if none provided
       if (!selectedAccountId) {
         const def = cached.find(acc => acc.is_default) || cached[0];
-        if (def) onAccountChange(def.id);
+        if (def) onAccountChange(def.alias || def.id);
       }
       setLoading(false);
       return;
@@ -52,8 +52,9 @@ export function AccountSelector({ userId, theme, selectedAccountId, onAccountCha
       // Auto-select default if none provided
       if (!selectedAccountId && finalResponse.data.length > 0) {
         const defaultAccount = finalResponse.data.find(acc => acc.is_default) || finalResponse.data[0];
-        if (defaultAccount.id !== selectedAccountId) {
-          onAccountChange(defaultAccount.id);
+        const key = defaultAccount.alias || defaultAccount.id;
+        if (key !== selectedAccountId) {
+          onAccountChange(key);
         }
       }
     }
@@ -85,7 +86,7 @@ export function AccountSelector({ userId, theme, selectedAccountId, onAccountCha
     const response = await accountService.createAccount(newAccount);
     if (response.data) {
       await loadAccounts();
-      onAccountChange(response.data.id);
+      onAccountChange(response.data.alias || response.data.id);
       setNewAccountName('');
       setNewAccountDescription('');
       setShowAddForm(false);
@@ -97,7 +98,9 @@ export function AccountSelector({ userId, theme, selectedAccountId, onAccountCha
     await loadAccounts();
   };
 
-  const selectedAccount = accounts.find(acc => acc.id === selectedAccountId);
+  const selectedAccount = accounts.find(
+    acc => acc.alias === selectedAccountId || acc.id === selectedAccountId
+  );
 
   return (
     <div className="relative">
@@ -184,12 +187,12 @@ export function AccountSelector({ userId, theme, selectedAccountId, onAccountCha
                     <div
                       key={account.id}
                       className={`flex items-center justify-between p-3 rounded-md cursor-pointer transition-colors duration-200 hover:bg-gray-100 dark:hover:bg-gray-700 ${
-                        selectedAccountId === account.id ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500' : ''
+                        selectedAccountId === (account.alias || account.id) ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500' : ''
                       }`}
-                        onClick={() => {
-                          onAccountChange(account.id);
-                          setIsOpen(false);
-                        }}
+                      onClick={() => {
+                        onAccountChange(account.alias || account.id);
+                        setIsOpen(false);
+                      }}
                     >
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
@@ -211,16 +214,16 @@ export function AccountSelector({ userId, theme, selectedAccountId, onAccountCha
                       <div className="flex items-center gap-2">
                         {!account.is_default && (
                           <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleSetDefault(account.id);
-                          }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSetDefault(account.alias || account.id);
+                            }}
                             className={`text-xs px-2 py-1 rounded-full transition-colors duration-200 hover:bg-blue-100 dark:hover:bg-blue-900 ${themes[theme].secondary}`}
                           >
                             设为默认
                           </button>
                         )}
-                        {selectedAccountId === account.id && (
+                        {selectedAccountId === (account.alias || account.id) && (
                           <Check className="w-5 h-5 text-green-500" />
                         )}
                       </div>

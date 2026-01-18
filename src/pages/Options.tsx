@@ -41,8 +41,12 @@ export function Options({ theme }: OptionsProps) {
   const [error, setError] = useState<string | null>(null);
   const [showCalculatorModal, setShowCalculatorModal] = useState(false);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() => {
-    const ls = localStorage.getItem('selectedAccountId') || localStorage.getItem('selectedAccountAlias');
-    const cookie = typeof document !== 'undefined' ? (document.cookie ? (document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith('selectedAccountId='))?.split('=')[1] ?? null) : null) : null;
+    const alias = localStorage.getItem('selectedAccountAlias');
+    const legacy = localStorage.getItem('selectedAccountId');
+    const ls = alias || legacy;
+    const cookie = typeof document !== 'undefined'
+      ? (document.cookie ? (document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith('selectedAccountId='))?.split('=')[1] ?? null) : null)
+      : null;
     return cookie || ls || null;
   });
   const [refreshKey, setRefreshKey] = useState(0);
@@ -164,6 +168,7 @@ export function Options({ theme }: OptionsProps) {
                     setSelectedAccountId(id);
                     try {
                       localStorage.setItem('selectedAccountId', id);
+                      localStorage.setItem('selectedAccountAlias', id);
                     } catch {
                       logger.debug('[Pages/Options] Failed to persist selectedAccountId to localStorage');
                     } 

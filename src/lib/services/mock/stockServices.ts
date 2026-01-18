@@ -1,5 +1,27 @@
 import { mockUser, mockHoldings, tradeIdCounter, MOCK_STOCKS, MOCK_STOCK_CONFIGS, generateMockTrades, generateMockOperations, DEMO_STOCK_DATA, generateMockStockData } from './mockData';
-import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, StockData, StockPrice, Operation, OperationService, TrendData, StockConfigService, StockConfig, UploadService, UploadResponse, AnalysisService, StockAnalysis, PortfolioAnalysis, Account, AccountService } from '../types';
+import type {
+  AuthService,
+  TradeService,
+  StockService,
+  PortfolioService,
+  CurrencyService,
+  StockData,
+  StockPrice,
+  Operation,
+  OperationService,
+  TrendData,
+  StockConfigService,
+  StockConfig,
+  UploadService,
+  UploadResponse,
+  AnalysisService,
+  StockAnalysis,
+  PortfolioAnalysis,
+  Account,
+  AccountService,
+  AccountPromptService,
+  AccountPrompt
+} from '../types';
 import { format, subDays, addMinutes, startOfDay, endOfDay, parseISO } from 'date-fns';
 
 export const mockTrades = generateMockTrades(DEMO_STOCK_DATA);
@@ -39,6 +61,10 @@ let mockAccounts: Account[] = [
 ];
 
 let accountIdCounter = 3;
+
+let accountPromptIdCounter = 1;
+
+const mockAccountPrompts: AccountPrompt[] = [];
 
 export const authService: AuthService = {
   getUser: async () => {
@@ -867,5 +893,135 @@ export const accountService: AccountService = {
     }));
 
     return { data: null, error: null };
+  }
+};
+
+export const accountPromptService: AccountPromptService = {
+  listPrompts: async (accountAlias, promptType) => {
+    await new Promise(resolve => setTimeout(resolve, 200));
+    const prompts = mockAccountPrompts.filter((p) => {
+      if (p.account_alias !== accountAlias) return false;
+      if (promptType && p.prompt_type !== promptType) return false;
+      return true;
+    });
+    return { data: prompts, error: null };
+  },
+  getPrompt: async (id) => {
+    await new Promise(resolve => setTimeout(resolve, 150));
+    const prompt = mockAccountPrompts.find((p) => p.id === id) || null;
+    if (!prompt) {
+      return { data: null, error: new Error('Prompt not found') };
+    }
+    return { data: prompt, error: null };
+  },
+  createPrompt: async (payload) => {
+    await new Promise(resolve => setTimeout(resolve, 250));
+    const now = new Date().toISOString();
+    const prompt: AccountPrompt = {
+      id: accountPromptIdCounter++,
+      account_alias: payload.account_alias,
+      prompt_name: payload.prompt_name,
+      prompt_content: payload.prompt_content,
+      prompt_type: payload.prompt_type,
+      is_active: payload.is_active,
+      created_at: now,
+      updated_at: now
+    };
+    if (prompt.is_active) {
+      for (const p of mockAccountPrompts) {
+        if (p.account_alias === prompt.account_alias && p.prompt_type === prompt.prompt_type) {
+          p.is_active = 0;
+        }
+      }
+    }
+    mockAccountPrompts.push(prompt);
+    return { data: prompt, error: null };
+  },
+  updatePrompt: async (id, payload) => {
+    await new Promise(resolve => setTimeout(resolve, 250));
+    const index = mockAccountPrompts.findIndex((p) => p.id === id);
+    if (index === -1) {
+      return { data: null, error: new Error('Prompt not found') };
+    }
+    const current = mockAccountPrompts[index];
+    const updated: AccountPrompt = {
+      ...current,
+      ...payload,
+      updated_at: new Date().toISOString()
+    };
+    if (payload.is_active === 1) {
+      for (const p of mockAccountPrompts) {
+        if (p.account_alias === updated.account_alias && p.prompt_type === updated.prompt_type && p.id !== updated.id) {
+          p.is_active = 0;
+        }
+      }
+    }
+    mockAccountPrompts[index] = updated;
+    return { data: updated, error: null };
+  },
+  deletePrompt: async (id) => {
+    await new Promise(resolve => setTimeout(resolve, 200));
+    const index = mockAccountPrompts.findIndex((p) => p.id === id);
+    if (index === -1) {
+      return { data: null, error: new Error('Prompt not found') };
+    }
+    mockAccountPrompts.splice(index, 1);
+    return { data: null, error: null };
+  },
+  activatePrompt: async (id) => {
+    await new Promise(resolve => setTimeout(resolve, 200));
+    const prompt = mockAccountPrompts.find((p) => p.id === id);
+    if (!prompt) {
+      return { data: null, error: new Error('Prompt not found') };
+    }
+    for (const p of mockAccountPrompts) {
+      if (p.account_alias === prompt.account_alias && p.prompt_type === prompt.prompt_type) {
+        p.is_active = p.id === id ? 1 : 0;
+      }
+    }
+    prompt.updated_at = new Date().toISOString();
+    return { data: prompt, error: null };
+  },
+  deactivatePrompt: async (id) => {
+    await new Promise(resolve => setTimeout(resolve, 200));
+    const prompt = mockAccountPrompts.find((p) => p.id === id);
+    if (!prompt) {
+      return { data: null, error: new Error('Prompt not found') };
+    }
+    prompt.is_active = 0;
+    prompt.updated_at = new Date().toISOString();
+    return { data: prompt, error: null };
+  },
+  getActivePrompt: async (accountAlias, promptType) => {
+    await new Promise(resolve => setTimeout(resolve, 150));
+    const prompt = mockAccountPrompts.find(
+      (p) => p.account_alias === accountAlias && p.prompt_type === promptType && p.is_active === 1
+    ) || null;
+    if (!prompt) {
+      return { data: null, error: new Error('Active prompt not found') };
+    }
+    return { data: prompt, error: null };
+  },
+  previewPrompt: async (accountAlias, promptType) => {
+    await new Promise(resolve => setTimeout(resolve, 150));
+    const activePrompt = mockAccountPrompts.find(
+      (p) => p.account_alias === accountAlias && p.prompt_type === promptType && p.is_active === 1
+    );
+    if (activePrompt) {
+      return {
+        data: {
+          has_custom_prompt: true,
+          prompt: activePrompt.prompt_content
+        },
+        error: null
+      };
+    }
+    return {
+      data: {
+        has_custom_prompt: false,
+        prompt: `### 默认 Prompt 预览\n\n当前账户 **${accountAlias}** 且类型为 **${promptType}** 暂无自定义 Prompt，后端将使用系统默认 Prompt。`
+      },
+      error: null
+    };
   }
 };

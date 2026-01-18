@@ -17,27 +17,11 @@ export function StockSearch({ onSelect, selectedStockCode }: StockSearchProps) {
   const [isLoading, setIsLoading] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
-  // Load stocks from localStorage on mount
   useEffect(() => {
     const savedStocks = localStorage.getItem('searchedStocks');
     const initialStocks = savedStocks ? JSON.parse(savedStocks) : [];
     setStocks(initialStocks);
     setFilteredStocks(initialStocks);
-
-    // Then fetch additional stocks
-    stockService.getStocks().then(({ data }) => {
-      if (data) {
-        const combinedStocks = [...initialStocks];
-        data.forEach(newStock => {
-          if (!combinedStocks.some(s => s.stock_code === newStock.stock_code)) {
-            combinedStocks.push(newStock);
-          }
-        });
-        setStocks(combinedStocks);
-        setFilteredStocks(combinedStocks);
-        localStorage.setItem('searchedStocks', JSON.stringify(combinedStocks));
-      }
-    });
   }, []);
 
   useEffect(() => {

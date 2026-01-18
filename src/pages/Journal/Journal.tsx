@@ -32,7 +32,11 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [recentTrades, setRecentTrades] = useState<Trade[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() => localStorage.getItem('selectedAccountId') || localStorage.getItem('selectedAccountAlias'));
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() => {
+    const alias = localStorage.getItem('selectedAccountAlias');
+    const legacy = localStorage.getItem('selectedAccountId');
+    return alias || legacy || null;
+  });
   const [dateRange, setDateRange] = useState({
     startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0]
@@ -54,16 +58,17 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
         const resp = await accountService.getAccounts(DEMO_USER_ID);
         if (resp?.data) {
           setAccounts(resp.data);
-          const storedId = localStorage.getItem('selectedAccountId') || localStorage.getItem('selectedAccountAlias');
-          const storedExists = storedId && resp.data.some(acc => acc.id === storedId);
+          const stored = localStorage.getItem('selectedAccountAlias') || localStorage.getItem('selectedAccountId');
+          const storedExists = stored && resp.data.some(acc => (acc.alias || acc.id) === stored);
           if (storedExists) {
-            setSelectedAccountId(storedId);
+            setSelectedAccountId(stored);
           } else {
             const defaultAccount = resp.data.find(acc => acc.is_default) || resp.data[0];
             if (defaultAccount) {
-              setSelectedAccountId(defaultAccount.id);
-              localStorage.setItem('selectedAccountId', defaultAccount.id);
-              if (defaultAccount.alias) localStorage.setItem('selectedAccountAlias', defaultAccount.alias);
+              const key = defaultAccount.alias || defaultAccount.id;
+              setSelectedAccountId(key);
+              localStorage.setItem('selectedAccountId', key);
+              localStorage.setItem('selectedAccountAlias', key);
             }
           }
         }
@@ -114,11 +119,13 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
       <div className="mb-6">
         <div className="flex flex-col gap-4">
-          <StockSearchSection 
-            portfolioUuid={portfolioUuid}
-            onStockSelect={onStockSelect}
-            selectedStockCode={selectedStock?.stock_code}
-          />
+          {activeTab === 'trades' && (
+            <StockSearchSection 
+              portfolioUuid={portfolioUuid}
+              onStockSelect={onStockSelect}
+              selectedStockCode={selectedStock?.stock_code}
+            />
+          )}
           
           <TabNavigation 
             tabs={tabs}

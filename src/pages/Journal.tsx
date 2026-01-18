@@ -14,6 +14,7 @@ import { StockChart } from '../features/trading/components/StockChart';
 import { AccountSelector } from '../shared/components/AccountSelector';
 import type { Stock, Holding, Trade } from '../lib/services/types';
 import { TabNavigation } from './Journal/components/TabNavigation';
+import { TabContent } from './Journal/components/TabContent';
 
 interface JournalProps {
   selectedStock: Stock | null;
@@ -42,8 +43,13 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
     endDate: new Date().toISOString().split('T')[0]
   });
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() => {
-    const cookie = typeof document !== 'undefined' ? (document.cookie ? (document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith('journalAccountId='))?.split('=')[1] ?? null) : null) : null;
-    return cookie || localStorage.getItem('journalAccountId') || localStorage.getItem('selectedAccountId') || null;
+    const alias = localStorage.getItem('selectedAccountAlias');
+    const cookie = typeof document !== 'undefined'
+      ? (document.cookie
+          ? (document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith('journalAccountId='))?.split('=')[1] ?? null)
+          : null)
+      : null;
+    return alias || cookie || localStorage.getItem('journalAccountId') || localStorage.getItem('selectedAccountId') || null;
   });
 
   // Get UUID from URL params for portfolio sharing
@@ -85,16 +91,19 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
           if (tradesResponse.data) setRecentTrades(tradesResponse.data);
           if (!selectedAccountId && accountsResponse.data && accountsResponse.data.length > 0) {
             const def = accountsResponse.data.find(a => a.is_default) || accountsResponse.data[0];
-            setSelectedAccountId(def.id);
+            const key = def.alias || def.id;
+            setSelectedAccountId(key);
             try {
-              localStorage.setItem('journalAccountId', def.id);
+              localStorage.setItem('journalAccountId', key);
+              localStorage.setItem('selectedAccountAlias', key);
+              localStorage.setItem('selectedAccountId', key);
             } catch {
               logger.debug('[Journal] Failed to persist journalAccountId to localStorage');
             }
             try {
               const expiryDate = new Date();
               expiryDate.setDate(expiryDate.getDate() + 30);
-              document.cookie = `journalAccountId=${encodeURIComponent(def.id)}; expires=${expiryDate.toUTCString()}; path=/`;
+              document.cookie = `journalAccountId=${encodeURIComponent(key)}; expires=${expiryDate.toUTCString()}; path=/`;
             } catch {
               logger.debug('[Journal] Failed to persist journalAccountId to cookie');
             }
@@ -138,6 +147,8 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
                   setSelectedAccountId(accountId);
                   try {
                     localStorage.setItem('journalAccountId', accountId);
+                    localStorage.setItem('selectedAccountAlias', accountId);
+                    localStorage.setItem('selectedAccountId', accountId);
                   } catch {
                     logger.debug('[Journal] Failed to persist journalAccountId to localStorage from header');
                   }
@@ -236,12 +247,21 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
       )}
 
       {activeTab === 'analysis' && (
-        <div className={`${themes[theme].card} rounded-lg p-3 sm:p-4 lg:p-6`}>
-          <h2 className={`text-lg sm:text-xl lg:text-2xl font-bold mb-3 sm:mb-4 ${themes[theme].text}`}>Performance Analysis</h2>
-          <p className={`${themes[theme].text} opacity-70 text-sm sm:text-base`}>
-            Trading performance analysis features coming soon...
-          </p>
-        </div>
+        <TabContent
+          activeTab={activeTab}
+          selectedStock={selectedStock}
+          theme={theme}
+          holdings={holdings}
+          recentTrades={recentTrades}
+          dateRange={dateRange}
+          onDateRangeChange={setDateRange}
+          portfolioUuid={portfolioUuid}
+          userId={DEMO_USER_ID}
+          selectedAccountId={selectedAccountId}
+          onAccountChange={(accountId) => {
+            setSelectedAccountId(accountId);
+          }}
+        />
       )}
 
       {activeTab === 'settings' && !portfolioUuid && (

@@ -1,4 +1,21 @@
-import type { AuthService, TradeService, StockService, PortfolioService, CurrencyService, OperationService, StockConfigService, StockConfig, UploadService, UploadResponse, AnalysisService, AccountService, ServiceResponse, User } from '../types';
+import type {
+  AuthService,
+  TradeService,
+  StockService,
+  PortfolioService,
+  CurrencyService,
+  OperationService,
+  StockConfigService,
+  StockConfig,
+  UploadService,
+  UploadResponse,
+  AnalysisService,
+  AccountService,
+  ServiceResponse,
+  User,
+  AccountPromptService,
+  AccountPrompt
+} from '../types';
 import type { Trade } from '../types';
 
 let cachedUser: User | null = null;
@@ -597,6 +614,166 @@ export const accountService: AccountService = {
       return { data: null, error: null };
     } catch (error) {
       console.error('Error setting default account:', error);
+      return { data: null, error: error as Error };
+    }
+  }
+};
+
+export const accountPromptService: AccountPromptService = {
+  listPrompts: async (accountAlias, promptType) => {
+    try {
+      const params = new URLSearchParams({ account_alias: accountAlias });
+      if (promptType) {
+        params.set('prompt_type', promptType);
+      }
+      const response = await fetch(`/api/llm/prompts?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch prompts');
+      }
+      const json = await response.json();
+      const prompts: AccountPrompt[] = json.prompts || [];
+      return { data: prompts, error: null };
+    } catch (error) {
+      console.error('Error fetching prompts:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+  getPrompt: async (id) => {
+    try {
+      const response = await fetch(`/api/llm/prompts/${id}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch prompt');
+      }
+      const json = await response.json();
+      const prompt: AccountPrompt = json.prompt;
+      return { data: prompt, error: null };
+    } catch (error) {
+      console.error('Error fetching prompt:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+  createPrompt: async (payload) => {
+    try {
+      const response = await fetch('/api/llm/prompts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        throw new Error('Failed to create prompt');
+      }
+      const json = await response.json();
+      const prompt: AccountPrompt = json.prompt;
+      return { data: prompt, error: null };
+    } catch (error) {
+      console.error('Error creating prompt:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+  updatePrompt: async (id, payload) => {
+    try {
+      const response = await fetch(`/api/llm/prompts/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        throw new Error('Failed to update prompt');
+      }
+      const json = await response.json();
+      const prompt: AccountPrompt = json.prompt;
+      return { data: prompt, error: null };
+    } catch (error) {
+      console.error('Error updating prompt:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+  deletePrompt: async (id) => {
+    try {
+      const response = await fetch(`/api/llm/prompts/${id}`, {
+        method: 'DELETE'
+      });
+      if (!response.ok) {
+        throw new Error('Failed to delete prompt');
+      }
+      return { data: null, error: null };
+    } catch (error) {
+      console.error('Error deleting prompt:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+  activatePrompt: async (id) => {
+    try {
+      const response = await fetch(`/api/llm/prompts/${id}/activate`, {
+        method: 'POST'
+      });
+      if (!response.ok) {
+        throw new Error('Failed to activate prompt');
+      }
+      const json = await response.json();
+      const prompt: AccountPrompt = json.prompt;
+      return { data: prompt, error: null };
+    } catch (error) {
+      console.error('Error activating prompt:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+  deactivatePrompt: async (id) => {
+    try {
+      const response = await fetch(`/api/llm/prompts/${id}/deactivate`, {
+        method: 'POST'
+      });
+      if (!response.ok) {
+        throw new Error('Failed to deactivate prompt');
+      }
+      const json = await response.json();
+      const prompt: AccountPrompt = json.prompt;
+      return { data: prompt, error: null };
+    } catch (error) {
+      console.error('Error deactivating prompt:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+  getActivePrompt: async (accountAlias, promptType) => {
+    try {
+      const params = new URLSearchParams({
+        account_alias: accountAlias,
+        prompt_type: promptType
+      });
+      const response = await fetch(`/api/llm/prompts/active?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch active prompt');
+      }
+      const json = await response.json();
+      const prompt: AccountPrompt = json.prompt;
+      return { data: prompt, error: null };
+    } catch (error) {
+      console.error('Error fetching active prompt:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+  previewPrompt: async (accountAlias, promptType) => {
+    try {
+      const params = new URLSearchParams({
+        account_alias: accountAlias,
+        prompt_type: promptType
+      });
+      const response = await fetch(`/api/llm/prompts/preview?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error('Failed to preview prompt');
+      }
+      const json = await response.json();
+      const preview = {
+        has_custom_prompt: !!json.has_custom_prompt,
+        prompt: json.prompt as string
+      };
+      return { data: preview, error: null };
+    } catch (error) {
+      console.error('Error previewing prompt:', error);
       return { data: null, error: error as Error };
     }
   }

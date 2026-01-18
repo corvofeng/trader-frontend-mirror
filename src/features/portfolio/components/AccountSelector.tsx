@@ -16,7 +16,9 @@ export function AccountSelector({
   onAccountChange,
   theme
 }: AccountSelectorProps) {
-  const selectedAccount = accounts.find(acc => acc.id === selectedAccountId);
+  const selectedAccount = accounts.find(
+    acc => acc.alias === selectedAccountId || acc.id === selectedAccountId
+  );
 
   return (
     <div className={`${themes[theme].card} rounded-lg p-4 border ${themes[theme].border}`}>
@@ -36,9 +38,9 @@ export function AccountSelector({
           >
             <option value="all">全部账户</option>
             {accounts.map(account => (
-              <option key={account.id} value={account.id}>
+              <option key={account.id} value={account.alias || account.id}>
                 {account.name}
-                {account.isDefault && ' (默认)'}
+                {account.is_default && ' (默认)'}
               </option>
             ))}
           </select>

@@ -1,11 +1,12 @@
 import React from 'react';
 import { Briefcase } from 'lucide-react';
-import { TradeForm, TradeList, StockChart } from '../../../features/trading';
+import { TradeForm, TradeList } from '../../../features/trading';
 import { Portfolio } from '../../../features/portfolio';
 import { OperationsView, UploadPage } from '../features';
 import { RelatedLinks } from '../../../shared/components';
 import { themes, Theme } from '../../../lib/theme';
 import type { Stock, Holding, Trade } from '../../../lib/services/types';
+import { AnalysisTab } from './AnalysisTab';
 
 interface TabContentProps {
   activeTab: string;
@@ -41,7 +42,7 @@ export function TabContent({
 
   if (activeTab === 'portfolio') {
     return (
-      <Portfolio
+        <Portfolio
         holdings={holdings}
         theme={theme}
         recentTrades={recentTrades}
@@ -52,7 +53,10 @@ export function TabContent({
         selectedAccountId={selectedAccountId}
         onAccountChange={(accountId) => {
           onAccountChange?.(accountId);
-          if (accountId) localStorage.setItem('selectedAccountId', accountId);
+          if (accountId) {
+            localStorage.setItem('selectedAccountId', accountId);
+            localStorage.setItem('selectedAccountAlias', accountId);
+          }
         }}
       />
     );
@@ -116,19 +120,13 @@ export function TabContent({
 
   if (activeTab === 'analysis') {
     return (
-      <div className={`${themes[theme].card} rounded-lg p-4 sm:p-6`}>
-        <h2 className={`text-xl sm:text-2xl font-bold mb-4 ${themes[theme].text}`}>Performance Analysis</h2>
-        <p className={`${themes[theme].text} opacity-70`}>
-          Trading performance analysis features coming soon...
-        </p>
-        <div className="mt-6">
-          <RelatedLinks 
-            theme={theme} 
-            currentPath="/journal?tab=analysis" 
-            maxItems={3}
-          />
-        </div>
-      </div>
+      <AnalysisTab
+        theme={theme}
+        portfolioUuid={portfolioUuid}
+        userId={userId}
+        selectedAccountId={selectedAccountId}
+        activeTab={activeTab}
+      />
     );
   }
 
