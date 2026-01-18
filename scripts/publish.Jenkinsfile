@@ -57,6 +57,7 @@ podTemplateLibrary {
 
                 git config user.name "jenkins"
                 git config user.email "jenkins@example.com"
+                echo "build time: $(date +%Y-%m-%dT%H:%M:%S) tag: ${TAG_NAME:-$BRANCH_NAME}" > build-time.txt
                 git add .
                 git commit -m "chore: publish dist for ${TAG_NAME:-$BRANCH_NAME} $(date +%Y%m%d%H%M%S)" || echo "No changes to commit"
                 git push -u mirror dist || git push -u mirror dist --force-with-lease
