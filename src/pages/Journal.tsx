@@ -43,7 +43,9 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
     endDate: new Date().toISOString().split('T')[0]
   });
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() => {
-    const alias = localStorage.getItem('selectedAccountAlias');
+    const alias =
+      localStorage.getItem('journalSelectedAccountAlias') ||
+      localStorage.getItem('selectedAccountAlias');
     const cookie = typeof document !== 'undefined'
       ? (document.cookie
           ? (document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith('journalAccountId='))?.split('=')[1] ?? null)
@@ -95,8 +97,7 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
             setSelectedAccountId(key);
             try {
               localStorage.setItem('journalAccountId', key);
-              localStorage.setItem('selectedAccountAlias', key);
-              localStorage.setItem('selectedAccountId', key);
+              localStorage.setItem('journalSelectedAccountAlias', key);
             } catch {
               logger.debug('[Journal] Failed to persist journalAccountId to localStorage');
             }
@@ -147,8 +148,7 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
                   setSelectedAccountId(accountId);
                   try {
                     localStorage.setItem('journalAccountId', accountId);
-                    localStorage.setItem('selectedAccountAlias', accountId);
-                    localStorage.setItem('selectedAccountId', accountId);
+                      localStorage.setItem('journalSelectedAccountAlias', accountId);
                   } catch {
                     logger.debug('[Journal] Failed to persist journalAccountId to localStorage from header');
                   }

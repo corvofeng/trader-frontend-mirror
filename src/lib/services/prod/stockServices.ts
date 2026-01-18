@@ -61,6 +61,7 @@ export const authService: AuthService = {
 const getCurrentAccountAlias = () => {
   try {
     const fromLocalStorage =
+      (typeof localStorage !== 'undefined' && localStorage.getItem('journalSelectedAccountAlias')) ||
       (typeof localStorage !== 'undefined' && localStorage.getItem('journalAccountId')) ||
       (typeof localStorage !== 'undefined' && localStorage.getItem('selectedAccountAlias'));
     return fromLocalStorage || undefined;

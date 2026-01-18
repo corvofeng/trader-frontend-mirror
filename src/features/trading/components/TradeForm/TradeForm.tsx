@@ -47,6 +47,7 @@ export function TradeForm({ selectedStock, theme }: TradeFormProps) {
       let accountAlias: string | null = null;
       try {
         accountAlias =
+          localStorage.getItem('journalSelectedAccountAlias') ||
           localStorage.getItem('journalAccountId') ||
           localStorage.getItem('selectedAccountAlias');
       } catch {

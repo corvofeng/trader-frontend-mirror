@@ -41,11 +41,20 @@ export function Options({ theme }: OptionsProps) {
   const [error, setError] = useState<string | null>(null);
   const [showCalculatorModal, setShowCalculatorModal] = useState(false);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() => {
-    const alias = localStorage.getItem('selectedAccountAlias');
-    const legacy = localStorage.getItem('selectedAccountId');
-    const ls = alias || legacy;
+    const alias = localStorage.getItem('optionsSelectedAccountAlias');
+    const legacyAlias = localStorage.getItem('selectedAccountAlias');
+    const legacyId = localStorage.getItem('selectedAccountId');
+    const ls = alias || legacyAlias || legacyId;
     const cookie = typeof document !== 'undefined'
-      ? (document.cookie ? (document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith('selectedAccountId='))?.split('=')[1] ?? null) : null)
+      ? (document.cookie
+          ? (() => {
+              const parts = document.cookie.split(';').map(s => s.trim());
+              const current = parts.find(s => s.startsWith('optionsSelectedAccountId='))?.split('=')[1];
+              if (current) return current;
+              const legacy = parts.find(s => s.startsWith('selectedAccountId='))?.split('=')[1];
+              return legacy ?? null;
+            })()
+          : null)
       : null;
     return cookie || ls || null;
   });
@@ -167,15 +176,15 @@ export function Options({ theme }: OptionsProps) {
                   onAccountChange={(id) => {
                     setSelectedAccountId(id);
                     try {
-                      localStorage.setItem('selectedAccountId', id);
-                      localStorage.setItem('selectedAccountAlias', id);
+                      localStorage.setItem('optionsSelectedAccountId', id);
+                      localStorage.setItem('optionsSelectedAccountAlias', id);
                     } catch {
                       logger.debug('[Pages/Options] Failed to persist selectedAccountId to localStorage');
                     } 
                     try {
                       const expiryDate = new Date();
                       expiryDate.setDate(expiryDate.getDate() + 30);
-                      document.cookie = `selectedAccountId=${encodeURIComponent(id)}; expires=${expiryDate.toUTCString()}; path=/`;
+                      document.cookie = `optionsSelectedAccountId=${encodeURIComponent(id)}; expires=${expiryDate.toUTCString()}; path=/`;
                     } catch {
                       logger.debug('[Pages/Options] Failed to persist selectedAccountId to cookie');
                     } 

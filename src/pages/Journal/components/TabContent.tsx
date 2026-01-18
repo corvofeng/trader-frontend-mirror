@@ -54,8 +54,8 @@ export function TabContent({
         onAccountChange={(accountId) => {
           onAccountChange?.(accountId);
           if (accountId) {
-            localStorage.setItem('selectedAccountId', accountId);
-            localStorage.setItem('selectedAccountAlias', accountId);
+            localStorage.setItem('journalAccountId', accountId);
+            localStorage.setItem('journalSelectedAccountAlias', accountId);
           }
         }}
       />

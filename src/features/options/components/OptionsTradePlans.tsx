@@ -25,8 +25,28 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
   const [savedFilter, setSavedFilter] = useState<'all' | 'saved' | 'unsaved'>('all');
   const [sortKey, setSortKey] = useState<'leverage' | 'net' | 'buy' | 'sell'>('buy');
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() => {
-    const cookie = typeof document !== 'undefined' ? (document.cookie ? (document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith('selectedAccountId='))?.split('=')[1] ?? null) : null) : null;
-    return selectedAccountIdProp ?? cookie ?? null;
+    const cookie = typeof document !== 'undefined'
+      ? (document.cookie
+          ? (() => {
+              const parts = document.cookie.split(';').map(s => s.trim());
+              const current = parts.find(s => s.startsWith('optionsSelectedAccountId='))?.split('=')[1];
+              if (current) return current;
+              const legacy = parts.find(s => s.startsWith('selectedAccountId='))?.split('=')[1];
+              return legacy ?? null;
+            })()
+          : null)
+      : null;
+    let ls: string | null = null;
+    try {
+      ls =
+        localStorage.getItem('optionsSelectedAccountAlias') ||
+        localStorage.getItem('optionsSelectedAccountId') ||
+        localStorage.getItem('selectedAccountAlias') ||
+        localStorage.getItem('selectedAccountId');
+    } catch {
+      ls = null;
+    }
+    return selectedAccountIdProp ?? cookie ?? ls ?? null;
   });
   const [expandedPlanId, setExpandedPlanId] = useState<string | null>(null);
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
