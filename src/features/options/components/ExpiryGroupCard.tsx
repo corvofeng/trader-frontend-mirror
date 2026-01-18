@@ -367,8 +367,7 @@ export function ExpiryGroupCard({
                             <div className={`text-center text-sm ${themes[theme].text} opacity-75`}>暂无数据</div>
                           );
                         }
-                        const keyOf = (c: string, s: number) => `${c}-${s}`;
-                        const displayVal = (c: string, s: number, d: number) => (editValues[keyOf(c, s)] ?? d);
+                        const displayVal = (_c: string, _s: number, d: number) => d;
                         const openAdjustConfirm = (c: 'call_right' | 'call_obligation' | 'put_right' | 'put_obligation' | 'call_covered' | 'put_covered', s: number) => {
                           const title = '确认调整持仓数量';
                           const categoryLabel: Record<string, string> = {
