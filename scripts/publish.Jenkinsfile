@@ -30,4 +30,38 @@ podTemplateLibrary {
             }
         }
     }
+    stage('Build and publish') {
+        sh '''
+        docker build . -f scripts/Dockerfile -t trader-frontend:latest
+        '''
+        if (env.TAG_NAME) {
+            sshagent(credentials: ['id_ed25519_ansible']) {
+                sh '''
+                set -e
+                cid=$(docker create trader-frontend:latest)
+
+                tmpdir=$(mktemp -d /tmp/dist-publish.XXXXXX)
+                docker cp "$cid":/app/dist/. "$tmpdir"/
+                docker rm "$cid"
+
+                git fetch mirror dist || true
+                if git show-ref --verify --quiet refs/remotes/mirror/dist; then
+                  git checkout -B dist mirror/dist
+                else
+                  git checkout -B dist
+                fi
+                rm -rf *
+                cp -r "$tmpdir"/* .
+                rm -rf "$tmpdir"
+
+                git config user.name "jenkins"
+                git config user.email "jenkins@example.com"
+                echo "build time: $(date +%Y-%m-%dT%H:%M:%S) tag: ${TAG_NAME:-$BRANCH_NAME}" > build-time.txt
+                git add .
+                git commit -m "chore: publish dist for ${TAG_NAME:-$BRANCH_NAME} $(date +%Y%m%d%H%M%S)" || echo "No changes to commit"
+                git push -u mirror dist || git push -u mirror dist --force-with-lease
+                '''
+            }
+        }
+    }
 }
