@@ -132,7 +132,7 @@ export function ExpiryGroupCard({
 
       // Only poll when details are open or confirmation dialog is active
       if (detailsOpen || confirmData) {
-        const interval = setInterval(runQuery, 1000);
+        const interval = setInterval(runQuery, 3000);
         return () => clearInterval(interval);
       }
     }

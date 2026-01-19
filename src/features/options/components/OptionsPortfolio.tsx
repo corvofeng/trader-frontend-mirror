@@ -137,8 +137,8 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     };
 
     runQuery();
-    // Poll every 3 seconds to keep price fresh
-    const interval = setInterval(runQuery, 3000);
+    // Poll every 5 seconds to keep price fresh
+    const interval = setInterval(runQuery, 5000);
     return () => clearInterval(interval);
   }, [isConnected, activeSymbol, queryPrice]);
 
