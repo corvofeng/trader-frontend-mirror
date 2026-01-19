@@ -114,7 +114,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   const { currencyConfig } = useCurrency();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [activeSymbol, setActiveSymbol] = useState<string>(selectedSymbol || '');
-  const { isConnected, send, portfolioSnapshot } = useOptionPriceWebSocket();
+  const { isConnected, send, portfolioSnapshot, prices, queryPrice } = useOptionPriceWebSocket();
   const requestedSymbolsRef = useRef<Set<string>>(new Set());
 
   // Sync prop to state
@@ -123,6 +123,24 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       setActiveSymbol(selectedSymbol);
     }
   }, [selectedSymbol]);
+
+  const getSanitizedUnderlying = (code: string) => {
+    return code?.startsWith('US.') ? code.replace('US.', '') : code;
+  };
+
+  // Poll for underlying price via WebSocket
+  useEffect(() => {
+    if (!isConnected || !activeSymbol) return;
+
+    const runQuery = () => {
+      queryPrice([activeSymbol]);
+    };
+
+    runQuery();
+    // Poll every 3 seconds to keep price fresh
+    const interval = setInterval(runQuery, 3000);
+    return () => clearInterval(interval);
+  }, [isConnected, activeSymbol, queryPrice]);
 
   // Fetch data when active symbol changes
   useEffect(() => {
@@ -250,14 +268,19 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
 
   
 
-  const getSanitizedUnderlying = (code: string) => {
-    return code?.startsWith('US.') ? code.replace('US.', '') : code;
+  // Helper to get current underlying price from WS or Cache
+  const getCurrentUnderlyingPrice = (symbol: string) => {
+    const wsPrice = prices[symbol]?.price;
+    if (wsPrice != null) return wsPrice;
+    
+    const sanitized = getSanitizedUnderlying(symbol);
+    return underlyingCache[sanitized] ?? null;
   };
 
   const getMoneynessTag = (p: OptionsPosition) => {
     const full = p.opt_undl_code_full;
-    const sanitized = getSanitizedUnderlying(full || '');
-    const price = underlyingCache[sanitized];
+    const price = getCurrentUnderlyingPrice(full || activeSymbol);
+    
     if (price == null) return null;
     const thr = 0.005;
     const diffRatio = Math.abs(price - p.strike) / Math.max(p.strike, 1);
@@ -948,8 +971,8 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                   期权投资组合概览
                 </h2>
               </div>
-              {activeSymbol && underlyingCache[activeSymbol] != null && (
-                <span className={`text-sm ${themes[theme].text}`}>当前价 {underlyingCache[activeSymbol]!.toFixed(2)}</span>
+              {activeSymbol && getCurrentUnderlyingPrice(activeSymbol) != null && (
+                <span className={`text-sm ${themes[theme].text}`}>当前价 {getCurrentUnderlyingPrice(activeSymbol)!.toFixed(2)}</span>
               )}
             </div>
           </div>
@@ -1492,7 +1515,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
               computeCombosForPositions={computeCombosForPositions}
               allExpiryBuckets={portfolioData.expiryBuckets || []}
               selectedSymbol={activeSymbol}
-              underlyingPrice={underlyingCache[activeSymbol] ?? null}
+              underlyingPrice={getCurrentUnderlyingPrice(activeSymbol)}
               onClosePositions={handleClosePositions}
               advisedCombinations={(portfolioData.advised_combinations || []).filter(c => c.expiry === group.expiry)}
               onLoadAdvised={loadAdvisedCombination}
