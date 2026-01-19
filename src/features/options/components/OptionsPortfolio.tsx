@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { format } from 'date-fns';
 import { Calendar, TrendingUp, TrendingDown, Activity, Shield, Target, Layers, ChevronDown, ChevronUp } from 'lucide-react';
 import { Hash } from 'lucide-react';
@@ -781,8 +781,9 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     return 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-900';
   };
 
-  const filterAndSortPositions = (positions: OptionsPosition[]) => {
-    let filtered = positions;
+  const filterAndSortPositions = useCallback((positions: OptionsPosition[]) => {
+    // Always clone the array to avoid mutating the original prop
+    let filtered = [...positions];
     
     if (statusFilter !== 'all') {
       filtered = filtered.filter(pos => pos.status === statusFilter);
@@ -801,7 +802,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
           return 0;
       }
     });
-  };
+  }, [statusFilter, sortBy, sortDirection]);
 
   const computeCombosForPositions = (strategy: OptionsStrategy, type: 'call' | 'put') => computeCombosForStrategy(strategy, type);
 

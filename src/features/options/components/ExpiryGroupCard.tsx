@@ -75,10 +75,10 @@ export function ExpiryGroupCard({
   const [advisedModal, setAdvisedModal] = useState<{ combo: AdvisedCombination; quantity: number } | null>(null);
   const [confirmData, setConfirmData] = useState<{ ids: string[]; meta?: { action?: string; comboType?: 'call' | 'put'; strike?: number; expiry?: string; strategyIds?: string[]; category?: string; defaultComboCount?: number; perLegMaxQty?: Record<string, number>; quote?: OptionQuote; contract_code?: string; contract_code_full?: string }; title: string; description: string } | null>(null);
   const [qtyOverrides, setQtyOverrides] = useState<Record<string, number>>({});
-  const basePositions = filterAndSortPositions(group.single);
-  const filteredPositions = selectedSymbol
+  const basePositions = useMemo(() => filterAndSortPositions(group.single), [filterAndSortPositions, group.single]);
+  const filteredPositions = useMemo(() => selectedSymbol
     ? basePositions.filter(p => p.opt_undl_code_full === selectedSymbol)
-    : basePositions;
+    : basePositions, [selectedSymbol, basePositions]);
   const hasPositions = filteredPositions.length > 0;
 
   // Ensure options data is available when needed (especially for adjust dialog)
@@ -122,6 +122,8 @@ export function ExpiryGroupCard({
   }, [filteredPositions, optionsData, localOptionsData, optionsDataMap, group.expiry]);
 
   useEffect(() => {
+    // Use stringified codes to prevent unnecessary effect triggers when array reference changes but content is same
+    const codesStr = codes.join(',');
     if (isConnected && codes.length > 0) {
       const runQuery = () => {
         queryPrice(codes);
@@ -136,7 +138,7 @@ export function ExpiryGroupCard({
         return () => clearInterval(interval);
       }
     }
-  }, [isConnected, codes, queryPrice, detailsOpen, confirmData]);
+  }, [isConnected, codes.join(','), queryPrice, detailsOpen, confirmData]);
 
   const isSelectedPosition = (p: OptionsPosition) => {
     return !!selectedSymbol && (p.opt_undl_code_full === selectedSymbol);
