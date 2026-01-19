@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { format } from 'date-fns';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
@@ -192,11 +192,21 @@ export function ExpiryGroupCard({
     return ids;
   }, [filteredPositions, group.expiry]);
 
+  const initializedConfirmRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!confirmData) {
       setQtyOverrides({});
+      initializedConfirmRef.current = null;
       return;
     }
+
+    const currentKey = `${confirmData.meta?.action || 'default'}-${confirmData.ids.join(',')}`;
+    if (initializedConfirmRef.current === currentKey) {
+      return;
+    }
+    initializedConfirmRef.current = currentKey;
+
     if (confirmData.meta?.action === 'unwind_combo') {
       const defaultCount = Number(confirmData.meta?.defaultComboCount || 0);
       const next: Record<string, number> = {};
