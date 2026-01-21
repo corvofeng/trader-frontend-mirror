@@ -216,15 +216,20 @@ export const portfolioService: PortfolioService = {
     return { data: mockHoldings, error: null };
   },
 
-  getRecentTrades: async (userId: string, startDate: string, endDate: string, accountId?: string) => {
+  getRecentTrades: async (userId: string, startDate: string, endDate: string, accountId?: string, stockCode?: string) => {
     await new Promise(resolve => setTimeout(resolve, 500));
-    const filteredTrades = mockTrades
+    let filteredTrades = mockTrades
       .filter(trade => trade.user_id === userId && trade.status === 'completed')
       .filter(trade => {
         const tradeDate = new Date(trade.created_at).toISOString().split('T')[0];
         return tradeDate >= startDate && tradeDate <= endDate;
-      })
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      });
+
+    if (stockCode) {
+      filteredTrades = filteredTrades.filter(trade => trade.stock_code === stockCode);
+    }
+
+    filteredTrades = filteredTrades.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     return { data: filteredTrades, error: null };
   },
 

@@ -122,7 +122,7 @@ export function HoldingsTable({
                     onClick={() => onAnalyzeStock(holding.stock_code, holding.stock_name)}
                     className={`px-2 sm:px-3 py-1 rounded-md text-xs ${themes[theme].secondary}`}
                   >
-                    分析
+                    K线
                   </button>
                 </td>
               </tr>

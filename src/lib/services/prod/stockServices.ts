@@ -277,11 +277,14 @@ export const portfolioService: PortfolioService = {
     }
   },
 
-  getRecentTrades: async (userId: string, startDate: string, endDate: string, accountId?: string) => {
+  getRecentTrades: async (userId: string, startDate: string, endDate: string, accountId?: string, stockCode?: string) => {
     try {
-      // 使用默认账户ID或用户ID作为路径参数
-      const defaultAccountId = 'default-account';
-      const url = `/api/portfolio/${accountId || defaultAccountId}/recent-trades?startDate=${startDate}&endDate=${endDate}&userId=${userId}`;
+      if (!accountId) return { data: [], error: null };
+
+      let url = `/api/portfolio/${accountId}/recent-trades?startDate=${startDate}&endDate=${endDate}&userId=${userId}`;
+      if (stockCode) {
+        url += `&stockCode=${encodeURIComponent(stockCode)}`;
+      }
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error('Failed to fetch recent trades');

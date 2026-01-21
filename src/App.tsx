@@ -1,14 +1,22 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { MainLayout } from './layouts/MainLayout';
-import { Landing } from './pages/Landing';
-import { Journal } from './pages/Journal';
-import { Options } from './pages/Options';
 import { authService } from './lib/services';
 import { CurrencyProvider } from './lib/context/CurrencyContext';
 import analytics from './lib/analytics';
 import type { User, Stock } from './lib/services/types';
 import type { Theme } from './lib/theme';
+
+// Lazy load pages
+const Landing = React.lazy(() => import('./pages/Landing').then(module => ({ default: module.Landing })));
+const Journal = React.lazy(() => import('./pages/Journal').then(module => ({ default: module.Journal })));
+const Options = React.lazy(() => import('./pages/Options').then(module => ({ default: module.Options })));
+
+const Loading = () => (
+  <div className="flex items-center justify-center min-h-[50vh]">
+    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white"></div>
+  </div>
+);
 
 function RouteTracker() {
   const location = useLocation();
@@ -80,26 +88,28 @@ function AppContent() {
       onMobileMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
       onThemeDropdownToggle={() => setShowThemeDropdown(!showThemeDropdown)}
     >
-      <Routes>
-        <Route 
-          path="/" 
-          element={<Landing theme={theme} onThemeChange={handleThemeChange} />} 
-        />
-        <Route
-          path="/journal"
-          element={
-            <Journal
-              selectedStock={selectedStock}
-              theme={theme}
-              onStockSelect={handleStockSelect}
-            />
-          }
-        />
-        <Route
-          path="/options"
-          element={<Options theme={theme} />}
-        />
-      </Routes>
+      <Suspense fallback={<Loading />}>
+        <Routes>
+          <Route 
+            path="/" 
+            element={<Landing theme={theme} onThemeChange={handleThemeChange} />} 
+          />
+          <Route
+            path="/journal"
+            element={
+              <Journal
+                selectedStock={selectedStock}
+                theme={theme}
+                onStockSelect={handleStockSelect}
+              />
+            }
+          />
+          <Route
+            path="/options"
+            element={<Options theme={theme} />}
+          />
+        </Routes>
+      </Suspense>
     </MainLayout>
   );
 }

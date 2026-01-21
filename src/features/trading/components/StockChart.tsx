@@ -3,7 +3,7 @@ import { logger } from '../../../shared/utils/logger';
 import { createChart, ColorType, IChartApi, ISeriesApi, CrosshairMode, LineStyle, PriceScaleMode } from 'lightweight-charts';
 import { format } from 'date-fns';
 import { Theme, themes } from '../../../shared/constants/theme';
-import { stockService, authService, portfolioService } from '../../../lib/services';
+import { stockService, authService, portfolioService, accountService } from '../../../lib/services';
 import { formatCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { ZoomIn, ZoomOut, Lock, Unlock, Maximize2, Minimize2, Grid, LineChart, CandlestickChart, BarChart } from 'lucide-react';
@@ -15,6 +15,11 @@ interface StockChartProps {
   stockCode?: string;
   theme: Theme;
   pendingTrades?: Trade[];
+  userId?: string;
+  accountId?: string | null;
+  onTradesLoaded?: (trades: Trade[]) => void;
+  className?: string;
+  fillContainer?: boolean;
 }
 
 interface CostBasisPoint {
@@ -52,7 +57,7 @@ const isValidDataPoint = (item: StockData) => {
   );
 };
 
-export function StockChart({ stockCode, theme, pendingTrades }: StockChartProps) {
+export function StockChart({ stockCode, theme, pendingTrades, userId, accountId, onTradesLoaded, className, fillContainer = false }: StockChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candlestickSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -510,11 +515,12 @@ export function StockChart({ stockCode, theme, pendingTrades }: StockChartProps)
         setIsLoading(true);
 
         const endDate = new Date().toISOString().split('T')[0];
-        const startDate = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const startDate = new Date(Date.now() - 5 * 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]; // 5 years
 
         const [stockResponse, userResponse] = await Promise.all([
           stockService.getStockData(stockCode || '^SSEC'),
-          stockCode ? authService.getUser() : Promise.resolve({ data: { user: null }, error: null })
+          // Only fetch user if userId is not provided
+          !userId ? authService.getUser() : Promise.resolve({ data: { user: null }, error: null })
         ]);
 
         if (isDisposed.current) return;
@@ -546,12 +552,17 @@ export function StockChart({ stockCode, theme, pendingTrades }: StockChartProps)
         let trades: Trade[] = [];
         let costBasisPoints: CostBasisPoint[] = [];
 
-        if (stockCode && userResponse.data?.user) {
+        // Determine effective userId and accountId
+        const effectiveUserId = userId || userResponse.data?.user?.id;
+        const effectiveAccountId = accountId || userResponse.data?.user?.selectedAccountId;
+
+        if (stockCode && effectiveUserId && effectiveAccountId) {
           const tradesResponse = await portfolioService.getRecentTrades(
-            userResponse.data.user.id,
+            effectiveUserId,
             startDate,
             endDate,
-            userResponse.data.user.selectedAccountId || 'default-account'
+            effectiveAccountId,
+            stockCode
           );
           if (tradesResponse.data && !isDisposed.current) {
             trades = tradesResponse.data
@@ -562,6 +573,7 @@ export function StockChart({ stockCode, theme, pendingTrades }: StockChartProps)
               if (candlestickSeriesRef.current && !isDisposed.current) {
                 addTradeMarkers(candlestickSeriesRef.current, trades, chartColors);
               }
+              onTradesLoaded?.(trades);
               costBasisPoints = calculateCostBasis(trades);
               
               if (costBasisPoints.length > 0 && showCostBasis && !isDisposed.current && costBasisSeriesRef.current) {
@@ -620,6 +632,7 @@ export function StockChart({ stockCode, theme, pendingTrades }: StockChartProps)
           try {
             chartRef.current.applyOptions({
               width: entries[0].contentRect.width,
+              height: entries[0].contentRect.height,
             });
           } catch (e) {
             console.error('Error resizing chart:', e);
@@ -634,7 +647,7 @@ export function StockChart({ stockCode, theme, pendingTrades }: StockChartProps)
       disposeChart();
       isInitializing.current = false;
     };
-  }, [stockCode, theme, currencyConfig, showCostBasis, showGrid, showVolume, isLocked, autoScale, getThemedColors, addTradeMarkers]);
+  }, [stockCode, theme, currencyConfig, showCostBasis, showGrid, showVolume, isLocked, autoScale, getThemedColors, addTradeMarkers, userId, accountId, onTradesLoaded]);
 
   useEffect(() => {
     if (volumeSeriesRef.current && !isDisposed.current) {
@@ -649,7 +662,7 @@ export function StockChart({ stockCode, theme, pendingTrades }: StockChartProps)
   }, [showVolume]);
 
   return (
-    <div className={`${themes[theme].card} rounded-lg shadow-md p-4`}>
+    <div className={`${themes[theme].card} rounded-lg shadow-md p-4 ${fillContainer ? 'h-full flex flex-col' : ''} ${className || ''}`}>
       <div className="flex flex-col gap-4">
         <div className={`flex items-baseline gap-2 ${themes[theme].text}`}>
           <h2 className="text-xl font-bold">{stockInfo?.stock_code}</h2>
@@ -762,8 +775,9 @@ export function StockChart({ stockCode, theme, pendingTrades }: StockChartProps)
       )}
       
       <div 
-        className={`h-[400px] sm:h-[500px] md:h-[600px] mt-4 ${
-          isFullscreen ? 'fixed inset-0 z-50 bg-white dark:bg-gray-900' : ''
+        className={`mt-4 ${
+          isFullscreen ? 'fixed inset-0 z-50 bg-white dark:bg-gray-900' : 
+          fillContainer ? 'flex-1 min-h-0' : 'h-[400px] sm:h-[500px] md:h-[600px]'
         }`} 
         ref={chartContainerRef}
       />

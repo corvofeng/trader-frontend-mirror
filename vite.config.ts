@@ -25,6 +25,17 @@ export default defineConfig({
     exclude: ['lucide-react'],
   },
   build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-echarts': ['echarts', 'echarts-gl'],
+          'vendor-lightweight-charts': ['lightweight-charts'],
+          'vendor-chartjs': ['chart.js', 'react-chartjs-2'],
+          'vendor-utils': ['date-fns', 'date-fns-tz'],
+        },
+      },
+    },
     // target: 'esnext', // This enables top-level await support
   },
 });

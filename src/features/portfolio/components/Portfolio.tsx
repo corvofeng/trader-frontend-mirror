@@ -392,6 +392,8 @@ export function Portfolio({
           stockCode={selectedStockForAnalysis.code}
           stockName={selectedStockForAnalysis.name}
           theme={theme}
+          userId={userId}
+          accountId={selectedAccountId}
           onClose={() => setSelectedStockForAnalysis(null)}
         />
       )}

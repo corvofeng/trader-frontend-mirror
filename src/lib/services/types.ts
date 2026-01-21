@@ -265,7 +265,7 @@ export interface AccountService {
 
 export interface PortfolioService {
   getHoldings: (userId: string, accountId?: string) => Promise<ServiceResponse<Holding[]>>;
-  getRecentTrades: (userId: string, startDate: string, endDate: string, accountId?: string) => Promise<ServiceResponse<Trade[]>>;
+  getRecentTrades: (userId: string, startDate: string, endDate: string, accountId?: string, stockCode?: string) => Promise<ServiceResponse<Trade[]>>;
   getTrendData: (userId: string, startDate: string, endDate: string, accountId?: string) => Promise<ServiceResponse<TrendData[]>>;
   getAccounts: (userId: string) => Promise<ServiceResponse<Account[]>>;
   // UUID-based methods for shared portfolios
