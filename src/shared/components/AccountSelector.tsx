@@ -30,10 +30,17 @@ export function AccountSelector({ userId, theme, selectedAccountId, onAccountCha
     const cached = accountsCache.get(cacheKey);
     if (!forceRefresh && cached && cached.length > 0) {
       setAccounts(cached);
-      // Auto-select default if none provided
-      if (!selectedAccountId) {
+      // Auto-select default if none provided or invalid
+      const isAccountValid = selectedAccountId && cached.some(a => (a.alias || a.id) === selectedAccountId);
+      
+      if (!selectedAccountId || !isAccountValid) {
         const def = cached.find(acc => acc.is_default) || cached[0];
-        if (def) onAccountChange(def.alias || def.id);
+        if (def) {
+          const key = def.alias || def.id;
+          if (key !== selectedAccountId) {
+            onAccountChange(key);
+          }
+        }
       }
       setLoading(false);
       return;
@@ -47,11 +54,15 @@ export function AccountSelector({ userId, theme, selectedAccountId, onAccountCha
       finalResponse = await accountService.getAccounts(userId);
     }
     if (finalResponse.data) {
-      setAccounts(finalResponse.data);
-      accountsCache.set(cacheKey, finalResponse.data);
-      // Auto-select default if none provided
-      if (!selectedAccountId && finalResponse.data.length > 0) {
-        const defaultAccount = finalResponse.data.find(acc => acc.is_default) || finalResponse.data[0];
+      const accounts = finalResponse.data;
+      setAccounts(accounts);
+      accountsCache.set(cacheKey, accounts);
+      
+      // Auto-select default if none provided or invalid
+      const isAccountValid = selectedAccountId && accounts.some(a => (a.alias || a.id) === selectedAccountId);
+
+      if ((!selectedAccountId || !isAccountValid) && accounts.length > 0) {
+        const defaultAccount = accounts.find(acc => acc.is_default) || accounts[0];
         const key = defaultAccount.alias || defaultAccount.id;
         if (key !== selectedAccountId) {
           onAccountChange(key);

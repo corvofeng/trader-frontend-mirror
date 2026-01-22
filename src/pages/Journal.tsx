@@ -91,22 +91,29 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
           
           if (holdingsResponse.data) setHoldings(holdingsResponse.data);
           if (tradesResponse.data) setRecentTrades(tradesResponse.data);
-          if (!selectedAccountId && accountsResponse.data && accountsResponse.data.length > 0) {
-            const def = accountsResponse.data.find(a => a.is_default) || accountsResponse.data[0];
+
+          const accounts = accountsResponse.data || [];
+          const isAccountValid = selectedAccountId && accounts.some(a => (a.alias || a.id) === selectedAccountId);
+
+          if ((!selectedAccountId || !isAccountValid) && accounts.length > 0) {
+            const def = accounts.find(a => a.is_default) || accounts[0];
             const key = def.alias || def.id;
-            setSelectedAccountId(key);
-            try {
-              localStorage.setItem('journalAccountId', key);
-              localStorage.setItem('journalSelectedAccountAlias', key);
-            } catch {
-              logger.debug('[Journal] Failed to persist journalAccountId to localStorage');
-            }
-            try {
-              const expiryDate = new Date();
-              expiryDate.setDate(expiryDate.getDate() + 30);
-              document.cookie = `journalAccountId=${encodeURIComponent(key)}; expires=${expiryDate.toUTCString()}; path=/`;
-            } catch {
-              logger.debug('[Journal] Failed to persist journalAccountId to cookie');
+            
+            if (key !== selectedAccountId) {
+              setSelectedAccountId(key);
+              try {
+                localStorage.setItem('journalAccountId', key);
+                localStorage.setItem('journalSelectedAccountAlias', key);
+              } catch {
+                logger.debug('[Journal] Failed to persist journalAccountId to localStorage');
+              }
+              try {
+                const expiryDate = new Date();
+                expiryDate.setDate(expiryDate.getDate() + 30);
+                document.cookie = `journalAccountId=${encodeURIComponent(key)}; expires=${expiryDate.toUTCString()}; path=/`;
+              } catch {
+                logger.debug('[Journal] Failed to persist journalAccountId to cookie');
+              }
             }
           }
         }

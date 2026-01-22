@@ -411,31 +411,37 @@ export function Portfolio({
             onQuickSelect={setQuickDateRange}
             onRefresh={refreshAll}
           />
-          <StatsGrid
-            theme={theme}
-            currencyConfig={currencyConfig}
-            latestTrendValue={latestTrendValue}
-            totalHoldingsValue={totalHoldingsValue}
-            positionRatio={positionRatio}
-            totalProfitLoss={totalProfitLoss}
-            hasTrendData={trendData.length > 0}
-          />
+          <div className="animate-fade-in-up animation-delay-100">
+            <StatsGrid
+              theme={theme}
+              currencyConfig={currencyConfig}
+              latestTrendValue={latestTrendValue}
+              totalHoldingsValue={totalHoldingsValue}
+              positionRatio={positionRatio}
+              totalProfitLoss={totalProfitLoss}
+              hasTrendData={trendData.length > 0}
+            />
+          </div>
         </div>
 
         {trendData.length > 0 && (
-          <PortfolioTrend 
-            trendData={trendData}
-            theme={theme}
-            dateRange={dateRange}
-          />
+          <div className="animate-fade-in-up animation-delay-200">
+            <PortfolioTrend 
+              trendData={trendData}
+              theme={theme}
+              dateRange={dateRange}
+            />
+          </div>
         )}
 
-        <PortfolioHeatmap 
-          holdings={holdings}
-          theme={theme}
-        />
+        <div className="animate-fade-in-up animation-delay-300">
+          <PortfolioHeatmap 
+            holdings={holdings}
+            theme={theme}
+          />
+        </div>
 
-        <div className="grid lg:grid-cols-2 gap-4 md:gap-6 p-4 md:p-6">
+        <div className="grid lg:grid-cols-2 gap-4 md:gap-6 p-4 md:p-6 animate-fade-in-up animation-delay-400">
           <div className="order-2 lg:order-1">
             <HoldingsTable
               theme={theme}
