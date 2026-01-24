@@ -303,16 +303,20 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
 
   return (
     <>
-      <div className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className={`text-lg font-semibold whitespace-nowrap ${themes[theme].text}`}>
-            {viewMode === 'return' ? '收益率趋势' : '资产趋势'}
-          </h3>
-          <div className="flex items-center gap-4">
+      <div className="p-3 md:p-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4">
+          <div className="flex items-center justify-between">
+            <h3 className={`text-lg font-semibold whitespace-nowrap ${themes[theme].text}`}>
+              {viewMode === 'return' ? '收益率趋势' : '资产趋势'}
+            </h3>
+            <TrendingUp className={`w-5 h-5 ${themes[theme].text} opacity-75 md:hidden`} />
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-2 md:gap-4">
             <div className="flex items-center gap-2 flex-shrink-0">
               <button
                 onClick={() => setViewMode('absolute')}
-                className={`px-3 py-1 rounded-md text-sm whitespace-nowrap ${
+                className={`px-3 py-1 rounded-md text-xs md:text-sm whitespace-nowrap ${
                   viewMode === 'absolute' ? themes[theme].primary : themes[theme].secondary
                 }`}
               >
@@ -320,7 +324,7 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
               </button>
               <button
                 onClick={() => setViewMode('return')}
-                className={`px-3 py-1 rounded-md text-sm whitespace-nowrap ${
+                className={`px-3 py-1 rounded-md text-xs md:text-sm whitespace-nowrap ${
                   viewMode === 'return' ? themes[theme].primary : themes[theme].secondary
                 }`}
               >
@@ -333,22 +337,22 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
                 <button
                   onClick={() => setShowComparison(!showComparison)}
                   disabled={isLoadingSSE}
-                  className={`px-3 py-1 rounded-md text-sm ${
+                  className={`px-3 py-1 rounded-md text-xs md:text-sm ${
                     showComparison ? themes[theme].primary : themes[theme].secondary
                   } ${isLoadingSSE ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {isLoadingSSE ? (
-                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <RefreshCw className="w-3 h-3 md:w-4 md:h-4 animate-spin" />
                   ) : (
                     <>
-                      <BarChart3 className="w-4 h-4 mr-1" />
+                      <BarChart3 className="w-3 h-3 md:w-4 md:h-4 mr-1" />
                       上证对比
                     </>
                   )}
                 </button>
               </div>
             )}
-            <div className="flex items-center gap-4">
+            <div className="hidden lg:flex items-center gap-4">
             {viewMode === 'absolute' ? (
               <>
                 <div className="flex items-center gap-2">
@@ -379,10 +383,10 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
               </>
             )}
             </div>
-            <TrendingUp className={`w-5 h-5 ${themes[theme].text} opacity-75`} />
+            <TrendingUp className={`w-5 h-5 ${themes[theme].text} opacity-75 hidden md:block`} />
           </div>
         </div>
-        <div className="h-[300px]">
+        <div className="h-[250px] md:h-[300px]">
           <Line data={lineChartData} options={lineChartOptions} />
         </div>
       </div>

@@ -23,40 +23,40 @@ export function StatsGrid({
   hasTrendData = false,
 }: StatsGridProps) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-      <div className={`${themes[theme].background} rounded-lg p-4`}>
-        <h3 className={`text-sm font-medium ${themes[theme].text} opacity-75`}>总市值</h3>
-        <p className={`text-2xl font-bold ${themes[theme].text} mt-1`}>
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
+      <div className={`${themes[theme].background} rounded-lg p-3 md:p-4 min-w-0`}>
+        <h3 className={`text-xs md:text-sm font-medium ${themes[theme].text} opacity-75 truncate`}>总市值</h3>
+        <p className={`text-base sm:text-lg md:text-2xl font-bold ${themes[theme].text} mt-1 truncate`} title={formatCurrency(latestTrendValue, currencyConfig)}>
           {formatCurrency(latestTrendValue, currencyConfig)}
         </p>
-        <p className={`text-xs ${themes[theme].text} opacity-60 mt-1`}>
+        <p className={`text-[10px] md:text-xs ${themes[theme].text} opacity-60 mt-1 truncate`}>
           {hasTrendData ? 'Based on latest trend data' : 'Based on holdings value'}
         </p>
       </div>
-      <div className={`${themes[theme].background} rounded-lg p-4`}>
-        <h3 className={`text-sm font-medium ${themes[theme].text} opacity-75`}>总仓位</h3>
-        <p className={`text-2xl font-bold ${themes[theme].text} mt-1`}>
+      <div className={`${themes[theme].background} rounded-lg p-3 md:p-4 min-w-0`}>
+        <h3 className={`text-xs md:text-sm font-medium ${themes[theme].text} opacity-75 truncate`}>总仓位</h3>
+        <p className={`text-base sm:text-lg md:text-2xl font-bold ${themes[theme].text} mt-1 truncate`} title={formatCurrency(totalHoldingsValue, currencyConfig)}>
           {formatCurrency(totalHoldingsValue, currencyConfig)}
         </p>
-        <p className={`text-xs ${themes[theme].text} opacity-60 mt-1`}>
+        <p className={`text-[10px] md:text-xs ${themes[theme].text} opacity-60 mt-1 truncate`}>
           Sum of all holdings market value
         </p>
       </div>
-      <div className={`${themes[theme].background} rounded-lg p-4`}>
-        <h3 className={`text-sm font-medium ${themes[theme].text} opacity-75`}>持仓比例</h3>
-        <p className={`text-2xl font-bold ${themes[theme].text} mt-1`}>
+      <div className={`${themes[theme].background} rounded-lg p-3 md:p-4 min-w-0`}>
+        <h3 className={`text-xs md:text-sm font-medium ${themes[theme].text} opacity-75 truncate`}>持仓比例</h3>
+        <p className={`text-base sm:text-lg md:text-2xl font-bold ${themes[theme].text} mt-1 truncate`}>
           {positionRatio.toFixed(2)}%
         </p>
-        <p className={`text-xs ${themes[theme].text} opacity-60 mt-1`}>
+        <p className={`text-[10px] md:text-xs ${themes[theme].text} opacity-60 mt-1 truncate`}>
           Holdings / Total market value
         </p>
       </div>
-      <div className={`${themes[theme].background} rounded-lg p-4`}>
-        <h3 className={`text-sm font-medium ${themes[theme].text} opacity-75`}>持仓盈亏</h3>
-        <p className={`text-2xl font-bold mt-1 ${totalProfitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+      <div className={`${themes[theme].background} rounded-lg p-3 md:p-4 min-w-0`}>
+        <h3 className={`text-xs md:text-sm font-medium ${themes[theme].text} opacity-75 truncate`}>持仓盈亏</h3>
+        <p className={`text-base sm:text-lg md:text-2xl font-bold mt-1 truncate ${totalProfitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`} title={`${totalProfitLoss >= 0 ? '+' : ''}${formatCurrency(Math.abs(totalProfitLoss), currencyConfig)}`}>
           {totalProfitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(totalProfitLoss), currencyConfig)}
         </p>
-        <p className={`text-xs ${themes[theme].text} opacity-60 mt-1`}>
+        <p className={`text-[10px] md:text-xs ${themes[theme].text} opacity-60 mt-1 truncate`}>
           Sum of all holdings P/L
         </p>
       </div>

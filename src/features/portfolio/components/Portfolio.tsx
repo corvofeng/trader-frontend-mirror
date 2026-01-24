@@ -22,6 +22,7 @@ import { TradesTable } from './TradesTable';
 import { OverviewControls } from './OverviewControls';
 import { PortfolioHeader } from './PortfolioHeader';
 import { StatsGrid } from './StatsGrid';
+import { FadeIn } from '../../../shared/components/FadeIn';
 
 ChartJS.register(
   ArcElement, 
@@ -257,23 +258,27 @@ export function Portfolio({
     responsive: true,
     maintainAspectRatio: false,
     layout: { 
-      padding: { 
-        top: isSmallMobile ? 4 : 8, 
-        right: isSmallMobile ? 2 : (isMobile ? 4 : 8), 
-        bottom: isSmallMobile ? 4 : (isMobile ? 8 : 16), 
-        left: isSmallMobile ? 2 : (isMobile ? 4 : 8) 
+      padding: isMobile ? 0 : { 
+        top: 8, 
+        right: 8, 
+        bottom: 16, 
+        left: 8 
       } 
     },
     plugins: {
       legend: {
+        display: true,
         position: 'bottom' as const,
         labels: {
           color: theme === 'dark' ? '#e5e7eb' : '#111827',
-          font: { size: isSmallMobile ? 9 : (isMobile ? 10 : 12) },
-          boxWidth: isSmallMobile ? 6 : (isMobile ? 8 : 12),
-          padding: isSmallMobile ? 4 : (isMobile ? 6 : 16),
-          usePointStyle: isSmallMobile,
-          maxWidth: isSmallMobile ? 80 : (isMobile ? 120 : undefined),
+          font: { size: 11 },
+          boxWidth: 12,
+          padding: 16,
+          usePointStyle: false,
+          filter: (legendItem) => {
+            // Only show legend for the top 5 holdings
+            return (legendItem.index ?? 0) < 5;
+          }
         },
       },
       tooltip: {
@@ -398,7 +403,7 @@ export function Portfolio({
         />
       )}
       <div className={`${themes[theme].card} rounded-lg shadow-md`}>
-        <div className="p-6 border-b border-gray-200">
+        <div className="p-3 md:p-6 border-b border-gray-200">
           <OverviewControls
             theme={theme}
             userId={userId}
@@ -411,7 +416,7 @@ export function Portfolio({
             onQuickSelect={setQuickDateRange}
             onRefresh={refreshAll}
           />
-          <div className="animate-fade-in-up animation-delay-100">
+          <FadeIn delay={100}>
             <StatsGrid
               theme={theme}
               currencyConfig={currencyConfig}
@@ -421,49 +426,53 @@ export function Portfolio({
               totalProfitLoss={totalProfitLoss}
               hasTrendData={trendData.length > 0}
             />
-          </div>
+          </FadeIn>
         </div>
 
         {trendData.length > 0 && (
-          <div className="animate-fade-in-up animation-delay-200">
+          <FadeIn delay={200}>
             <PortfolioTrend 
               trendData={trendData}
               theme={theme}
               dateRange={dateRange}
             />
-          </div>
+          </FadeIn>
         )}
 
-        <div className="animate-fade-in-up animation-delay-300">
-          <PortfolioHeatmap 
-            holdings={holdings}
-            theme={theme}
-          />
+        <div className="hidden md:block">
+          <FadeIn delay={300}>
+            <PortfolioHeatmap 
+              holdings={holdings}
+              theme={theme}
+            />
+          </FadeIn>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-4 md:gap-6 p-4 md:p-6 animate-fade-in-up animation-delay-400">
-          <div className="order-2 lg:order-1">
-            <HoldingsTable
-              theme={theme}
-              holdings={holdings}
-              paginatedHoldings={paginatedHoldings}
-              holdingsPage={holdingsPage}
-              holdingsPerPage={holdingsPerPage}
-              totalHoldingsPages={totalHoldingsPages}
-              onHoldingsPageChange={setHoldingsPage}
-              onHoldingsPerPageChange={setHoldingsPerPage}
-              holdingsSort={holdingsSort}
-              onHoldingsSort={handleHoldingsSort}
-              onAnalyzeStock={(code, name) => setSelectedStockForAnalysis({ code, name })}
-            />
-          </div>
+        <FadeIn delay={400}>
+          <div className="grid lg:grid-cols-2 gap-4 md:gap-6 p-2 md:p-6">
+            <div className="order-2 lg:order-1 min-w-0">
+              <HoldingsTable
+                theme={theme}
+                holdings={holdings}
+                paginatedHoldings={paginatedHoldings}
+                holdingsPage={holdingsPage}
+                holdingsPerPage={holdingsPerPage}
+                totalHoldingsPages={totalHoldingsPages}
+                onHoldingsPageChange={setHoldingsPage}
+                onHoldingsPerPageChange={setHoldingsPerPage}
+                holdingsSort={holdingsSort}
+                onHoldingsSort={handleHoldingsSort}
+                onAnalyzeStock={(code, name) => setSelectedStockForAnalysis({ code, name })}
+              />
+            </div>
 
-          <div className="order-1 lg:order-2">
-            <div className="h-[200px] xs:h-[220px] sm:h-[280px] md:h-[320px] lg:h-[400px] relative">
-              <Pie data={pieChartData} options={pieChartOptions} />
+            <div className="order-1 lg:order-2 min-w-0">
+              <div className="h-[180px] xs:h-[220px] sm:h-[320px] md:h-[360px] lg:h-[450px] relative mx-auto">
+                <Pie data={pieChartData} options={pieChartOptions} />
+              </div>
             </div>
           </div>
-        </div>
+        </FadeIn>
       </div>
 
       {recentTrades.length > 0 && (

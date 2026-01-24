@@ -35,39 +35,39 @@ export function OverviewControls({
           <div className="flex gap-2">
             <button
               onClick={() => onQuickSelect(7)}
-              className={`px-3 py-1 rounded-md text-sm ${themes[theme].secondary}`}
+              className={`px-3 py-1 rounded-md text-xs sm:text-sm ${themes[theme].secondary}`}
             >
               1W
             </button>
             <button
               onClick={() => onQuickSelect(30)}
-              className={`px-3 py-1 rounded-md text-sm ${themes[theme].secondary}`}
+              className={`px-3 py-1 rounded-md text-xs sm:text-sm ${themes[theme].secondary}`}
             >
               1M
             </button>
             <button
               onClick={() => onQuickSelect(90)}
-              className={`px-3 py-1 rounded-md text-sm ${themes[theme].secondary}`}
+              className={`px-3 py-1 rounded-md text-xs sm:text-sm ${themes[theme].secondary}`}
             >
               3M
             </button>
             <button
               onClick={() => onQuickSelect(180)}
-              className={`px-3 py-1 rounded-md text-sm ${themes[theme].secondary}`}
+              className={`px-3 py-1 rounded-md text-xs sm:text-sm ${themes[theme].secondary}`}
             >
               6M
             </button>
             {onRefresh && (
               <button
                 onClick={onRefresh}
-                className={`inline-flex items-center gap-2 px-3 py-1 rounded-md text-sm whitespace-nowrap ${themes[theme].secondary} hide-in-screenshot hover:opacity-80 transition-opacity`}
+                className={`inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 rounded-md text-xs sm:text-sm whitespace-nowrap ${themes[theme].secondary} hide-in-screenshot hover:opacity-80 transition-opacity`}
               >
-                <RefreshCw className="w-4 h-4" />
-                刷新
+                <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden xs:inline">刷新</span>
               </button>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="hidden sm:flex items-center gap-2">
             <input
               type="date"
               value={dateRange.startDate}
