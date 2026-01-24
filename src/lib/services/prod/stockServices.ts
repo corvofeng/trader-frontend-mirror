@@ -270,7 +270,13 @@ export const portfolioService: PortfolioService = {
         throw new Error('Failed to fetch portfolio data');
       }
       const data = await response.json();
-      return { data, error: null };
+      // Adapt to new API response structure which returns an object with positions
+      // or fall back to array if legacy API is still in use
+      if (Array.isArray(data)) {
+        return { data, error: null, isSnapshot: false };
+      } else {
+        return { data: data.positions || [], error: null, isSnapshot: data.is_snapshot || false };
+      }
     } catch (error) {
       console.error('Error fetching portfolio:', error);
       return { data: null, error: error as Error };
@@ -339,7 +345,13 @@ export const portfolioService: PortfolioService = {
         throw new Error('Failed to fetch shared portfolio data');
       }
       const data = await response.json();
-      return { data, error: null };
+      // Adapt to new API response structure which returns an object with positions
+      // or fall back to array if legacy API is still in use
+      if (Array.isArray(data)) {
+        return { data, error: null, isSnapshot: false };
+      } else {
+        return { data: data.positions || [], error: null, isSnapshot: data.is_snapshot || false };
+      }
     } catch (error) {
       console.error('Error fetching shared portfolio:', error);
       return { data: null, error: error as Error };

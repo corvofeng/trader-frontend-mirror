@@ -46,6 +46,15 @@ export interface Holding {
   last_updated: string;
 }
 
+export interface PortfolioData {
+  positions: Holding[];
+  is_snapshot: boolean;
+  balance?: number;
+  available?: number;
+  frozen?: number;
+  fetch_balance?: any;
+}
+
 export interface StockData {
   date: string;
   open: number;
@@ -71,6 +80,7 @@ export interface CurrencyConfig {
 export interface ServiceResponse<T> {
   data: T | null;
   error: Error | null;
+  isSnapshot?: boolean;
 }
 
 export interface StockPrice {

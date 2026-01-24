@@ -37,6 +37,7 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
       : 'portfolio';
   });
   const [holdings, setHoldings] = useState<Holding[]>([]);
+  const [isSnapshot, setIsSnapshot] = useState(false);
   const [recentTrades, setRecentTrades] = useState<Trade[]>([]);
   const [dateRange, setDateRange] = useState({
     startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -74,7 +75,10 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
             portfolioService.getRecentTradesByUuid(portfolioUuid, dateRange.startDate, dateRange.endDate)
           ]);
           
-          if (holdingsResponse.data) setHoldings(holdingsResponse.data);
+          if (holdingsResponse.data) {
+            setHoldings(holdingsResponse.data);
+            setIsSnapshot(holdingsResponse.isSnapshot || false);
+          }
           if (tradesResponse.data) setRecentTrades(tradesResponse.data);
         } else {
           if (!selectedAccountId) {
@@ -82,14 +86,17 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
           }
 
           const [holdingsResponse, tradesResponse, accountsResponse] = await Promise.all([
-            selectedAccountId ? portfolioService.getHoldings(selectedAccountId) : Promise.resolve({ data: null, error: null }),
+            selectedAccountId ? portfolioService.getHoldings(selectedAccountId) : Promise.resolve({ data: null, error: null, isSnapshot: false }),
             selectedAccountId
               ? portfolioService.getRecentTrades(DEMO_USER_ID, dateRange.startDate, dateRange.endDate, selectedAccountId)
               : Promise.resolve({ data: null, error: null }),
             accountService.getAccounts(DEMO_USER_ID)
           ]);
           
-          if (holdingsResponse.data) setHoldings(holdingsResponse.data);
+          if (holdingsResponse.data) {
+            setHoldings(holdingsResponse.data);
+            setIsSnapshot(holdingsResponse.isSnapshot || false);
+          }
           if (tradesResponse.data) setRecentTrades(tradesResponse.data);
 
           const accounts = accountsResponse.data || [];
@@ -210,9 +217,8 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
           isSharedView={!!portfolioUuid}
           userId={DEMO_USER_ID}
           selectedAccountId={selectedAccountId}
-          onAccountChange={(accountId) => {
-            setSelectedAccountId(accountId);
-          }}
+          onAccountChange={setSelectedAccountId}
+          isSnapshot={isSnapshot}
         />
       )}
 

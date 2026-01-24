@@ -14,7 +14,7 @@ import { PortfolioTrend } from './PortfolioTrend';
 import { PortfolioHeatmap } from './PortfolioHeatmap';
 import { StockAnalysisModal } from './StockAnalysisModal';
 import { PortfolioAnalysisPanel } from './PortfolioAnalysisPanel';
-import { X, Download } from 'lucide-react';
+import { X, Download, Activity } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { ScreenshotPreview } from './ScreenshotPreview';
 import { HoldingsTable } from './HoldingsTable';
@@ -47,6 +47,7 @@ interface PortfolioProps {
   userId?: string;
   selectedAccountId?: string | null;
   onAccountChange?: (accountId: string) => void;
+  isSnapshot?: boolean;
 }
 
 export function Portfolio({ 
@@ -58,7 +59,8 @@ export function Portfolio({
   isSharedView = false,
   userId,
   selectedAccountId,
-  onAccountChange
+  onAccountChange,
+  isSnapshot = false,
 }: PortfolioProps) {
   const [showRecentTrades, setShowRecentTrades] = useState(true);
   const [holdingsPage, setHoldingsPage] = useState(1);
@@ -373,6 +375,20 @@ export function Portfolio({
 
   return (
     <div className="space-y-6" ref={journalRef}>
+      {isSnapshot && (
+        <div className="bg-amber-50 border-l-4 border-amber-500 p-4 mb-4 dark:bg-amber-900/30">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <Activity className="h-5 w-5 text-amber-400" aria-hidden="true" />
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-amber-700 dark:text-amber-200">
+                当前显示的数据为快照数据，可能与实时市场状态存在延迟。
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       {isSharedView && (
         <div className={`${themes[theme].card} rounded-lg p-4 border-l-4 border-blue-500`}>
           <div className="flex items-center justify-between">
