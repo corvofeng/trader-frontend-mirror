@@ -3,11 +3,72 @@ import type { CustomOptionsStrategy } from '../types';
 
 // Helper to adapt backend response to OptionsPortfolioData
 const adaptToPortfolioData = (data: any): OptionsPortfolioData => {
-  // If data already looks like OptionsPortfolioData (has expiryGroups), return it
+  // Case 1: Data has expiryGroups (Legacy or already adapted)
   if (data.expiryGroups && Array.isArray(data.expiryGroups)) {
     return data as OptionsPortfolioData;
   }
 
+  // Case 2: Data has expiryBuckets (New backend format)
+  if (data.expiryBuckets && Array.isArray(data.expiryBuckets)) {
+    let totalValue = Number(data.totalValue || 0);
+    let totalCost = Number(data.totalCost || 0);
+    let totalProfitLoss = Number(data.totalProfitLoss || 0);
+    const singleLegPositions: OptionsPosition[] = [];
+    const complexStrategies: OptionsStrategy[] = [];
+
+    // If totals are missing from root, calculate them from buckets
+    const shouldCalcTotals = data.totalValue === undefined || data.totalCost === undefined || data.totalProfitLoss === undefined;
+
+    data.expiryBuckets.forEach((bucket: any) => {
+        const singles = (bucket.single || []) as OptionsPosition[];
+        const complexes = (bucket.complex || []) as OptionsStrategy[];
+        
+        singleLegPositions.push(...singles);
+        complexStrategies.push(...complexes);
+        
+        if (shouldCalcTotals) {
+             singles.forEach((p: any) => {
+                 // Try multiple field names
+                 const val = Number(p.currentValue ?? (p as any).current_value ?? 0);
+                 const pl = Number(p.profitLoss ?? (p as any).profit_loss ?? 0);
+                 // Cost calculation might vary, default to premium * quantity * 100 if not provided
+                 const cost = (p.premium ?? (p as any).cost_price ?? 0) * Math.abs(p.quantity || 0) * 100;
+
+                 totalValue += val;
+                 totalProfitLoss += pl;
+                 totalCost += cost;
+             });
+             complexes.forEach((c: any) => {
+                 totalValue += Number(c.currentValue || 0);
+                 totalCost += Number(c.totalCost || 0); // Strategy usually has totalCost
+                 totalProfitLoss += Number(c.profitLoss || 0);
+             });
+        }
+    });
+
+    const totalProfitLossPercentage = totalCost !== 0 ? (totalProfitLoss / totalCost) * 100 : 0;
+
+    return {
+        strategies: [], 
+        singleLegPositions,
+        complexStrategies,
+        expiryBuckets: data.expiryBuckets,
+        totalValue,
+        totalCost,
+        totalProfitLoss,
+        totalProfitLossPercentage,
+        expiryGroups: [], // Component can fallback to buckets if this is empty
+        is_snapshot: data.is_snapshot,
+        balance: data.balance,
+        real_used_margin: data.real_used_margin,
+        available: data.available,
+        position_profit: data.position_profit ?? totalProfitLoss,
+        customStrategies: data.customStrategies || [],
+        advised_combinations: data.advised_combinations || []
+    };
+  }
+
+  // Case 3: Flat positions list (Legacy or simplified format)
   const positions: OptionsPosition[] = Array.isArray(data.positions) ? data.positions : [];
   
   let totalValue = 0;

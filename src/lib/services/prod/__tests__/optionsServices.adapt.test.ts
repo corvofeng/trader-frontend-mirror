@@ -181,4 +181,65 @@ describe('optionsService.getOptionsPortfolio Adapter', () => {
     expect(data.expiryGroups).toHaveLength(2);
     expect(data.expiryGroups.map(g => g.expiry)).toEqual(expect.arrayContaining(['2025-02-01', '2025-03-01']));
   });
+
+  it('should handle pre-bucketed backend response', async () => {
+    const mockResponse = {
+      available: 234609.84,
+      balance: 217649.84,
+      expiryBuckets: [
+        {
+          complex: [],
+          daysToExpiry: 3,
+          expiry: "2026-01-28",
+          single: [
+            {
+              contract_code: "10010512",
+              symbol: "科创50沽1月1600",
+              quantity: 1,
+              premium: 600.0,
+              profitLoss: -693.0,
+              currentValue: 93.0,
+              expiry: "2026-01-28"
+            }
+          ]
+        },
+        {
+          complex: [
+             {
+               id: "strategy-1",
+               positions: [],
+               currentValue: 100,
+               totalCost: 50,
+               profitLoss: 50
+             }
+          ],
+          expiry: "2026-02-25",
+          daysToExpiry: 30,
+          single: []
+        }
+      ]
+    };
+    
+    const mockJson = vi.fn().mockResolvedValue(mockResponse);
+    const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: mockJson });
+    // @ts-expect-error assign global
+    global.fetch = mockFetch;
+
+    const result = await optionsService.getOptionsPortfolio('user-1');
+    const data = result.data as OptionsPortfolioData;
+    
+    expect(data.expiryBuckets).toBeDefined();
+    expect(data.expiryBuckets).toHaveLength(2);
+    expect(data.singleLegPositions).toHaveLength(1);
+    expect(data.complexStrategies).toHaveLength(1);
+    
+    // Check calculated totals
+    // Single: 93 val, -693 pl, 600*1*100=60000 cost
+    // Complex: 100 val, 50 pl, 50 cost
+    // Total Value: 193
+    // Total PL: -643
+    expect(data.totalValue).toBe(193);
+    expect(data.totalProfitLoss).toBe(-643);
+    expect(data.balance).toBe(217649.84);
+  });
 });
