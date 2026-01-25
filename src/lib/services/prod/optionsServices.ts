@@ -1,5 +1,94 @@
-import type { OptionsService, OptionsPosition } from '../types';
+import type { OptionsService, OptionsPosition, OptionsPortfolioData, OptionsStrategy } from '../types';
 import type { CustomOptionsStrategy } from '../types';
+
+// Helper to adapt backend response to OptionsPortfolioData
+const adaptToPortfolioData = (data: any): OptionsPortfolioData => {
+  // If data already looks like OptionsPortfolioData (has expiryGroups), return it
+  if (data.expiryGroups && Array.isArray(data.expiryGroups)) {
+    return data as OptionsPortfolioData;
+  }
+
+  const positions: OptionsPosition[] = Array.isArray(data.positions) ? data.positions : [];
+  
+  let totalValue = 0;
+  let totalCost = 0;
+  let totalProfitLoss = 0;
+
+  // Grouping map
+  const expiryGroupsMap = new Map<string, {
+    expiry: string;
+    daysToExpiry: number;
+    positions: OptionsPosition[];
+    totalValue: number;
+    totalCost: number;
+    profitLoss: number;
+  }>();
+
+  positions.forEach(p => {
+    // Handle potential snake_case from backend if necessary
+    const val = Number(p.currentValue ?? (p as any).current_value ?? 0);
+    const pl = Number(p.profitLoss ?? (p as any).profit_loss ?? 0);
+    const cost = Number(p.premium ?? (p as any).cost_price ?? 0) * Math.abs(p.quantity || 0) * 100;
+    
+    // Normalize fields on the object if needed (casting to any to avoid strict type checks on readonly)
+    if (p.currentValue === undefined) (p as any).currentValue = val;
+    if (p.profitLoss === undefined) (p as any).profitLoss = pl;
+
+    totalValue += val;
+    totalProfitLoss += pl;
+    totalCost += cost;
+
+    const expiry = p.expiry;
+    if (expiry) {
+      if (!expiryGroupsMap.has(expiry)) {
+          const days = Math.ceil((new Date(expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+          expiryGroupsMap.set(expiry, {
+              expiry,
+              daysToExpiry: days,
+              positions: [],
+              totalValue: 0,
+              totalCost: 0,
+              profitLoss: 0
+          });
+      }
+      const group = expiryGroupsMap.get(expiry)!;
+      group.positions.push(p);
+      group.totalValue += val;
+      group.profitLoss += pl;
+      group.totalCost += cost;
+    }
+  });
+
+  const expiryGroups = Array.from(expiryGroupsMap.values())
+    .sort((a, b) => a.expiry.localeCompare(b.expiry));
+
+  const expiryBuckets = expiryGroups.map(g => ({
+      expiry: g.expiry,
+      daysToExpiry: g.daysToExpiry,
+      single: g.positions,
+      complex: [] as OptionsStrategy[]
+  }));
+
+  const totalProfitLossPercentage = totalCost !== 0 ? (totalProfitLoss / totalCost) * 100 : 0;
+
+  return {
+    strategies: [],
+    singleLegPositions: positions,
+    complexStrategies: [],
+    expiryBuckets,
+    totalValue,
+    totalCost,
+    totalProfitLoss,
+    totalProfitLossPercentage,
+    expiryGroups,
+    is_snapshot: data.is_snapshot,
+    balance: data.balance,
+    real_used_margin: data.real_used_margin,
+    available: data.available,
+    customStrategies: data.customStrategies || [],
+    advised_combinations: data.advised_combinations || []
+  };
+};
 
 // Cache for options data to prevent redundant requests
 const optionsDataCache: Record<string, Promise<{ data: unknown; error: Error | null }>> = {};
@@ -65,7 +154,7 @@ export const optionsService: OptionsService = {
         throw new Error('Failed to fetch options portfolio');
       }
       const data = await response.json();
-      return { data, error: null };
+      return { data: adaptToPortfolioData(data), error: null };
     } catch (error) {
       console.error('Error fetching options portfolio:', error);
       return { data: null, error: error as Error };
