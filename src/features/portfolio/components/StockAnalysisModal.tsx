@@ -18,13 +18,13 @@ export function StockAnalysisModal({ stockCode, stockName, theme, userId, accoun
   const [trades, setTrades] = useState<Trade[]>([]);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-      <div className={`${themes[theme].card} rounded-lg w-full max-w-5xl h-[85vh] flex flex-col shadow-xl`}>
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 sm:p-4 backdrop-blur-sm">
+      <div className={`${themes[theme].card} w-full h-full sm:h-[85vh] sm:max-w-5xl sm:rounded-lg flex flex-col shadow-xl`}>
+        <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-2">
             <LineChart className="w-5 h-5 text-blue-500" />
-            <h2 className={`text-lg font-semibold ${themes[theme].text}`}>
-              {stockName} ({stockCode}) K线图
+            <h2 className={`text-base sm:text-lg font-semibold ${themes[theme].text}`}>
+              {stockName} ({stockCode})
             </h2>
           </div>
           <button
@@ -35,8 +35,8 @@ export function StockAnalysisModal({ stockCode, stockName, theme, userId, accoun
           </button>
         </div>
         
-        <div className="flex-1 min-h-0 overflow-hidden relative p-4 flex flex-col gap-4">
-          <div className="flex-[2] min-h-0">
+        <div className="flex-1 min-h-0 overflow-hidden relative p-2 sm:p-4 flex flex-col gap-2 sm:gap-4">
+          <div className={`${trades.length > 0 ? 'flex-[1.5] sm:flex-[2]' : 'flex-1'} min-h-0`}>
             <StockChart
               stockCode={stockCode}
               theme={theme}

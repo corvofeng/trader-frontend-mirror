@@ -3,7 +3,7 @@ import { logger } from '../../../shared/utils/logger';
 import { createChart, ColorType, IChartApi, ISeriesApi, CrosshairMode, LineStyle, PriceScaleMode } from 'lightweight-charts';
 import { format } from 'date-fns';
 import { Theme, themes } from '../../../shared/constants/theme';
-import { stockService, authService, portfolioService, accountService } from '../../../lib/services';
+import { stockService, authService, portfolioService } from '../../../lib/services';
 import { formatCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { ZoomIn, ZoomOut, Lock, Unlock, Maximize2, Minimize2, Grid, LineChart, CandlestickChart, BarChart } from 'lucide-react';
@@ -448,7 +448,7 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
         borderColor: isDark ? '#374151' : '#e5e7eb',
         timeVisible: true,
         secondsVisible: false,
-        barSpacing: 12,
+        barSpacing: window.innerWidth < 768 ? 8 : 12,
         tickMarkFormatter: (time: number) => {
           const date = new Date(time * 1000);
           return format(date, window.innerWidth < 768 ? 'MM-dd' : 'yyyy-MM-dd');
@@ -662,18 +662,18 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
   }, [showVolume]);
 
   return (
-    <div className={`${themes[theme].card} rounded-lg shadow-md p-4 ${fillContainer ? 'h-full flex flex-col' : ''} ${className || ''}`}>
-      <div className="flex flex-col gap-4">
+    <div className={`${themes[theme].card} rounded-lg shadow-md p-2 sm:p-4 ${fillContainer ? 'h-full flex flex-col' : ''} ${className || ''}`}>
+      <div className="flex flex-col gap-2 sm:gap-4">
         <div className={`flex items-baseline gap-2 ${themes[theme].text}`}>
-          <h2 className="text-xl font-bold">{stockInfo?.stock_code}</h2>
+          <h2 className="text-lg sm:text-xl font-bold">{stockInfo?.stock_code}</h2>
           <span className="text-sm opacity-75">{stockInfo?.stock_name}</span>
         </div>
 
-        <div className="flex flex-wrap justify-between items-center">
+        <div className="flex flex-wrap justify-between items-center gap-y-2">
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowCostBasis(!showCostBasis)}
-              className={`px-3 py-1 rounded text-sm ${
+              className={`px-2 sm:px-3 py-1 rounded text-xs sm:text-sm ${
                 showCostBasis ? themes[theme].primary : themes[theme].secondary
               }`}
             >
@@ -681,7 +681,7 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
             </button>
             <button
               onClick={() => setShowVolume(!showVolume)}
-              className={`px-3 py-1 rounded text-sm ${
+              className={`px-2 sm:px-3 py-1 rounded text-xs sm:text-sm ${
                 showVolume ? themes[theme].primary : themes[theme].secondary
               }`}
             >
@@ -689,70 +689,70 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
             </button>
             <button
               onClick={() => setShowGrid(!showGrid)}
-              className={`px-3 py-1 rounded text-sm ${
+              className={`px-2 sm:px-3 py-1 rounded text-xs sm:text-sm ${
                 showGrid ? themes[theme].primary : themes[theme].secondary
               }`}
             >
-              <Grid className="w-4 h-4" />
+              <Grid className="w-3 h-3 sm:w-4 sm:h-4" />
             </button>
           </div>
           
           <div className="flex items-center gap-2">
             <button
               onClick={() => updateChartType('candlestick')}
-              className={`p-2 rounded ${
+              className={`p-1 sm:p-2 rounded ${
                 chartType === 'candlestick' ? themes[theme].primary : themes[theme].secondary
               }`}
             >
-              <CandlestickChart className="w-4 h-4" />
+              <CandlestickChart className="w-3 h-3 sm:w-4 sm:h-4" />
             </button>
             <button
               onClick={() => updateChartType('line')}
-              className={`p-2 rounded ${
+              className={`p-1 sm:p-2 rounded ${
                 chartType === 'line' ? themes[theme].primary : themes[theme].secondary
               }`}
             >
-              <LineChart className="w-4 h-4" />
+              <LineChart className="w-3 h-3 sm:w-4 sm:h-4" />
             </button>
             <button
               onClick={() => updateChartType('bar')}
-              className={`p-2 rounded ${
+              className={`p-1 sm:p-2 rounded ${
                 chartType === 'bar' ? themes[theme].primary : themes[theme].secondary
               }`}
             >
-              <BarChart className="w-4 h-4" />
+              <BarChart className="w-3 h-3 sm:w-4 sm:h-4" />
             </button>
           </div>
         </div>
 
-        <div className="flex flex-wrap justify-between items-center">
+        <div className="flex flex-wrap justify-between items-center gap-y-2">
           <div className="flex items-center gap-2">
             <button
               onClick={() => handleZoom('in')}
-              className={`p-2 rounded ${themes[theme].secondary}`}
+              className={`p-1 sm:p-2 rounded ${themes[theme].secondary}`}
               disabled={isLocked}
             >
-              <ZoomIn className="w-4 h-4" />
+              <ZoomIn className="w-3 h-3 sm:w-4 sm:h-4" />
             </button>
             <button
               onClick={() => handleZoom('out')}
-              className={`p-2 rounded ${themes[theme].secondary}`}
+              className={`p-1 sm:p-2 rounded ${themes[theme].secondary}`}
               disabled={isLocked}
             >
-              <ZoomOut className="w-4 h-4" />
+              <ZoomOut className="w-3 h-3 sm:w-4 sm:h-4" />
             </button>
             <button
               onClick={() => setIsLocked(!isLocked)}
-              className={`p-2 rounded ${isLocked ? themes[theme].primary : themes[theme].secondary}`}
+              className={`p-1 sm:p-2 rounded ${isLocked ? themes[theme].primary : themes[theme].secondary}`}
             >
-              {isLocked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+              {isLocked ? <Lock className="w-3 h-3 sm:w-4 sm:h-4" /> : <Unlock className="w-3 h-3 sm:w-4 sm:h-4" />}
             </button>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               onClick={() => setAutoScale(!autoScale)}
-              className={`px-3 py-1 rounded text-sm ${
+              className={`px-2 sm:px-3 py-1 rounded text-xs sm:text-sm ${
                 autoScale ? themes[theme].primary : themes[theme].secondary
               }`}
             >
@@ -760,9 +760,9 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
             </button>
             <button
               onClick={toggleFullscreen}
-              className={`p-2 rounded ${themes[theme].secondary}`}
+              className={`p-1 sm:p-2 rounded ${themes[theme].secondary}`}
             >
-              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              {isFullscreen ? <Minimize2 className="w-3 h-3 sm:w-4 sm:h-4" /> : <Maximize2 className="w-3 h-3 sm:w-4 sm:h-4" />}
             </button>
           </div>
         </div>
@@ -775,7 +775,7 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
       )}
       
       <div 
-        className={`mt-4 ${
+        className={`mt-2 sm:mt-4 ${
           isFullscreen ? 'fixed inset-0 z-50 bg-white dark:bg-gray-900' : 
           fillContainer ? 'flex-1 min-h-0' : 'h-[400px] sm:h-[500px] md:h-[600px]'
         }`} 

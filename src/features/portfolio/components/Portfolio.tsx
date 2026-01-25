@@ -254,7 +254,6 @@ export function Portfolio({
 
   // iPhone 14 尺寸: 390x844, 更精确的移动端判断
   const isMobile = screenSize.width < 640;
-  const isSmallMobile = screenSize.width <= 390;
 
   const pieChartOptions = {
     responsive: true,
