@@ -200,6 +200,34 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         const { data, error } = await optionsService.getOptionsPortfolio(userId, selectedAccountIdProp || null);
         if (error) throw error;
         if (data) {
+          console.group('[[OptionsPortfolio Debug]] Fetched Data');
+          console.log('Full Portfolio Data:', data);
+          
+          if (data.expiryGroups && data.expiryGroups.length > 0) {
+            console.log('--- Positions by Expiry ---');
+            data.expiryGroups.forEach(group => {
+              console.group(`Expiry: ${group.expiry} (Days: ${group.daysToExpiry})`);
+              console.log('Summary:', {
+                totalValue: group.totalValue,
+                totalCost: group.totalCost,
+                profitLoss: group.profitLoss
+              });
+              console.table(group.positions.map(p => ({
+                id: p.id,
+                symbol: p.symbol,
+                type: p.type,
+                strike: p.strike,
+                quantity: p.quantity,
+                status: p.status,
+                expiry: p.expiry
+              })));
+              console.groupEnd();
+            });
+          } else {
+            console.log('No expiry groups found.');
+          }
+          console.groupEnd();
+
           setPortfolioData(data);
           
 

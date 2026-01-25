@@ -179,6 +179,7 @@ export const optionsService: OptionsService = {
         throw new Error('Failed to fetch options portfolio');
       }
       const data = await response.json();
+      console.log('[[OptionsService Debug]] Raw Backend Response:', data);
       return { data: adaptToPortfolioData(data), error: null };
     } catch (error) {
       console.error('Error fetching options portfolio:', error);
