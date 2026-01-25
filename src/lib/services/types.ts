@@ -485,6 +485,15 @@ export interface OptionsStrategy {
   updatedAt?: string; // 更新时间
 }
 
+export interface SubjectPosition {
+  covered_volume: number;
+  lock_volume: number;
+  stock_code: string;
+  total_volume: number;
+  stock_price?: number;
+  total_stock_price?: number;
+}
+
 export interface OptionsPortfolioData {
   strategies: OptionsStrategy[];
   singleLegPositions?: OptionsPosition[];
@@ -514,6 +523,7 @@ export interface OptionsPortfolioData {
   customStrategies?: CustomOptionsStrategy[]; // 自定义策略列表
   advised_combinations?: AdvisedCombination[];
   is_snapshot?: boolean;
+  subject_positions?: SubjectPosition[];
 }
 export interface OptionsService {
   getOptionsData: (symbol?: string) => Promise<ServiceResponse<OptionsData>>;

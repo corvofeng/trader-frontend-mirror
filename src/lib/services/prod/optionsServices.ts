@@ -64,7 +64,8 @@ const adaptToPortfolioData = (data: any): OptionsPortfolioData => {
         available: data.available,
         position_profit: data.position_profit ?? totalProfitLoss,
         customStrategies: data.customStrategies || [],
-        advised_combinations: data.advised_combinations || []
+        advised_combinations: data.advised_combinations || [],
+        subject_positions: data.subject_positions || []
     };
   }
 
@@ -168,7 +169,8 @@ const adaptToPortfolioData = (data: any): OptionsPortfolioData => {
     real_used_margin: data.real_used_margin,
     available: data.available,
     customStrategies: data.customStrategies || [],
-    advised_combinations: data.advised_combinations || []
+    advised_combinations: data.advised_combinations || [],
+    subject_positions: data.subject_positions || []
   };
 };
 

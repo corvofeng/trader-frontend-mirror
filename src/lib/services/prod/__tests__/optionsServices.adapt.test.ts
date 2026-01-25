@@ -242,4 +242,35 @@ describe('optionsService.getOptionsPortfolio Adapter', () => {
     expect(data.totalProfitLoss).toBe(-643);
     expect(data.balance).toBe(217649.84);
   });
+
+  it('should pass through subject_positions with price info', async () => {
+    const mockResponse = {
+      positions: [],
+      subject_positions: [
+        {
+          covered_volume: 150000,
+          lock_volume: 0,
+          stock_code: "588000.SH",
+          total_volume: 150000,
+          stock_price: 1.234,
+          total_stock_price: 185100
+        }
+      ]
+    };
+    
+    const mockJson = vi.fn().mockResolvedValue(mockResponse);
+    const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: mockJson });
+    // @ts-expect-error assign global
+    global.fetch = mockFetch;
+
+    const result = await optionsService.getOptionsPortfolio('user-1');
+    const data = result.data as OptionsPortfolioData;
+    
+    expect(data.subject_positions).toBeDefined();
+    expect(data.subject_positions).toHaveLength(1);
+    expect(data.subject_positions![0].stock_code).toBe("588000.SH");
+    expect(data.subject_positions![0].total_volume).toBe(150000);
+    expect(data.subject_positions![0].stock_price).toBe(1.234);
+    expect(data.subject_positions![0].total_stock_price).toBe(185100);
+  });
 });
