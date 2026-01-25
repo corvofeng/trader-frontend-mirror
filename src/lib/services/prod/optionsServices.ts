@@ -38,10 +38,24 @@ const adaptToPortfolioData = (data: any): OptionsPortfolioData => {
     totalProfitLoss += pl;
     totalCost += cost;
 
-    const expiry = p.expiry;
+    // Try to find expiry from various possible field names
+    let expiry = p.expiry || (p as any).expiration || (p as any).expiry_date || (p as any).expire_date || (p as any).expiryDate;
+    
+    // If expiry is missing, group under "Unknown"
+    if (!expiry) {
+        expiry = 'Unknown';
+    }
+
     if (expiry) {
       if (!expiryGroupsMap.has(expiry)) {
-          const days = Math.ceil((new Date(expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+          let days = 0;
+          if (expiry !== 'Unknown') {
+              try {
+                  days = Math.ceil((new Date(expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+              } catch (e) {
+                  console.warn('Invalid expiry date:', expiry);
+              }
+          }
           expiryGroupsMap.set(expiry, {
               expiry,
               daysToExpiry: days,
@@ -52,6 +66,9 @@ const adaptToPortfolioData = (data: any): OptionsPortfolioData => {
           });
       }
       const group = expiryGroupsMap.get(expiry)!;
+      // Ensure position has the normalized expiry
+      if (!p.expiry) (p as any).expiry = expiry;
+      
       group.positions.push(p);
       group.totalValue += val;
       group.profitLoss += pl;
@@ -60,7 +77,11 @@ const adaptToPortfolioData = (data: any): OptionsPortfolioData => {
   });
 
   const expiryGroups = Array.from(expiryGroupsMap.values())
-    .sort((a, b) => a.expiry.localeCompare(b.expiry));
+    .sort((a, b) => {
+        if (a.expiry === 'Unknown') return 1;
+        if (b.expiry === 'Unknown') return -1;
+        return a.expiry.localeCompare(b.expiry);
+    });
 
   const expiryBuckets = expiryGroups.map(g => ({
       expiry: g.expiry,
