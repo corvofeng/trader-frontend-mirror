@@ -108,7 +108,11 @@ export const optionsService: OptionsService = {
           const externalResp = await fetch(externalUrl);
           if (externalResp.ok) {
             const externalData = await externalResp.json();
-            if (externalData && Array.isArray(externalData.quotes) && Array.isArray(externalData.surface)) {
+            // Allow data if quotes are present, populate surface if missing
+            if (externalData && Array.isArray(externalData.quotes)) {
+              if (!Array.isArray(externalData.surface)) {
+                externalData.surface = [];
+              }
               return { data: externalData, error: null };
             }
           }
