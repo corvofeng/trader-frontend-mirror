@@ -983,8 +983,8 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
             <div className="flex-shrink-0">
               <Activity className="h-5 w-5 text-amber-400" aria-hidden="true" />
             </div>
-            <div className="ml-3">
-              <p className="text-sm text-amber-700 dark:text-amber-200">
+            <div className="ml-3 flex-1 min-w-0">
+              <p className="text-sm text-amber-700 dark:text-amber-200 sm:whitespace-nowrap">
                 当前显示的数据为快照数据，可能与实时市场状态存在延迟。
               </p>
             </div>
