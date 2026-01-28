@@ -65,7 +65,8 @@ const adaptToPortfolioData = (data: any): OptionsPortfolioData => {
         position_profit: data.position_profit ?? totalProfitLoss,
         customStrategies: data.customStrategies || [],
         advised_combinations: data.advised_combinations || [],
-        subject_positions: data.subject_positions || []
+        subject_positions: data.subject_positions || [],
+        expiry_analysis: data.expiry_analysis
     };
   }
 

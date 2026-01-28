@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { format } from 'date-fns';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
 import type { OptionsPosition, OptionsStrategy, AdvisedCombination, OptionsData, OptionQuote, CurrencyConfig } from '../../../lib/services/types';
@@ -36,7 +37,119 @@ interface ExpiryGroupCardProps {
   userId?: string | null;
   optionsData?: OptionsData | null;
   optionsDataMap?: Record<string, OptionsData>;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+  isTBoardExpanded: boolean;
+  onToggleTBoard: () => void;
+  analysis?: {
+    phase: string;
+    days_to_expiry: number;
+    risk_positions_count: number;
+    safe_positions_count: number;
+    strategies_count: number;
+    exercise_analysis?: any;
+    report: string;
+  };
 }
+
+const renderReportMarkdown = (raw: string, theme: Theme) => {
+  const content = raw.trim().replace(/\n{3,}/g, '\n\n');
+  const lines = content.split(/\r?\n/);
+  let html = '';
+  let paragraph = '';
+  let inList = false;
+
+  const formatText = (text: string) => {
+    return text
+      .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
+      .replace(/`(.*?)`/g, '<code class="bg-gray-100 dark:bg-gray-800 px-1 rounded text-xs font-mono">$1</code>');
+  };
+
+  const flushParagraph = () => {
+    const text = paragraph.trim();
+    if (text) {
+      html += `<p class="mb-2 leading-relaxed text-sm ${themes[theme].text}">${formatText(text)}</p>`;
+    }
+    paragraph = '';
+  };
+
+  const flushList = () => {
+    if (inList) {
+      html += '</ul>';
+      inList = false;
+    }
+  };
+
+  lines.forEach((line) => {
+    const trimmed = line.trim();
+    
+    if (trimmed.startsWith('#')) {
+      flushParagraph();
+      flushList();
+      const level = trimmed.match(/^#+/)?.[0].length || 0;
+      const text = trimmed.replace(/^#+\s*/, '');
+      const sizeClass = level === 1 ? 'text-lg' : level === 2 ? 'text-base' : 'text-sm';
+      html += `<h${level} class="${sizeClass} font-bold mt-3 mb-2 ${themes[theme].text}">${formatText(text)}</h${level}>`;
+    } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+      flushParagraph();
+      if (!inList) {
+        html += `<ul class="list-disc pl-5 mb-2 space-y-1 ${themes[theme].text}">`;
+        inList = true;
+      }
+      const text = trimmed.substring(1).trim();
+      html += `<li class="text-sm pl-1">${formatText(text)}</li>`;
+    } else if (trimmed.startsWith('> ')) {
+      flushParagraph();
+      flushList();
+      const text = trimmed.substring(1).trim();
+      html += `<blockquote class="border-l-4 border-gray-300 pl-4 italic my-2 text-sm ${themes[theme].text} opacity-80">${formatText(text)}</blockquote>`;
+    } else if (trimmed === '') {
+      flushParagraph();
+      flushList();
+    } else {
+      if (inList) {
+        flushList();
+      }
+      paragraph += (paragraph ? ' ' : '') + line;
+    }
+  });
+  flushParagraph();
+  flushList();
+  return html;
+};
+
+const getPhaseLabel = (phase: string | undefined) => {
+  const p = (phase || '').toLowerCase();
+  
+  if (p.includes('warning') || p.includes('alert')) return '⚠️ 警告';
+  if (p.includes('danger') || p.includes('critical') || p.includes('risk')) return '🔴 风险';
+  if (p.includes('safe') || p.includes('normal') || p.includes('secure')) return '🟢 安全';
+  
+  return '🔵 常规';
+};
+
+const getPhaseStyles = (phase: string | undefined, theme: Theme) => {
+  const p = (phase || '').toLowerCase();
+  
+  if (p.includes('warning') || p.includes('alert')) {
+     return theme === 'dark' 
+        ? 'bg-amber-900/20 border-amber-800/30' 
+        : 'bg-amber-50 border-amber-200';
+  }
+  if (p.includes('danger') || p.includes('critical') || p.includes('risk')) {
+     return theme === 'dark'
+        ? 'bg-red-900/20 border-red-800/30'
+        : 'bg-red-50 border-red-200';
+  }
+  if (p.includes('safe') || p.includes('normal') || p.includes('secure')) {
+     return theme === 'dark'
+        ? 'bg-green-900/20 border-green-800/30'
+        : 'bg-green-50 border-green-200';
+  }
+  
+  return theme === 'dark' ? 'bg-gray-800/30 border-gray-700' : 'bg-gray-50/50 border-gray-200';
+};
 
 export function ExpiryGroupCard({
   theme,
@@ -66,9 +179,14 @@ export function ExpiryGroupCard({
   userId,
   optionsData,
   optionsDataMap,
+  isExpanded,
+  onToggleExpand,
+  isTBoardExpanded,
+  onToggleTBoard,
+  analysis,
 }: ExpiryGroupCardProps) {
   const { queryPrice, prices, isConnected, connect } = useOptionPriceWebSocket();
-  const [detailsOpen, setDetailsOpen] = useState(false);
+  // State lifted to parent
   const [localState, setLocalState] = useState<{ data: OptionsData | null; symbol: string | null }>({ data: null, symbol: null });
   const { data: localOptionsData, symbol: localDataSymbol } = localState;
 
@@ -76,6 +194,8 @@ export function ExpiryGroupCard({
   const [confirmData, setConfirmData] = useState<{ ids: string[]; meta?: { action?: string; comboType?: 'call' | 'put'; strike?: number; expiry?: string; strategyIds?: string[]; category?: string; defaultComboCount?: number; perLegMaxQty?: Record<string, number>; quote?: OptionQuote; contract_code?: string; contract_code_full?: string }; title: string; description: string } | null>(null);
   const [qtyOverrides, setQtyOverrides] = useState<Record<string, number>>({});
   const basePositions = useMemo(() => filterAndSortPositions(group.single), [filterAndSortPositions, group.single]);
+  const [isReportExpanded, setIsReportExpanded] = useState(true);
+
   const filteredPositions = useMemo(() => selectedSymbol
     ? basePositions.filter(p => p.opt_undl_code_full === selectedSymbol)
     : basePositions, [selectedSymbol, basePositions]);
@@ -133,12 +253,12 @@ export function ExpiryGroupCard({
       runQuery();
 
       // Only poll when details are open or confirmation dialog is active
-      if (detailsOpen || confirmData) {
+      if (isExpanded || confirmData) {
         const interval = setInterval(runQuery, 3000);
         return () => clearInterval(interval);
       }
     }
-  }, [isConnected, codes.join(','), queryPrice, detailsOpen, confirmData]);
+  }, [isConnected, codes.join(','), queryPrice, isExpanded, confirmData]);
 
   const isSelectedPosition = (p: OptionsPosition) => {
     return !!selectedSymbol && (p.opt_undl_code_full === selectedSymbol);
@@ -288,10 +408,10 @@ export function ExpiryGroupCard({
                 <div className={`text-sm ${themes[theme].text}`}>标的价 {underlyingPrice.toFixed(2)}</div>
               )}
               <button
-                onClick={() => setDetailsOpen(!detailsOpen)}
+                onClick={onToggleExpand}
                 className={`px-3 py-1 rounded text-xs ${themes[theme].secondary}`}
               >
-                {detailsOpen ? '收起详情' : '展开详情'}
+                {isExpanded ? '收起详情' : '展开详情'}
               </button>
               <button
                 onClick={() => toggleExpirySelection(group.expiry)}
@@ -312,6 +432,36 @@ export function ExpiryGroupCard({
         </div>
       </div>
 
+      {analysis && analysis.report && (
+        <div className={`border-b ${getPhaseStyles(analysis.phase, theme)} transition-colors duration-300`}>
+           <div 
+             className="px-6 py-3 flex items-center justify-between cursor-pointer select-none"
+             onClick={() => setIsReportExpanded(!isReportExpanded)}
+           >
+             <div className="flex items-center gap-2">
+               <span className={`font-semibold text-sm ${themes[theme].text}`}>到期日分析报告</span>
+               <span className={`text-xs px-2 py-0.5 rounded-full border ${themes[theme].border} bg-white/50 dark:bg-black/20 ${themes[theme].text}`}>
+                 {getPhaseLabel(analysis.phase)}
+               </span>
+             </div>
+             {isReportExpanded ? (
+               <ChevronUp className={`w-4 h-4 ${themes[theme].text} opacity-50`} />
+             ) : (
+               <ChevronDown className={`w-4 h-4 ${themes[theme].text} opacity-50`} />
+             )}
+           </div>
+           
+           {isReportExpanded && (
+             <div className="px-6 pb-4">
+               <div 
+                 className={`prose prose-sm max-w-none ${themes[theme].text}`}
+                 dangerouslySetInnerHTML={{ __html: renderReportMarkdown(analysis.report, theme) }}
+               />
+             </div>
+           )}
+        </div>
+      )}
+
       <div className="p-6">
         <div className="space-y-4">
           {(() => {
@@ -322,10 +472,19 @@ export function ExpiryGroupCard({
               <div className="space-y-6">
                 {filteredPositions.length > 0 && (
                   <div className="mt-0">
-                    <div className="flex items-center gap-2 mb-3">
+                    <div 
+                      className="flex items-center gap-2 mb-3 cursor-pointer select-none hover:opacity-80 transition-opacity"
+                      onClick={onToggleTBoard}
+                    >
                       <div className="w-4 h-4 bg-gray-500 rounded"></div>
                       <h4 className={`text-lg font-semibold ${themes[theme].text}`}>持仓T型数量看板</h4>
+                      {isTBoardExpanded ? (
+                        <ChevronUp className={`w-4 h-4 ${themes[theme].text} opacity-50`} />
+                      ) : (
+                        <ChevronDown className={`w-4 h-4 ${themes[theme].text} opacity-50`} />
+                      )}
                     </div>
+                    {isTBoardExpanded && (
                     <div className={`${themes[theme].background} rounded-lg p-4 border ${themes[theme].border}`}>
                       {(() => {
                         const complexStrikes = (group.complex || []).flatMap(s => 
@@ -875,6 +1034,7 @@ export function ExpiryGroupCard({
                         );
                       })()}
                     </div>
+                    )}
                   </div>
                 )}
                 {advisedCombinations.length > 0 && (
@@ -904,7 +1064,7 @@ export function ExpiryGroupCard({
                     </div>
                   </div>
                 )}
-                {detailsOpen && (callPositions.length > 0 || putPositions.length > 0) && (
+                {isExpanded && (callPositions.length > 0 || putPositions.length > 0) && (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div>
                       <div className="flex items-center gap-2 mb-4">
@@ -948,14 +1108,14 @@ export function ExpiryGroupCard({
                                         })()}
                                       </span>
                                       <span className={`${themes[theme].text} opacity-75`}>
-                                        权利金: {formatCurrency(position.premium, currencyConfig)}
+                                        权利金: {formatCurrency(position.premium, currencyConfig, 4)}
                                       </span>
                                     </div>
                                   </div>
                                 </div>
                                 <div className="text-right">
                                   <div className={`text-sm font-bold ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                    {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
+                                    {position.profitLoss >= 0 ? '+' : '-'}{formatCurrency(Math.abs(position.profitLoss), currencyConfig, 4)}
                                   </div>
                                   <div className={`text-xs ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                     ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
@@ -1058,14 +1218,14 @@ export function ExpiryGroupCard({
                                         })()}
                                       </span>
                                       <span className={`${themes[theme].text} opacity-75`}>
-                                        权利金: {formatCurrency(position.premium, currencyConfig)}
+                                        权利金: {formatCurrency(position.premium, currencyConfig, 4)}
                                       </span>
                                     </div>
                                   </div>
                                 </div>
                                 <div className="text-right">
                                   <div className={`text-sm font-bold ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                    {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
+                                    {position.profitLoss >= 0 ? '+' : '-'}{formatCurrency(Math.abs(position.profitLoss), currencyConfig, 4)}
                                   </div>
                                   <div className={`text-xs ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                     ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
@@ -1128,7 +1288,7 @@ export function ExpiryGroupCard({
                   </div>
                 )}
 
-                {detailsOpen && (group.complex && group.complex.length > 0) && (
+                {isExpanded && (group.complex && group.complex.length > 0) && (
                   <div>
                     <div className="flex items-center gap-2 mb-4">
                       <div className="w-4 h-4 bg-purple-500 rounded"></div>
@@ -1154,10 +1314,10 @@ export function ExpiryGroupCard({
                               </div>
                               <div className="text-right">
                                 <div className={`text-sm font-medium ${themes[theme].text}`}>
-                                  总成本: {formatCurrency(strategy.totalCost, currencyConfig)}
+                                  总成本: {formatCurrency(strategy.totalCost, currencyConfig, 4)}
                                 </div>
                                 <div className={`text-sm ${strategy.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                  盈亏: {strategy.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(strategy.profitLoss), currencyConfig)}
+                                  盈亏: {strategy.profitLoss >= 0 ? '+' : '-'}{formatCurrency(Math.abs(strategy.profitLoss), currencyConfig, 4)}
                                 </div>
                               </div>
                             </div>
@@ -1182,7 +1342,7 @@ export function ExpiryGroupCard({
                                       </div>
                                       <div className="text-right">
                                         <div className={`text-sm font-medium ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                          {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
+                                          {position.profitLoss >= 0 ? '+' : '-'}{formatCurrency(Math.abs(position.profitLoss), currencyConfig, 4)}
                                         </div>
                                         <div className={`text-xs ${themes[theme].text} opacity-60`}>
                                           {(() => {
@@ -1193,7 +1353,7 @@ export function ExpiryGroupCard({
                                                 数量: {base}
                                                 {avail !== base ? `（${avail}）` : ''}
                                                 {' | '}
-                                                成本: {formatCurrency(position.premium * position.quantity * 100, currencyConfig)}
+                                                成本: {formatCurrency(position.premium * position.quantity * 100, currencyConfig, 4)}
                                               </>
                                             );
                                           })()}

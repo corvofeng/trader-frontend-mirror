@@ -524,6 +524,15 @@ export interface OptionsPortfolioData {
   advised_combinations?: AdvisedCombination[];
   is_snapshot?: boolean;
   subject_positions?: SubjectPosition[];
+  expiry_analysis?: Record<string, {
+    phase: string;
+    days_to_expiry: number;
+    risk_positions_count: number;
+    safe_positions_count: number;
+    strategies_count: number;
+    exercise_analysis?: any;
+    report: string;
+  }>;
 }
 export interface OptionsService {
   getOptionsData: (symbol?: string) => Promise<ServiceResponse<OptionsData>>;

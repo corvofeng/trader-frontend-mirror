@@ -4,6 +4,7 @@ import { Calendar, TrendingUp, TrendingDown, Activity, Shield, Target, Layers, C
 import { Hash } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
+import { setCookie, getCookie } from '../../../shared/utils/cookie';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { optionsService, authService, stockService } from '../../../lib/services';
 import { emitAddLegToStrategy } from '../events/strategySelection';
@@ -117,6 +118,131 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   const { isConnected, send, portfolioSnapshot, prices, queryPrice } = useOptionPriceWebSocket();
   const requestedSymbolsRef = useRef<Set<string>>(new Set());
 
+  // State for collapsible expiry groups
+  const [expandedExpiryGroups, setExpandedExpiryGroups] = useState<Record<string, boolean>>(() => {
+    const saved = getCookie('options_portfolio_expanded_groups');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  // State for collapsible T-boards (per expiry)
+  const [tBoardExpandedGroups, setTBoardExpandedGroups] = useState<Record<string, boolean>>(() => {
+    const saved = getCookie('options_portfolio_t_board_expanded');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  // State for active expiry group in viewport (ScrollSpy)
+  const [activeExpiry, setActiveExpiry] = useState<string | null>(null);
+
+  // Persist expanded groups to cookie whenever it changes
+  useEffect(() => {
+    setCookie('options_portfolio_expanded_groups', JSON.stringify(expandedExpiryGroups), 30);
+  }, [expandedExpiryGroups]);
+
+  // Persist T-board expanded states to cookie
+  useEffect(() => {
+    setCookie('options_portfolio_t_board_expanded', JSON.stringify(tBoardExpandedGroups), 30);
+  }, [tBoardExpandedGroups]);
+
+  // Restore scroll position
+  useEffect(() => {
+    const savedScrollY = getCookie('options_portfolio_scroll_y');
+    if (savedScrollY) {
+      setTimeout(() => {
+        window.scrollTo(0, parseInt(savedScrollY, 10));
+      }, 100);
+    }
+
+    const handleScroll = () => {
+      setCookie('options_portfolio_scroll_y', window.scrollY.toString(), 7);
+    };
+
+    // Debounce scroll handler
+    let timeoutId: NodeJS.Timeout;
+    const debouncedScrollHandler = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(handleScroll, 100);
+    };
+
+    window.addEventListener('scroll', debouncedScrollHandler);
+    return () => {
+      window.removeEventListener('scroll', debouncedScrollHandler);
+      clearTimeout(timeoutId);
+    };
+  }, []);
+
+  // ScrollSpy to update active expiry based on viewport
+  useEffect(() => {
+    if (!portfolioData) return;
+
+    const handleScrollSpy = () => {
+      const groups = portfolioData.expiryBuckets || portfolioData.expiryGroups || [];
+      if (groups.length === 0) return;
+
+      // Header offset + sticky nav height approx
+      // Adjust this value based on your actual header height + sticky nav height
+      const offset = 220; 
+      
+      let currentActive: string | null = null;
+      
+      // Iterate through groups to find which one is currently active
+      for (const group of groups) {
+        const el = document.getElementById(`expiry-group-${group.expiry}`);
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          // If the element's top is "above" the viewing line (offset), it's a candidate.
+          // Because we iterate in order, the last one that satisfies this condition 
+          // is the one currently "occupying" the top of the content area.
+          if (rect.top <= offset) {
+             currentActive = group.expiry;
+          } else {
+            // Once we hit a group that starts below the offset, we stop.
+            // The previous one is our active group.
+            break;
+          }
+        }
+      }
+      
+      // Fallback: if we are at the very top and no group satisfies rect.top <= offset
+      // (e.g. first group starts at 250px and offset is 220px), active is the first one.
+      if (!currentActive && groups.length > 0) {
+         currentActive = groups[0].expiry;
+      }
+
+      setActiveExpiry(prev => prev !== currentActive ? currentActive : prev);
+    };
+
+    let ticking = false;
+    const onScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          handleScrollSpy();
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
+    window.addEventListener('scroll', onScroll);
+    // Trigger once on mount/data change to set initial state
+    handleScrollSpy();
+    
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [portfolioData]);
+
+  const toggleExpiryGroup = (expiry: string) => {
+    setExpandedExpiryGroups(prev => ({
+      ...prev,
+      [expiry]: !prev[expiry]
+    }));
+  };
+
+  const toggleTBoardGroup = (expiry: string) => {
+    setTBoardExpandedGroups(prev => ({
+      ...prev,
+      [expiry]: prev[expiry] === undefined ? false : !prev[expiry] // Default is expanded (undefined), so toggle to false
+    }));
+  };
+
   // Sync prop to state
   useEffect(() => {
     if (selectedSymbol !== undefined) {
@@ -203,6 +329,22 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
           console.group('[[OptionsPortfolio Debug]] Fetched Data');
           console.log('Full Portfolio Data:', data);
           
+          if (data.expiry_analysis) {
+            console.log('--- Expiry Analysis Reports ---');
+            Object.entries(data.expiry_analysis).forEach(([expiry, analysis]) => {
+              console.group(`Analysis for ${expiry} (Phase: ${analysis.phase})`);
+              console.log('Stats:', {
+                risk: analysis.risk_positions_count,
+                safe: analysis.safe_positions_count,
+                strategies: analysis.strategies_count
+              });
+              console.log('Report Content:', analysis.report);
+              console.groupEnd();
+            });
+          } else {
+            console.warn('No expiry_analysis data found in response');
+          }
+
           if (data.expiryGroups && data.expiryGroups.length > 0) {
             console.log('--- Positions by Expiry ---');
             data.expiryGroups.forEach(group => {
@@ -291,7 +433,14 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
 
   useEffect(() => {
     if (!portfolioSnapshot) return;
-    setPortfolioData(portfolioSnapshot);
+    setPortfolioData(prev => {
+      // Preserve expiry_analysis if missing in snapshot but present in previous data
+      const analysis = portfolioSnapshot.expiry_analysis || prev.expiry_analysis;
+      return {
+        ...portfolioSnapshot,
+        expiry_analysis: analysis
+      };
+    });
   }, [portfolioSnapshot]);
 
   
@@ -1013,25 +1162,25 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
             <div className={`${themes[theme].background} rounded-lg p-4`}>
               <h3 className={`text-sm font-medium ${themes[theme].text} opacity-75`}>总金额 balance</h3>
               <p className={`text-2xl font-bold ${themes[theme].text} mt-1`}>
-                {formatCurrency(portfolioData.balance ?? 0, currencyConfig)}
+                {formatCurrency(portfolioData.balance ?? 0, currencyConfig, 4)}
               </p>
             </div>
             <div className={`${themes[theme].background} rounded-lg p-4`}>
               <h3 className={`text-sm font-medium ${themes[theme].text} opacity-75`}>可用金额 available</h3>
               <p className={`text-2xl font-bold ${themes[theme].text} mt-1`}>
-                {formatCurrency(portfolioData.available ?? 0, currencyConfig)}
+                {formatCurrency(portfolioData.available ?? 0, currencyConfig, 4)}
               </p>
             </div>
             <div className={`${themes[theme].background} rounded-lg p-4`}>
               <h3 className={`text-sm font-medium ${themes[theme].text} opacity-75`}>当前仓位盈亏 position_profit</h3>
               <p className={`text-2xl font-bold mt-1 ${(portfolioData.position_profit ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {(portfolioData.position_profit ?? 0) >= 0 ? '+' : ''}{formatCurrency(Math.abs(portfolioData.position_profit ?? 0), currencyConfig)}
+                {(portfolioData.position_profit ?? 0) >= 0 ? '+' : ''}{formatCurrency(Math.abs(portfolioData.position_profit ?? 0), currencyConfig, 4)}
               </p>
             </div>
             <div className={`${themes[theme].background} rounded-lg p-4`}>
               <h3 className={`text-sm font-medium ${themes[theme].text} opacity-75`}>当前使用保证金 real_used_margin</h3>
               <p className={`text-2xl font-bold ${themes[theme].text} mt-1`}>
-                {formatCurrency(portfolioData.real_used_margin ?? 0, currencyConfig)}
+                {formatCurrency(portfolioData.real_used_margin ?? 0, currencyConfig, 4)}
               </p>
             </div>
           </div>
@@ -1059,11 +1208,11 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
                       <span className={`text-sm ${themes[theme].text} opacity-75`}>当前价格</span>
-                      <span className={`text-sm font-medium ${themes[theme].text}`}>{pos.stock_price != null ? formatCurrency(pos.stock_price, currencyConfig) : '-'}</span>
+                      <span className={`text-sm font-medium ${themes[theme].text}`}>{pos.stock_price != null ? formatCurrency(pos.stock_price, currencyConfig, 4) : '-'}</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className={`text-sm ${themes[theme].text} opacity-75`}>持仓市值</span>
-                      <span className={`text-sm font-medium ${themes[theme].text}`}>{pos.total_stock_price != null ? formatCurrency(pos.total_stock_price, currencyConfig) : '-'}</span>
+                      <span className={`text-sm font-medium ${themes[theme].text}`}>{pos.total_stock_price != null ? formatCurrency(pos.total_stock_price, currencyConfig, 4) : '-'}</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className={`text-sm ${themes[theme].text} opacity-75`}>总持仓</span>
@@ -1211,10 +1360,10 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                                 <div className={`text-sm font-medium ${
                                   position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'
                                 }`}>
-                                  {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
+                                  {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig, 4)}
                                 </div>
                                 <div className={`text-xs ${themes[theme].text} opacity-60`}>
-                                  数量: {position.quantity} | 成本: {formatCurrency(position.premium * position.quantity * 100, currencyConfig)}
+                                  数量: {position.quantity} | 成本: {formatCurrency(position.premium * position.quantity * 100, currencyConfig, 4)}
                                 </div>
                               </div>
                             </div>
@@ -1282,7 +1431,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                                 <div className={`text-sm font-medium ${
                                   position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'
                                 }`}>
-                                  {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
+                                  {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig, 4)}
                                 </div>
                                 <div className={`text-xs ${themes[theme].text} opacity-60`}>
                                   ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
@@ -1296,11 +1445,11 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                               </div>
                               <div>
                                 <span className={`${themes[theme].text} opacity-75`}>权利金: </span>
-                                <span className={`${themes[theme].text}`}>{formatCurrency(position.premium, currencyConfig)}</span>
+                                <span className={`${themes[theme].text}`}>{formatCurrency(position.premium, currencyConfig, 4)}</span>
                               </div>
                               <div>
                                 <span className={`${themes[theme].text} opacity-75`}>当前值: </span>
-                                <span className={`${themes[theme].text}`}>{formatCurrency(position.currentValue, currencyConfig)}</span>
+                                <span className={`${themes[theme].text}`}>{formatCurrency(position.currentValue, currencyConfig, 4)}</span>
                               </div>
                             </div>
                             {position.notes && (
@@ -1365,7 +1514,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                                 <div className={`text-sm font-medium ${
                                   position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'
                                 }`}>
-                                  {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
+                                  {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig, 4)}
                                 </div>
                                 <div className={`text-xs ${themes[theme].text} opacity-60`}>
                                   ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
@@ -1379,11 +1528,11 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                               </div>
                               <div>
                                 <span className={`${themes[theme].text} opacity-75`}>权利金: </span>
-                                <span className={`${themes[theme].text}`}>{formatCurrency(position.premium, currencyConfig)}</span>
+                                <span className={`${themes[theme].text}`}>{formatCurrency(position.premium, currencyConfig, 4)}</span>
                               </div>
                               <div>
                                 <span className={`${themes[theme].text} opacity-75`}>当前值: </span>
-                                <span className={`${themes[theme].text}`}>{formatCurrency(position.currentValue, currencyConfig)}</span>
+                                <span className={`${themes[theme].text}`}>{formatCurrency(position.currentValue, currencyConfig, 4)}</span>
                               </div>
                             </div>
                             {position.notes && (
@@ -1473,13 +1622,13 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                               <p className={`text-lg font-semibold ${
                                 profitLoss >= 0 ? 'text-green-600' : 'text-red-600'
                               }`}>
-                                {profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(profitLoss), currencyConfig)}
+                                {profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(profitLoss), currencyConfig, 4)}
                               </p>
                               <p className={`text-xs ${themes[theme].text} opacity-75`}>
                                 ({profitLossPercentage >= 0 ? '+' : ''}{profitLossPercentage.toFixed(2)}%)
                               </p>
                               <p className={`text-xs ${themes[theme].text} opacity-60`}>
-                                成本: {formatCurrency(totalCost, currencyConfig)}
+                                成本: {formatCurrency(totalCost, currencyConfig, 4)}
                               </p>
                             </div>
                             {isExpanded ? (
@@ -1537,13 +1686,13 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                                       <div className={`text-sm font-medium ${
                                         adjustedProfitLoss >= 0 ? 'text-green-600' : 'text-red-600'
                                       }`}>
-                                        {adjustedProfitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(adjustedProfitLoss), currencyConfig)}
+                                        {adjustedProfitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(adjustedProfitLoss), currencyConfig, 4)}
                                       </div>
                                       <div className={`text-xs ${themes[theme].text} opacity-60`}>
-                                        成本: {formatCurrency(adjustedCost, currencyConfig)}
+                                        成本: {formatCurrency(adjustedCost, currencyConfig, 4)}
                                       </div>
                                       <div className={`text-xs ${themes[theme].text} opacity-60`}>
-                                        当前: {formatCurrency(adjustedValue, currencyConfig)}
+                                        当前: {formatCurrency(adjustedValue, currencyConfig, 4)}
                                       </div>
                                     </div>
                                   </div>
@@ -1564,46 +1713,98 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
 
       {viewMode === 'expiry' ? (
         <div className="space-y-6">
-          {(portfolioData.expiryBuckets && portfolioData.expiryBuckets.length > 0
-            ? portfolioData.expiryBuckets
-            : (portfolioData.expiryGroups || []).map(g => ({
-                expiry: g.expiry,
-                daysToExpiry: g.daysToExpiry,
-                single: g.positions,
-                complex: []
-              }))
-          ).map((group) => (
-            <ExpiryGroupCard
-              key={group.expiry}
-              theme={theme}
-              group={group}
-              statusFilter={statusFilter}
-              filterAndSortPositions={filterAndSortPositions}
-              isSelectingExpiry={isSelectingExpiry}
-              toggleExpirySelection={toggleExpirySelection}
-              openSaveModal={openSaveModal}
-              selectedLegs={selectedLegs}
-              setPositionSelected={setPositionSelected}
-              updateSelectedQuantity={updateSelectedQuantity}
-              currencyConfig={currencyConfig}
-              getDaysToExpiryColor={getDaysToExpiryColor}
-              getTypeIcon={getTypeIcon}
-              getStatusColor={getStatusColor}
-              getPositionTypeInfo2={getPositionTypeInfo2}
-              computeCombosForPositions={computeCombosForPositions}
-              allExpiryBuckets={portfolioData.expiryBuckets || []}
-              selectedSymbol={activeSymbol}
-              underlyingPrice={getCurrentUnderlyingPrice(activeSymbol)}
-              onClosePositions={handleClosePositions}
-              advisedCombinations={(portfolioData.advised_combinations || []).filter(c => c.expiry === group.expiry)}
-              onLoadAdvised={loadAdvisedCombination}
-              onExecuteAdvised={executeAdvisedCombination}
-              selectedAccountId={selectedAccountIdProp || null}
-              userId={currentUserId || null}
-              optionsData={optionsData}
-              optionsDataMap={internalOptionsDataMap}
-            />
-          ))}
+          {(() => {
+            const groups = (portfolioData.expiryBuckets && portfolioData.expiryBuckets.length > 0
+              ? portfolioData.expiryBuckets
+              : (portfolioData.expiryGroups || []).map(g => ({
+                  expiry: g.expiry,
+                  daysToExpiry: g.daysToExpiry,
+                  single: g.positions,
+                  complex: []
+                }))
+            );
+
+            return (
+              <>
+                {/* Table of Contents */}
+                <div className={`${themes[theme].card} rounded-lg p-4 mb-6 flex flex-wrap gap-3 sticky top-16 z-40 shadow-md bg-opacity-95 backdrop-blur-sm transition-all duration-200`}>
+                  <div className={`text-sm font-medium ${themes[theme].text} flex items-center mr-2`}>
+                    <Layers className="w-4 h-4 mr-1" />
+                    快速导航:
+                  </div>
+                  {groups.map(group => {
+                     // Calculate total P&L for the group
+                     const singlePL = group.single.reduce((sum, p) => sum + p.profitLoss, 0);
+                     const complexPL = group.complex.reduce((sum, s) => sum + s.profitLoss, 0);
+                     const totalPL = singlePL + complexPL;
+                     const isProfitable = totalPL >= 0;
+                     
+                     return (
+                      <button
+                        key={group.expiry}
+                        onClick={() => {
+                          const el = document.getElementById(`expiry-group-${group.expiry}`);
+                          if (el) {
+                            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-all flex items-center gap-2
+                          ${activeExpiry === group.expiry ? 'ring-2 ring-blue-500 shadow-sm scale-105' : ''}
+                          ${expandedExpiryGroups[group.expiry] 
+                            ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-300' 
+                            : `${themes[theme].background} ${themes[theme].border} ${themes[theme].text} opacity-75 hover:opacity-100`
+                          }`}
+                      >
+                        <span>{group.expiry}</span>
+                        <span className={isProfitable ? 'text-green-600' : 'text-red-600'}>
+                          {isProfitable ? '+' : ''}{formatCurrency(Math.abs(totalPL), currencyConfig, 4)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {groups.map((group) => (
+                  <div key={group.expiry} id={`expiry-group-${group.expiry}`}>
+                    <ExpiryGroupCard
+                      theme={theme}
+                      group={group}
+                      statusFilter={statusFilter}
+                      filterAndSortPositions={filterAndSortPositions}
+                      isSelectingExpiry={isSelectingExpiry}
+                      toggleExpirySelection={toggleExpirySelection}
+                      openSaveModal={openSaveModal}
+                      selectedLegs={selectedLegs}
+                      setPositionSelected={setPositionSelected}
+                      updateSelectedQuantity={updateSelectedQuantity}
+                      currencyConfig={currencyConfig}
+                      getDaysToExpiryColor={getDaysToExpiryColor}
+                      getTypeIcon={getTypeIcon}
+                      getStatusColor={getStatusColor}
+                      getPositionTypeInfo2={getPositionTypeInfo2}
+                      computeCombosForPositions={computeCombosForPositions}
+                      allExpiryBuckets={portfolioData.expiryBuckets || []}
+                      selectedSymbol={activeSymbol}
+                      underlyingPrice={getCurrentUnderlyingPrice(activeSymbol)}
+                      onClosePositions={handleClosePositions}
+                      advisedCombinations={(portfolioData.advised_combinations || []).filter(c => c.expiry === group.expiry)}
+                      onLoadAdvised={loadAdvisedCombination}
+                      onExecuteAdvised={executeAdvisedCombination}
+                      selectedAccountId={selectedAccountIdProp || null}
+                      userId={currentUserId || null}
+                      optionsData={optionsData}
+                      optionsDataMap={internalOptionsDataMap}
+                      isExpanded={!!expandedExpiryGroups[group.expiry]}
+                      onToggleExpand={() => toggleExpiryGroup(group.expiry)}
+                      isTBoardExpanded={tBoardExpandedGroups[group.expiry] !== false}
+                      onToggleTBoard={() => toggleTBoardGroup(group.expiry)}
+                      analysis={portfolioData.expiry_analysis?.[group.expiry]}
+                    />
+                  </div>
+                ))}
+              </>
+            );
+          })()}
         </div>
       ) : (
         <div className="space-y-6">
@@ -1648,13 +1849,13 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                     </div>
                     <div className="text-right">
                       <p className={`text-lg font-bold ${strategy.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {strategy.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(strategy.profitLoss), currencyConfig)}
+                        {strategy.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(strategy.profitLoss), currencyConfig, 4)}
                       </p>
                       <p className={`text-sm ${strategy.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         ({strategy.profitLossPercentage >= 0 ? '+' : ''}{strategy.profitLossPercentage.toFixed(2)}%)
                       </p>
                       <p className={`text-sm ${themes[theme].text} opacity-75 mt-1`}>
-                        当前价值: {formatCurrency(strategy.currentValue, currencyConfig)}
+                        当前价值: {formatCurrency(strategy.currentValue, currencyConfig, 4)}
                       </p>
                     </div>
                   </div>
@@ -1714,16 +1915,16 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                                                   数量: {position.quantity}
                                                 </span>
                                                 <span className={`${themes[theme].text} opacity-75`}>
-                                                  权利金: {formatCurrency(position.premium, currencyConfig)}
+                                                  权利金: {formatCurrency(position.premium, currencyConfig, 4)}
                                                 </span>
                                               </div>
                                             </div>
                                           </div>
                                           <div className="text-right">
                                             <div className={`text-sm font-bold ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                              {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
+                                              {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig, 4)}
                                             </div>
-                                              <div className={`text-xs ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            <div className={`text-xs ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                               ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
                                             </div>
                                             <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(position.status)} mt-1`}>
@@ -1813,14 +2014,14 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                                                   数量: {position.quantity}
                                                 </span>
                                                 <span className={`${themes[theme].text} opacity-75`}>
-                                                  权利金: {formatCurrency(position.premium, currencyConfig)}
+                                                  权利金: {formatCurrency(position.premium, currencyConfig, 4)}
                                                 </span>
                                               </div>
                                             </div>
                                           </div>
                                           <div className="text-right">
                                             <div className={`text-sm font-bold ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                              {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
+                                              {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig, 4)}
                                             </div>
                                             <div className={`text-xs ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                               ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
@@ -1913,16 +2114,16 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                                                 数量: {position.quantity}
                                               </span>
                                               <span className={`${themes[theme].text} opacity-75`}>
-                                                权利金: {formatCurrency(position.premium, currencyConfig)}
-                                              </span>
+                                                  权利金: {formatCurrency(position.premium, currencyConfig, 4)}
+                                                </span>
+                                              </div>
                                             </div>
                                           </div>
-                                        </div>
-                                        <div className="text-right">
-                                          <div className={`text-sm font-bold ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                            {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig)}
-                                          </div>
-                                          <div className={`text-xs ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                          <div className="text-right">
+                                            <div className={`text-sm font-bold ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                              {position.profitLoss >= 0 ? '+' : ''}{formatCurrency(Math.abs(position.profitLoss), currencyConfig, 4)}
+                                            </div>
+                                            <div className={`text-xs ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                             ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
                                           </div>
                                           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(position.status)} mt-1`}>

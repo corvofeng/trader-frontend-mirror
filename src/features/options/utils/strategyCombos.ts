@@ -11,8 +11,7 @@ export type ComboMap = Map<number, number>;
  * 
  */
 export const computeCombosForPositions = (strategy: OptionsStrategy, type: 'call' | 'put'): ComboMap => {
-  console.log('[computeCombosForPositions] Input:', { strategyName: strategy.name, type, positionsCount: strategy.positions.length });
-
+  
   // 扩展支持的策略名称列表
   const supportedStrategies = [
     '认购牛市价差策略', 
@@ -28,11 +27,9 @@ export const computeCombosForPositions = (strategy: OptionsStrategy, type: 'call
   const isSupported = supportedStrategies.some(s => strategy.name.includes(s));
 
   if (!isSupported) {
-    console.log('[computeCombosForPositions] Strategy not supported, returning empty map');
     return new Map();
   }
   if (strategy.positions[0].type !== type) {
-    console.log('[computeCombosForPositions] Type mismatch, returning empty map');
     return new Map();
   }
 
@@ -43,6 +40,5 @@ export const computeCombosForPositions = (strategy: OptionsStrategy, type: 'call
       break;
     }
   }
-  console.log('[computeCombosForPositions] Result:', combosByStrike);
   return combosByStrike;
 };
