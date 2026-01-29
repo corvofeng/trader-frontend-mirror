@@ -1756,6 +1756,10 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                      const worstPuts = analysis?.exercise_analysis?.put_obligation_count_worst ?? 0;
                      const hasObligations = worstCalls > 0 || worstPuts > 0;
                      
+                     // Calculate total margin for the group
+                     const totalMargin = group.single.reduce((sum, p) => sum + (p.margin || 0), 0) +
+                                       group.complex.reduce((sum, s) => sum + s.positions.reduce((pSum, p) => pSum + (p.margin || 0), 0), 0);
+                     
                      return (
                       <button
                         key={group.expiry}
@@ -1773,9 +1777,16 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                           }`}
                       >
                         <span>{group.expiry}</span>
-                        <span className={isProfitable ? 'text-green-600' : 'text-red-600'}>
-                          {isProfitable ? '+' : ''}{formatCurrency(Math.abs(totalPL), currencyConfig, 4)}
-                        </span>
+                        <div className="flex flex-col items-end leading-tight">
+                          <span className={isProfitable ? 'text-green-600' : 'text-red-600'}>
+                            {isProfitable ? '+' : ''}{formatCurrency(Math.abs(totalPL), currencyConfig, 4)}
+                          </span>
+                          {totalMargin > 0 && (
+                            <span className="text-[10px] opacity-75 text-amber-600 dark:text-amber-400 font-mono">
+                              保:{formatCurrency(totalMargin, currencyConfig, 0)}
+                            </span>
+                          )}
+                        </div>
                         {hasObligations && (
                            <span className={`ml-1 px-1.5 py-0.5 rounded text-[10px] font-mono border flex items-center gap-1 ${theme === 'dark' ? 'bg-red-900/30 border-red-800 text-red-300' : 'bg-red-50 border-red-200 text-red-600'}`}>
                              {worstCalls > 0 && <span>C:{worstCalls}</span>}

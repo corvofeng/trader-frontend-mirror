@@ -451,6 +451,7 @@ export interface OptionsPosition {
   leg_quantity?: number; // 该leg对应的持仓数量
   cost_price?: number; // 成本价格
   is_covered?: boolean;
+  margin?: number; // 保证金
 }
 
 // 策略腿部结构体

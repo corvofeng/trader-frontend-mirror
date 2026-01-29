@@ -208,6 +208,12 @@ export function ExpiryGroupCard({
   const totalShortCalls = analysis?.exercise_analysis?.call_obligation_count_worst ?? 0;
   const totalShortPuts = analysis?.exercise_analysis?.put_obligation_count_worst ?? 0;
 
+  // Calculate total margin for the group
+  const totalMargin = useMemo(() => {
+    return group.single.reduce((sum, p) => sum + (p.margin || 0), 0) +
+           group.complex.reduce((sum, s) => sum + s.positions.reduce((pSum, p) => pSum + (p.margin || 0), 0), 0);
+  }, [group]);
+
   // Ensure options data is available when needed (especially for adjust dialog)
   useEffect(() => {
     if (confirmData && !optionsData) {
@@ -407,6 +413,11 @@ export function ExpiryGroupCard({
               <span className={`text-sm ${themes[theme].text} opacity-75`}>
                 {filteredPositions.length} 个持仓
               </span>
+              {totalMargin > 0 && (
+                <span className={`text-sm opacity-75 text-amber-600 dark:text-amber-400 font-mono`}>
+                  保证金: {formatCurrency(totalMargin, currencyConfig, 0)}
+                </span>
+              )}
               {(totalShortCalls > 0 || totalShortPuts > 0) && (
                 <div className={`flex items-center gap-2 px-2 py-0.5 rounded text-xs border ${theme === 'dark' ? 'bg-red-900/20 border-red-800/30' : 'bg-red-50 border-red-200'}`}>
                   <span className={`font-medium ${theme === 'dark' ? 'text-red-400' : 'text-red-600'}`}>最大义务:</span>
