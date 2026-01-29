@@ -1246,66 +1246,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         </div>
       )}
 
-      {/* Controls */}
-      <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
-        <div className="p-6">
-          <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <label className={`text-sm font-medium ${themes[theme].text}`}>
-                  视图:
-                </label>
-                <select
-                  value={viewMode}
-                  onChange={(e) => setViewMode(e.target.value as 'expiry' | 'strategy' | 'grouped')}
-                  className={`px-3 py-2 rounded-md text-sm ${themes[theme].input} ${themes[theme].text}`}
-                >
-                  <option value="expiry">按到期日</option>
-                  <option value="strategy">按策略</option>
-                  <option value="grouped">策略分组</option>
-                </select>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <label className={`text-sm font-medium ${themes[theme].text}`}>
-                  状态:
-                </label>
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-                  className={`px-3 py-2 rounded-md text-sm ${themes[theme].input} ${themes[theme].text}`}
-                >
-                  <option value="all">全部</option>
-                  <option value="open">持仓中</option>
-                  <option value="closed">已平仓</option>
-                  <option value="expired">已到期</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <label className={`text-sm font-medium ${themes[theme].text}`}>
-                排序:
-              </label>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-                className={`px-3 py-2 rounded-md text-sm ${themes[theme].input} ${themes[theme].text}`}
-              >
-                <option value="expiry">到期日</option>
-                <option value="profitLoss">盈亏</option>
-                <option value="symbol">标的</option>
-              </select>
-              <button
-                onClick={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
-                className={`px-3 py-2 rounded-md text-sm ${themes[theme].secondary}`}
-              >
-                {sortDirection === 'asc' ? '↑' : '↓'}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* Controls - REMOVED */}
 
       {/* Portfolio Content */}
       {viewMode === 'grouped' && (
