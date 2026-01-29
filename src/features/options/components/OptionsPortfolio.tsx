@@ -323,9 +323,21 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
           setIsLoading(false);
           return;
         }
-        const { data, error } = await optionsService.getOptionsPortfolio(userId, selectedAccountIdProp || null);
+
+        const [portfolioRes, analysisRes] = await Promise.all([
+          optionsService.getOptionsPortfolio(userId, selectedAccountIdProp || null),
+          optionsService.getPortfolioAnalysis(userId, selectedAccountIdProp || null)
+        ]);
+
+        const { data, error } = portfolioRes;
+        
         if (error) throw error;
         if (data) {
+          // Merge analysis data if available
+          if (analysisRes.data) {
+            data.expiry_analysis = analysisRes.data;
+          }
+
           console.group('[[OptionsPortfolio Debug]] Fetched Data');
           console.log('Full Portfolio Data:', data);
           

@@ -251,6 +251,23 @@ export const optionsService: OptionsService = {
     }
   },
 
+  getPortfolioAnalysis: async (userId: string, accountId?: string | null) => {
+    try {
+      const path = accountId ? `/api/options/portfolio/${accountId}/analysis` : `/api/options/portfolio/${userId}/analysis`;
+      const response = await fetch(path);
+      if (!response.ok) {
+        throw new Error('Failed to fetch portfolio analysis');
+      }
+      const data = await response.json();
+      console.log('[[OptionsService Debug]] Analysis Response:', data);
+      // Backend might return { expiry_analysis: ... } or just the map
+      return { data: data.expiry_analysis || data, error: null };
+    } catch (error) {
+      console.error('Error fetching portfolio analysis:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
   getAvailableStrategies: async () => {
     try {
       const response = await fetch('/api/options/strategies');
