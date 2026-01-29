@@ -527,13 +527,35 @@ export interface OptionsPortfolioData {
   expiry_analysis?: Record<string, ExpiryAnalysisReport>;
 }
 
+export interface ExerciseAnalysis {
+  call_covered_count: number;
+  call_covered_positions: any[];
+  call_covered_stock_to_deliver: number;
+  call_obligation_count: number;
+  call_obligation_count_worst: number;
+  call_obligation_positions: any[];
+  call_obligation_stock_required: number;
+  call_obligation_stock_required_worst: number;
+  put_obligation_avg_price: number;
+  put_obligation_avg_price_worst: number;
+  put_obligation_cash_required: number;
+  put_obligation_cash_required_worst: number;
+  put_obligation_count: number;
+  put_obligation_count_worst: number;
+  put_obligation_positions: any[];
+  put_obligation_stock_to_buy: number;
+  put_obligation_stock_to_buy_worst: number;
+  total_exercise_count: number;
+  total_exercise_count_worst: number;
+}
+
 export interface ExpiryAnalysisReport {
   phase: string;
   days_to_expiry: number;
   risk_positions_count: number;
   safe_positions_count: number;
   strategies_count: number;
-  exercise_analysis?: any;
+  exercise_analysis?: ExerciseAnalysis;
   report: string;
 }
 

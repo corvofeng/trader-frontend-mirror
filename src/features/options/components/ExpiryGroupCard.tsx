@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { format } from 'date-fns';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, PanelRightClose, PanelRightOpen, X } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
 import type { OptionsPosition, OptionsStrategy, AdvisedCombination, OptionsData, OptionQuote, CurrencyConfig } from '../../../lib/services/types';
@@ -47,7 +47,10 @@ interface ExpiryGroupCardProps {
     risk_positions_count: number;
     safe_positions_count: number;
     strategies_count: number;
-    exercise_analysis?: any;
+    exercise_analysis?: {
+      call_obligation_count_worst: number;
+      put_obligation_count_worst: number;
+    };
     report: string;
   };
 }
@@ -194,12 +197,16 @@ export function ExpiryGroupCard({
   const [confirmData, setConfirmData] = useState<{ ids: string[]; meta?: { action?: string; comboType?: 'call' | 'put'; strike?: number; expiry?: string; strategyIds?: string[]; category?: string; defaultComboCount?: number; perLegMaxQty?: Record<string, number>; quote?: OptionQuote; contract_code?: string; contract_code_full?: string }; title: string; description: string } | null>(null);
   const [qtyOverrides, setQtyOverrides] = useState<Record<string, number>>({});
   const basePositions = useMemo(() => filterAndSortPositions(group.single), [filterAndSortPositions, group.single]);
-  const [isReportExpanded, setIsReportExpanded] = useState(true);
+  const [showAnalysisDrawer, setShowAnalysisDrawer] = useState(false);
 
   const filteredPositions = useMemo(() => selectedSymbol
     ? basePositions.filter(p => p.opt_undl_code_full === selectedSymbol)
     : basePositions, [selectedSymbol, basePositions]);
   const hasPositions = filteredPositions.length > 0;
+
+  // Use worst-case exercise quantities from analysis report
+  const totalShortCalls = analysis?.exercise_analysis?.call_obligation_count_worst ?? 0;
+  const totalShortPuts = analysis?.exercise_analysis?.put_obligation_count_worst ?? 0;
 
   // Ensure options data is available when needed (especially for adjust dialog)
   useEffect(() => {
@@ -400,12 +407,40 @@ export function ExpiryGroupCard({
               <span className={`text-sm ${themes[theme].text} opacity-75`}>
                 {filteredPositions.length} 个持仓
               </span>
+              {(totalShortCalls > 0 || totalShortPuts > 0) && (
+                <div className={`flex items-center gap-2 px-2 py-0.5 rounded text-xs border ${theme === 'dark' ? 'bg-red-900/20 border-red-800/30' : 'bg-red-50 border-red-200'}`}>
+                  <span className={`font-medium ${theme === 'dark' ? 'text-red-400' : 'text-red-600'}`}>最大义务:</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`${themes[theme].text} font-mono`}>
+                      <span className="opacity-70 mr-0.5">C</span>
+                      <span className="font-bold">{totalShortCalls}</span>
+                    </span>
+                    <span className={`w-px h-3 ${theme === 'dark' ? 'bg-red-800' : 'bg-red-200'}`}></span>
+                    <span className={`${themes[theme].text} font-mono`}>
+                      <span className="opacity-70 mr-0.5">P</span>
+                      <span className="font-bold">{totalShortPuts}</span>
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           <div className="text-right">
             <div className="mt-2 flex items-center justify-end gap-2">
               {selectedSymbol && underlyingPrice != null && (
                 <div className={`text-sm ${themes[theme].text}`}>标的价 {underlyingPrice.toFixed(2)}</div>
+              )}
+              {analysis && analysis.report && (
+                <button
+                  onClick={() => setShowAnalysisDrawer(true)}
+                  className={`flex items-center gap-1 px-3 py-1 rounded text-xs ${getPhaseStyles(analysis.phase, theme)} transition-colors`}
+                >
+                  <PanelRightOpen className="w-3 h-3" />
+                  <span>查看分析报告</span>
+                  <span className={`ml-1 text-[10px] px-1.5 py-0.5 rounded-full border ${themes[theme].border} bg-white/50 dark:bg-black/20`}>
+                    {getPhaseLabel(analysis.phase)}
+                  </span>
+                </button>
               )}
               <button
                 onClick={onToggleExpand}
@@ -432,33 +467,58 @@ export function ExpiryGroupCard({
         </div>
       </div>
 
-      {analysis && analysis.report && (
-        <div className={`border-b ${getPhaseStyles(analysis.phase, theme)} transition-colors duration-300`}>
-           <div 
-             className="px-6 py-3 flex items-center justify-between cursor-pointer select-none"
-             onClick={() => setIsReportExpanded(!isReportExpanded)}
-           >
-             <div className="flex items-center gap-2">
-               <span className={`font-semibold text-sm ${themes[theme].text}`}>到期日分析报告</span>
-               <span className={`text-xs px-2 py-0.5 rounded-full border ${themes[theme].border} bg-white/50 dark:bg-black/20 ${themes[theme].text}`}>
-                 {getPhaseLabel(analysis.phase)}
-               </span>
-             </div>
-             {isReportExpanded ? (
-               <ChevronUp className={`w-4 h-4 ${themes[theme].text} opacity-50`} />
-             ) : (
-               <ChevronDown className={`w-4 h-4 ${themes[theme].text} opacity-50`} />
-             )}
-           </div>
-           
-           {isReportExpanded && (
-             <div className="px-6 pb-4">
-               <div 
-                 className={`prose prose-sm max-w-none ${themes[theme].text}`}
-                 dangerouslySetInnerHTML={{ __html: renderReportMarkdown(analysis.report, theme) }}
-               />
-             </div>
-           )}
+      {/* Analysis Drawer */}
+      {showAnalysisDrawer && analysis && (
+        <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/30 backdrop-blur-sm transition-opacity" 
+            onClick={() => setShowAnalysisDrawer(false)}
+          />
+          
+          {/* Drawer Panel */}
+          <div className={`relative w-full max-w-md h-full shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col ${themes[theme].card}`}>
+            {/* Header */}
+            <div className={`flex items-center justify-between p-4 border-b ${themes[theme].border} ${getPhaseStyles(analysis.phase, theme)}`}>
+              <div className="flex items-center gap-2">
+                <h3 className={`font-semibold ${themes[theme].text}`}>到期日分析报告</h3>
+                <span className={`text-xs px-2 py-0.5 rounded-full border ${themes[theme].border} bg-white/50 dark:bg-black/20 ${themes[theme].text}`}>
+                  {getPhaseLabel(analysis.phase)}
+                </span>
+              </div>
+              <button 
+                onClick={() => setShowAnalysisDrawer(false)}
+                className={`p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors ${themes[theme].text}`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+               <div className="mb-6">
+                 <h4 className={`text-xs font-semibold uppercase tracking-wider mb-3 ${themes[theme].text} opacity-60`}>统计数据</h4>
+                 <div className="grid grid-cols-3 gap-3">
+                    <div className={`p-3 rounded border ${themes[theme].border} bg-red-50 dark:bg-red-900/10`}>
+                      <div className="text-xs text-red-600 dark:text-red-400 mb-1">风险持仓</div>
+                      <div className={`text-xl font-bold ${themes[theme].text}`}>{analysis.risk_positions_count}</div>
+                    </div>
+                    <div className={`p-3 rounded border ${themes[theme].border} bg-green-50 dark:bg-green-900/10`}>
+                      <div className="text-xs text-green-600 dark:text-green-400 mb-1">安全持仓</div>
+                      <div className={`text-xl font-bold ${themes[theme].text}`}>{analysis.safe_positions_count}</div>
+                    </div>
+                    <div className={`p-3 rounded border ${themes[theme].border} ${themes[theme].background}`}>
+                      <div className={`text-xs ${themes[theme].text} opacity-70 mb-1`}>策略组合</div>
+                      <div className={`text-xl font-bold ${themes[theme].text}`}>{analysis.strategies_count}</div>
+                    </div>
+                 </div>
+               </div>
+
+               <div className="prose prose-sm max-w-none">
+                 <div dangerouslySetInnerHTML={{ __html: renderReportMarkdown(analysis.report, theme) }} />
+               </div>
+            </div>
+          </div>
         </div>
       )}
 

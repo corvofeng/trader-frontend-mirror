@@ -1750,6 +1750,11 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                      const complexPL = group.complex.reduce((sum, s) => sum + s.profitLoss, 0);
                      const totalPL = singlePL + complexPL;
                      const isProfitable = totalPL >= 0;
+
+                     const analysis = portfolioData.expiry_analysis?.[group.expiry];
+                     const worstCalls = analysis?.exercise_analysis?.call_obligation_count_worst ?? 0;
+                     const worstPuts = analysis?.exercise_analysis?.put_obligation_count_worst ?? 0;
+                     const hasObligations = worstCalls > 0 || worstPuts > 0;
                      
                      return (
                       <button
@@ -1771,12 +1776,19 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                         <span className={isProfitable ? 'text-green-600' : 'text-red-600'}>
                           {isProfitable ? '+' : ''}{formatCurrency(Math.abs(totalPL), currencyConfig, 4)}
                         </span>
+                        {hasObligations && (
+                           <span className={`ml-1 px-1.5 py-0.5 rounded text-[10px] font-mono border flex items-center gap-1 ${theme === 'dark' ? 'bg-red-900/30 border-red-800 text-red-300' : 'bg-red-50 border-red-200 text-red-600'}`}>
+                             {worstCalls > 0 && <span>C:{worstCalls}</span>}
+                             {worstPuts > 0 && <span>P:{worstPuts}</span>}
+                           </span>
+                        )}
                       </button>
                     );
                   })}
                 </div>
 
-                {groups.map((group) => (
+                {groups.map((group) => {
+                  return (
                   <div key={group.expiry} id={`expiry-group-${group.expiry}`}>
                     <ExpiryGroupCard
                       theme={theme}
@@ -1813,7 +1825,8 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                       analysis={portfolioData.expiry_analysis?.[group.expiry]}
                     />
                   </div>
-                ))}
+                );
+                })}
               </>
             );
           })()}
