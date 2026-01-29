@@ -439,7 +439,7 @@ export function ExpiryGroupCard({
           <div className="text-right">
             <div className="mt-2 flex items-center justify-end gap-2">
               {selectedSymbol && underlyingPrice != null && (
-                <div className={`text-sm ${themes[theme].text}`}>标的价 {underlyingPrice.toFixed(2)}</div>
+                <div className={`text-sm ${themes[theme].text}`}>标的价 {underlyingPrice.toFixed(4)}</div>
               )}
               {analysis && analysis.report && (
                 <button

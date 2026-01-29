@@ -1163,7 +1163,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
               </div>
               {activeSymbol && getCurrentUnderlyingPrice(activeSymbol) != null && (
                 <div className="flex items-center gap-3">
-            <span className={`text-sm ${themes[theme].text}`}>当前价 {getCurrentUnderlyingPrice(activeSymbol)!.toFixed(2)}</span>
+            <span className={`text-sm ${themes[theme].text}`}>当前价 {getCurrentUnderlyingPrice(activeSymbol)!.toFixed(4)}</span>
           </div>
               )}
             </div>
