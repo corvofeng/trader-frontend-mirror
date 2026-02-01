@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import { ChevronDown, ChevronUp, PanelRightClose, PanelRightOpen, X } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
-import type { OptionsPosition, OptionsStrategy, AdvisedCombination, OptionsData, OptionQuote, CurrencyConfig } from '../../../lib/services/types';
+import type { OptionsPosition, OptionsStrategy, AdvisedCombination, OptionsData, OptionQuote, CurrencyConfig, OptionWhitelist } from '../../../lib/services/types';
 import { optionsService } from '../../../lib/services';
 import { logger } from '../../../shared/utils/logger';
 import toast from 'react-hot-toast';
@@ -53,6 +53,7 @@ interface ExpiryGroupCardProps {
     };
     report: string;
   };
+  whitelists?: OptionWhitelist[];
 }
 
 const renderReportMarkdown = (raw: string, theme: Theme) => {
@@ -187,6 +188,7 @@ export function ExpiryGroupCard({
   isTBoardExpanded,
   onToggleTBoard,
   analysis,
+  whitelists = []
 }: ExpiryGroupCardProps) {
   const { queryPrice, prices, isConnected, connect } = useOptionPriceWebSocket();
   // State lifted to parent
@@ -1609,6 +1611,27 @@ export function ExpiryGroupCard({
                     </div>
                   );
               })()}
+              {(() => {
+                  const s = Number(confirmData.meta?.strike || 0);
+                  const c = String(confirmData.meta?.category || '');
+                  const ids = collectIdsForCategory(c, s);
+                  const pos = filteredPositions.find(p => p.id === ids[0]);
+                  if (pos?.contract_code || pos?.contract_code_full) {
+                    const code = pos.contract_code_full || pos.contract_code;
+                    const wl = whitelists.find(w => w.contract_code === pos.contract_code || (pos.contract_code_full && w.contract_code === pos.contract_code_full));
+                    return (
+                      <div className={`text-xs ${themes[theme].text} mb-2 flex items-center gap-2`}>
+                        <span className="opacity-75">Code: {code}</span>
+                        {wl && (
+                           <span className="text-amber-500 font-medium text-[10px] border border-amber-500/30 px-1 rounded bg-amber-500/10">
+                             ⚠️ 计划执行: {wl.reason} {wl.quantity ? `(${wl.quantity})` : ''}
+                           </span>
+                        )}
+                      </div>
+                    );
+                  }
+                  return null;
+              })()}
               <div className="flex items-center justify-between gap-2">
                 <div className={`text-xs ${themes[theme].text}`}>目标数量</div>
                 <div className="flex items-center gap-2">
@@ -1635,7 +1658,23 @@ export function ExpiryGroupCard({
                   <div key={`confirm-pos-${id}`} className="flex flex-col gap-2">
                     <div className="flex items-center justify-between gap-2">
                       <div className={`text-xs ${themes[theme].text}`}>
-                        {pos ? `${pos.symbol} ${pos.strike} ${pos.type.toUpperCase()} ${pos.position_type === 'buy' ? '权利' : (pos.position_type_zh === '备兑' ? '备兑' : '义务')}` : id}
+                        <div>{pos ? `${pos.symbol} ${pos.strike} ${pos.type.toUpperCase()} ${pos.position_type === 'buy' ? '权利' : (pos.position_type_zh === '备兑' ? '备兑' : '义务')}` : id}</div>
+                        {(pos?.contract_code || pos?.contract_code_full) && (
+                          <div className="mt-0.5 flex items-center gap-2">
+                             <span className="opacity-75">Code: {pos.contract_code_full || pos.contract_code}</span>
+                             {(() => {
+                               const wl = whitelists.find(w => w.contract_code === pos.contract_code || (pos.contract_code_full && w.contract_code === pos.contract_code_full));
+                               if (wl) {
+                                 return (
+                                   <span className="text-amber-500 font-medium text-[10px] border border-amber-500/30 px-1 rounded bg-amber-500/10">
+                                     ⚠️ 计划执行: {wl.reason} {wl.quantity ? `(${wl.quantity})` : ''}
+                                   </span>
+                                 );
+                               }
+                               return null;
+                             })()}
+                          </div>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <input

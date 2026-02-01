@@ -1,4 +1,4 @@
-import type { OptionsService, OptionsPosition, OptionsPortfolioData, OptionsStrategy } from '../types';
+import type { OptionsService, OptionsPosition, OptionsPortfolioData, OptionsStrategy, OptionWhitelist, OptionContractDetail } from '../types';
 import type { CustomOptionsStrategy } from '../types';
 
 // Helper to adapt backend response to OptionsPortfolioData
@@ -179,6 +179,22 @@ const adaptToPortfolioData = (data: any): OptionsPortfolioData => {
 const optionsDataCache: Record<string, Promise<{ data: unknown; error: Error | null }>> = {};
 
 export const optionsService: OptionsService = {
+  getOptionContractDetail: async (contractCode: string) => {
+    try {
+      const response = await fetch(`https://stock.in.corvo.fun/api/option-contract/detail/${contractCode}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch option contract detail');
+      }
+      const result = await response.json();
+      if (!result.success || !result.data) {
+        throw new Error('Invalid response from option contract API');
+      }
+      return { data: result.data, error: null };
+    } catch (error) {
+      console.error('Error fetching option contract detail:', error);
+      return { data: null, error: error as Error };
+    }
+  },
   getOptionsData: async (symbol?: string) => {
     const cacheKey = symbol || '__default__';
     
@@ -472,6 +488,108 @@ export const optionsService: OptionsService = {
       return { data, error: null };
     } catch (error) {
       console.error('Error refreshing ratio spread plan:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  getWhitelists: async (userId: string, accountId?: string | null) => {
+    try {
+      if (!accountId) {
+        // Return empty if no account alias provided, as it is required for the URL
+        return { data: [], error: null };
+      }
+      
+      const params = new URLSearchParams();
+      if (userId) params.set('userId', userId);
+      
+      const response = await fetch(`/api/option-whitelist/${encodeURIComponent(accountId)}/list?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch whitelists');
+      }
+      const data = await response.json();
+      // Ensure data is an array
+      const whitelists = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : (Array.isArray(data.list) ? data.list : []));
+      return { data: whitelists, error: null };
+    } catch (error) {
+      console.error('Error fetching whitelists:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  addWhitelist: async (whitelist: Omit<OptionWhitelist, 'id' | 'created_at'>, userId: string, accountId?: string | null) => {
+    try {
+      if (!accountId) {
+        throw new Error('Account alias is required to add whitelist');
+      }
+
+      const params = new URLSearchParams();
+      if (userId) params.set('userId', userId);
+
+      const response = await fetch(`/api/option-whitelist/${encodeURIComponent(accountId)}/add?${params.toString()}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(whitelist)
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to add whitelist');
+      }
+      
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error adding whitelist:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  updateWhitelist: async (id: string | number, whitelist: Partial<OptionWhitelist>, userId: string, accountId?: string | null) => {
+    try {
+      if (!accountId) {
+        throw new Error('Account alias is required to update whitelist');
+      }
+
+      const params = new URLSearchParams();
+      if (userId) params.set('userId', userId);
+
+      const response = await fetch(`/api/option-whitelist/${encodeURIComponent(accountId)}/update/${id}?${params.toString()}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(whitelist)
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update whitelist');
+      }
+      
+      const data = await response.json();
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error updating whitelist:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  deleteWhitelist: async (id: string | number, userId: string, accountId?: string | null) => {
+    try {
+      if (!accountId) {
+        throw new Error('Account alias is required to delete whitelist');
+      }
+
+      const params = new URLSearchParams();
+      if (userId) params.set('userId', userId);
+
+      const response = await fetch(`/api/option-whitelist/${encodeURIComponent(accountId)}/delete/${id}?${params.toString()}`, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete whitelist');
+      }
+      
+      return { data: null, error: null };
+    } catch (error) {
+      console.error('Error deleting whitelist:', error);
       return { data: null, error: error as Error };
     }
   }

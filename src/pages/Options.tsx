@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { logger } from '../shared/utils/logger';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { BarChart2, TrendingUp, Briefcase, Calculator, RefreshCw } from 'lucide-react';
+import { BarChart2, TrendingUp, Briefcase, Calculator, RefreshCw, Shield } from 'lucide-react';
 import { Theme, themes } from '../lib/theme';
 import { OptionsChain } from '../features/options/components/OptionsChain';
 import { TimeValueChart } from '../features/options/components/TimeValueChart';
@@ -13,6 +13,7 @@ import { OptionsCalculatorModal } from './options/OptionsCalculatorModal';
 import { RelatedLinks, AccountSelector } from '../shared/components';
 import { optionsService, authService } from '../lib/services';
 import { OptionsPortfolioManagement } from '../features/options/components/OptionsPortfolioManagement';
+import { OptionWhitelistManager } from '../features/options/components/OptionWhitelistManager';
 import type { OptionsData } from '../lib/services/types';
 import { OptionPriceWebSocketProvider } from '../features/options/context/OptionPriceWebSocketContext';
 import { TabNavigation } from './Journal/components/TabNavigation';
@@ -21,7 +22,7 @@ interface OptionsProps {
   theme: Theme;
 }
 
-type OptionsTab = 'data' | 'portfolio' | 'trading' | 'management';
+type OptionsTab = 'data' | 'portfolio' | 'trading' | 'management' | 'whitelist';
 
 export function Options({ theme }: OptionsProps) {
   const location = useLocation();
@@ -29,7 +30,7 @@ export function Options({ theme }: OptionsProps) {
   const [activeTab, setActiveTab] = useState<OptionsTab>(() => {
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab') as OptionsTab;
-    return tab && ['data', 'portfolio', 'trading', 'management'].includes(tab) ? tab : 'data';
+    return tab && ['data', 'portfolio', 'trading', 'management', 'whitelist'].includes(tab) ? tab : 'data';
   });
 
   const [availableSymbols, setAvailableSymbols] = useState<string[]>([]);
@@ -148,6 +149,7 @@ export function Options({ theme }: OptionsProps) {
     { id: 'portfolio' as OptionsTab, name: 'Portfolio', icon: Briefcase },
     { id: 'trading' as OptionsTab, name: 'Trade Plans', icon: TrendingUp },
     { id: 'management' as OptionsTab, name: 'Portfolio Management', icon: Calculator },
+    { id: 'whitelist' as OptionsTab, name: 'Whitelist', icon: Shield },
   ];
 
   return (
@@ -334,6 +336,21 @@ export function Options({ theme }: OptionsProps) {
             <RelatedLinks 
               theme={theme}
               currentPath="/options?tab=management" 
+              maxItems={4}
+            />
+          </div>
+        )}
+
+        {activeTab === 'whitelist' && (
+          <div className="space-y-6">
+            <OptionWhitelistManager 
+              theme={theme} 
+              userId={effectiveUserId} 
+              accountId={selectedAccountId}
+            />
+            <RelatedLinks 
+              theme={theme}
+              currentPath="/options?tab=whitelist" 
               maxItems={4}
             />
           </div>

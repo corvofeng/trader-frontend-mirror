@@ -1,4 +1,4 @@
-import type { OptionsService, OptionsPortfolioData, OptionsPosition, OptionsStrategy, RatioSpreadPlanResult } from '../types';
+import type { OptionsService, OptionsPortfolioData, OptionsPosition, OptionsStrategy, RatioSpreadPlanResult, OptionWhitelist, ServiceResponse, AdvisedCombination } from '../types';
 import type { CustomOptionsStrategy } from '../types';
 
 // 支持的期权标的列表
@@ -671,6 +671,24 @@ function calculateMaxReward(strategy: string, positions: OptionsPosition[]): num
 }
 
 export const optionsService: OptionsService = {
+  getOptionContractDetail: async (contractCode: string) => {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return {
+      data: {
+        contract_code: contractCode,
+        contract_name: 'Mock Contract',
+        contract_unit: 10000,
+        strike_price: 1.45,
+        raw_data: {
+          optType: 'CALL',
+          ExpireDate: 20260225,
+          InstrumentName: 'Mock Instrument',
+          OptExercisePrice: 1.45
+        }
+      },
+      error: null
+    };
+  },
   getOptionsData: async (symbol?: string) => {
     await new Promise(resolve => setTimeout(resolve, 1000));
     
@@ -912,6 +930,73 @@ export const optionsService: OptionsService = {
       leverage: Math.max(0, (plan.leverage ?? 0) + (Math.random() - 0.5) * 0.2),
     };
     return { data: refreshed, error: null };
+  },
+  
+  getWhitelists: async (userId: string, accountId?: string | null): Promise<ServiceResponse<OptionWhitelist[]>> => {
+    console.log('Mock getWhitelists called', userId, accountId);
+    return {
+      data: [
+        {
+          id: 1,
+          account_id: 'mock_account',
+          contract_code: 'AAPL_20250101_C_150',
+          expiry_month: '202501',
+          option_type: 'call',
+          strike_price: 150,
+          position_side: 'short',
+          reason: 'hedge',
+          notes: 'Mock whitelist item',
+          is_active: true,
+          created_at: new Date().toISOString()
+        }
+      ],
+      error: null
+    };
+  },
+
+  addWhitelist: async (whitelist: Omit<OptionWhitelist, 'id' | 'created_at'>, userId: string, accountId?: string | null): Promise<ServiceResponse<OptionWhitelist>> => {
+    console.log('Mock addWhitelist called', whitelist, userId, accountId);
+    return {
+      data: {
+        ...whitelist,
+        id: Math.floor(Math.random() * 1000),
+        created_at: new Date().toISOString()
+      },
+      error: null
+    };
+  },
+
+  updateWhitelist: async (id: string | number, whitelist: Partial<OptionWhitelist>, userId: string, accountId?: string | null): Promise<ServiceResponse<OptionWhitelist>> => {
+    console.log('Mock updateWhitelist called', id, whitelist, userId, accountId);
+    return {
+      data: {
+        id: Number(id),
+        account_id: accountId || 'mock_account',
+        contract_code: whitelist.contract_code || 'MOCK_CODE',
+        expiry_month: whitelist.expiry_month || '202501',
+        option_type: whitelist.option_type || 'call',
+        strike_price: whitelist.strike_price || 100,
+        position_side: whitelist.position_side || 'short',
+        reason: whitelist.reason || 'manual',
+        is_active: true,
+        ...whitelist,
+        updated_at: new Date().toISOString()
+      },
+      error: null
+    };
+  },
+
+  deleteWhitelist: async (id: string | number, userId: string, accountId?: string | null): Promise<ServiceResponse<void>> => {
+    console.log('Mock deleteWhitelist called', id, userId, accountId);
+    return {
+      data: null,
+      error: null
+    };
+  },
+
+  getPortfolioAnalysis: async () => {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return { data: {}, error: null };
   }
 };
 

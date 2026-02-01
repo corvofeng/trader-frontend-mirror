@@ -560,8 +560,53 @@ export interface ExpiryAnalysisReport {
   report: string;
 }
 
+export interface OptionWhitelist {
+  id: number;
+  account_id: string;
+  account_alias?: string;
+  contract_code: string;
+  contract_name?: string;
+  underlying_code?: string;
+  expiry_month: string;
+  expiry_date?: string;
+  option_type: string;
+  strike_price: number;
+  position_side: string;
+  quantity?: number;
+  reason: string;
+  notes?: string;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+  created_by?: string;
+  option_detail?: {
+    contract_name: string;
+    expiry_date: string;
+    option_type: string;
+    strike_price: number;
+    underlying_code: string;
+    underlying_name?: string;
+  };
+}
+
+export interface OptionContractDetail {
+  contract_code: string;
+  contract_name: string;
+  contract_unit: number;
+  strike_price: number;
+  raw_data: {
+    optType: string;
+    ExpireDate: number;
+    InstrumentName: string;
+    OptExercisePrice: number;
+    [key: string]: any;
+  };
+  [key: string]: any;
+}
+
 export interface OptionsService {
   getOptionsData: (symbol?: string) => Promise<ServiceResponse<OptionsData>>;
+  getOptionContractDetail: (contractCode: string) => Promise<ServiceResponse<OptionContractDetail>>;
   getAvailableSymbols: () => Promise<ServiceResponse<string[]>>;
   getOptionsPortfolio: (userId: string, accountId?: string | null) => Promise<ServiceResponse<OptionsPortfolioData>>;
   getPortfolioAnalysis: (userId: string, accountId?: string | null) => Promise<ServiceResponse<Record<string, ExpiryAnalysisReport>>>;
@@ -594,6 +639,10 @@ export interface OptionsService {
     accountId?: string | null,
     userId?: string | null
   ) => Promise<ServiceResponse<{ closedIds: string[] }>>;
+  getWhitelists: (userId: string, accountId?: string | null) => Promise<ServiceResponse<OptionWhitelist[]>>;
+  addWhitelist: (whitelist: Omit<OptionWhitelist, 'id' | 'created_at'>, userId: string, accountId?: string | null) => Promise<ServiceResponse<OptionWhitelist>>;
+  updateWhitelist: (id: string | number, whitelist: Partial<OptionWhitelist>, userId: string, accountId?: string | null) => Promise<ServiceResponse<OptionWhitelist>>;
+  deleteWhitelist: (id: string | number, userId: string, accountId?: string | null) => Promise<ServiceResponse<void>>;
 }
 
 export interface CustomOptionsStrategy {

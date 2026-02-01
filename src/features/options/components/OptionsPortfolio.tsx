@@ -9,7 +9,7 @@ import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { optionsService, authService, stockService } from '../../../lib/services';
 import { emitAddLegToStrategy } from '../events/strategySelection';
 import { logger } from '../../../shared/utils/logger';
-import type { OptionsPortfolioData, CustomOptionsStrategy, OptionsPosition, OptionsStrategy, AdvisedCombination, OptionsData } from '../../../lib/services/types';
+import type { OptionsPortfolioData, CustomOptionsStrategy, OptionsPosition, OptionsStrategy, AdvisedCombination, OptionsData, OptionWhitelist } from '../../../lib/services/types';
 import { computeCombosForPositions as computeCombosForStrategy } from '../utils/strategyCombos';
 import toast from 'react-hot-toast';
 import { ExpiryGroupCard } from './ExpiryGroupCard';
@@ -90,6 +90,7 @@ const getPositionTypeInfo2 = (positionType: string, optionType: string, position
 
 export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdProp, refreshKey = 0, optionsData, selectedSymbol }: OptionsPortfolioProps) {
   const [portfolioData, setPortfolioData] = useState<OptionsPortfolioData | null>(null);
+  const [whitelists, setWhitelists] = useState<OptionWhitelist[]>([]);
   const [customStrategies, setCustomStrategies] = useState<CustomOptionsStrategy[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   // Use prop directly to avoid stale state during refresh
@@ -324,9 +325,10 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
           return;
         }
 
-        const [portfolioRes, analysisRes] = await Promise.all([
+        const [portfolioRes, analysisRes, whitelistsRes] = await Promise.all([
           optionsService.getOptionsPortfolio(userId, selectedAccountIdProp || null),
-          optionsService.getPortfolioAnalysis(userId, selectedAccountIdProp || null)
+          optionsService.getPortfolioAnalysis(userId, selectedAccountIdProp || null),
+          optionsService.getWhitelists(userId, selectedAccountIdProp || null)
         ]);
 
         const { data, error } = portfolioRes;
@@ -336,6 +338,10 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
           // Merge analysis data if available
           if (analysisRes.data) {
             data.expiry_analysis = analysisRes.data;
+          }
+
+          if (whitelistsRes.data) {
+            setWhitelists(whitelistsRes.data);
           }
 
           console.group('[[OptionsPortfolio Debug]] Fetched Data');
@@ -1744,6 +1750,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                   <div key={group.expiry} id={`expiry-group-${group.expiry}`}>
                     <ExpiryGroupCard
                       theme={theme}
+                      whitelists={whitelists}
                       group={group}
                       statusFilter={statusFilter}
                       filterAndSortPositions={filterAndSortPositions}
