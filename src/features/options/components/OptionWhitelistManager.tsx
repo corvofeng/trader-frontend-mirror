@@ -52,10 +52,11 @@ export function OptionWhitelistManager({ theme, userId, accountId }: OptionWhite
   // Form state
   const [newItem, setNewItem] = useState<Partial<OptionWhitelist>>({
     contract_code: '',
+    contract_code_full: '',
     expiry_month: new Date().toISOString().slice(0, 7).replace('-', ''),
     option_type: 'call',
     strike_price: 0,
-    position_side: 'short',
+    hold_type: 'obligation',
     quantity: 1,
     reason: 'exercise',
     notes: '',
@@ -156,10 +157,11 @@ export function OptionWhitelistManager({ theme, userId, accountId }: OptionWhite
       setShowAddForm(false);
       setNewItem({
         contract_code: '',
+        contract_code_full: '',
         expiry_month: new Date().toISOString().slice(0, 7).replace('-', ''),
         option_type: 'call',
         strike_price: 0,
-        position_side: 'short',
+        hold_type: 'short',
         quantity: 1,
         reason: 'exercise',
         notes: '',
@@ -181,6 +183,19 @@ export function OptionWhitelistManager({ theme, userId, accountId }: OptionWhite
   const inputClass = isDark 
     ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:ring-blue-500 focus:border-blue-500' 
     : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:ring-blue-500 focus:border-blue-500';
+
+  // Group whitelists by expiry_month
+  const groupedWhitelists = whitelists.reduce((acc, item) => {
+    const month = item.expiry_month || 'Unknown';
+    if (!acc[month]) {
+      acc[month] = [];
+    }
+    acc[month].push(item);
+    return acc;
+  }, {} as Record<string, OptionWhitelist[]>);
+
+  // Sort months
+  const sortedMonths = Object.keys(groupedWhitelists).sort();
 
   return (
     <div className="space-y-6">
@@ -239,6 +254,16 @@ export function OptionWhitelistManager({ theme, userId, accountId }: OptionWhite
                 </div>
               </div>
               <div>
+                <label className={`block text-sm font-medium ${labelClass}`}>Full Contract Code</label>
+                <input
+                  type="text"
+                  value={newItem.contract_code_full}
+                  onChange={e => setNewItem({...newItem, contract_code_full: e.target.value})}
+                  className={`w-full rounded-md shadow-sm sm:text-sm ${inputClass}`}
+                  placeholder="e.g. US.AAPL..."
+                />
+              </div>
+              <div>
                 <label className={`block text-sm font-medium mb-1 ${subTextClass}`}>Expiry Month</label>
                 <input
                   type="text"
@@ -270,6 +295,18 @@ export function OptionWhitelistManager({ theme, userId, accountId }: OptionWhite
                   onChange={e => setNewItem({...newItem, strike_price: parseFloat(e.target.value)})}
                   className={`w-full rounded-md shadow-sm sm:text-sm ${inputClass}`}
                 />
+              </div>
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${subTextClass}`}>Hold Type</label>
+                <select
+                  value={newItem.hold_type}
+                  onChange={e => setNewItem({...newItem, hold_type: e.target.value})}
+                  className={`w-full rounded-md shadow-sm sm:text-sm ${inputClass}`}
+                >
+                  <option value="long">Long (Right)</option>
+                  <option value="short">Short (Obligation)</option>
+                  <option value="covered">Covered</option>
+                </select>
               </div>
               <div>
                 <label className={`block text-sm font-medium mb-1 ${subTextClass}`}>Quantity</label>
@@ -330,6 +367,7 @@ export function OptionWhitelistManager({ theme, userId, accountId }: OptionWhite
                 <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${subTextClass}`}>Contract</th>
                 <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${subTextClass}`}>Month</th>
                 <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${subTextClass}`}>Type</th>
+                <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${subTextClass}`}>Hold Type</th>
                 <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${subTextClass}`}>Strike</th>
                 <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${subTextClass}`}>Qty</th>
                 <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${subTextClass}`}>Reason</th>
@@ -345,121 +383,146 @@ export function OptionWhitelistManager({ theme, userId, accountId }: OptionWhite
                   </td>
                 </tr>
               ) : (
-                whitelists.map((item) => (
-                  <tr key={item.id}>
-                    {editingId === item.id ? (
-                      <>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <input 
-                            type="text" 
-                            value={editItem.contract_code || ''} 
-                            onChange={e => setEditItem({...editItem, contract_code: e.target.value})}
-                            className={`w-32 rounded-md shadow-sm sm:text-sm ${inputClass}`}
-                          />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <input 
-                            type="text" 
-                            value={editItem.expiry_month || ''} 
-                            onChange={e => setEditItem({...editItem, expiry_month: e.target.value})}
-                            className={`w-24 rounded-md shadow-sm sm:text-sm ${inputClass}`}
-                          />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <select
-                            value={editItem.option_type || 'call'}
-                            onChange={e => setEditItem({...editItem, option_type: e.target.value})}
-                            className={`rounded-md shadow-sm sm:text-sm ${inputClass}`}
-                          >
-                            <option value="call">Call</option>
-                            <option value="put">Put</option>
-                          </select>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                           <input 
-                            type="number" 
-                            step="0.01"
-                            value={editItem.strike_price || 0} 
-                            onChange={e => setEditItem({...editItem, strike_price: parseFloat(e.target.value)})}
-                            className={`w-20 rounded-md shadow-sm sm:text-sm ${inputClass}`}
-                          />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                           <input 
-                            type="number" 
-                            step="1"
-                            value={editItem.quantity || 0} 
-                            onChange={e => setEditItem({...editItem, quantity: parseInt(e.target.value)})}
-                            className={`w-20 rounded-md shadow-sm sm:text-sm ${inputClass}`}
-                          />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <select
-                            value={editItem.reason || 'exercise'}
-                            onChange={e => setEditItem({...editItem, reason: e.target.value})}
-                            className={`rounded-md shadow-sm sm:text-sm ${inputClass}`}
-                          >
-                            <option value="exercise">Exercise</option>
-                            <option value="assigned">Assigned</option>
-                            <option value="hedge">Hedge</option>
-                            <option value="other">Other</option>
-                          </select>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <input 
-                            type="text" 
-                            value={editItem.notes || ''} 
-                            onChange={e => setEditItem({...editItem, notes: e.target.value})}
-                            className={`w-full rounded-md shadow-sm sm:text-sm ${inputClass}`}
-                          />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium flex gap-2">
-                          <button onClick={saveEdit} className="text-green-600 hover:text-green-900">
-                            <Save className="w-4 h-4" />
-                          </button>
-                          <button onClick={cancelEdit} className="text-gray-600 hover:text-gray-900">
-                            <X className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${textClass}`}>
-                          {item.contract_code}
-                        </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${subTextClass}`}>
-                          {item.expiry_month}
-                        </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${subTextClass}`}>
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            (item.option_detail?.option_type || item.option_type) === 'call' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                          }`}>
-                            {(item.option_detail?.option_type || item.option_type).toUpperCase()}
-                          </span>
-                        </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${subTextClass}`}>
-                          {item.option_detail?.strike_price || item.strike_price}
-                        </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${subTextClass}`}>
-                          {item.quantity || '-'}
-                        </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${subTextClass}`}>
-                          {item.reason}
-                        </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${subTextClass}`}>
-                          {item.notes}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium flex gap-2">
-                          <button onClick={() => startEdit(item)} className="text-blue-600 hover:text-blue-900">
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => handleDelete(item.id)} className="text-red-600 hover:text-red-900">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </>
-                    )}
-                  </tr>
+                sortedMonths.map(month => (
+                  <React.Fragment key={month}>
+                    <tr className={isDark ? 'bg-gray-800' : 'bg-gray-100'}>
+                      <td colSpan={8} className={`px-6 py-2 text-sm font-bold ${textClass}`}>
+                        Expiry Month: {month}
+                      </td>
+                    </tr>
+                    {groupedWhitelists[month].map((item) => (
+                      <tr key={item.id}>
+                        {editingId === item.id ? (
+                          <>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                              <input 
+                                type="text" 
+                                value={editItem.contract_code || ''} 
+                                onChange={e => setEditItem({...editItem, contract_code: e.target.value})}
+                                className={`w-32 rounded-md shadow-sm sm:text-sm ${inputClass}`}
+                              />
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                              <input 
+                                type="text" 
+                                value={editItem.expiry_month || ''} 
+                                onChange={e => setEditItem({...editItem, expiry_month: e.target.value})}
+                                className={`w-24 rounded-md shadow-sm sm:text-sm ${inputClass}`}
+                              />
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                              <select
+                                value={editItem.option_type || 'call'}
+                                onChange={e => setEditItem({...editItem, option_type: e.target.value})}
+                                className={`rounded-md shadow-sm sm:text-sm ${inputClass}`}
+                              >
+                                <option value="call">Call</option>
+                                <option value="put">Put</option>
+                              </select>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                              <select
+                                value={editItem.hold_type || 'obligation'}
+                                onChange={e => setEditItem({...editItem, hold_type: e.target.value})}
+                                className={`rounded-md shadow-sm sm:text-sm ${inputClass}`}
+                              >
+                                <option value="long">Long</option>
+                                <option value="short">Short</option>
+                                <option value="covered">Covered</option>
+                              </select>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                               <input 
+                                type="number" 
+                                step="0.01"
+                                value={editItem.strike_price || 0} 
+                                onChange={e => setEditItem({...editItem, strike_price: parseFloat(e.target.value)})}
+                                className={`w-20 rounded-md shadow-sm sm:text-sm ${inputClass}`}
+                              />
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                               <input 
+                                type="number" 
+                                step="1"
+                                value={editItem.quantity || 0} 
+                                onChange={e => setEditItem({...editItem, quantity: parseInt(e.target.value)})}
+                                className={`w-20 rounded-md shadow-sm sm:text-sm ${inputClass}`}
+                              />
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                              <select
+                                value={editItem.reason || 'exercise'}
+                                onChange={e => setEditItem({...editItem, reason: e.target.value})}
+                                className={`rounded-md shadow-sm sm:text-sm ${inputClass}`}
+                              >
+                                <option value="exercise">Exercise</option>
+                                <option value="assigned">Assigned</option>
+                                <option value="hedge">Hedge</option>
+                                <option value="other">Other</option>
+                              </select>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                              <input 
+                                type="text" 
+                                value={editItem.notes || ''} 
+                                onChange={e => setEditItem({...editItem, notes: e.target.value})}
+                                className={`w-full rounded-md shadow-sm sm:text-sm ${inputClass}`}
+                              />
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium flex gap-2">
+                              <button onClick={saveEdit} className="text-green-600 hover:text-green-900">
+                                <Save className="w-4 h-4" />
+                              </button>
+                              <button onClick={cancelEdit} className="text-gray-600 hover:text-gray-900">
+                                <X className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${textClass}`}>
+                              {item.contract_code}
+                            </td>
+                            <td className={`px-6 py-4 whitespace-nowrap text-sm ${subTextClass}`}>
+                              {item.expiry_month}
+                            </td>
+                            <td className={`px-6 py-4 whitespace-nowrap text-sm ${subTextClass}`}>
+                              <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                (item.option_detail?.option_type || item.option_type) === 'call' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                              }`}>
+                                {(item.option_detail?.option_type || item.option_type).toUpperCase()}
+                              </span>
+                            </td>
+                            <td className={`px-6 py-4 whitespace-nowrap text-sm ${subTextClass}`}>
+                              <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800`}>
+                                {(item.hold_type || 'short').toUpperCase()}
+                              </span>
+                            </td>
+                            <td className={`px-6 py-4 whitespace-nowrap text-sm ${subTextClass}`}>
+                              {item.option_detail?.strike_price || item.strike_price}
+                            </td>
+                            <td className={`px-6 py-4 whitespace-nowrap text-sm ${subTextClass}`}>
+                              {item.quantity || '-'}
+                            </td>
+                            <td className={`px-6 py-4 whitespace-nowrap text-sm ${subTextClass}`}>
+                              {item.reason}
+                            </td>
+                            <td className={`px-6 py-4 whitespace-nowrap text-sm ${subTextClass}`}>
+                              {item.notes}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium flex gap-2">
+                              <button onClick={() => startEdit(item)} className="text-blue-600 hover:text-blue-900">
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button onClick={() => handleDelete(item.id)} className="text-red-600 hover:text-red-900">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    ))}
+                  </React.Fragment>
                 ))
               )}
             </tbody>

@@ -54,6 +54,7 @@ interface ExpiryGroupCardProps {
     report: string;
   };
   whitelists?: OptionWhitelist[];
+  isRefreshing?: boolean;
 }
 
 const renderReportMarkdown = (raw: string, theme: Theme) => {
@@ -188,7 +189,8 @@ export function ExpiryGroupCard({
   isTBoardExpanded,
   onToggleTBoard,
   analysis,
-  whitelists = []
+  whitelists = [],
+  isRefreshing
 }: ExpiryGroupCardProps) {
   const { queryPrice, prices, isConnected, connect } = useOptionPriceWebSocket();
   // State lifted to parent
@@ -558,7 +560,12 @@ export function ExpiryGroupCard({
                       )}
                     </div>
                     {isTBoardExpanded && (
-                    <div className={`${themes[theme].background} rounded-lg p-4 border ${themes[theme].border}`}>
+                    <div className={`${themes[theme].background} rounded-lg p-4 border ${themes[theme].border} relative`}>
+                      {isRefreshing && (
+                        <div className="absolute inset-0 z-10 bg-white/50 dark:bg-black/50 flex items-center justify-center backdrop-blur-sm transition-opacity duration-300 rounded-lg">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                        </div>
+                      )}
                       {(() => {
                         const complexStrikes = (group.complex || []).flatMap(s => 
                           s.positions
@@ -1645,6 +1652,89 @@ export function ExpiryGroupCard({
                     }}
                     className={`w-24 px-2 py-1 rounded text-xs ${themes[theme].input} ${themes[theme].text}`}
                   />
+                  {(() => {
+                    const targetQty = Object.values(qtyOverrides)[0] ?? 0;
+                    if (targetQty !== 0) {
+                      return (
+                        <button
+                          className="ml-2 px-2 py-1 rounded text-xs bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-1"
+                          title="添加到白名单"
+                          onClick={async () => {
+                             const s = Number(confirmData.meta?.strike || 0);
+                             const c = String(confirmData.meta?.category || '') as
+                               | 'call_right'
+                               | 'call_obligation'
+                               | 'put_right'
+                               | 'put_obligation'
+                               | 'call_covered'
+                               | 'put_covered';
+                             
+                             const ids = collectIdsForCategory(c, s);
+                             const pos = filteredPositions.find(p => p.id === ids[0]);
+                             
+                             let holdType = 'short';
+                             if (pos?.hold_type) {
+                               holdType = pos.hold_type;
+                             } else {
+                               if (c.includes('right')) holdType = 'long';
+                               else if (c.includes('covered')) holdType = 'covered';
+                             }
+                             let code = pos?.contract_code;
+                             let fullCode = pos?.contract_code_full;
+                             
+                             if (!fullCode) {
+                                if (confirmData.meta?.contract_code_full) {
+                                    fullCode = confirmData.meta.contract_code_full;
+                                    code = confirmData.meta.contract_code;
+                                } else {
+                                    const type = c.startsWith('call') ? 'call' : 'put';
+                                    const activeData = optionsData || localOptionsData;
+                                    if (activeData && activeData.quotes) {
+                                       const quote = activeData.quotes.find(q => q.expiry === group.expiry && Number(q.strike_price) === s);
+                                       if (quote) {
+                                          fullCode = type === 'call' ? quote.call_contract_code_full : quote.put_contract_code_full;
+                                          code = type === 'call' ? quote.call_contract_code : quote.put_contract_code;
+                                       }
+                                    } else if (optionsDataMap) {
+                                       for (const data of Object.values(optionsDataMap)) {
+                                          const quote = data.quotes?.find(q => q.expiry === group.expiry && Number(q.strike_price) === s);
+                                          if (quote) {
+                                             fullCode = type === 'call' ? quote.call_contract_code_full : quote.put_contract_code_full;
+                                             code = type === 'call' ? quote.call_contract_code : quote.put_contract_code;
+                                             break;
+                                          }
+                                       }
+                                    }
+                                }
+                             }
+
+                             if (code) {
+                                try {
+                                    await optionsService.addWhitelist({
+                                        contract_code: code,
+                                        contract_code_full: fullCode,
+                                        reason: 'Manual adjustment',
+                                        quantity: targetQty,
+                                        expiry_month: group.expiry.slice(0, 7).replace('-', ''),
+                                        hold_type: holdType
+                                    }, userId || '', selectedAccountId);
+                                    toast.success(`已添加到白名单: ${fullCode || code}`);
+                                } catch (err) {
+                                    console.error(err);
+                                    toast.error('添加白名单失败');
+                                }
+                             } else {
+                                toast.error('无法获取合约代码');
+                             }
+                          }}
+                        >
+                          <span>📋</span>
+                          <span>加入白名单</span>
+                        </button>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
               </div>
             </div>

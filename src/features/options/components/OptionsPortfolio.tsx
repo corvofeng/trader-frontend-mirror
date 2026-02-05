@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { format } from 'date-fns';
-import { Calendar, TrendingUp, TrendingDown, Activity, Shield, Target, Layers, ChevronDown, ChevronUp } from 'lucide-react';
+import { Calendar, TrendingUp, TrendingDown, Activity, Shield, Target, Layers, ChevronDown, ChevronUp, RefreshCw, List, Play } from 'lucide-react';
+import { PortfolioActivityLog, ActivityLogEntry } from './PortfolioActivityLog';
 import { Hash } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
@@ -116,6 +117,12 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   const { currencyConfig } = useCurrency();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [activeSymbol, setActiveSymbol] = useState<string>(selectedSymbol || '');
+  
+  // Activity Log State
+  const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>([]);
+  const [isLogOpen, setIsLogOpen] = useState(false);
+  const previousPositionsRef = useRef<Record<string, OptionsPosition>>({});
+  const isBaselineEstablishedRef = useRef(false);
   const { isConnected, send, portfolioSnapshot, prices, queryPrice } = useOptionPriceWebSocket();
   const requestedSymbolsRef = useRef<Set<string>>(new Set());
 
@@ -133,6 +140,9 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
 
   // State for active expiry group in viewport (ScrollSpy)
   const [activeExpiry, setActiveExpiry] = useState<string | null>(null);
+  
+  // State for scroll-following refresh button
+  const [showRefreshButton, setShowRefreshButton] = useState(false);
 
   // Persist expanded groups to cookie whenever it changes
   useEffect(() => {
@@ -176,6 +186,9 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     if (!portfolioData) return;
 
     const handleScrollSpy = () => {
+      // Update refresh button visibility
+      setShowRefreshButton(window.scrollY > 300);
+
       const groups = portfolioData.expiryBuckets || portfolioData.expiryGroups || [];
       if (groups.length === 0) return;
 
@@ -251,6 +264,13 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     }
   }, [selectedSymbol]);
 
+  // Reset baseline when account changes
+  useEffect(() => {
+    isBaselineEstablishedRef.current = false;
+    previousPositionsRef.current = {};
+    setActivityLogs([]);
+  }, [selectedAccountIdProp]);
+
   const getSanitizedUnderlying = (code: string) => {
     return code?.startsWith('US.') ? code.replace('US.', '') : code;
   };
@@ -306,101 +326,135 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
 
   // 复杂策略编辑复用“保存确认弹窗”，不使用独立编辑器
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setIsLoading(true);
+  const processDiff = useCallback((newData: OptionsPortfolioData) => {
+      const getPositionsMap = (pData: OptionsPortfolioData) => {
+         const map: Record<string, OptionsPosition> = {};
+         (pData.expiryBuckets || []).forEach(b => {
+           b.single.forEach(p => map[p.id] = p);
+           b.complex.forEach(s => s.positions.forEach(p => map[p.id] = p));
+         });
+         return map;
+      };
 
-        let userId: string | null = null;
-        try {
-          const authRes = await authService.getUser();
-          const user = authRes?.data?.user;
-          userId = user?.id || null;
-          setCurrentUserId(userId);
-        } catch (error) {
-          console.log(error);
-        }
-        if (!userId) {
-          setIsLoading(false);
-          return;
-        }
+      const currentPositions = getPositionsMap(newData);
 
-        const [portfolioRes, analysisRes, whitelistsRes] = await Promise.all([
-          optionsService.getOptionsPortfolio(userId, selectedAccountIdProp || null),
-          optionsService.getPortfolioAnalysis(userId, selectedAccountIdProp || null),
-          optionsService.getWhitelists(userId, selectedAccountIdProp || null)
-        ]);
-
-        const { data, error } = portfolioRes;
-        
-        if (error) throw error;
-        if (data) {
-          // Merge analysis data if available
-          if (analysisRes.data) {
-            data.expiry_analysis = analysisRes.data;
-          }
-
-          if (whitelistsRes.data) {
-            setWhitelists(whitelistsRes.data);
-          }
-
-          console.group('[[OptionsPortfolio Debug]] Fetched Data');
-          console.log('Full Portfolio Data:', data);
-          
-          if (data.expiry_analysis) {
-            console.log('--- Expiry Analysis Reports ---');
-            Object.entries(data.expiry_analysis).forEach(([expiry, analysis]) => {
-              console.group(`Analysis for ${expiry} (Phase: ${analysis.phase})`);
-              console.log('Stats:', {
-                risk: analysis.risk_positions_count,
-                safe: analysis.safe_positions_count,
-                strategies: analysis.strategies_count
-              });
-              console.log('Report Content:', analysis.report);
-              console.groupEnd();
-            });
-          } else {
-            console.warn('No expiry_analysis data found in response');
-          }
-
-          if (data.expiryGroups && data.expiryGroups.length > 0) {
-            console.log('--- Positions by Expiry ---');
-            data.expiryGroups.forEach(group => {
-              console.group(`Expiry: ${group.expiry} (Days: ${group.daysToExpiry})`);
-              console.log('Summary:', {
-                totalValue: group.totalValue,
-                totalCost: group.totalCost,
-                profitLoss: group.profitLoss
-              });
-              console.table(group.positions.map(p => ({
-                id: p.id,
-                symbol: p.symbol,
-                type: p.type,
-                strike: p.strike,
-                quantity: p.quantity,
-                status: p.status,
-                expiry: p.expiry
-              })));
-              console.groupEnd();
-            });
-          } else {
-            console.log('No expiry groups found.');
-          }
-          console.groupEnd();
-
-          setPortfolioData(data);
-          
-
-        }
-      } catch (error) {
-        console.error('Error fetching portfolio data:', error);
-      } finally {
-        setIsLoading(false);
+      // Initial load baseline check
+      if (!isBaselineEstablishedRef.current) {
+        previousPositionsRef.current = currentPositions;
+        isBaselineEstablishedRef.current = true;
+        return;
       }
-    };
 
-    fetchData();
-  }, [selectedAccountIdProp, refreshKey]);
+      const previousPositions = previousPositionsRef.current;
+      const newLogs: ActivityLogEntry[] = [];
+      const now = Date.now();
+
+      // 1. Check for closed positions
+      Object.entries(previousPositions).forEach(([id, pos]) => {
+         if (!currentPositions[id] && pos.quantity > 0 && pos.status !== 'closed' && pos.status !== 'expired') {
+           newLogs.push({
+             id: `closed-${id}-${now}`,
+             timestamp: now,
+             type: 'closed',
+             symbol: pos.symbol,
+             contract_code_full: pos.contract_code_full,
+             description: `${pos.symbol} ${pos.type.toUpperCase()} ${pos.strike} closed`
+           });
+         }
+      });
+
+      // 2. Check for new and updated positions
+      Object.entries(currentPositions).forEach(([id, pos]) => {
+         const prev = previousPositions[id];
+         if (!prev) {
+           if (pos.quantity > 0) {
+              newLogs.push({
+                id: `new-${id}-${now}`,
+                timestamp: now,
+                type: 'new',
+                symbol: pos.symbol,
+                contract_code_full: pos.contract_code_full,
+                description: `${pos.symbol} ${pos.type.toUpperCase()} ${pos.strike} opened (${pos.quantity})`
+              });
+           }
+         } else {
+           if (prev.quantity !== pos.quantity) {
+              newLogs.push({
+                id: `update-${id}-${now}`,
+                timestamp: now,
+                type: 'update',
+                symbol: pos.symbol,
+                contract_code_full: pos.contract_code_full,
+                description: `Quantity changed: ${prev.quantity} -> ${pos.quantity}`,
+                details: { oldQty: prev.quantity, newQty: pos.quantity }
+              });
+           }
+         }
+      });
+      
+      if (newLogs.length > 0) {
+          setActivityLogs(prev => [...newLogs, ...prev]);
+          toast.success(`${newLogs.length} position updates detected`, {
+              icon: '🔔',
+              duration: 3000
+          });
+      }
+      
+      previousPositionsRef.current = currentPositions;
+  }, []);
+
+  const fetchPortfolio = useCallback(async () => {
+    try {
+      setIsLoading(true);
+
+      let userId: string | null = null;
+      try {
+        const authRes = await authService.getUser();
+        const user = authRes?.data?.user;
+        userId = user?.id || null;
+        setCurrentUserId(userId);
+      } catch (error) {
+        console.log(error);
+      }
+      if (!userId) {
+        setIsLoading(false);
+        return;
+      }
+
+      const [portfolioRes, analysisRes, whitelistsRes] = await Promise.all([
+        optionsService.getOptionsPortfolio(userId, selectedAccountIdProp || null),
+        optionsService.getPortfolioAnalysis(userId, selectedAccountIdProp || null),
+        optionsService.getWhitelists(userId, selectedAccountIdProp || null)
+      ]);
+
+      const { data, error } = portfolioRes;
+      
+      if (error) throw error;
+      if (data) {
+        // Merge analysis data if available
+        if (analysisRes.data) {
+          data.expiry_analysis = analysisRes.data;
+        }
+
+        if (whitelistsRes.data) {
+          setWhitelists(whitelistsRes.data);
+        }
+
+        // Diff Logic
+        processDiff(data);
+
+        setPortfolioData(data);
+      }
+    } catch (error) {
+      console.error('Error fetching portfolio data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedAccountIdProp]);
+
+  useEffect(() => {
+    fetchPortfolio();
+  }, [fetchPortfolio, refreshKey]);
 
   useEffect(() => {
     if (!portfolioData) return;
@@ -440,26 +494,39 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     const userId = currentUserId || null;
     if (!accountId && !userId) return;
 
-    const payload = {
-      action: 'query_options_portfolio',
-      accountId,
-      userId
+    const queryPortfolio = () => {
+      const payload = {
+        action: 'query_options_portfolio',
+        accountId,
+        userId
+      };
+      send(payload);
     };
 
-    send(payload);
+    // Initial query
+    queryPortfolio();
+
+    // Poll every 3 seconds
+    const intervalId = setInterval(queryPortfolio, 3000);
+
+    return () => clearInterval(intervalId);
   }, [isConnected, selectedAccountIdProp, currentUserId, send]);
 
   useEffect(() => {
     if (!portfolioSnapshot) return;
+    
+    // Process diff logic for websocket updates
+    processDiff(portfolioSnapshot);
+
     setPortfolioData(prev => {
       // Preserve expiry_analysis if missing in snapshot but present in previous data
-      const analysis = portfolioSnapshot.expiry_analysis || prev.expiry_analysis;
+      const analysis = portfolioSnapshot.expiry_analysis || prev?.expiry_analysis;
       return {
         ...portfolioSnapshot,
         expiry_analysis: analysis
       };
     });
-  }, [portfolioSnapshot]);
+  }, [portfolioSnapshot, processDiff]);
 
   
 
@@ -1001,7 +1068,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
 
   const computeCombosForPositions = (strategy: OptionsStrategy, type: 'call' | 'put') => computeCombosForStrategy(strategy, type);
 
-  if (isLoading) {
+  if (isLoading && !portfolioData) {
     return (
       <div className={`${themes[theme].card} rounded-lg shadow-md p-8`}>
         <div className="text-center">
@@ -1166,6 +1233,19 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                 <h2 className={`text-xl font-bold ${themes[theme].text}`}>
                   期权投资组合概览
                 </h2>
+                <button
+                  onClick={() => setIsLogOpen(true)}
+                  className={`ml-2 p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 ${themes[theme].text} relative`}
+                  title="查看持仓变动日志"
+                >
+                  <Activity className="w-5 h-5" />
+                  {activityLogs.length > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                    </span>
+                  )}
+                </button>
               </div>
               {activeSymbol && getCurrentUnderlyingPrice(activeSymbol) != null && (
                 <div className="flex items-center gap-3">
@@ -1770,6 +1850,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                       selectedSymbol={activeSymbol}
                       underlyingPrice={getCurrentUnderlyingPrice(activeSymbol)}
                       onClosePositions={handleClosePositions}
+                      isRefreshing={isLoading}
                       advisedCombinations={(portfolioData.advised_combinations || []).filter(c => c.expiry === group.expiry)}
                       onLoadAdvised={loadAdvisedCombination}
                       onExecuteAdvised={executeAdvisedCombination}
@@ -2282,6 +2363,27 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
           </div>
         </div>
       )}
+
+      {/* Scroll-following Refresh Button */}
+      <button
+        onClick={fetchPortfolio}
+        className={`fixed bottom-8 right-8 p-3 rounded-full shadow-lg transition-all duration-300 z-40 ${
+          showRefreshButton ? 'translate-y-0 opacity-100' : 'translate-y-16 opacity-0'
+        } ${themes[theme].card} ${themes[theme].border} border hover:bg-gray-100 dark:hover:bg-gray-700`}
+        aria-label="Refresh Portfolio"
+        title="刷新持仓"
+      >
+        <RefreshCw className={`w-6 h-6 ${themes[theme].text}`} />
+      </button>
+
+      {/* Activity Log Side Panel */}
+      <PortfolioActivityLog
+        isOpen={isLogOpen}
+        onClose={() => setIsLogOpen(false)}
+        logs={activityLogs}
+        onClear={() => setActivityLogs([])}
+        theme={theme}
+      />
 
       {/* 复杂策略编辑与构建统一使用上方“保存确认弹窗” */}
     </div>

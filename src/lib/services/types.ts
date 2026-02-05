@@ -451,6 +451,8 @@ export interface OptionsPosition {
   leg_quantity?: number; // 该leg对应的持仓数量
   cost_price?: number; // 成本价格
   is_covered?: boolean;
+  hold_type?: string;
+  hold_type_zh?: string;
   margin?: number; // 保证金
 }
 
@@ -565,13 +567,14 @@ export interface OptionWhitelist {
   account_id: string;
   account_alias?: string;
   contract_code: string;
+  contract_code_full?: string;
   contract_name?: string;
   underlying_code?: string;
   expiry_month: string;
   expiry_date?: string;
   option_type: string;
   strike_price: number;
-  position_side: string;
+  hold_type: string;
   quantity?: number;
   reason: string;
   notes?: string;
