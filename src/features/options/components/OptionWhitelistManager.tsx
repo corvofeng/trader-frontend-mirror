@@ -161,7 +161,7 @@ export function OptionWhitelistManager({ theme, userId, accountId }: OptionWhite
         expiry_month: new Date().toISOString().slice(0, 7).replace('-', ''),
         option_type: 'call',
         strike_price: 0,
-        hold_type: 'short',
+        hold_type: 'obligation',
         quantity: 1,
         reason: 'exercise',
         notes: '',
@@ -303,8 +303,8 @@ export function OptionWhitelistManager({ theme, userId, accountId }: OptionWhite
                   onChange={e => setNewItem({...newItem, hold_type: e.target.value})}
                   className={`w-full rounded-md shadow-sm sm:text-sm ${inputClass}`}
                 >
-                  <option value="long">Long (Right)</option>
-                  <option value="short">Short (Obligation)</option>
+                  <option value="right">Right</option>
+                  <option value="obligation">Obligation</option>
                   <option value="covered">Covered</option>
                 </select>
               </div>
@@ -426,8 +426,8 @@ export function OptionWhitelistManager({ theme, userId, accountId }: OptionWhite
                                 onChange={e => setEditItem({...editItem, hold_type: e.target.value})}
                                 className={`rounded-md shadow-sm sm:text-sm ${inputClass}`}
                               >
-                                <option value="long">Long</option>
-                                <option value="short">Short</option>
+                                <option value="right">Right</option>
+                                <option value="obligation">Obligation</option>
                                 <option value="covered">Covered</option>
                               </select>
                             </td>
@@ -495,7 +495,7 @@ export function OptionWhitelistManager({ theme, userId, accountId }: OptionWhite
                             </td>
                             <td className={`px-6 py-4 whitespace-nowrap text-sm ${subTextClass}`}>
                               <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800`}>
-                                {(item.hold_type || 'short').toUpperCase()}
+                                {(item.hold_type || 'obligation').toUpperCase()}
                               </span>
                             </td>
                             <td className={`px-6 py-4 whitespace-nowrap text-sm ${subTextClass}`}>

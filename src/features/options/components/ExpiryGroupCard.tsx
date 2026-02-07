@@ -1672,11 +1672,11 @@ export function ExpiryGroupCard({
                              const ids = collectIdsForCategory(c, s);
                              const pos = filteredPositions.find(p => p.id === ids[0]);
                              
-                             let holdType = 'short';
+                             let holdType = 'obligation';
                              if (pos?.hold_type) {
                                holdType = pos.hold_type;
                              } else {
-                               if (c.includes('right')) holdType = 'long';
+                               if (c.includes('right')) holdType = 'right';
                                else if (c.includes('covered')) holdType = 'covered';
                              }
                              let code = pos?.contract_code;

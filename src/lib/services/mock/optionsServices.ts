@@ -977,7 +977,7 @@ export const optionsService: OptionsService = {
         expiry_month: whitelist.expiry_month || '202501',
         option_type: whitelist.option_type || 'call',
         strike_price: whitelist.strike_price || 100,
-        hold_type: whitelist.hold_type || 'short',
+        hold_type: whitelist.hold_type || 'obligation',
         reason: whitelist.reason || 'manual',
         is_active: true,
         ...whitelist,
