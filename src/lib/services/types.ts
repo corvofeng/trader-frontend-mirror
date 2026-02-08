@@ -497,6 +497,25 @@ export interface SubjectPosition {
   total_stock_price?: number;
 }
 
+export interface OptionOrder {
+  instrument_name: string;
+  op_type_name: string;
+  op_type_name_zh: string;
+  order_status_name: string;
+  limit_price: number;
+  traded_price: number;
+  volume_total_original: number;
+  volume_traded: number;
+  strategy_name: string;
+  remark: string;
+  order_time: string;
+  is_combination: boolean;
+  compact_no?: string;
+  contract_ids?: string[];
+  instrument_id?: string;
+  contract_code_full?: string;
+}
+
 export interface OptionsPortfolioData {
   strategies: OptionsStrategy[];
   singleLegPositions?: OptionsPosition[];
@@ -646,6 +665,7 @@ export interface OptionsService {
   addWhitelist: (whitelist: Omit<OptionWhitelist, 'id' | 'created_at'>, userId: string, accountId?: string | null) => Promise<ServiceResponse<OptionWhitelist>>;
   updateWhitelist: (id: string | number, whitelist: Partial<OptionWhitelist>, userId: string, accountId?: string | null) => Promise<ServiceResponse<OptionWhitelist>>;
   deleteWhitelist: (id: string | number, userId: string, accountId?: string | null) => Promise<ServiceResponse<void>>;
+  getOptionOrders: (accountId: string, userId?: string | null, options?: { only_today?: boolean }) => Promise<ServiceResponse<OptionOrder[]>>;
 }
 
 export interface CustomOptionsStrategy {

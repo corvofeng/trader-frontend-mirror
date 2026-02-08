@@ -10,7 +10,7 @@ import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { optionsService, authService, stockService } from '../../../lib/services';
 import { emitAddLegToStrategy } from '../events/strategySelection';
 import { logger } from '../../../shared/utils/logger';
-import type { OptionsPortfolioData, CustomOptionsStrategy, OptionsPosition, OptionsStrategy, AdvisedCombination, OptionsData, OptionWhitelist } from '../../../lib/services/types';
+import type { OptionsPortfolioData, CustomOptionsStrategy, OptionsPosition, OptionsStrategy, AdvisedCombination, OptionsData, OptionWhitelist, OptionOrder } from '../../../lib/services/types';
 import { computeCombosForPositions as computeCombosForStrategy } from '../utils/strategyCombos';
 import toast from 'react-hot-toast';
 import { ExpiryGroupCard } from './ExpiryGroupCard';
@@ -93,6 +93,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   const [portfolioData, setPortfolioData] = useState<OptionsPortfolioData | null>(null);
   const [whitelists, setWhitelists] = useState<OptionWhitelist[]>([]);
   const [customStrategies, setCustomStrategies] = useState<CustomOptionsStrategy[]>([]);
+  const [todayOrders, setTodayOrders] = useState<OptionOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   // Use prop directly to avoid stale state during refresh
   // 已不在界面使用策略加载状态，避免未使用变量
@@ -582,6 +583,43 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     };
 
     fetchCustomStrategies();
+  }, [selectedAccountIdProp]);
+
+  useEffect(() => {
+    const fetchOrders = async () => {
+      if (!selectedAccountIdProp) return;
+      try {
+        let userId = DEMO_USER_ID;
+        try {
+          const authRes = await authService.getUser();
+          const user = authRes?.data?.user;
+          userId = user?.id || DEMO_USER_ID;
+        } catch {
+          // ignore
+        }
+        
+        const { data } = await optionsService.getOptionOrders(selectedAccountIdProp, userId, { only_today: true });
+        
+        if (data && data.length > 0) {
+          // Sort by time desc
+          const sorted = [...data].sort((a, b) => {
+            const timeA = a.order_time ? new Date(a.order_time).getTime() : 0;
+            const timeB = b.order_time ? new Date(b.order_time).getTime() : 0;
+            return timeB - timeA;
+          });
+          
+          setTodayOrders(sorted);
+        } else {
+          setTodayOrders([]);
+        }
+      } catch (error) {
+        console.error('Error fetching orders:', error);
+      }
+    };
+    
+    fetchOrders();
+    const interval = setInterval(fetchOrders, 5000);
+    return () => clearInterval(interval);
   }, [selectedAccountIdProp]);
 
   const toggleStrategyExpansion = (strategyId: string) => {
@@ -1328,6 +1366,80 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Today's Orders */}
+      {todayOrders.length > 0 && (
+        <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
+          <div className="p-6 border-b border-gray-200">
+            <h2 className={`text-xl font-bold ${themes[theme].text}`}>
+              今日订单
+            </h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className={`min-w-full divide-y ${themes[theme].divide}`}>
+              <thead className={themes[theme].tableHeader}>
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">时间</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">名称</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">方向</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">价格</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">数量 (成/总)</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">策略/备注</th>
+                </tr>
+              </thead>
+              <tbody className={`divide-y ${themes[theme].divide}`}>
+                {todayOrders.map((order, idx) => (
+                  <tr key={idx} className={themes[theme].tableRow}>
+                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${themes[theme].text}`}>
+                      {order.order_time ? (order.order_time.split(' ')[1] || order.order_time) : '-'}
+                    </td>
+                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${themes[theme].text}`}>
+                      <div className="font-medium">{order.instrument_name}</div>
+                      {order.is_combination && (
+                        <span className="text-xs text-purple-500 bg-purple-100 dark:bg-purple-900 px-1 rounded">组合</span>
+                      )}
+                    </td>
+                    <td className={`px-6 py-4 whitespace-nowrap text-sm`}>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        ((order.op_type_name || '').includes('OPEN') || (order.op_type_name_zh || '').includes('开')) 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {order.op_type_name_zh || order.op_type_name}
+                      </span>
+                    </td>
+                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${themes[theme].text}`}>
+                      {order.order_status_name}
+                    </td>
+                    <td className={`px-6 py-4 whitespace-nowrap text-sm text-right ${themes[theme].text}`}>
+                      <div>限: {formatCurrency(order.limit_price, currencyConfig)}</div>
+                      {order.traded_price > 0 && <div className="text-gray-500 text-xs">成: {formatCurrency(order.traded_price, currencyConfig)}</div>}
+                    </td>
+                    <td className={`px-6 py-4 whitespace-nowrap text-sm text-right ${themes[theme].text}`}>
+                      {order.volume_traded} / {order.volume_total_original}
+                    </td>
+                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${themes[theme].text}`}>
+                      <div>{order.strategy_name}</div>
+                      {order.compact_no && (
+                        <div className="text-xs text-purple-600 dark:text-purple-400">
+                          组合编号: {order.compact_no}
+                        </div>
+                      )}
+                      {order.contract_ids && order.contract_ids.length > 0 && (
+                        <div className="text-xs text-gray-500 mt-1" title={order.contract_ids.join(', ')}>
+                          合约: {order.contract_ids.length > 1 ? `${order.contract_ids.length}个合约` : order.contract_ids[0]}
+                        </div>
+                      )}
+                      <div className="text-xs text-gray-500">{order.remark}</div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

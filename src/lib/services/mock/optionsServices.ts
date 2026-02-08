@@ -1,4 +1,4 @@
-import type { OptionsService, OptionsPortfolioData, OptionsPosition, OptionsStrategy, RatioSpreadPlanResult, OptionWhitelist, ServiceResponse, AdvisedCombination } from '../types';
+import type { OptionsService, OptionsPortfolioData, OptionsPosition, OptionsStrategy, RatioSpreadPlanResult, OptionWhitelist, ServiceResponse, AdvisedCombination, OptionOrder } from '../types';
 import type { CustomOptionsStrategy } from '../types';
 
 // 支持的期权标的列表
@@ -991,6 +991,55 @@ export const optionsService: OptionsService = {
     console.log('Mock deleteWhitelist called', id, userId, accountId);
     return {
       data: null,
+      error: null
+    };
+  },
+
+  getOptionOrders: async (accountId: string, userId?: string | null, options?: { only_today?: boolean }): Promise<ServiceResponse<OptionOrder[]>> => {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Generate a date string that guarantees "today" in local representation
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const todayStr = `${year}-${month}-${day}`;
+    
+    return {
+      data: [
+        {
+          instrument_name: '认沽熊市价差策略',
+          op_type_name: 'UNKNOWN',
+          op_type_name_zh: '拆分组合持仓',
+          order_status_name: 'SUCCEEDED',
+          limit_price: 0.0,
+          traded_price: 0.0,
+          volume_total_original: 2,
+          volume_traded: 2,
+          strategy_name: '',
+          remark: '1770343845115_2026012200006450',
+          order_time: `${todayStr} 10:30:00`,
+          is_combination: true,
+          compact_no: "2026012200006450",
+          contract_ids: ["10010722.SHO", "10010698.SHO"]
+        },
+        {
+          instrument_name: '科创50沽2月1650',
+          op_type_name: 'SELL_CLOSE',
+          op_type_name_zh: '卖出平仓',
+          order_status_name: 'SUCCEEDED',
+          limit_price: 0.1656,
+          traded_price: 0.1656,
+          volume_total_original: 2,
+          volume_traded: 2,
+          strategy_name: '',
+          remark: 'Mock Sell Close',
+          order_time: `${todayStr} 14:20:00`,
+          is_combination: false,
+          contract_code_full: "10010722.SHO",
+          instrument_id: "10010722"
+        }
+      ],
       error: null
     };
   },

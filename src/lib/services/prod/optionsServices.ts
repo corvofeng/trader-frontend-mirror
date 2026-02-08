@@ -592,5 +592,26 @@ export const optionsService: OptionsService = {
       console.error('Error deleting whitelist:', error);
       return { data: null, error: error as Error };
     }
+  },
+
+  getOptionOrders: async (accountId: string, userId?: string | null, options?: { only_today?: boolean }) => {
+    try {
+      const params = new URLSearchParams();
+      if (userId) params.set('userId', userId);
+      if (options?.only_today) params.set('only_today', 'true');
+      const queryString = params.toString() ? `?${params.toString()}` : '';
+      
+      const response = await fetch(`https://stock.in.corvo.fun/api/options/orders/${encodeURIComponent(accountId)}${queryString}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch option orders');
+      }
+      const data = await response.json();
+      // Ensure data is an array or extracted from 'orders' field
+      const orders = Array.isArray(data) ? data : (Array.isArray(data.orders) ? data.orders : (Array.isArray(data.data) ? data.data : []));
+      return { data: orders, error: null };
+    } catch (error) {
+      console.error('Error fetching option orders:', error);
+      return { data: null, error: error as Error };
+    }
   }
 };
