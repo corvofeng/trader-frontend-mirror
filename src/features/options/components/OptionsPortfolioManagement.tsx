@@ -20,22 +20,22 @@ export function OptionsPortfolioManagement({ theme, selectedSymbol: propSelected
   const [activeTab, setActiveTab] = useState<ManagementTab>('overview');
   const [portfolioData, setPortfolioData] = useState<OptionsPortfolioData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedSymbol, setSelectedSymbol] = useState(propSelectedSymbol || 'SPY');
+  const [selectedSymbol, setSelectedSymbol] = useState(propSelectedSymbol ?? 'SPY');
 
   useEffect(() => {
-    if (propSelectedSymbol) {
+    if (propSelectedSymbol !== undefined) {
       setSelectedSymbol(propSelectedSymbol);
     }
   }, [propSelectedSymbol]);
 
   useEffect(() => {
     fetchPortfolioData();
-  }, []);
+  }, [selectedSymbol]);
 
   const fetchPortfolioData = async () => {
     try {
       setIsLoading(true);
-      const { data, error } = await optionsService.getOptionsPortfolio(DEMO_USER_ID);
+      const { data, error } = await optionsService.getOptionsPortfolio(DEMO_USER_ID, null, selectedSymbol ? { symbol: selectedSymbol } : undefined);
       if (error) throw error;
       if (data) {
         setPortfolioData(data);
@@ -138,7 +138,7 @@ export function OptionsPortfolioManagement({ theme, selectedSymbol: propSelected
       {activeTab === 'create' && (
         <StrategyCreator
           theme={theme}
-          selectedSymbol={selectedSymbol}
+          selectedSymbol={selectedSymbol || 'SPY'}
           onStrategyCreated={handleStrategyCreated}
         />
       )}

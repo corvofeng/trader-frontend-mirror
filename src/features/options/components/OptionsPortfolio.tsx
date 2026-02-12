@@ -270,7 +270,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     isBaselineEstablishedRef.current = false;
     previousPositionsRef.current = {};
     setActivityLogs([]);
-  }, [selectedAccountIdProp]);
+  }, [selectedAccountIdProp, activeSymbol]);
 
   const getSanitizedUnderlying = (code: string) => {
     return code?.startsWith('US.') ? code.replace('US.', '') : code;
@@ -423,7 +423,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       }
 
       const [portfolioRes, analysisRes, whitelistsRes] = await Promise.all([
-        optionsService.getOptionsPortfolio(userId, selectedAccountIdProp || null),
+        optionsService.getOptionsPortfolio(userId, selectedAccountIdProp || null, activeSymbol ? { symbol: activeSymbol } : undefined),
         optionsService.getPortfolioAnalysis(userId, selectedAccountIdProp || null),
         optionsService.getWhitelists(userId, selectedAccountIdProp || null)
       ]);
@@ -451,7 +451,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     } finally {
       setIsLoading(false);
     }
-  }, [selectedAccountIdProp]);
+  }, [selectedAccountIdProp, activeSymbol]);
 
   useEffect(() => {
     fetchPortfolio();
@@ -736,7 +736,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       if (error) throw error;
       toast.success('同步成功');
       try {
-        const { data: refreshed } = await optionsService.getOptionsPortfolio(currentUserId || DEMO_USER_ID, selectedAccountIdProp || null);
+        const { data: refreshed } = await optionsService.getOptionsPortfolio(currentUserId || DEMO_USER_ID, selectedAccountIdProp || null, activeSymbol ? { symbol: activeSymbol } : undefined);
         if (refreshed) setPortfolioData(refreshed);
       } catch (refreshError) {
         console.error(refreshError);
@@ -1234,7 +1234,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       if (error) throw error;
       toast.success('已执行组合建议');
       try {
-        const { data: refreshed } = await optionsService.getOptionsPortfolio(currentUserId || DEMO_USER_ID, selectedAccountIdProp || null);
+        const { data: refreshed } = await optionsService.getOptionsPortfolio(currentUserId || DEMO_USER_ID, selectedAccountIdProp || null, activeSymbol ? { symbol: activeSymbol } : undefined);
         if (refreshed) setPortfolioData(refreshed);
       } catch (refreshError) {
         console.error(refreshError);

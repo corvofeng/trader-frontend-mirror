@@ -251,10 +251,13 @@ export const optionsService: OptionsService = {
     }
   },
 
-  getOptionsPortfolio: async (userId: string, accountId?: string | null) => {
+  getOptionsPortfolio: async (userId: string, accountId?: string | null, options?: { symbol?: string }) => {
     try {
       const path = accountId ? `/api/options/portfolio/${accountId}` : `/api/options/portfolio/${userId}`;
-      const response = await fetch(path);
+      const queryParams = new URLSearchParams();
+      if (options?.symbol) queryParams.set('symbol', options.symbol);
+      const url = queryParams.toString() ? `${path}?${queryParams}` : path;
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error('Failed to fetch options portfolio');
       }

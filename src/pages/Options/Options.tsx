@@ -92,6 +92,12 @@ export function Options({ theme }: OptionsProps) {
         
         if (data) {
           setOptionsData(data);
+          
+          // Update selected symbol if backend returns a canonical one (e.g. 588000 -> 588000.SH)
+          if (data.opt_undl_code_full && data.opt_undl_code_full !== selectedSymbol) {
+            setSelectedSymbol(data.opt_undl_code_full);
+          }
+
           // Set the first expiry date as default
           const uniqueExpiryDates = Array.from(new Set(data.quotes.map(q => q.expiry)))
             .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());

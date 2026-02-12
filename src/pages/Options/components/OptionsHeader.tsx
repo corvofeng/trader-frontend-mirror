@@ -20,6 +20,23 @@ export function OptionsHeader({
   activeTab
 }: OptionsHeaderProps) {
   const { isConnected, connect } = useOptionPriceWebSocketContext();
+  const [inputValue, setInputValue] = React.useState(selectedSymbol);
+
+  React.useEffect(() => {
+    setInputValue(selectedSymbol);
+  }, [selectedSymbol]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      onSymbolChange(inputValue);
+    }
+  };
+
+  const handleBlur = () => {
+    if (inputValue !== selectedSymbol) {
+      onSymbolChange(inputValue);
+    }
+  };
 
   return (
     <div className={`${themes[theme].card} rounded-lg p-4`}>
@@ -55,20 +72,26 @@ export function OptionsHeader({
                 <label className={`text-sm font-medium ${themes[theme].text}`}>
                   Symbol:
                 </label>
-                <select
-                  value={selectedSymbol}
-                  onChange={(e) => onSymbolChange(e.target.value)}
-                  disabled={isLoading}
-                  className={`px-3 py-2 rounded-md text-sm ${themes[theme].input} ${themes[theme].text} ${
-                    isLoading ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
-                >
-                  {availableSymbols.map(symbol => (
-                    <option key={symbol} value={symbol}>
-                      {symbol}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <input
+                    type="text"
+                    list="available-symbols"
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    onBlur={handleBlur}
+                    disabled={isLoading}
+                    className={`px-3 py-2 rounded-md text-sm ${themes[theme].input} ${themes[theme].text} ${
+                      isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                    placeholder="Enter symbol..."
+                  />
+                  <datalist id="available-symbols">
+                    {availableSymbols.map(symbol => (
+                      <option key={symbol} value={symbol} />
+                    ))}
+                  </datalist>
+                </div>
               </div>
               {isLoading && (
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>

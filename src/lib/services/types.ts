@@ -409,6 +409,7 @@ export interface OptionSurfacePoint {
 export interface OptionsData {
   quotes: OptionQuote[];
   surface: OptionSurfacePoint[];
+  opt_undl_code_full?: string;
 }
 
 // Options Portfolio Types
@@ -630,7 +631,7 @@ export interface OptionsService {
   getOptionsData: (symbol?: string) => Promise<ServiceResponse<OptionsData>>;
   getOptionContractDetail: (contractCode: string) => Promise<ServiceResponse<OptionContractDetail>>;
   getAvailableSymbols: () => Promise<ServiceResponse<string[]>>;
-  getOptionsPortfolio: (userId: string, accountId?: string | null) => Promise<ServiceResponse<OptionsPortfolioData>>;
+  getOptionsPortfolio: (userId: string, accountId?: string | null, options?: { symbol?: string }) => Promise<ServiceResponse<OptionsPortfolioData>>;
   getPortfolioAnalysis: (userId: string, accountId?: string | null) => Promise<ServiceResponse<Record<string, ExpiryAnalysisReport>>>;
   getAvailableStrategies: () => Promise<ServiceResponse<string[]>>;
   saveCustomStrategy: (

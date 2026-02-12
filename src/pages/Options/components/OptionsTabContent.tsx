@@ -108,7 +108,7 @@ export function OptionsTabContent({
   if (activeTab === 'portfolio') {
     return (
       <div className="space-y-6">
-        <HoldingsStrategyBuilder theme={theme} />
+        <HoldingsStrategyBuilder theme={theme} selectedSymbol={selectedSymbol} />
         <OptionsPortfolio theme={theme} optionsData={optionsData} selectedSymbol={selectedSymbol} />
         <RelatedLinks 
           theme={theme}
@@ -135,7 +135,7 @@ export function OptionsTabContent({
   if (activeTab === 'management') {
     return (
       <div className="space-y-6">
-        <OptionsPortfolioManagement theme={theme} />
+        <OptionsPortfolioManagement theme={theme} selectedSymbol={selectedSymbol} />
         <RelatedLinks 
           theme={theme}
           currentPath="/options?tab=management" 

@@ -806,13 +806,36 @@ export const optionsService: OptionsService = {
     return { data: AVAILABLE_OPTIONS_SYMBOLS, error: null };
   },
 
-  getOptionsPortfolio: async (userId: string, accountId?: string | null) => {
+  getOptionsPortfolio: async (userId: string, accountId?: string | null, options?: { symbol?: string }) => {
     await new Promise(resolve => setTimeout(resolve, 800));
     const portfolioData = generateMockOptionsPortfolio();
     if (accountId) {
       portfolioData.totalValue = Math.round(portfolioData.totalValue * 1.0);
       portfolioData.totalCost = Math.round(portfolioData.totalCost * 1.0);
     }
+
+    // Filter by symbol if provided
+    if (options?.symbol) {
+      const symbol = options.symbol;
+      const filterBySymbol = (pos: any) => pos.symbol === symbol || pos.opt_undl_code_full === symbol || pos.opt_undl_code_full === `US.${symbol}`;
+
+      portfolioData.singleLegPositions = portfolioData.singleLegPositions.filter(filterBySymbol);
+
+      // Filter complex strategies
+      portfolioData.complexStrategies = portfolioData.complexStrategies.filter(strategy =>
+        strategy.positions.some(filterBySymbol)
+      );
+
+      // Filter expiry buckets
+      if (portfolioData.expiryBuckets) {
+        portfolioData.expiryBuckets = portfolioData.expiryBuckets.map(bucket => ({
+          ...bucket,
+          single: bucket.single.filter(filterBySymbol),
+          complex: bucket.complex.filter(strategy => strategy.positions.some(filterBySymbol))
+        })).filter(bucket => bucket.single.length > 0 || bucket.complex.length > 0);
+      }
+    }
+
     console.log(portfolioData);
     return { data: portfolioData, error: null };
   },

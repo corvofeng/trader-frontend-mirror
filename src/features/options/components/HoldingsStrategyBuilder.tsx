@@ -12,14 +12,16 @@ import { onAddLegToStrategy } from '../events/strategySelection';
 interface HoldingsStrategyBuilderProps {
   theme: Theme;
   onStrategyCreated?: (strategy: CustomOptionsStrategy) => void;
+  selectedSymbol?: string;
 }
 
 const DEMO_USER_ID = 'mock-user-id';
 
-export function HoldingsStrategyBuilder({ theme, onStrategyCreated }: HoldingsStrategyBuilderProps) {
+export function HoldingsStrategyBuilder({ theme, onStrategyCreated, selectedSymbol: propSelectedSymbol }: HoldingsStrategyBuilderProps) {
   const [portfolioData, setPortfolioData] = useState<OptionsPortfolioData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedSymbol, setSelectedSymbol] = useState(propSelectedSymbol);
 
   const [strategyName, setStrategyName] = useState('从持仓构建的策略');
   const [strategyDescription, setStrategyDescription] = useState('基于当前持仓选择的腿部组合');
@@ -32,6 +34,10 @@ export function HoldingsStrategyBuilder({ theme, onStrategyCreated }: HoldingsSt
   const [saving, setSaving] = useState(false);
 
   const { currencyConfig } = useCurrency();
+
+  useEffect(() => {
+    setSelectedSymbol(propSelectedSymbol);
+  }, [propSelectedSymbol]);
 
   const allPositions: OptionsPosition[] = useMemo(() => {
     if (!portfolioData) return [];
@@ -54,7 +60,7 @@ export function HoldingsStrategyBuilder({ theme, onStrategyCreated }: HoldingsSt
         } catch {
           // ignore, fallback to demo id
         }
-        const { data, error } = await optionsService.getOptionsPortfolio(userId);
+        const { data, error } = await optionsService.getOptionsPortfolio(userId, null, selectedSymbol ? { symbol: selectedSymbol } : undefined);
         if (error) throw error;
         setPortfolioData(data);
       } catch (e) {
@@ -65,7 +71,7 @@ export function HoldingsStrategyBuilder({ theme, onStrategyCreated }: HoldingsSt
       }
     };
     fetchPortfolio();
-  }, []);
+  }, [selectedSymbol]);
 
   // Subscribe to external "add leg" events from OptionsPortfolio
   useEffect(() => {

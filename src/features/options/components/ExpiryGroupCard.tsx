@@ -244,7 +244,9 @@ export function ExpiryGroupCard({
     const positionCodes = filteredPositions.map(p => p.contract_code_full).filter(Boolean) as string[];
     
     // Collect codes from all available data sources
-    const dataSources = [optionsData, localOptionsData, ...(optionsDataMap ? Object.values(optionsDataMap) : [])].filter(Boolean);
+    const dataSources = [optionsData, localOptionsData, ...(optionsDataMap ? Object.values(optionsDataMap) : [])]
+      .filter((d): d is OptionsData => !!d)
+      .filter(d => !selectedSymbol || d.opt_undl_code_full === selectedSymbol);
     
     const allOptionCodes = dataSources.flatMap(data => 
       (data?.quotes || [])
@@ -580,16 +582,23 @@ export function ExpiryGroupCard({
                         
                         // From main optionsData
                         if (activeData?.quotes) {
-                          activeData.quotes.forEach(q => {
-                            if (q.expiry === group.expiry) {
-                              dataStrikes.add(Number(q.strike_price));
-                            }
-                          });
+                          // Filter by selected symbol if available
+                          if (!selectedSymbol || activeData.opt_undl_code_full === selectedSymbol) {
+                            activeData.quotes.forEach(q => {
+                              if (q.expiry === group.expiry) {
+                                dataStrikes.add(Number(q.strike_price));
+                              }
+                            });
+                          }
                         }
                         
                         // From optionsDataMap (if available via context or prop - assuming it was passed as prop in previous step)
                         if (optionsDataMap) {
                           Object.values(optionsDataMap).forEach(data => {
+                             // Filter by selected symbol if available
+                             if (selectedSymbol && data.opt_undl_code_full !== selectedSymbol) {
+                               return;
+                             }
                              if (data.quotes) {
                                data.quotes.forEach(q => {
                                  if (q.expiry === group.expiry) {
