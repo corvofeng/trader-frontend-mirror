@@ -94,7 +94,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   const [portfolioData, setPortfolioData] = useState<OptionsPortfolioData | null>(null);
   const [whitelists, setWhitelists] = useState<OptionWhitelist[]>([]);
   const [customStrategies, setCustomStrategies] = useState<CustomOptionsStrategy[]>([]);
-  const [todayOrders, setTodayOrders] = useState<OptionOrder[]>([]);
+  // const [todayOrders, setTodayOrders] = useState<OptionOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   // Use prop directly to avoid stale state during refresh
   // 已不在界面使用策略加载状态，避免未使用变量
@@ -125,7 +125,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   const [isLogOpen, setIsLogOpen] = useState(false);
   const previousPositionsRef = useRef<Record<string, OptionsPosition>>({});
   const isBaselineEstablishedRef = useRef(false);
-  const { isConnected, send, portfolioSnapshot, prices, queryPrice } = useOptionPriceWebSocket();
+  const { isConnected, send, portfolioSnapshot, prices, queryPrice, orders: wsOrders, queryOrders } = useOptionPriceWebSocket();
   const requestedSymbolsRef = useRef<Set<string>>(new Set());
 
   // State for collapsible expiry groups
@@ -586,42 +586,25 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     fetchCustomStrategies();
   }, [selectedAccountIdProp]);
 
+  // Memoize and sort orders from WebSocket
+  const todayOrders = React.useMemo(() => {
+    if (!wsOrders || wsOrders.length === 0) return [];
+    return [...wsOrders].sort((a, b) => {
+      const timeA = a.order_time ? new Date(a.order_time).getTime() : 0;
+      const timeB = b.order_time ? new Date(b.order_time).getTime() : 0;
+      return timeB - timeA;
+    });
+  }, [wsOrders]);
+
+  // Query orders via WebSocket when account changes
   useEffect(() => {
-    const fetchOrders = async () => {
-      if (!selectedAccountIdProp) return;
-      try {
-        let userId = DEMO_USER_ID;
-        try {
-          const authRes = await authService.getUser();
-          const user = authRes?.data?.user;
-          userId = user?.id || DEMO_USER_ID;
-        } catch {
-          // ignore
-        }
-        
-        const { data } = await optionsService.getOptionOrders(selectedAccountIdProp, userId, { only_today: true });
-        
-        if (data && data.length > 0) {
-          // Sort by time desc
-          const sorted = [...data].sort((a, b) => {
-            const timeA = a.order_time ? new Date(a.order_time).getTime() : 0;
-            const timeB = b.order_time ? new Date(b.order_time).getTime() : 0;
-            return timeB - timeA;
-          });
-          
-          setTodayOrders(sorted);
-        } else {
-          setTodayOrders([]);
-        }
-      } catch (error) {
-        console.error('Error fetching orders:', error);
-      }
-    };
-    
-    fetchOrders();
-    const interval = setInterval(fetchOrders, 5000);
-    return () => clearInterval(interval);
-  }, [selectedAccountIdProp]);
+    if (selectedAccountIdProp && isConnected) {
+      queryOrders(selectedAccountIdProp);
+      // Poll occasionally to ensure sync if backend doesn't push updates for all events
+      const interval = setInterval(() => queryOrders(selectedAccountIdProp), 5000);
+      return () => clearInterval(interval);
+    }
+  }, [selectedAccountIdProp, isConnected, queryOrders]);
 
   const toggleStrategyExpansion = (strategyId: string) => {
     setExpandedStrategies(prev => 
