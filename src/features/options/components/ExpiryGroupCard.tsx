@@ -9,6 +9,42 @@ import { logger } from '../../../shared/utils/logger';
 import toast from 'react-hot-toast';
 import { useOptionPriceWebSocket } from '../hooks/useOptionPriceWebSocket';
 
+const AnimatedFlash = ({ value, className, type = 'text' }: { value: string | number | null | undefined, className?: string, type?: 'text' | 'price' }) => {
+  const [prev, setPrev] = useState(value);
+  const [highlight, setHighlight] = useState('');
+  const [displayValue, setDisplayValue] = useState(value);
+
+  useEffect(() => {
+    if (value !== prev) {
+      // Determine direction for colors
+      const isUp = Number(value) > Number(prev);
+      const isDown = Number(value) < Number(prev);
+      
+      let colorClass = 'text-blue-600 dark:text-blue-400'; // Default change
+      if (type === 'price' && !isNaN(Number(value)) && !isNaN(Number(prev))) {
+         if (isUp) colorClass = 'text-green-600 dark:text-green-400';
+         if (isDown) colorClass = 'text-red-600 dark:text-red-400';
+      }
+
+      setHighlight(`animate-pulse ${colorClass} font-bold scale-110 origin-center`);
+      setDisplayValue(value);
+      
+      const timer = setTimeout(() => {
+        setHighlight('');
+        setPrev(value);
+      }, 800);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [value, prev, type]);
+
+  return (
+    <span className={`${className} ${highlight} inline-block transition-all duration-300`}>
+      {displayValue ?? '-'}
+    </span>
+  );
+};
+
 interface ExpiryGroupCardProps {
   theme: Theme;
   group: { expiry: string; daysToExpiry: number; single: OptionsPosition[]; complex: OptionsStrategy[] };
@@ -257,8 +293,11 @@ export function ExpiryGroupCard({
         ])
     ).filter(Boolean) as string[];
     
-    return Array.from(new Set([...positionCodes, ...allOptionCodes])).sort();
-  }, [filteredPositions, optionsData, localOptionsData, optionsDataMap, group.expiry]);
+    // Include selected underlying symbol if available
+    const underlyingCode = selectedSymbol ? [selectedSymbol] : [];
+    
+    return Array.from(new Set([...positionCodes, ...allOptionCodes, ...underlyingCode])).sort();
+  }, [filteredPositions, optionsData, localOptionsData, optionsDataMap, group.expiry, selectedSymbol]);
 
   useEffect(() => {
     // Use stringified codes to prevent unnecessary effect triggers when array reference changes but content is same
@@ -271,11 +310,10 @@ export function ExpiryGroupCard({
       // Initial query to ensure data is displayed
       runQuery();
 
-      // Only poll when details are open or confirmation dialog is active
-      if (isExpanded || confirmData) {
-        const interval = setInterval(runQuery, 3000);
-        return () => clearInterval(interval);
-      }
+      // Poll frequently (1s) when active/expanded, less frequently (5s) otherwise
+      const intervalMs = (isExpanded || confirmData) ? 1000 : 5000;
+      const interval = setInterval(runQuery, intervalMs);
+      return () => clearInterval(interval);
     }
   }, [isConnected, codes.join(','), queryPrice, isExpanded, confirmData]);
 
@@ -1009,10 +1047,10 @@ export function ExpiryGroupCard({
                                           </div>
                                         </td>
                                         <td className={`text-center py-2 px-3 w-24 ${themes[theme].text}`}>
-                                            <span className="font-mono text-gray-500">{displayCallTV}</span>
+                                            <AnimatedFlash value={displayCallTV} className="font-mono text-gray-500" />
                                         </td>
                                         <td className={`text-center py-2 px-3 w-24 border-r ${themes[theme].border} ${themes[theme].text}`}>
-                                            <span className="font-mono">{callPrice || '-'}</span>
+                                            <AnimatedFlash value={callPrice || '-'} className="font-mono" type="price" />
                                         </td>
                                         <td className={`text-center py-2 px-4 w-24 ${themes[theme].text}`}>{m.s}
                                           {underlyingPrice != null && (
@@ -1020,10 +1058,10 @@ export function ExpiryGroupCard({
                                           )}
                                         </td>
                                         <td className={`text-center py-2 px-3 w-24 border-l ${themes[theme].border} ${themes[theme].text}`}>
-                                            <span className="font-mono">{putPrice || '-'}</span>
+                                            <AnimatedFlash value={putPrice || '-'} className="font-mono" type="price" />
                                         </td>
                                         <td className={`text-center py-2 px-3 w-24 ${themes[theme].text}`}>
-                                            <span className="font-mono text-gray-500">{displayPutTV}</span>
+                                            <AnimatedFlash value={displayPutTV} className="font-mono text-gray-500" />
                                         </td>
                                         <td className={`text-center py-2 px-3 w-20 ${themes[theme].text}`}>
                                           <div className="flex items-center justify-center gap-1">
