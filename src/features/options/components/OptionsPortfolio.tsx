@@ -15,6 +15,7 @@ import { computeCombosForPositions as computeCombosForStrategy } from '../utils/
 import toast from 'react-hot-toast';
 import { ExpiryGroupCard } from './ExpiryGroupCard';
 import { useOptionPriceWebSocket } from '../hooks/useOptionPriceWebSocket';
+import { UnderlyingPriceMonitor } from './UnderlyingPriceMonitor';
 
 interface OptionsPortfolioProps {
   theme: Theme;
@@ -1416,8 +1417,8 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                       {order.order_status_name}
                     </td>
                     <td className={`px-6 py-4 whitespace-nowrap text-sm text-right ${themes[theme].text}`}>
-                      <div>限: {formatCurrency(order.limit_price, currencyConfig)}</div>
-                      {order.traded_price > 0 && <div className="text-gray-500 text-xs">成: {formatCurrency(order.traded_price, currencyConfig)}</div>}
+                      <div>限: {formatCurrency(order.limit_price, currencyConfig, 4)}</div>
+                      {order.traded_price > 0 && <div className="text-gray-500 text-xs">成: {formatCurrency(order.traded_price, currencyConfig, 4)}</div>}
                     </td>
                     <td className={`px-6 py-4 whitespace-nowrap text-sm text-right ${themes[theme].text}`}>
                       {order.volume_traded} / {order.volume_total_original}
@@ -2475,6 +2476,9 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
           </div>
         </div>
       )}
+
+      {/* Underlying Price Monitor */}
+      <UnderlyingPriceMonitor symbol={activeSymbol} theme={theme} />
 
       {/* Scroll-following Refresh Button */}
       <button
