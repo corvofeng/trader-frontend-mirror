@@ -57,7 +57,29 @@ export function OptionsChain({
 
   const atmStrike = getAtTheMoneyStrike(editableQuotes);
 
-  // 可配置字段定义（保持左右镜像对称）
+  const callTimeValues = editableQuotes.map(q => q.callTimeValue || 0).filter(v => v > 0);
+  const putTimeValues = editableQuotes.map(q => q.putTimeValue || 0).filter(v => v > 0);
+  const allTimeValues = [...callTimeValues, ...putTimeValues];
+  const maxTimeValue = allTimeValues.length > 0 ? Math.max(...allTimeValues) : 0;
+
+  const getTimeValueClass = (value: number, isCall: boolean) => {
+    if (maxTimeValue <= 0 || value <= 0) return '';
+    const ratio = value / maxTimeValue;
+    if (ratio >= 0.66) {
+      return isCall
+        ? 'bg-emerald-500/30 text-emerald-900 dark:bg-emerald-400/25 dark:text-emerald-100'
+        : 'bg-sky-500/30 text-sky-900 dark:bg-sky-400/25 dark:text-sky-100';
+    }
+    if (ratio >= 0.33) {
+      return isCall
+        ? 'bg-emerald-400/20 text-emerald-900 dark:bg-emerald-300/20 dark:text-emerald-100'
+        : 'bg-sky-400/20 text-sky-900 dark:bg-sky-300/20 dark:text-sky-100';
+    }
+    return isCall
+      ? 'bg-emerald-300/10 text-emerald-900 dark:bg-emerald-200/10 dark:text-emerald-50'
+      : 'bg-sky-300/10 text-sky-900 dark:bg-sky-200/10 dark:text-sky-50';
+  };
+
   type FieldId = 'volume' | 'openInterest' | 'lastPrice' | 'timeValue' | 'intrinsicValue' | 'impliedVol';
 
   const FIELD_CONFIG: Array<{
@@ -119,8 +141,24 @@ export function OptionsChain({
     {
       id: 'timeValue',
       label: '时间价值',
-      renderCall: (quote) => formatCurrency(quote.callTimeValue || 0, currencyConfig, 4),
-      renderPut: (quote) => formatCurrency(quote.putTimeValue || 0, currencyConfig, 4),
+      renderCall: (quote) => {
+        const v = quote.callTimeValue || 0;
+        const cls = getTimeValueClass(v, true);
+        return (
+          <span className={`inline-flex px-2 py-0.5 rounded ${cls}`}>
+            {formatCurrency(v, currencyConfig, 4)}
+          </span>
+        );
+      },
+      renderPut: (quote) => {
+        const v = quote.putTimeValue || 0;
+        const cls = getTimeValueClass(v, false);
+        return (
+          <span className={`inline-flex px-2 py-0.5 rounded ${cls}`}>
+            {formatCurrency(v, currencyConfig, 4)}
+          </span>
+        );
+      },
       callAlign: 'right',
       putAlign: 'left',
     },

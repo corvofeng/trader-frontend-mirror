@@ -33,14 +33,14 @@ export function TimeValueChart({ theme, optionsData, selectedSymbol }: TimeValue
   }, []);
 
   useEffect(() => {
-  if (!timeValueChartRef.current || !isMountedRef.current || !optionsData) {
-    logger.debug('[TimeValueChart] Guard: chart not ready or data missing', {
-      hasRef: !!timeValueChartRef.current,
-      isMounted: !!isMountedRef.current,
-      hasData: !!optionsData,
-    });
-    return;
-  }
+    if (!timeValueChartRef.current || !isMountedRef.current || !optionsData) {
+      logger.debug('[TimeValueChart] Guard: chart not ready or data missing', {
+        hasRef: !!timeValueChartRef.current,
+        isMounted: !!isMountedRef.current,
+        hasData: !!optionsData,
+      });
+      return;
+    }
 
     // Dispose of existing chart if it exists
     if (timeValueChartInstanceRef.current) {
@@ -56,52 +56,115 @@ export function TimeValueChart({ theme, optionsData, selectedSymbol }: TimeValue
     const expiryDates = Array.from(new Set(optionsData.quotes.map(q => q.expiry)))
       .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
-    // Calculate time value data for each expiry
-    const timeValueData = expiryDates.map(expiry => {
-      const quotesForExpiry = optionsData.quotes.filter(q => q.expiry === expiry);
-      
-      // Find ATM strike (highest time value)
-      let maxTimeValue = 0;
-      let atmCallTimeValue = 0;
-      
-      quotesForExpiry.forEach(quote => {
-        const totalTimeValue = (quote.callTimeValue || 0) + (quote.putTimeValue || 0);
-        if (totalTimeValue > maxTimeValue) {
-          maxTimeValue = totalTimeValue;
-          atmCallTimeValue = quote.callTimeValue || 0;
-        }
-      });
+    if (expiryDates.length === 0) {
+      logger.debug('[TimeValueChart] No expiry dates found, skipping chart render');
+      return;
+    }
 
-      const now = new Date();
+    const now = new Date();
+
+    // 基础维度：每个到期日对应的元数据（剩余天数、时间比例）
+    const metaData = expiryDates.map(expiry => {
       const expiryDate = new Date(expiry);
       const daysToExpiry = differenceInDays(expiryDate, now);
-      
-      // Calculate percentage of time remaining (assuming max 365 days)
       const timePercentage = Math.max(0, Math.min(100, (daysToExpiry / 365) * 100));
-
       return {
         expiry,
         daysToExpiry,
-        timePercentage,
-        callTimeValue: atmCallTimeValue
+        timePercentage
       };
     });
 
-    // Prepare chart data based on display mode
-    const xAxisData = timeValueData.map(item => 
-      timeDisplayMode === 'days' 
+    // X 轴：按配置展示“剩余天数 / 时间比例”
+    const xAxisData = metaData.map(item =>
+      timeDisplayMode === 'days'
         ? `${item.daysToExpiry}天`
         : `${item.timePercentage.toFixed(1)}%`
     );
-    
-    const seriesData = timeValueData.map(item => item.callTimeValue);
+
+    // 所有行权价集合（用于按行权价画多条时间价值曲线）
+    const strikeSet = new Set<number>();
+    optionsData.quotes.forEach(q => {
+      if (typeof q.strike === 'number') {
+        strikeSet.add(q.strike);
+      }
+    });
+    const strikes = Array.from(strikeSet).sort((a, b) => a - b);
+
+    if (strikes.length === 0) {
+      logger.debug('[TimeValueChart] No strikes found, skipping chart render');
+      return;
+    }
+
+    // 计算整体的“平值”行权价（总时间价值最大的合约，用于高亮）
+    let globalAtmStrike = strikes[0];
+    let globalMaxTimeValue = 0;
+    optionsData.quotes.forEach(quote => {
+      const callTimeValue = quote.callTimeValue || 0;
+      const putTimeValue = quote.putTimeValue || 0;
+      const totalTimeValue = callTimeValue + putTimeValue;
+      if (totalTimeValue > globalMaxTimeValue) {
+        globalMaxTimeValue = totalTimeValue;
+        globalAtmStrike = quote.strike;
+      }
+    });
+
+    // 只保留平值附近少量行权价，避免图表过于杂乱
+    const MAX_SERIES = 7;
+    let filteredStrikes = strikes;
+    if (strikes.length > MAX_SERIES) {
+      filteredStrikes = [...strikes]
+        .sort((a, b) => Math.abs(a - globalAtmStrike) - Math.abs(b - globalAtmStrike))
+        .slice(0, MAX_SERIES)
+        .sort((a, b) => a - b);
+    }
+
+    // 为每个行权价构建一条时间价值曲线（随到期日变化）
+    const series = filteredStrikes.map(strike => {
+      const data = expiryDates.map(expiry => {
+        const match = optionsData.quotes.find(q => q.expiry === expiry && q.strike === strike);
+        if (!match) return null;
+        return match.callTimeValue || 0;
+      });
+
+      const isAtm = strike === globalAtmStrike;
+
+      return {
+        name: `K=${strike}`,
+        type: 'line',
+        data,
+        smooth: true,
+        symbol: isAtm ? 'circle' : 'none',
+        symbolSize: isAtm ? 6 : 3,
+        lineStyle: {
+          width: isAtm ? 3 : 1.5,
+          opacity: isAtm ? 1 : 0.7
+        },
+        itemStyle: isAtm
+          ? {
+              color: getThemedColors(theme).chart.upColor
+            }
+          : undefined,
+        emphasis: {
+          focus: 'series'
+        }
+      };
+    });
 
     const option = {
       title: {
-        text: `${selectedSymbol} 平值Call期权时间价值`,
+        text: `${selectedSymbol} 平值附近Call期权时间价值（按行权价）`,
         textStyle: {
           color: isDark ? '#e5e7eb' : '#111827',
           fontSize: 16
+        }
+      },
+      legend: {
+        type: 'scroll',
+        top: 40,
+        textStyle: {
+          color: isDark ? '#e5e7eb' : '#111827',
+          fontSize: 11
         }
       },
       tooltip: {
@@ -115,7 +178,22 @@ export function TimeValueChart({ theme, optionsData, selectedSymbol }: TimeValue
           const paramsArray = Array.isArray(params) ? params : [params];
           const first = paramsArray[0];
           const dataIndex = first?.dataIndex ?? 0;
-          const item = timeValueData[dataIndex];
+          const item = metaData[dataIndex];
+          if (!item) return '';
+
+          const lines = paramsArray
+            .filter(p => p.data != null)
+            .sort((a, b) => {
+              const av = typeof a.data === 'number' ? a.data : Number(a.data || 0);
+              const bv = typeof b.data === 'number' ? b.data : Number(b.data || 0);
+              return bv - av;
+            })
+            .map(p => {
+              const value = typeof p.data === 'number' ? p.data : Number(p.data || 0);
+              return `<div>行权价 ${p.seriesName}: ${formatCurrency(value, currencyConfig)}</div>`;
+            })
+            .join('');
+
           return `
             <div>
               <div style="font-weight: bold; margin-bottom: 4px;">
@@ -123,7 +201,7 @@ export function TimeValueChart({ theme, optionsData, selectedSymbol }: TimeValue
               </div>
               <div>剩余天数: ${item.daysToExpiry}天</div>
               <div>时间比例: ${item.timePercentage.toFixed(1)}%</div>
-              <div>时间价值: ${formatCurrency(item.callTimeValue, currencyConfig)}</div>
+              ${lines}
             </div>
           `;
         }
@@ -132,7 +210,7 @@ export function TimeValueChart({ theme, optionsData, selectedSymbol }: TimeValue
         left: '10%',
         right: '10%',
         bottom: '15%',
-        top: '20%'
+        top: '25%'
       },
       xAxis: {
         type: 'category',
@@ -180,40 +258,7 @@ export function TimeValueChart({ theme, optionsData, selectedSymbol }: TimeValue
         }
       },
       series: [
-        {
-          name: '时间价值',
-          type: 'line',
-          data: seriesData,
-          smooth: true,
-          symbol: 'circle',
-          symbolSize: 6,
-          lineStyle: {
-            color: getThemedColors(theme).chart.upColor,
-            width: 3
-          },
-          itemStyle: {
-            color: getThemedColors(theme).chart.upColor
-          },
-          areaStyle: {
-            color: {
-              type: 'linear',
-              x: 0,
-              y: 0,
-              x2: 0,
-              y2: 1,
-              colorStops: [
-                {
-                  offset: 0,
-                  color: getThemedColors(theme).chart.upColor + '40'
-                },
-                {
-                  offset: 1,
-                  color: getThemedColors(theme).chart.upColor + '10'
-                }
-              ]
-            }
-          }
-        }
+        ...series
       ]
     };
 
@@ -241,7 +286,7 @@ export function TimeValueChart({ theme, optionsData, selectedSymbol }: TimeValue
       <div className="p-6">
         <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center mb-6">
           <h2 className={`text-xl font-bold ${themes[theme].text}`}>
-            平值Call期权时间价值趋势 - {selectedSymbol}
+            平值附近Call期权时间价值趋势（按行权价） - {selectedSymbol}
           </h2>
           <div className="flex items-center gap-2">
             <label className={`text-sm font-medium ${themes[theme].text}`}>
