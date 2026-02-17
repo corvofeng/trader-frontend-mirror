@@ -397,7 +397,7 @@ export const optionsService: OptionsService = {
       return { data: null, error: error as Error };
     }
   },
-  updatePositions: async (payload: { updates: Array<{ id?: string; type: 'call' | 'put'; position_type: 'buy' | 'sell'; strike: number; expiry: string; quantity: number; original_quantity?: number; change_quantity?: number; is_covered?: boolean; symbol?: string; option_type?: string; strike_price?: string | number }>, positions?: OptionsPosition[], accountId?: string | null, userId?: string | null }) => {
+  updatePositions: async (payload: { updates: Array<{ id?: string; type: 'call' | 'put'; position_type: 'buy' | 'sell'; strike: number; expiry: string; quantity: number; original_quantity?: number; change_quantity?: number; is_covered?: boolean; symbol?: string; option_type?: string; strike_price?: string | number; price?: number }>, positions?: OptionsPosition[], accountId?: string | null, userId?: string | null }) => {
     try {
       const base = `/api/options/positions/sync${payload.accountId ? `/accounts/${encodeURIComponent(payload.accountId)}` : ''}`;
       const url = payload.userId ? `${base}?userId=${encodeURIComponent(payload.userId)}` : base;

@@ -35,6 +35,38 @@ export function UnderlyingPriceMonitor({ symbol, theme }: UnderlyingPriceMonitor
   const { prices, isConnected, queryPrice } = useOptionPriceWebSocket();
   const [history, setHistory] = useState<{ time: string; price: number }[]>([]);
   const lastPriceRef = useRef<number | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const dragOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [positionMode, setPositionMode] = useState<'corner' | 'custom'>(() => {
+    try {
+      const saved = localStorage.getItem('underlying_price_monitor_pos_mode');
+      return saved === 'custom' ? 'custom' : 'corner';
+    } catch {
+      return 'corner';
+    }
+  });
+  const [corner, setCorner] = useState<'top-right' | 'bottom-right' | 'top-left' | 'bottom-left'>(() => {
+    try {
+      const saved = localStorage.getItem('underlying_price_monitor_corner');
+      if (saved === 'bottom-right' || saved === 'top-left' || saved === 'bottom-left') return saved;
+      return 'top-right';
+    } catch {
+      return 'top-right';
+    }
+  });
+  const [customPos, setCustomPos] = useState<{ top: number; left: number }>(() => {
+    try {
+      const saved = localStorage.getItem('underlying_price_monitor_custom');
+      if (saved) {
+        const obj = JSON.parse(saved);
+        if (typeof obj?.top === 'number' && typeof obj?.left === 'number') {
+          return { top: obj.top, left: obj.left };
+        }
+      }
+    } catch {}
+    return { top: 96, left: window.innerWidth - 16 - 256 }; // approx: top-24, right-4 for 16rem width
+  });
 
   // Poll for price if not connected via other means or just to be sure
   useEffect(() => {
@@ -134,16 +166,104 @@ export function UnderlyingPriceMonitor({ symbol, theme }: UnderlyingPriceMonitor
 
   if (!symbol) return null;
 
+  const baseClass = `${themes[theme].card} shadow-lg rounded-lg border ${themes[theme].border} overflow-hidden opacity-90 hover:opacity-100 transition-opacity ${dragging ? 'cursor-grabbing' : 'cursor-move'}`;
+  const style: React.CSSProperties = { position: 'fixed', zIndex: 50, width: '16rem' };
+  if (positionMode === 'corner') {
+    if (corner === 'top-right') { style.top = 96; style.right = 16; }
+    if (corner === 'bottom-right') { style.bottom = 80; style.right = 16; }
+    if (corner === 'top-left') { style.top = 96; style.left = 16; }
+    if (corner === 'bottom-left') { style.bottom = 80; style.left = 16; }
+  } else {
+    style.top = Math.max(16, Math.min(customPos.top, window.innerHeight - 160));
+    style.left = Math.max(16, Math.min(customPos.left, window.innerWidth - 280));
+  }
+
+  const startDrag = (e: React.MouseEvent) => {
+    if (positionMode !== 'custom') return;
+    setDragging(true);
+    const rect = containerRef.current?.getBoundingClientRect();
+    const offsetX = e.clientX - (rect?.left ?? 0);
+    const offsetY = e.clientY - (rect?.top ?? 0);
+    dragOffsetRef.current = { x: offsetX, y: offsetY };
+    window.addEventListener('mousemove', onDrag);
+    window.addEventListener('mouseup', endDrag);
+  };
+  const onDrag = (e: MouseEvent) => {
+    setCustomPos(prev => {
+      const top = e.clientY - dragOffsetRef.current.y;
+      const left = e.clientX - dragOffsetRef.current.x;
+      const clampedTop = Math.max(8, Math.min(top, window.innerHeight - 160));
+      const clampedLeft = Math.max(8, Math.min(left, window.innerWidth - 280));
+      try {
+        localStorage.setItem('underlying_price_monitor_custom', JSON.stringify({ top: clampedTop, left: clampedLeft }));
+      } catch {}
+      return { top: clampedTop, left: clampedLeft };
+    });
+  };
+  const endDrag = () => {
+    setDragging(false);
+    window.removeEventListener('mousemove', onDrag);
+    window.removeEventListener('mouseup', endDrag);
+  };
+
+  const setCornerMode = (c: typeof corner) => {
+    setPositionMode('corner');
+    setCorner(c);
+    try {
+      localStorage.setItem('underlying_price_monitor_pos_mode', 'corner');
+      localStorage.setItem('underlying_price_monitor_corner', c);
+    } catch {}
+  };
+  const setCustomMode = () => {
+    setPositionMode('custom');
+    try {
+      localStorage.setItem('underlying_price_monitor_pos_mode', 'custom');
+    } catch {}
+  };
+
   return (
-    <div className={`fixed right-4 top-24 z-50 w-64 ${themes[theme].card} shadow-lg rounded-lg border ${themes[theme].border} overflow-hidden opacity-90 hover:opacity-100 transition-opacity`}>
-      <div className={`p-3 border-b ${themes[theme].border} flex justify-between items-center bg-opacity-50 backdrop-blur`}>
+    <div ref={containerRef} className={baseClass} style={style}>
+      <div
+        className={`p-3 border-b ${themes[theme].border} flex justify-between items-center bg-opacity-50 backdrop-blur select-none`}
+        onMouseDown={startDrag}
+        title={positionMode === 'custom' ? '拖动移动位置' : '点击右侧按钮选择位置'}
+      >
         <div className="font-bold text-sm">{symbol}</div>
-        <div className="font-mono text-lg font-bold">
-           <AnimatedFlash value={currentPrice} type="price" />
+        <div className="flex items-center gap-2">
+          <div className="font-mono text-lg font-bold">
+            <AnimatedFlash value={currentPrice} type="price" />
+          </div>
         </div>
       </div>
       <div className="h-32 w-full bg-white dark:bg-gray-900 p-2">
         <Line data={chartData} options={chartOptions} />
+      </div>
+      <div className={`px-2 py-2 border-t ${themes[theme].border} flex items-center justify-between`}>
+        <div className="flex gap-2">
+          <button
+            className={`px-2 py-1 rounded text-xs ${themes[theme].secondary}`}
+            onClick={() => setCornerMode('top-right')}
+          >右上</button>
+          <button
+            className={`px-2 py-1 rounded text-xs ${themes[theme].secondary}`}
+            onClick={() => setCornerMode('bottom-right')}
+          >右下</button>
+          <button
+            className={`px-2 py-1 rounded text-xs ${themes[theme].secondary}`}
+            onClick={() => setCornerMode('top-left')}
+          >左上</button>
+          <button
+            className={`px-2 py-1 rounded text-xs ${themes[theme].secondary}`}
+            onClick={() => setCornerMode('bottom-left')}
+          >左下</button>
+        </div>
+        <button
+          className="px-2 py-1 rounded text-xs bg-blue-600 text-white hover:bg-blue-700"
+          onClick={setCustomMode}
+          title="切换到拖动模式"
+        >
+          拖动
+        </button>
       </div>
     </div>
   );

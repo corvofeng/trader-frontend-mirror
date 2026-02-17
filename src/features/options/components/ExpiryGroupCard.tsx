@@ -196,13 +196,13 @@ export function ExpiryGroupCard({
   isRefreshing
 }: ExpiryGroupCardProps) {
   const { queryPrice, prices, isConnected, connect } = useOptionPriceWebSocket();
-  // State lifted to parent
   const [localState, setLocalState] = useState<{ data: OptionsData | null; symbol: string | null }>({ data: null, symbol: null });
   const { data: localOptionsData, symbol: localDataSymbol } = localState;
 
   const [advisedModal, setAdvisedModal] = useState<{ combo: AdvisedCombination; quantity: number } | null>(null);
   const [confirmData, setConfirmData] = useState<{ ids: string[]; meta?: { action?: string; comboType?: 'call' | 'put'; strike?: number; expiry?: string; strategyIds?: string[]; category?: string; defaultComboCount?: number; perLegMaxQty?: Record<string, number>; quote?: OptionQuote; contract_code?: string; contract_code_full?: string }; title: string; description: string } | null>(null);
   const [qtyOverrides, setQtyOverrides] = useState<Record<string, number>>({});
+  const [syncPrice, setSyncPrice] = useState<number | null>(null);
   const basePositions = useMemo(() => filterAndSortPositions(group.single), [filterAndSortPositions, group.single]);
   const [showAnalysisDrawer, setShowAnalysisDrawer] = useState(false);
 
@@ -343,6 +343,7 @@ export function ExpiryGroupCard({
   useEffect(() => {
     if (!confirmData) {
       setQtyOverrides({});
+      setSyncPrice(null);
       initializedConfirmRef.current = null;
       return;
     }
@@ -1581,7 +1582,6 @@ export function ExpiryGroupCard({
                       </div>
                       
                       <div className="grid grid-cols-2 gap-2 text-[10px]">
-                        {/* Bid Side (Buy) */}
                         <div className="flex flex-col">
                           <div className={`text-center font-medium border-b ${themes[theme].border} mb-1 text-red-500`}>买盘</div>
                           <div className="grid grid-cols-3 gap-1 px-1 opacity-70 mb-1">
@@ -1594,10 +1594,19 @@ export function ExpiryGroupCard({
                                const price = priceData.bid_price?.[i] ?? (i === 0 ? priceData.bid : undefined);
                                const vol = priceData.bid_vol?.[i];
                                if (price === undefined && vol === undefined && i >= 5) return null;
+                               const isSelected = syncPrice != null && typeof price === 'number' && Math.abs(price - syncPrice) < 1e-8;
                                return (
-                                 <div key={`bid-${i}`} className="grid grid-cols-3 gap-1 px-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded">
+                                 <div
+                                   key={`bid-${i}`}
+                                   className={`grid grid-cols-3 gap-1 px-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer ${isSelected ? 'bg-red-100 dark:bg-red-900/40' : ''}`}
+                                   onClick={() => {
+                                     if (typeof price === 'number') {
+                                       setSyncPrice(price);
+                                     }
+                                   }}
+                                 >
                                    <div className="text-left opacity-75">{i + 1}</div>
-                                   <div className="text-right text-red-500 font-medium">{price?.toFixed(4) ?? '-'}</div>
+                                   <div className="text-right text-red-500 font-medium">{price != null ? price.toFixed(4) : '-'}</div>
                                    <div className="text-right opacity-90">{vol ?? '-'}</div>
                                  </div>
                                );
@@ -1605,7 +1614,6 @@ export function ExpiryGroupCard({
                           </div>
                         </div>
                         
-                        {/* Ask Side (Sell) */}
                         <div className="flex flex-col">
                           <div className={`text-center font-medium border-b ${themes[theme].border} mb-1 text-green-500`}>卖盘</div>
                           <div className="grid grid-cols-3 gap-1 px-1 opacity-70 mb-1">
@@ -1618,15 +1626,82 @@ export function ExpiryGroupCard({
                                const price = priceData.ask_price?.[i] ?? (i === 0 ? priceData.ask : undefined);
                                const vol = priceData.ask_vol?.[i];
                                if (price === undefined && vol === undefined && i >= 5) return null;
+                               const isSelected = syncPrice != null && typeof price === 'number' && Math.abs(price - syncPrice) < 1e-8;
                                return (
-                                 <div key={`ask-${i}`} className="grid grid-cols-3 gap-1 px-1 hover:bg-green-50 dark:hover:bg-green-900/20 rounded">
+                                 <div
+                                   key={`ask-${i}`}
+                                   className={`grid grid-cols-3 gap-1 px-1 rounded hover:bg-green-50 dark:hover:bg-green-900/20 cursor-pointer ${isSelected ? 'bg-green-100 dark:bg-green-900/40' : ''}`}
+                                   onClick={() => {
+                                     if (typeof price === 'number') {
+                                       setSyncPrice(price);
+                                     }
+                                   }}
+                                 >
                                    <div className="text-left opacity-75">{i + 1}</div>
-                                   <div className="text-right text-green-500 font-medium">{price?.toFixed(4) ?? '-'}</div>
+                                   <div className="text-right text-green-500 font-medium">{price != null ? price.toFixed(4) : '-'}</div>
                                    <div className="text-right opacity-90">{vol ?? '-'}</div>
                                  </div>
                                );
                             })}
                           </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-2 flex items-center justify-between gap-2 text-[10px]">
+                        <div className="flex items-center gap-1">
+                          <span className={themes[theme].text}>目标价格</span>
+                          <input
+                            type="number"
+                            step="0.0001"
+                            value={syncPrice != null ? syncPrice : ''}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              if (v === '') {
+                                setSyncPrice(null);
+                              } else {
+                                const n = parseFloat(v);
+                                if (!Number.isNaN(n)) {
+                                  setSyncPrice(n);
+                                }
+                              }
+                            }}
+                            className={`w-24 px-2 py-1 rounded ${themes[theme].input} ${themes[theme].text}`}
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            className="px-2 py-1 rounded border text-[10px]"
+                            onClick={() => {
+                              if (typeof priceData.price === 'number') {
+                                setSyncPrice(priceData.price);
+                              }
+                            }}
+                          >
+                            用最新价
+                          </button>
+                          <button
+                            type="button"
+                            className="px-2 py-1 rounded border text-[10px]"
+                            onClick={() => {
+                              if (typeof priceData.bid === 'number') {
+                                setSyncPrice(priceData.bid);
+                              }
+                            }}
+                          >
+                            用买一
+                          </button>
+                          <button
+                            type="button"
+                            className="px-2 py-1 rounded border text-[10px]"
+                            onClick={() => {
+                              if (typeof priceData.ask === 'number') {
+                                setSyncPrice(priceData.ask);
+                              }
+                            }}
+                          >
+                            用卖一
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -1666,6 +1741,11 @@ export function ExpiryGroupCard({
                     }}
                     className={`w-24 px-2 py-1 rounded text-xs ${themes[theme].input} ${themes[theme].text}`}
                   />
+                  {syncPrice != null && (
+                    <span className={`text-[10px] ${themes[theme].text} opacity-70`}>
+                      目标价格 {syncPrice.toFixed(4)}
+                    </span>
+                  )}
                   {(() => {
                     const targetQty = Object.values(qtyOverrides)[0] ?? 0;
                     if (targetQty !== 0) {
@@ -1914,7 +1994,7 @@ export function ExpiryGroupCard({
                   put_covered: { type: 'put', position_type: 'sell' }
                 };
                 const p = map[category];
-                const resp = await optionsService.updatePositions({ updates: [{ type: p.type, position_type: p.position_type, strike, expiry: String(confirmData.meta?.expiry || group.expiry), quantity: sum, option_type: p.type, strike_price: String(strike) }], accountId: selectedAccountId || null, userId: userId || null });
+                const resp = await optionsService.updatePositions({ updates: [{ type: p.type, position_type: p.position_type, strike, expiry: String(confirmData.meta?.expiry || group.expiry), quantity: sum, option_type: p.type, strike_price: String(strike), price: syncPrice != null ? syncPrice : undefined }], accountId: selectedAccountId || null, userId: userId || null });
                 if (resp.error) {
                   toast.error('同步失败');
                 } else {
@@ -2043,7 +2123,7 @@ export function ExpiryGroupCard({
                   };
                 });
 
-                const resp = await optionsService.updatePositions({ updates: [{ type: p.type, position_type: p.position_type, strike, expiry: String(confirmData.meta?.expiry || group.expiry), quantity: q, original_quantity: origAvailSum, change_quantity: change, is_covered: category === 'call_covered' || category === 'put_covered', symbol: foundSymbol, option_type: p.type, strike_price: String(strike) }], positions: positionsToSend, accountId: selectedAccountId || null, userId: userId || null });
+                const resp = await optionsService.updatePositions({ updates: [{ type: p.type, position_type: p.position_type, strike, expiry: String(confirmData.meta?.expiry || group.expiry), quantity: q, original_quantity: origAvailSum, change_quantity: change, is_covered: category === 'call_covered' || category === 'put_covered', symbol: foundSymbol, option_type: p.type, strike_price: String(strike), price: syncPrice != null ? syncPrice : undefined }], positions: positionsToSend, accountId: selectedAccountId || null, userId: userId || null });
                 if (resp.error) {
                   toast.error('同步失败');
                 } else {
