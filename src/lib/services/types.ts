@@ -667,6 +667,7 @@ export interface OptionsService {
   updateWhitelist: (id: string | number, whitelist: Partial<OptionWhitelist>, userId: string, accountId?: string | null) => Promise<ServiceResponse<OptionWhitelist>>;
   deleteWhitelist: (id: string | number, userId: string, accountId?: string | null) => Promise<ServiceResponse<void>>;
   getOptionOrders: (accountId: string, userId?: string | null, options?: { only_today?: boolean; date?: string }) => Promise<ServiceResponse<OptionOrder[]>>;
+  getOptionOrdersStats: (accountId: string, month: string) => Promise<ServiceResponse<Record<string, { completed_count: number; pending_count: number; total_count: number }>>>;
 }
 
 export interface CustomOptionsStrategy {

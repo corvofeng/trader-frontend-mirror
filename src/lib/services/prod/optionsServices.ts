@@ -605,7 +605,7 @@ export const optionsService: OptionsService = {
       if (options?.date) params.set('date', options.date);
       const queryString = params.toString() ? `?${params.toString()}` : '';
       
-      const response = await fetch(`https://stock.in.corvo.fun/api/options/orders/${encodeURIComponent(accountId)}${queryString}`);
+      const response = await fetch(`/api/options/orders/${encodeURIComponent(accountId)}${queryString}`);
       if (!response.ok) {
         throw new Error('Failed to fetch option orders');
       }
@@ -615,6 +615,29 @@ export const optionsService: OptionsService = {
       return { data: orders, error: null };
     } catch (error) {
       console.error('Error fetching option orders:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  getOptionOrdersStats: async (accountId: string, month: string) => {
+    try {
+      const params = new URLSearchParams();
+      params.set('month', month);
+      const queryString = params.toString() ? `?${params.toString()}` : '';
+      const response = await fetch(`/api/options/orders-stats/${encodeURIComponent(accountId)}${queryString}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch option orders stats');
+      }
+      const raw = await response.json();
+      if (raw && typeof raw === 'object' && (raw as { stats?: unknown }).stats && typeof (raw as { stats?: unknown }).stats === 'object') {
+        return {
+          data: (raw as { stats: Record<string, { completed_count: number; pending_count: number; total_count: number }> }).stats,
+          error: null
+        };
+      }
+      return { data: null, error: null };
+    } catch (error) {
+      console.error('Error fetching option orders stats:', error);
       return { data: null, error: error as Error };
     }
   }

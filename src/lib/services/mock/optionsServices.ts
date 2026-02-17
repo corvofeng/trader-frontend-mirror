@@ -1067,6 +1067,21 @@ export const optionsService: OptionsService = {
     };
   },
 
+  getOptionOrdersStats: async (accountId: string, month: string): Promise<ServiceResponse<Record<string, { completed_count: number; pending_count: number; total_count: number }>>> => {
+    console.log('Mock getOptionOrdersStats called', accountId, month);
+    const baseStats: Record<string, { completed_count: number; pending_count: number; total_count: number }> = {
+      '2026-01-05': { completed_count: 23, pending_count: 1, total_count: 24 },
+      '2026-01-06': { completed_count: 21, pending_count: 0, total_count: 21 },
+      '2026-01-07': { completed_count: 8, pending_count: 0, total_count: 8 },
+      '2026-01-08': { completed_count: 7, pending_count: 0, total_count: 7 },
+      '2026-01-12': { completed_count: 16, pending_count: 0, total_count: 16 }
+    };
+    return {
+      data: baseStats,
+      error: null
+    };
+  },
+
   getPortfolioAnalysis: async () => {
     await new Promise(resolve => setTimeout(resolve, 500));
     return { data: {}, error: null };

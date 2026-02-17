@@ -69,6 +69,7 @@ export function Options({ theme }: OptionsProps) {
   const [ordersError, setOrdersError] = useState<string | null>(null);
   const [tradingDaysByYear, setTradingDaysByYear] = useState<Record<number, Set<string>>>({});
   const [tradingCalendarError, setTradingCalendarError] = useState<string | null>(null);
+  const [ordersStatsByMonth, setOrdersStatsByMonth] = useState<Record<string, Record<string, { completed_count: number; pending_count: number; total_count: number }>>>({});
   const [selectedDate, setSelectedDate] = useState<string>(() => format(new Date(), 'yyyy-MM-dd'));
   const [currentMonth, setCurrentMonth] = useState<Date>(() => new Date());
 
@@ -187,12 +188,39 @@ export function Options({ theme }: OptionsProps) {
 
   React.useEffect(() => {
     if (activeTab !== 'calendar') return;
+    if (!selectedAccountId) return;
+    const monthKey = format(currentMonth, 'yyyy-MM');
+    if (ordersStatsByMonth[monthKey]) return;
+    let cancelled = false;
+    const fetchStats = async () => {
+      try {
+        const { data, error } = await optionsService.getOptionOrdersStats(selectedAccountId, monthKey);
+        if (!cancelled && !error && data) {
+          setOrdersStatsByMonth(prev => ({
+            ...prev,
+            [monthKey]: data
+          }));
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('Failed to load option orders stats', err);
+        }
+      }
+    };
+    fetchStats();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, currentMonth, selectedAccountId, ordersStatsByMonth]);
+
+  React.useEffect(() => {
+    if (activeTab !== 'calendar') return;
     const year = currentMonth.getFullYear();
     if (tradingDaysByYear[year]) return;
     let cancelled = false;
     const fetchTradingCalendar = async () => {
       try {
-        const response = await fetch(`https://stock.in.corvo.fun/api/trading-calendar?year=${year}`);
+        const response = await fetch(`/api/trading-calendar?year=${year}`);
         if (!response.ok) {
           throw new Error('Failed to load trading calendar');
         }
@@ -523,11 +551,14 @@ export function Options({ theme }: OptionsProps) {
                       const days = eachDayOfInterval({ start, end });
                       const year = currentMonth.getFullYear();
                       const tradingSet = tradingDaysByYear[year];
+                      const monthKey = format(currentMonth, 'yyyy-MM');
+                      const monthStats = ordersStatsByMonth[monthKey];
                       return days.map((day) => {
                         const dateStr = format(day, 'yyyy-MM-dd');
                         const isCurrentMonth = isSameMonth(day, monthStart);
                         const isSelected = selectedDate && isSameDay(day, new Date(selectedDate));
                         const isTradingDay = !!tradingSet && tradingSet.has(dateStr);
+                        const stats = monthStats ? monthStats[dateStr] : undefined;
                         let baseClass = 'border rounded-lg p-1 h-20 flex flex-col items-center justify-between cursor-pointer text-xs transition-colors duration-150 ease-out';
                         if (isTradingDay) {
                           baseClass += ' bg-emerald-50/70 dark:bg-emerald-900/25 border-emerald-400 dark:border-emerald-500 hover:bg-emerald-100/80 dark:hover:bg-emerald-900/40';
@@ -552,8 +583,22 @@ export function Options({ theme }: OptionsProps) {
                               }
                             }}
                           >
-                            <div className={`text-xs ${themes[theme].text}`}>
-                              {format(day, 'd')}
+                            <div className="w-full flex items-start justify-between">
+                              <div className={`text-xs ${themes[theme].text}`}>
+                                {format(day, 'd')}
+                              </div>
+                              {stats && (
+                                <div className="flex flex-col items-end gap-0.5">
+                                  <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-100 px-1.5 py-0.5 text-[10px] font-medium">
+                                    共 {stats.total_count}
+                                  </span>
+                                  {stats.pending_count > 0 && (
+                                    <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-100 px-1.5 py-0.5 text-[10px] font-medium">
+                                      待 {stats.pending_count}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </button>
                         );
