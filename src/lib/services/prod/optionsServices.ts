@@ -597,11 +597,12 @@ export const optionsService: OptionsService = {
     }
   },
 
-  getOptionOrders: async (accountId: string, userId?: string | null, options?: { only_today?: boolean }) => {
+  getOptionOrders: async (accountId: string, userId?: string | null, options?: { only_today?: boolean; date?: string }) => {
     try {
       const params = new URLSearchParams();
       if (userId) params.set('userId', userId);
       if (options?.only_today) params.set('only_today', 'true');
+      if (options?.date) params.set('date', options.date);
       const queryString = params.toString() ? `?${params.toString()}` : '';
       
       const response = await fetch(`https://stock.in.corvo.fun/api/options/orders/${encodeURIComponent(accountId)}${queryString}`);

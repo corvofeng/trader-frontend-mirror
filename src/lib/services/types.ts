@@ -666,7 +666,7 @@ export interface OptionsService {
   addWhitelist: (whitelist: Omit<OptionWhitelist, 'id' | 'created_at'>, userId: string, accountId?: string | null) => Promise<ServiceResponse<OptionWhitelist>>;
   updateWhitelist: (id: string | number, whitelist: Partial<OptionWhitelist>, userId: string, accountId?: string | null) => Promise<ServiceResponse<OptionWhitelist>>;
   deleteWhitelist: (id: string | number, userId: string, accountId?: string | null) => Promise<ServiceResponse<void>>;
-  getOptionOrders: (accountId: string, userId?: string | null, options?: { only_today?: boolean }) => Promise<ServiceResponse<OptionOrder[]>>;
+  getOptionOrders: (accountId: string, userId?: string | null, options?: { only_today?: boolean; date?: string }) => Promise<ServiceResponse<OptionOrder[]>>;
 }
 
 export interface CustomOptionsStrategy {

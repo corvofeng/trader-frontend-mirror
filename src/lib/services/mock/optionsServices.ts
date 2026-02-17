@@ -1018,7 +1018,7 @@ export const optionsService: OptionsService = {
     };
   },
 
-  getOptionOrders: async (accountId: string, userId?: string | null, options?: { only_today?: boolean }): Promise<ServiceResponse<OptionOrder[]>> => {
+  getOptionOrders: async (accountId: string, userId?: string | null, options?: { only_today?: boolean; date?: string }): Promise<ServiceResponse<OptionOrder[]>> => {
     await new Promise(resolve => setTimeout(resolve, 500));
     
     // Generate a date string that guarantees "today" in local representation
