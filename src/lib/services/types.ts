@@ -541,6 +541,8 @@ export interface SequentialTradeTask {
   id: number;
   account_id: string;
   account_alias?: string;
+  combo_id?: string | number;
+  expiry_date?: string;
   action_type: string;
   status: SequentialTradeStatus;
   current_step?: number | null;

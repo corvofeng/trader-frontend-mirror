@@ -387,6 +387,13 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
                           <span className="text-[10px] text-slate-500 dark:text-slate-400">
                             更新: {formatTime(task.updated_at)}
                           </span>
+                          {(task.combo_id != null || task.expiry_date) && (
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                              {task.combo_id != null && <>组合ID: {task.combo_id}</>}
+                              {task.combo_id != null && task.expiry_date && ' · '}
+                              {task.expiry_date && <>到期日: {task.expiry_date}</>}
+                            </span>
+                          )}
                         </div>
                         <div className="flex flex-col items-end gap-0.5">
                           {progressText && (
@@ -471,6 +478,13 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
                       <div className="text-[11px] text-slate-500 dark:text-slate-400">
                         最近更新: {formatTime(selectedTask.updated_at)}
                       </div>
+                      {(selectedTask.combo_id != null || selectedTask.expiry_date) && (
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                          {selectedTask.combo_id != null && <>组合ID: {selectedTask.combo_id}</>}
+                          {selectedTask.combo_id != null && selectedTask.expiry_date && ' · '}
+                          {selectedTask.expiry_date && <>到期日: {selectedTask.expiry_date}</>}
+                        </div>
+                      )}
                       {selectedTask.completed_at && (
                         <div className="text-[11px] text-slate-500 dark:text-slate-400">
                           完成时间: {formatTime(selectedTask.completed_at)}
