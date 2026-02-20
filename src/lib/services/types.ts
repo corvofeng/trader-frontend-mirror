@@ -712,6 +712,7 @@ export interface OptionsService {
   pauseSequentialTrade: (accountAlias: string, tradeId: number | string) => Promise<ServiceResponse<void>>;
   resumeSequentialTrade: (accountAlias: string, tradeId: number | string) => Promise<ServiceResponse<void>>;
   terminateSequentialTrade: (accountAlias: string, tradeId: number | string) => Promise<ServiceResponse<void>>;
+  restartSequentialTrade: (accountAlias: string, tradeId: number | string, stepIndex?: number) => Promise<ServiceResponse<void>>;
 }
 
 export interface CustomOptionsStrategy {

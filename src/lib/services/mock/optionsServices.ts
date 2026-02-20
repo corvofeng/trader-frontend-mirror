@@ -1206,6 +1206,14 @@ export const optionsService: OptionsService = {
     };
   },
 
+  restartSequentialTrade: async (accountAlias: string, tradeId: number | string, stepIndex?: number) => {
+    console.log('Mock restartSequentialTrade called', accountAlias, tradeId, stepIndex);
+    return {
+      data: null,
+      error: null
+    };
+  },
+
   getPortfolioAnalysis: async () => {
     await new Promise(resolve => setTimeout(resolve, 500));
     return { data: {}, error: null };

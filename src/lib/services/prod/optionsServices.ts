@@ -738,5 +738,26 @@ export const optionsService: OptionsService = {
       console.error('Error terminating sequential trade:', error);
       return { data: null, error: error as Error };
     }
+  },
+
+  restartSequentialTrade: async (accountAlias: string, tradeId: number | string, stepIndex?: number) => {
+    try {
+      const params = new URLSearchParams();
+      if (stepIndex != null) {
+        params.set('step_index', String(stepIndex));
+      }
+      const queryString = params.toString() ? `?${params.toString()}` : '';
+      const response = await fetch(
+        `/api/sequential-trade/${encodeURIComponent(accountAlias)}/restart/${encodeURIComponent(String(tradeId))}${queryString}`,
+        { method: 'POST' }
+      );
+      if (!response.ok) {
+        throw new Error('Failed to restart sequential trade');
+      }
+      return { data: null, error: null };
+    } catch (error) {
+      console.error('Error restarting sequential trade:', error);
+      return { data: null, error: error as Error };
+    }
   }
 };

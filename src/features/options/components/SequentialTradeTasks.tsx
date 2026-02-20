@@ -20,7 +20,7 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
   const [detailById, setDetailById] = useState<Record<number, SequentialTradeTask>>({});
   const [detailLoadingId, setDetailLoadingId] = useState<number | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
-  const [actionLoading, setActionLoading] = useState<'pause' | 'resume' | 'terminate' | null>(null);
+  const [actionLoading, setActionLoading] = useState<'pause' | 'resume' | 'terminate' | 'restart' | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -200,6 +200,10 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
     selectedStatus === 'pending' ||
     selectedStatus === 'executing' ||
     selectedStatus === 'paused';
+  const canRestartTask =
+    selectedStatus === 'failed' ||
+    selectedStatus === 'timeout' ||
+    selectedStatus === 'cancelled';
 
   const refreshSelectedTask = (taskId: number) => {
     setDetailById(prev => {
@@ -285,6 +289,33 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
       setActionError(error instanceof Error ? error.message : '终止任务失败');
     } finally {
       setActionLoading(current => (current === 'terminate' ? null : current));
+    }
+  };
+
+  const handleRestart = async (stepIndex?: number) => {
+    if (!selectedTask) return;
+    const accountAlias =
+      selectedTask.account_alias || selectedTask.account_id || selectedAccountId || '';
+    if (!accountAlias) {
+      setActionError('当前任务缺少账户信息，无法重启');
+      return;
+    }
+    try {
+      setActionLoading('restart');
+      setActionError(null);
+      const { error: serviceError } = await optionsService.restartSequentialTrade(
+        accountAlias,
+        selectedTask.id,
+        stepIndex
+      );
+      if (serviceError) {
+        throw serviceError;
+      }
+      refreshSelectedTask(selectedTask.id);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : '重启任务失败');
+    } finally {
+      setActionLoading(current => (current === 'restart' ? null : current));
     }
   };
 
@@ -468,6 +499,16 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
                             {actionLoading === 'terminate' ? '终止中...' : '终止'}
                           </button>
                         )}
+                        {canRestartTask && (
+                          <button
+                            type="button"
+                            onClick={() => handleRestart()}
+                            disabled={!!actionLoading}
+                            className="px-2 py-1 rounded text-[11px] font-medium border border-blue-400 text-blue-600 dark:border-blue-400 dark:text-blue-100 hover:bg-blue-50 dark:hover:bg-blue-900/40 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {actionLoading === 'restart' ? '重启中...' : '重启任务'}
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -534,10 +575,22 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
                                     <div className={`text-xs font-medium ${themes[theme].text}`}>
                                       {step.name || step.action || `阶段 ${index + 1}`}
                                     </div>
-                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full ${status.className}`}>
-                                      <status.Icon className="w-3 h-3" />
-                                      <span className="text-[10px]">{status.label}</span>
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full ${status.className}`}>
+                                        <status.Icon className="w-3 h-3" />
+                                        <span className="text-[10px]">{status.label}</span>
+                                      </span>
+                                      {canRestartTask && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRestart(index)}
+                                          disabled={!!actionLoading}
+                                          className="text-[10px] text-blue-600 dark:text-blue-300 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                          从此步骤重启
+                                        </button>
+                                      )}
+                                    </div>
                                   </div>
                                   {step.description && (
                                     <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
