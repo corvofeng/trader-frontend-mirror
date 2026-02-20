@@ -640,5 +640,103 @@ export const optionsService: OptionsService = {
       console.error('Error fetching option orders stats:', error);
       return { data: null, error: error as Error };
     }
+  },
+
+  getSequentialTrades: async (accountId: string, options?: { status?: string; limit?: number; offset?: number }) => {
+    try {
+      const params = new URLSearchParams();
+      if (options?.status) params.set('status', options.status);
+      if (options?.limit != null) params.set('limit', String(options.limit));
+      if (options?.offset != null) params.set('offset', String(options.offset));
+      const queryString = params.toString() ? `?${params.toString()}` : '';
+      const response = await fetch(`/api/sequential-trade/${encodeURIComponent(accountId)}/list${queryString}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch sequential trades');
+      }
+      const raw = await response.json();
+      let tasks = [];
+      if (Array.isArray(raw)) {
+        tasks = raw;
+      } else if (raw && typeof raw === 'object' && Array.isArray((raw as { data?: unknown }).data)) {
+        tasks = (raw as { data: unknown[] }).data;
+      }
+      return { data: tasks, error: null };
+    } catch (error) {
+      console.error('Error fetching sequential trades:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  getSequentialTradeDetail: async (accountAlias: string, tradeId: number | string) => {
+    try {
+      const response = await fetch(
+        `/api/sequential-trade/${encodeURIComponent(accountAlias)}/detail/${encodeURIComponent(String(tradeId))}`
+      );
+      if (!response.ok) {
+        throw new Error('Failed to fetch sequential trade detail');
+      }
+      const raw = await response.json();
+      let task = null;
+      if (raw && typeof raw === 'object') {
+        const obj = raw as { data?: unknown };
+        if (obj.data && typeof obj.data === 'object') {
+          task = obj.data;
+        } else {
+          task = raw;
+        }
+      }
+      return { data: task as SequentialTradeTask | null, error: null };
+    } catch (error) {
+      console.error('Error fetching sequential trade detail:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  pauseSequentialTrade: async (accountAlias: string, tradeId: number | string) => {
+    try {
+      const response = await fetch(
+        `/api/sequential-trade/${encodeURIComponent(accountAlias)}/pause/${encodeURIComponent(String(tradeId))}`,
+        { method: 'POST' }
+      );
+      if (!response.ok) {
+        throw new Error('Failed to pause sequential trade');
+      }
+      return { data: null, error: null };
+    } catch (error) {
+      console.error('Error pausing sequential trade:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  resumeSequentialTrade: async (accountAlias: string, tradeId: number | string) => {
+    try {
+      const response = await fetch(
+        `/api/sequential-trade/${encodeURIComponent(accountAlias)}/resume/${encodeURIComponent(String(tradeId))}`,
+        { method: 'POST' }
+      );
+      if (!response.ok) {
+        throw new Error('Failed to resume sequential trade');
+      }
+      return { data: null, error: null };
+    } catch (error) {
+      console.error('Error resuming sequential trade:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  terminateSequentialTrade: async (accountAlias: string, tradeId: number | string) => {
+    try {
+      const response = await fetch(
+        `/api/sequential-trade/${encodeURIComponent(accountAlias)}/terminate/${encodeURIComponent(String(tradeId))}`,
+        { method: 'POST' }
+      );
+      if (!response.ok) {
+        throw new Error('Failed to terminate sequential trade');
+      }
+      return { data: null, error: null };
+    } catch (error) {
+      console.error('Error terminating sequential trade:', error);
+      return { data: null, error: error as Error };
+    }
   }
 };

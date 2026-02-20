@@ -1,0 +1,561 @@
+import React, { useEffect, useState } from 'react';
+import { ListChecks, Clock, CheckCircle2, AlertTriangle, XCircle, RefreshCw } from 'lucide-react';
+import { Theme, themes } from '../../../lib/theme';
+import { optionsService } from '../../../lib/services';
+import type { SequentialTradeTask, SequentialTradeStep } from '../../../lib/services/types';
+
+interface SequentialTradeTasksProps {
+  theme: Theme;
+  selectedAccountId: string | null;
+}
+
+type StatusFilter = 'all' | 'pending' | 'executing' | 'completed' | 'failed' | 'timeout' | 'paused' | 'cancelled';
+
+export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTradeTasksProps) {
+  const [tasks, setTasks] = useState<SequentialTradeTask[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
+  const [detailById, setDetailById] = useState<Record<number, SequentialTradeTask>>({});
+  const [detailLoadingId, setDetailLoadingId] = useState<number | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [actionLoading, setActionLoading] = useState<'pause' | 'resume' | 'terminate' | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!selectedAccountId) {
+      setTasks([]);
+      setSelectedTaskId(null);
+      setDetailById({});
+      setError(null);
+      return;
+    }
+    let cancelled = false;
+    const fetchTasks = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const { data, error: serviceError } = await optionsService.getSequentialTrades(selectedAccountId, {
+          status: statusFilter === 'all' ? undefined : statusFilter,
+          limit: 50,
+          offset: 0
+        });
+        if (cancelled) return;
+        if (serviceError) {
+          throw serviceError;
+        }
+        const list = data || [];
+        setTasks(list);
+        if (list.length > 0) {
+          const firstId = list[0].id;
+          setSelectedTaskId(prev => prev ?? firstId);
+        } else {
+          setSelectedTaskId(null);
+        }
+      } catch (error) {
+        if (cancelled) return;
+        setError(error instanceof Error ? error.message : '加载顺序交易任务失败');
+        setTasks([]);
+        setSelectedTaskId(null);
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+    fetchTasks();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedAccountId, statusFilter, reloadKey]);
+
+  useEffect(() => {
+    if (!selectedTaskId) return;
+    if (detailById[selectedTaskId]) return;
+    let cancelled = false;
+    const fetchDetail = async () => {
+      try {
+        const base =
+          detailById[selectedTaskId] || tasks.find(t => t.id === selectedTaskId) || null;
+        const accountAlias =
+          base?.account_alias || base?.account_id || selectedAccountId || '';
+        if (!accountAlias) {
+          setDetailLoadingId(null);
+          return;
+        }
+        setDetailLoadingId(selectedTaskId);
+        const { data, error: serviceError } = await optionsService.getSequentialTradeDetail(
+          accountAlias,
+          selectedTaskId
+        );
+        if (cancelled) return;
+        if (serviceError) {
+          throw serviceError;
+        }
+        if (data) {
+          setDetailById(prev => ({
+            ...prev,
+            [selectedTaskId]: data
+          }));
+        }
+      } catch {
+        if (cancelled) return;
+      } finally {
+        if (!cancelled) {
+          setDetailLoadingId(null);
+        }
+      }
+    };
+    fetchDetail();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedTaskId, detailById, selectedAccountId, tasks]);
+
+  const statusFilters: { id: StatusFilter; label: string }[] = [
+    { id: 'all', label: '全部' },
+    { id: 'pending', label: '待执行' },
+    { id: 'executing', label: '执行中' },
+    { id: 'completed', label: '已完成' },
+    { id: 'failed', label: '失败' },
+    { id: 'timeout', label: '超时' },
+    { id: 'paused', label: '已暂停' },
+    { id: 'cancelled', label: '已终止' }
+  ];
+
+  const getStatusConfig = (status: string) => {
+    const s = status.toLowerCase();
+    if (s === 'completed') {
+      return {
+        label: '已完成',
+        className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-100',
+        Icon: CheckCircle2
+      };
+    }
+    if (s === 'executing') {
+      return {
+        label: '执行中',
+        className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-100',
+        Icon: RefreshCw
+      };
+    }
+    if (s === 'pending') {
+      return {
+        label: '待执行',
+        className: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100',
+        Icon: Clock
+      };
+    }
+    if (s === 'failed') {
+      return {
+        label: '失败',
+        className: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-100',
+        Icon: XCircle
+      };
+    }
+    if (s === 'timeout') {
+      return {
+        label: '超时',
+        className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-100',
+        Icon: AlertTriangle
+      };
+    }
+    if (s === 'paused') {
+      return {
+        label: '已暂停',
+        className: 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100',
+        Icon: Clock
+      };
+    }
+    if (s === 'cancelled') {
+      return {
+        label: '已终止',
+        className: 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100',
+        Icon: XCircle
+      };
+    }
+    return {
+      label: status,
+      className: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100',
+      Icon: Clock
+    };
+  };
+
+  const formatTime = (iso?: string | null) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return `${d.toLocaleDateString()} ${d.toLocaleTimeString()}`;
+  };
+
+  const selectedTask =
+    selectedTaskId != null
+      ? detailById[selectedTaskId] || tasks.find(t => t.id === selectedTaskId) || null
+      : null;
+  const selectedStatus = selectedTask?.status ? selectedTask.status.toLowerCase() : '';
+  const canPause = selectedStatus === 'pending' || selectedStatus === 'executing';
+  const canResume = selectedStatus === 'paused';
+  const canTerminate =
+    selectedStatus === 'pending' ||
+    selectedStatus === 'executing' ||
+    selectedStatus === 'paused';
+
+  const refreshSelectedTask = (taskId: number) => {
+    setDetailById(prev => {
+      const next = { ...prev };
+      delete next[taskId];
+      return next;
+    });
+    setReloadKey(prev => prev + 1);
+  };
+
+  const handlePause = async () => {
+    if (!selectedTask) return;
+    const accountAlias =
+      selectedTask.account_alias || selectedTask.account_id || selectedAccountId || '';
+    if (!accountAlias) {
+      setActionError('当前任务缺少账户信息，无法暂停');
+      return;
+    }
+    try {
+      setActionLoading('pause');
+      setActionError(null);
+      const { error: serviceError } = await optionsService.pauseSequentialTrade(
+        accountAlias,
+        selectedTask.id
+      );
+      if (serviceError) {
+        throw serviceError;
+      }
+      refreshSelectedTask(selectedTask.id);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : '暂停任务失败');
+    } finally {
+      setActionLoading(current => (current === 'pause' ? null : current));
+    }
+  };
+
+  const handleResume = async () => {
+    if (!selectedTask) return;
+    const accountAlias =
+      selectedTask.account_alias || selectedTask.account_id || selectedAccountId || '';
+    if (!accountAlias) {
+      setActionError('当前任务缺少账户信息，无法恢复');
+      return;
+    }
+    try {
+      setActionLoading('resume');
+      setActionError(null);
+      const { error: serviceError } = await optionsService.resumeSequentialTrade(
+        accountAlias,
+        selectedTask.id
+      );
+      if (serviceError) {
+        throw serviceError;
+      }
+      refreshSelectedTask(selectedTask.id);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : '恢复任务失败');
+    } finally {
+      setActionLoading(current => (current === 'resume' ? null : current));
+    }
+  };
+
+  const handleTerminate = async () => {
+    if (!selectedTask) return;
+    const accountAlias =
+      selectedTask.account_alias || selectedTask.account_id || selectedAccountId || '';
+    if (!accountAlias) {
+      setActionError('当前任务缺少账户信息，无法终止');
+      return;
+    }
+    try {
+      setActionLoading('terminate');
+      setActionError(null);
+      const { error: serviceError } = await optionsService.terminateSequentialTrade(
+        accountAlias,
+        selectedTask.id
+      );
+      if (serviceError) {
+        throw serviceError;
+      }
+      refreshSelectedTask(selectedTask.id);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : '终止任务失败');
+    } finally {
+      setActionLoading(current => (current === 'terminate' ? null : current));
+    }
+  };
+
+  return (
+    <div className={`${themes[theme].card} rounded-lg p-4 space-y-6`}>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="h-9 w-9 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500">
+            <ListChecks className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className={`text-lg font-semibold ${themes[theme].text}`}>顺序交易任务</h2>
+            <p className={`text-xs ${themes[theme].text} opacity-70`}>
+              查看由多个阶段组成的复杂任务及其执行进度
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {statusFilters.map(f => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => setStatusFilter(f.id)}
+              className={`px-2 py-1 rounded-full text-xs font-medium border transition-colors ${
+                statusFilter === f.id
+                  ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-100'
+                  : 'border-transparent bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {!selectedAccountId && (
+        <div className={`text-sm ${themes[theme].text} opacity-75`}>
+          请先在上方选择账户，以查看该账户的顺序交易任务。
+        </div>
+      )}
+
+      {selectedAccountId && (
+        <div className="space-y-4">
+          {isLoading && (
+            <div className="flex items-center gap-2 text-sm">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500" />
+              <span className={themes[theme].text}>正在加载任务列表...</span>
+            </div>
+          )}
+
+          {error && (
+            <div className="text-sm text-red-500">
+              {error}
+            </div>
+          )}
+
+          {!isLoading && !error && tasks.length === 0 && (
+            <div className={`text-sm ${themes[theme].text} opacity-75`}>
+              当前筛选条件下没有顺序交易任务。
+            </div>
+          )}
+
+          {tasks.length > 0 && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                {tasks.map(task => {
+                  const status = getStatusConfig(task.status);
+                  const progressText =
+                    task.steps_count != null && task.steps_count > 0 && task.current_step != null
+                      ? `${task.current_step}/${task.steps_count}`
+                      : task.steps && task.steps.length > 0 && task.current_step_index != null
+                        ? `${task.current_step_index + 1}/${task.steps.length}`
+                        : '';
+                  const isSelected = selectedTaskId === task.id;
+                  return (
+                    <button
+                      key={task.id}
+                      type="button"
+                      onClick={() => setSelectedTaskId(task.id)}
+                      className={`w-full text-left rounded-lg border px-3 py-2 text-xs transition-colors ${
+                        isSelected
+                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
+                          : themes[theme].border
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <div className={`font-medium ${themes[theme].text} truncate`}>
+                          {task.action_type}
+                        </div>
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full ${status.className}`}>
+                          <status.Icon className="w-3 h-3" />
+                          <span>{status.label}</span>
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                            创建: {formatTime(task.created_at)}
+                          </span>
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                            更新: {formatTime(task.updated_at)}
+                          </span>
+                        </div>
+                        <div className="flex flex-col items-end gap-0.5">
+                          {progressText && (
+                            <span className="text-[11px] text-slate-600 dark:text-slate-300">
+                              阶段 {progressText}
+                            </span>
+                          )}
+                          {task.error_msg && (
+                            <span className="text-[10px] text-red-500 truncate max-w-[180px]">
+                              {task.error_msg}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="rounded-lg border p-3 text-xs space-y-3">
+                {!selectedTask && (
+                  <div className={`text-sm ${themes[theme].text} opacity-75`}>
+                    从左侧选择一个任务以查看详细阶段。
+                  </div>
+                )}
+
+                {selectedTask && (
+                  <>
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className={`text-sm font-semibold ${themes[theme].text} mb-1`}>
+                          任务 {selectedTask.id}
+                        </div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                          {selectedTask.account_alias || selectedTask.account_id} · {selectedTask.action_type}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {detailLoadingId === selectedTask.id && (
+                          <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-300">
+                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-500" />
+                            <span>刷新中...</span>
+                          </div>
+                        )}
+                        {canPause && (
+                          <button
+                            type="button"
+                            onClick={handlePause}
+                            disabled={!!actionLoading}
+                            className="px-2 py-1 rounded text-[11px] font-medium border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {actionLoading === 'pause' ? '暂停中...' : '暂停'}
+                          </button>
+                        )}
+                        {canResume && (
+                          <button
+                            type="button"
+                            onClick={handleResume}
+                            disabled={!!actionLoading}
+                            className="px-2 py-1 rounded text-[11px] font-medium border border-emerald-400 text-emerald-700 dark:border-emerald-500 dark:text-emerald-100 hover:bg-emerald-50 dark:hover:bg-emerald-900/40 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {actionLoading === 'resume' ? '恢复中...' : '恢复'}
+                          </button>
+                        )}
+                        {canTerminate && (
+                          <button
+                            type="button"
+                            onClick={handleTerminate}
+                            disabled={!!actionLoading}
+                            className="px-2 py-1 rounded text-[11px] font-medium border border-red-400 text-red-600 dark:border-red-500 dark:text-red-100 hover:bg-red-50 dark:hover:bg-red-900/40 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {actionLoading === 'terminate' ? '终止中...' : '终止'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="border-t border-dashed border-slate-200 dark:border-slate-700 pt-2 space-y-1">
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                        创建时间: {formatTime(selectedTask.created_at)}
+                      </div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                        最近更新: {formatTime(selectedTask.updated_at)}
+                      </div>
+                      {selectedTask.completed_at && (
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                          完成时间: {formatTime(selectedTask.completed_at)}
+                        </div>
+                      )}
+                      {selectedTask.timeout_seconds != null && (
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                          超时时间: {selectedTask.timeout_seconds} 秒
+                        </div>
+                      )}
+                      {selectedTask.error_msg && (
+                        <div className="text-[11px] text-red-500">
+                          错误信息: {selectedTask.error_msg}
+                        </div>
+                      )}
+                      {actionError && (
+                        <div className="text-[11px] text-red-500">
+                          操作失败: {actionError}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="border-t border-dashed border-slate-200 dark:border-slate-700 pt-2">
+                      <div className={`text-xs font-medium mb-2 ${themes[theme].text}`}>
+                        任务阶段
+                      </div>
+                      {selectedTask.steps && selectedTask.steps.length > 0 ? (
+                        <div className="space-y-2">
+                          {selectedTask.steps.map((step: SequentialTradeStep, index: number) => {
+                            const status = getStatusConfig(step.status);
+                            const isCurrent =
+                              selectedTask.current_step_index != null
+                                ? selectedTask.current_step_index === index
+                                : false;
+                            return (
+                              <div key={`${step.name}-${index}`} className="flex items-start gap-2">
+                                <div className="flex flex-col items-center mt-0.5">
+                                  <div
+                                    className={`w-3 h-3 rounded-full border-2 ${isCurrent ? 'border-blue-500' : 'border-slate-300 dark:border-slate-600'} bg-white dark:bg-slate-900`}
+                                  />
+                                  {index < selectedTask.steps.length - 1 && (
+                                    <div className="flex-1 w-px bg-slate-200 dark:bg-slate-700 mt-1 mb-1" />
+                                  )}
+                                </div>
+                                <div className="flex-1">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className={`text-xs font-medium ${themes[theme].text}`}>
+                                      {step.name || step.action || `阶段 ${index + 1}`}
+                                    </div>
+                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full ${status.className}`}>
+                                      <status.Icon className="w-3 h-3" />
+                                      <span className="text-[10px]">{status.label}</span>
+                                    </span>
+                                  </div>
+                                  {step.description && (
+                                    <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                      {step.description}
+                                    </div>
+                                  )}
+                                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+                                    {step.start_time && (
+                                      <span>开始: {formatTime(step.start_time)}</span>
+                                    )}
+                                    {step.end_time && (
+                                      <span>结束: {formatTime(step.end_time)}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className={`text-xs ${themes[theme].text} opacity-70`}>
+                          当前任务暂时没有可展示的阶段信息。
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

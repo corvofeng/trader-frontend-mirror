@@ -517,6 +517,43 @@ export interface OptionOrder {
   contract_code_full?: string;
 }
 
+export type SequentialTradeStatus =
+  | 'pending'
+  | 'executing'
+  | 'completed'
+  | 'failed'
+  | 'timeout'
+  | 'paused'
+  | 'cancelled'
+  | string;
+
+export interface SequentialTradeStep {
+  name: string;
+  action: string;
+  status: SequentialTradeStatus;
+  description?: string | null;
+  params?: Record<string, unknown> | null;
+  start_time?: string | null;
+  end_time?: string | null;
+}
+
+export interface SequentialTradeTask {
+  id: number;
+  account_id: string;
+  account_alias?: string;
+  action_type: string;
+  status: SequentialTradeStatus;
+  current_step?: number | null;
+  steps_count?: number | null;
+  current_step_index?: number | null;
+  steps?: SequentialTradeStep[];
+  created_at: string;
+  updated_at: string;
+  completed_at?: string | null;
+  error_msg?: string | null;
+  timeout_seconds?: number | null;
+}
+
 export interface OptionsPortfolioData {
   strategies: OptionsStrategy[];
   singleLegPositions?: OptionsPosition[];
@@ -668,6 +705,11 @@ export interface OptionsService {
   deleteWhitelist: (id: string | number, userId: string, accountId?: string | null) => Promise<ServiceResponse<void>>;
   getOptionOrders: (accountId: string, userId?: string | null, options?: { only_today?: boolean; date?: string }) => Promise<ServiceResponse<OptionOrder[]>>;
   getOptionOrdersStats: (accountId: string, month: string) => Promise<ServiceResponse<Record<string, { completed_count: number; pending_count: number; total_count: number }>>>;
+  getSequentialTrades: (accountId: string, options?: { status?: string; limit?: number; offset?: number }) => Promise<ServiceResponse<SequentialTradeTask[]>>;
+  getSequentialTradeDetail: (accountAlias: string, tradeId: number | string) => Promise<ServiceResponse<SequentialTradeTask>>;
+  pauseSequentialTrade: (accountAlias: string, tradeId: number | string) => Promise<ServiceResponse<void>>;
+  resumeSequentialTrade: (accountAlias: string, tradeId: number | string) => Promise<ServiceResponse<void>>;
+  terminateSequentialTrade: (accountAlias: string, tradeId: number | string) => Promise<ServiceResponse<void>>;
 }
 
 export interface CustomOptionsStrategy {

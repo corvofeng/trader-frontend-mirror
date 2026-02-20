@@ -1,4 +1,4 @@
-import type { OptionsService, OptionsPortfolioData, OptionsPosition, OptionsStrategy, RatioSpreadPlanResult, OptionWhitelist, ServiceResponse, AdvisedCombination, OptionOrder } from '../types';
+import type { OptionsService, OptionsPortfolioData, OptionsPosition, OptionsStrategy, RatioSpreadPlanResult, OptionWhitelist, ServiceResponse, AdvisedCombination, OptionOrder, SequentialTradeTask } from '../types';
 import type { CustomOptionsStrategy } from '../types';
 
 // 支持的期权标的列表
@@ -1078,6 +1078,126 @@ export const optionsService: OptionsService = {
     };
     return {
       data: baseStats,
+      error: null
+    };
+  },
+
+  getSequentialTrades: async (accountId: string, options?: { status?: string; limit?: number; offset?: number }) => {
+    const now = new Date();
+    const toIso = (d: Date) => d.toISOString();
+    const base: SequentialTradeTask[] = [
+      {
+        id: 1,
+        account_id: accountId,
+        account_alias: accountId,
+        action_type: 'RELEASE_COMBINATION',
+        status: 'completed',
+        current_step: 2,
+        steps_count: 2,
+        current_step_index: 1,
+        steps: [
+          {
+            name: '拆分组合持仓',
+            action: 'RELEASE_COMBINATION',
+            status: 'completed',
+            description: '拆分原有组合持仓',
+            params: null,
+            start_time: toIso(new Date(now.getTime() - 5 * 60 * 1000)),
+            end_time: toIso(new Date(now.getTime() - 4 * 60 * 1000))
+          },
+          {
+            name: '同步持仓',
+            action: 'SYNC_POSITIONS',
+            status: 'completed',
+            description: '刷新组合持仓和标的持仓',
+            params: null,
+            start_time: toIso(new Date(now.getTime() - 4 * 60 * 1000)),
+            end_time: toIso(new Date(now.getTime() - 3 * 60 * 1000))
+          }
+        ],
+        created_at: toIso(new Date(now.getTime() - 6 * 60 * 1000)),
+        updated_at: toIso(new Date(now.getTime() - 3 * 60 * 1000)),
+        completed_at: toIso(new Date(now.getTime() - 3 * 60 * 1000)),
+        error_msg: null,
+        timeout_seconds: 300
+      },
+      {
+        id: 2,
+        account_id: accountId,
+        account_alias: accountId,
+        action_type: 'CLOSE_STRATEGY',
+        status: 'executing',
+        current_step: 1,
+        steps_count: 2,
+        current_step_index: 0,
+        steps: [
+          {
+            name: '下单平仓',
+            action: 'PLACE_ORDERS',
+            status: 'executing',
+            description: '按策略批量下单平仓',
+            params: null,
+            start_time: toIso(new Date(now.getTime() - 2 * 60 * 1000)),
+            end_time: null
+          },
+          {
+            name: '确认成交',
+            action: 'WAIT_FILLED',
+            status: 'pending',
+            description: '等待订单全部成交',
+            params: null,
+            start_time: null,
+            end_time: null
+          }
+        ],
+        created_at: toIso(new Date(now.getTime() - 3 * 60 * 1000)),
+        updated_at: toIso(new Date(now.getTime() - 1 * 60 * 1000)),
+        completed_at: null,
+        error_msg: null,
+        timeout_seconds: 600
+      }
+    ];
+    let filtered = base;
+    if (options?.status && options.status !== 'all') {
+      const s = options.status.toLowerCase();
+      filtered = base.filter(t => t.status.toLowerCase() === s);
+    }
+    return {
+      data: filtered,
+      error: null
+    };
+  },
+
+  getSequentialTradeDetail: async (accountAlias: string, tradeId: number | string) => {
+    const idNum = Number(tradeId);
+    const base = await optionsService.getSequentialTrades(accountAlias, { limit: 50, offset: 0 });
+    const found = base.data?.find(t => t.id === idNum) || null;
+    return {
+      data: found,
+      error: null
+    };
+  },
+
+  pauseSequentialTrade: async (accountAlias: string, tradeId: number | string) => {
+    console.log('Mock pauseSequentialTrade called', accountAlias, tradeId);
+    return {
+      data: null,
+      error: null
+    };
+  },
+
+  resumeSequentialTrade: async (accountAlias: string, tradeId: number | string) => {
+    console.log('Mock resumeSequentialTrade called', accountAlias, tradeId);
+    return {
+      data: null,
+      error: null
+    };
+  },
+
+  terminateSequentialTrade: async (accountAlias: string, tradeId: number | string) => {
+    console.log('Mock terminateSequentialTrade called', accountAlias, tradeId);
+    return {
+      data: null,
       error: null
     };
   },
