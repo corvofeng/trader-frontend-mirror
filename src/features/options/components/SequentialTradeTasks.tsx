@@ -71,6 +71,16 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
   }, [selectedAccountId, statusFilter, reloadKey]);
 
   useEffect(() => {
+    if (!selectedAccountId) return;
+    const interval = setInterval(() => {
+      setReloadKey(prev => prev + 1);
+    }, 10000);
+    return () => {
+      clearInterval(interval);
+    };
+  }, [selectedAccountId, statusFilter]);
+
+  useEffect(() => {
     if (!selectedTaskId) return;
     if (detailById[selectedTaskId]) return;
     let cancelled = false;
@@ -205,6 +215,10 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
     selectedStatus === 'timeout' ||
     selectedStatus === 'cancelled';
 
+  const handleRefresh = () => {
+    setReloadKey(prev => prev + 1);
+  };
+
   const refreshSelectedTask = (taskId: number) => {
     setDetailById(prev => {
       const next = { ...prev };
@@ -334,6 +348,15 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={isLoading || !selectedAccountId}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <RefreshCw className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} />
+            <span>{isLoading ? '刷新中' : '刷新'}</span>
+          </button>
           {statusFilters.map(f => (
             <button
               key={f.id}
