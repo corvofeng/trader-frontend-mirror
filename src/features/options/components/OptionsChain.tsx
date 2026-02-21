@@ -25,14 +25,16 @@ export function OptionsChain({
   const uniqueExpiryDates = Array.from(new Set(optionsData.quotes.map(q => q.expiry)))
     .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
-  const quotesByExpiry = optionsData.quotes
-    .filter(q => q.expiry === selectedExpiry)
-    .sort((a, b) => a.strike - b.strike);
+  const quotesByExpiry = React.useMemo(
+    () =>
+      optionsData.quotes
+        .filter(q => q.expiry === selectedExpiry)
+        .slice()
+        .sort((a, b) => a.strike - b.strike),
+    [optionsData, selectedExpiry]
+  );
 
-  const [editableQuotes, setEditableQuotes] = React.useState<OptionQuote[]>(quotesByExpiry);
-  React.useEffect(() => {
-    setEditableQuotes(quotesByExpiry);
-  }, [optionsData, selectedExpiry, quotesByExpiry]);
+  const editableQuotes = quotesByExpiry;
 
   // 找到时间价值最大的期权合约作为平值合约
   const getAtTheMoneyStrike = (quotes: OptionQuote[]): number => {
