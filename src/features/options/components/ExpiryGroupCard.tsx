@@ -735,8 +735,12 @@ export function ExpiryGroupCard({
                                       if (s.positions.some(p => p.expiry === group.expiry)) {
                                         const c = computeCombosForPositions(s, 'call');
                                         const p = computeCombosForPositions(s, 'put');
-                                        c.forEach((v, k) => callCombos.set(k, (callCombos.get(k) ?? 0) + v));
-                                        p.forEach((v, k) => putCombos.set(k, (putCombos.get(k) ?? 0) + v));
+                                        
+                                        const relevantPositions = s.positions.filter(pos => pos.expiry === group.expiry);
+                                        const strategyQty = relevantPositions.find(pos => pos.position_type === 'buy')?.quantity || relevantPositions[0]?.quantity || 0;
+
+                                        c.forEach((_, k) => callCombos.set(k, (callCombos.get(k) ?? 0) + strategyQty));
+                                        p.forEach((_, k) => putCombos.set(k, (putCombos.get(k) ?? 0) + strategyQty));
                                       }
                                     });
                                   });
@@ -943,16 +947,12 @@ export function ExpiryGroupCard({
                                                         const comboMap = computeCombosForPositions(s, 'call');
                                                         const count = comboMap.get(m.s) || 0;
                                                         if (count > 0) {
-                                                          ids.push(
-                                                            ...s.positions
-                                                              .filter(p => p.expiry === group.expiry)
-                                                              .map(p => p.id)
-                                                          );
+                                                          const relevantPositions = s.positions.filter(p => p.expiry === group.expiry);
+                                                          ids.push(...relevantPositions.map(p => p.id));
                                                           strategyIds.push(s.id);
-                                                          defaultComboCountSum += count;
-                                                          s.positions
-                                                            .filter(p => p.expiry === group.expiry)
-                                                            .forEach(p => { perLegMaxQty[p.id] = p.quantity; });
+                                                          const strategyQty = relevantPositions.find(p => p.position_type === 'buy')?.quantity || relevantPositions[0]?.quantity || 0;
+                                                          defaultComboCountSum += strategyQty;
+                                                          relevantPositions.forEach(p => { perLegMaxQty[p.id] = p.quantity; });
                                                         }
                                                       }
                                                     });
@@ -1090,16 +1090,12 @@ export function ExpiryGroupCard({
                                                         const comboMap = computeCombosForPositions(s, 'put');
                                                         const count = comboMap.get(m.s) || 0;
                                                         if (count > 0) {
-                                                          ids.push(
-                                                            ...s.positions
-                                                              .filter(p => p.expiry === group.expiry)
-                                                              .map(p => p.id)
-                                                          );
+                                                          const relevantPositions = s.positions.filter(p => p.expiry === group.expiry);
+                                                          ids.push(...relevantPositions.map(p => p.id));
                                                           strategyIds.push(s.id);
-                                                          defaultComboCountSum += count;
-                                                          s.positions
-                                                            .filter(p => p.expiry === group.expiry)
-                                                            .forEach(p => { perLegMaxQty[p.id] = p.quantity; });
+                                                          const strategyQty = relevantPositions.find(p => p.position_type === 'buy')?.quantity || relevantPositions[0]?.quantity || 0;
+                                                          defaultComboCountSum += strategyQty;
+                                                          relevantPositions.forEach(p => { perLegMaxQty[p.id] = p.quantity; });
                                                         }
                                                       }
                                                     });
@@ -1473,12 +1469,12 @@ export function ExpiryGroupCard({
         </div>
       </div>
   {confirmData && (
-    <div className="fixed inset-0 z-50">
+    <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center">
       <div className="absolute inset-0 bg-black/40" onClick={() => setConfirmData(null)}></div>
-      <div className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-md rounded-lg border ${themes[theme].card} ${themes[theme].border} p-6`}>
+      <div className={`relative w-full rounded-t-xl border-t border-l border-r p-6 max-h-[85vh] flex flex-col md:w-auto md:min-w-[600px] md:max-w-2xl md:rounded-lg md:border md:max-h-[85vh] ${themes[theme].card} ${themes[theme].border}`}>
         <div className={`text-lg font-semibold ${themes[theme].text}`}>{confirmData.title}</div>
         <div className={`mt-2 text-sm ${themes[theme].text}`}>{confirmData.description}</div>
-        <div className="mt-4 max-h-56 overflow-auto space-y-2">
+        <div className="mt-4 overflow-y-auto min-h-0 flex-1 space-y-2">
           {confirmData.meta?.action === 'unwind_combo' ? (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -1487,32 +1483,46 @@ export function ExpiryGroupCard({
                   <input
                     type="number"
                     min={1}
-                    max={Object.values(qtyOverrides).reduce((m, v) => Math.max(m, v || 1), 1)}
+                    max={Number(confirmData.meta?.defaultComboCount || 1)}
                     value={Object.values(qtyOverrides)[0] || 1}
                     onChange={(e) => {
-                      const n = parseInt(e.target.value) || 1;
-                      const maxAll = Object.values(qtyOverrides).reduce((m, v) => Math.max(m, v || 1), 1);
-                      const clamped = Math.max(1, Math.min(n, maxAll));
+                      const n = parseInt(e.target.value) || 0;
+                      const maxCombo = Number(confirmData.meta?.defaultComboCount || 1);
+                      const clamped = Math.max(1, Math.min(n, maxCombo));
                       setQtyOverrides(() => {
-                        const next: Record<string, number> = {};
-                        confirmData.ids.forEach(id => {
-                          const pos = filteredPositions.find(x => x.id === id);
-                          const maxQty = pos?.quantity ?? 1;
-                          next[id] = Math.max(1, Math.min(clamped, maxQty));
-                        });
-                        return next;
+                      const next: Record<string, number> = {};
+                      confirmData.ids.forEach(id => {
+                        // Use perLegMaxQty which contains the correct position quantity for strategy legs
+                        const maxQty = confirmData.meta?.perLegMaxQty?.[id] ?? 1;
+                        next[id] = Math.max(1, Math.min(clamped, maxQty));
                       });
+                      return next;
+                    });
                       logger.info('[ExpiryGroupCard] combo change', { count: clamped });
                     }}
                     className={`w-24 px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
                   />
-                  <span className={`text-[10px] ${themes[theme].text} opacity-60`}>最大 {Object.values(qtyOverrides).reduce((m, v) => Math.max(m, v || 1), 1)}</span>
+                  <span className={`text-[10px] ${themes[theme].text} opacity-60`}>最大 {Number(confirmData.meta?.defaultComboCount || 1)}</span>
                 </div>
               </div>
               <div className="space-y-2">
                 {confirmData.ids.map(id => {
-                  const pos = filteredPositions.find(x => x.id === id);
-                  const maxQty = pos?.quantity ?? 1;
+                  let pos = filteredPositions.find(x => x.id === id);
+                  if (!pos) {
+                    // Fallback search in complex strategies across all buckets
+                    for (const bucket of allExpiryBuckets || []) {
+                      for (const s of bucket.complex) {
+                        const found = s.positions.find(p => p.id === id);
+                        if (found) {
+                          pos = found;
+                          break;
+                        }
+                      }
+                      if (pos) break;
+                    }
+                  }
+                  
+                  const maxQty = pos?.quantity ?? confirmData.meta?.perLegMaxQty?.[id] ?? 1;
                   const val = qtyOverrides[id] ?? 1;
                   const avail = Number(pos?.available ?? maxQty) || 0;
                   return (
