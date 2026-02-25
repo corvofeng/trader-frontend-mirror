@@ -189,11 +189,16 @@ export const stockService: StockService = {
         throw new Error('Failed to fetch current price');
       }
       const data = await response.json();
+      // Handle both new API format (last_price) and legacy format (latest_value.lastPrice)
+      const price = data.last_price !== undefined 
+        ? data.last_price 
+        : (data.latest_value?.lastPrice);
+
       return { 
         data: {
           stock_code: symbol,
           stock_name: data.stock_name || symbol,
-          price: data.latest_value.lastPrice
+          price: price
         }, 
         error: null 
       };
