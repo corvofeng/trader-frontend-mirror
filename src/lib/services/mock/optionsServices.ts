@@ -938,6 +938,10 @@ export const optionsService: OptionsService = {
     const ids = (payload?.positions || []).map((p: any) => p.id);
     return { data: { closedIds: ids }, error: null };
   },
+  clearCombination: async (accountAlias: string, comboId: string) => {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    return { data: { task_id: 123, msg: `Mock clearing combo ${comboId}` }, error: null };
+  },
   saveRatioSpreadPlan: async (plan, accountId?: string | null) => {
     await new Promise(resolve => setTimeout(resolve, 500));
     return { data: { ...plan, saved: true }, error: null };

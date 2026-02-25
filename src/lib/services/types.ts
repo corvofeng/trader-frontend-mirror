@@ -701,6 +701,7 @@ export interface OptionsService {
     accountId?: string | null,
     userId?: string | null
   ) => Promise<ServiceResponse<{ closedIds: string[] }>>;
+  clearCombination: (accountAlias: string, comboId: string) => Promise<ServiceResponse<{ task_id: number; msg: string }>>;
   getWhitelists: (userId: string, accountId?: string | null) => Promise<ServiceResponse<OptionWhitelist[]>>;
   addWhitelist: (whitelist: Omit<OptionWhitelist, 'id' | 'created_at'>, userId: string, accountId?: string | null) => Promise<ServiceResponse<OptionWhitelist>>;
   updateWhitelist: (id: string | number, whitelist: Partial<OptionWhitelist>, userId: string, accountId?: string | null) => Promise<ServiceResponse<OptionWhitelist>>;

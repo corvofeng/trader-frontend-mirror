@@ -454,6 +454,27 @@ export const optionsService: OptionsService = {
       return { data: null, error: error as Error };
     }
   },
+
+  clearCombination: async (accountAlias: string, comboId: string) => {
+    try {
+      const response = await fetch(`/api/sequential-trade/${encodeURIComponent(accountAlias)}/clear-combination`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comb_id: comboId })
+      });
+      if (!response.ok) {
+        throw new Error('Failed to clear combination');
+      }
+      const result = await response.json();
+      if (!result.success) {
+         throw new Error(result.error_msg || 'Failed to clear combination');
+      }
+      return { data: result.data, error: null };
+    } catch (error) {
+      console.error('Error clearing combination:', error);
+      return { data: null, error: error as Error };
+    }
+  },
   saveRatioSpreadPlan: async (plan, accountId?: string | null, userId?: string | null) => {
     try {
       const base = `/api/options/ratio-spread-plans${accountId ? `/accounts/${encodeURIComponent(accountId)}` : ''}`;
