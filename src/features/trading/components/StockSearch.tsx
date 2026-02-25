@@ -81,8 +81,9 @@ export function StockSearch({ onSelect, selectedStockCode }: StockSearchProps) {
         onSelect(updatedStock);
         saveStockToLocalStorage(updatedStock);
         
+        const priceMsg = updatedStock.price != null ? `\nCurrent price: $${updatedStock.price.toFixed(2)}` : '';
         toast.success(
-          `${updatedStock.stock_code} (${updatedStock.stock_name})\nCurrent price: $${updatedStock.price.toFixed(2)}`,
+          `${updatedStock.stock_code} (${updatedStock.stock_name})${priceMsg}`,
           { duration: 3000 }
         );
       } else {
@@ -120,8 +121,9 @@ export function StockSearch({ onSelect, selectedStockCode }: StockSearchProps) {
           price: stockPrice.price
         };
         
+        const priceMsg = newStock.price != null ? `\nCurrent price: $${newStock.price.toFixed(2)}` : '';
         toast.success(
-          `${newStock.stock_code} (${newStock.stock_name})\nCurrent price: $${newStock.price.toFixed(2)}`,
+          `${newStock.stock_code} (${newStock.stock_name})${priceMsg}`,
           { duration: 3000 }
         );
         saveStockToLocalStorage(newStock);

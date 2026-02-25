@@ -79,8 +79,9 @@ export function StockSearchSection({
           price: stockPrice.price
         };
 
+        const priceMsg = selectedStock.price != null ? `\nCurrent price: $${selectedStock.price.toFixed(2)}` : '';
         toast.success(
-          `${selectedStock.stock_code} (${selectedStock.stock_name})\nCurrent price: $${selectedStock.price?.toFixed(2)}`,
+          `${selectedStock.stock_code} (${selectedStock.stock_name})${priceMsg}`,
           { duration: 3000 }
         );
       } else {
