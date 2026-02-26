@@ -153,7 +153,18 @@ export function Options({ theme }: OptionsProps) {
     };
 
     fetchOptionsData();
-  }, [selectedSymbol, activeTab]);
+  }, [selectedSymbol, activeTab, refreshKey]);
+
+  // Handle refresh for calendar tab
+  React.useEffect(() => {
+    if (activeTab === 'calendar') {
+      setOrdersByDate({});
+      setOrdersStatsByMonth({});
+      // We can also clear trading days if we want to force refresh that too, 
+      // but usually trading days are static. 
+      // setTradingDaysByYear({}); 
+    }
+  }, [refreshKey, activeTab]);
 
   const loadOrdersForDate = React.useCallback(async (dateStr: string) => {
     if (!selectedAccountId) return;
