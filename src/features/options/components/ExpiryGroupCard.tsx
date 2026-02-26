@@ -970,41 +970,6 @@ export function ExpiryGroupCard({
                                                   }
                                                 }}
                                               >解除组合</button>
-                                              <button
-                                                className={`px-2 py-0.5 rounded text-xs bg-red-600 text-white hover:bg-red-700`}
-                                                onClick={() => {
-                                                  const ids: string[] = [];
-                                                  const strategyIds: string[] = [];
-                                                  let defaultComboCountSum = 0;
-                                                  const perLegMaxQty: Record<string, number> = {};
-                                                  (allExpiryBuckets || []).forEach(bucket => {
-                                                    bucket.complex.forEach(s => {
-                                                      if (s.positions.some(p => p.expiry === group.expiry)) {
-                                                        const comboMap = computeCombosForPositions(s, 'call');
-                                                        const count = comboMap.get(m.s) || 0;
-                                                        if (count > 0) {
-                                                          const relevantPositions = s.positions.filter(p => p.expiry === group.expiry);
-                                                          ids.push(...relevantPositions.map(p => p.id));
-                                                          strategyIds.push(s.id);
-                                                          const strategyQty = relevantPositions.find(p => p.position_type === 'buy')?.quantity || relevantPositions[0]?.quantity || 0;
-                                                          defaultComboCountSum += strategyQty;
-                                                          relevantPositions.forEach(p => { perLegMaxQty[p.id] = p.quantity; });
-                                                        }
-                                                      }
-                                                    });
-                                                  });
-                                                  const uniqueIds = Array.from(new Set(ids));
-                                                  const uniqueStrategyIds = Array.from(new Set(strategyIds));
-                                                  if (uniqueIds.length > 0) {
-                                                    setConfirmData({
-                                                      ids: uniqueIds,
-                                                      meta: { action: 'clear_combination', comboType: 'call', strike: m.s, expiry: group.expiry, strategyIds: uniqueStrategyIds, defaultComboCount: defaultComboCountSum, perLegMaxQty, quote, contract_code: quote?.call_contract_code, contract_code_full: quote?.call_contract_code_full },
-                                                      title: '确认清仓',
-                                                      description: `将清仓组合：CALL 组合 @${m.s}（到期 ${format(new Date(group.expiry), 'yyyy-MM-dd')}），涉及腿数 ${uniqueIds.length}`
-                                                    });
-                                                  }
-                                                }}
-                                              >清仓</button>
                                               </>
                                             )}
                                           </div>
@@ -1150,41 +1115,6 @@ export function ExpiryGroupCard({
                                                   }
                                                 }}
                                               >解除组合</button>
-                                              <button
-                                                className={`px-2 py-0.5 rounded text-xs bg-red-600 text-white hover:bg-red-700`}
-                                                onClick={() => {
-                                                  const ids: string[] = [];
-                                                  const strategyIds: string[] = [];
-                                                  let defaultComboCountSum = 0;
-                                                  const perLegMaxQty: Record<string, number> = {};
-                                                  (allExpiryBuckets || []).forEach(bucket => {
-                                                    bucket.complex.forEach(s => {
-                                                      if (s.positions.some(p => p.expiry === group.expiry)) {
-                                                        const comboMap = computeCombosForPositions(s, 'put');
-                                                        const count = comboMap.get(m.s) || 0;
-                                                        if (count > 0) {
-                                                          const relevantPositions = s.positions.filter(p => p.expiry === group.expiry);
-                                                          ids.push(...relevantPositions.map(p => p.id));
-                                                          strategyIds.push(s.id);
-                                                          const strategyQty = relevantPositions.find(p => p.position_type === 'buy')?.quantity || relevantPositions[0]?.quantity || 0;
-                                                          defaultComboCountSum += strategyQty;
-                                                          relevantPositions.forEach(p => { perLegMaxQty[p.id] = p.quantity; });
-                                                        }
-                                                      }
-                                                    });
-                                                  });
-                                                  const uniqueIds = Array.from(new Set(ids));
-                                                  const uniqueStrategyIds = Array.from(new Set(strategyIds));
-                                                  if (uniqueIds.length > 0) {
-                                                    setConfirmData({
-                                                      ids: uniqueIds,
-                                                      meta: { action: 'clear_combination', comboType: 'put', strike: m.s, expiry: group.expiry, strategyIds: uniqueStrategyIds, defaultComboCount: defaultComboCountSum, perLegMaxQty, quote, contract_code: quote?.put_contract_code, contract_code_full: quote?.put_contract_code_full },
-                                                      title: '确认清仓',
-                                                      description: `将清仓组合：PUT 组合 @${m.s}（到期 ${format(new Date(group.expiry), 'yyyy-MM-dd')}），涉及腿数 ${uniqueIds.length}`
-                                                    });
-                                                  }
-                                                }}
-                                              >清仓</button>
                                               </>
                                             )}
                                           </div>
@@ -2083,6 +2013,32 @@ export function ExpiryGroupCard({
                   toast.error('同步失败');
                 } else {
                   toast.success('同步成功');
+                }
+                setConfirmData(null);
+              } else if ((confirmData?.meta?.strategyIds || []).length > 0) {
+                if (!selectedAccountId) {
+                  toast.error('未选择账户');
+                  return;
+                }
+                const strategyIds = confirmData.meta?.strategyIds || [];
+                
+                let successCount = 0;
+                let failCount = 0;
+                
+                for (const id of strategyIds) {
+                  const { error } = await optionsService.clearCombination(selectedAccountId, id);
+                  if (error) {
+                    console.error(`Failed to clear combo ${id}:`, error);
+                    failCount++;
+                  } else {
+                    successCount++;
+                  }
+                }
+                
+                if (failCount > 0) {
+                  toast.error(`清仓任务启动完成: 成功 ${successCount}, 失败 ${failCount}`);
+                } else {
+                  toast.success(`已启动清仓任务 (共 ${successCount} 个)`);
                 }
                 setConfirmData(null);
               } else {
