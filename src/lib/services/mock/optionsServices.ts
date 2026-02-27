@@ -1218,9 +1218,200 @@ export const optionsService: OptionsService = {
     };
   },
 
-  getPortfolioAnalysis: async () => {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    return { data: {}, error: null };
+  getPortfolioAnalysis: async (userId: string, accountId?: string | null) => {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    return {
+      data: {}, // mockExpiryAnalysis placeholder
+      error: null
+    };
+  },
+
+  getPayoffSurface: async (accountId: string, symbol?: string) => {
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
+    // Generate mock surface data
+    const s_axis = [];
+    for (let p = 0.8; p <= 1.2; p += 0.02) {
+      s_axis.push(Number((p * 1.35).toFixed(3))); // Base price 1.35
+    }
+    
+    const t_axis = [
+      "2023-10-27 (剩余0天)", 
+      "2023-11-03 (剩余7天)",
+      "2023-11-10 (剩余14天)",
+      "2023-11-24 (剩余28天)"
+    ];
+    
+    const payoff_matrix = [];
+    for (let i = 0; i < s_axis.length; i++) {
+      const row = [];
+      for (let j = 0; j < t_axis.length; j++) {
+        // Mock PnL function: parabolic shape centered at 1.35
+        const s = s_axis[i];
+        const t_factor = 1 - (j * 0.1);
+        const pnl = (10000 * Math.exp(-(Math.pow(s - 1.35, 2) / 0.01))) * t_factor - 2000;
+        row.push(Number(pnl.toFixed(2)));
+      }
+      payoff_matrix.push(row);
+    }
+    
+    return {
+      data: {
+        S_axis: s_axis,
+        T_axis: t_axis,
+        payoff_matrix,
+        current_pnl: 500.0,
+        max_profit: 8000.0,
+        max_loss: -2000.0,
+        underlying_price: 1.350,
+        underlying_name: symbol || "588000.SH",
+        legs_summary: [
+          {
+            contract_code: "10009783",
+            contract_name: "科创50购10月1400",
+            contract_type: "call",
+            strike: 1.4,
+            expiry: "2023-10-25",
+            position_type: "buy",
+            quantity: 10,
+            cost_price: 0.05,
+            sigma: 0.25,
+            days_to_expiry: 15
+          }
+        ]
+      },
+      error: null
+    };
+  },
+
+  getMarginStress: async (accountId: string, symbol?: string) => {
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
+    const scenarios = [];
+    const shocks = [-0.2, -0.15, -0.1, -0.05, 0, 0.05, 0.1, 0.15, 0.2];
+    
+    for (const shock of shocks) {
+      const is_forced_close = shock < -0.15;
+      scenarios.push({
+        shock_pct: shock,
+        shock_label: `${(shock * 100).toFixed(0)}%`,
+        new_undl_price: 1.35 * (1 + shock),
+        gross_margin: 60000 + (Math.abs(shock) * 50000),
+        combination_discount: 10000,
+        net_margin: 50000 + (Math.abs(shock) * 50000) - 10000,
+        margin_gap: is_forced_close ? 5000 : 0,
+        is_forced_close,
+        option_value_change: shock * 10000
+      });
+    }
+    
+    return {
+      data: {
+        current_margin: 50000.0,
+        gross_margin_no_discount: 60000.0,
+        combination_discount: 10000.0,
+        available_cash: 100000.0,
+        margin_buffer: 50000.0,
+        scenarios,
+        legs_count: 5,
+        legs_summary: []
+      },
+      error: null
+    };
+  },
+
+  getPayoffSurface: async (accountId: string, symbol?: string) => {
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
+    // Generate mock surface data
+    const s_axis = [];
+    for (let p = 0.8; p <= 1.2; p += 0.02) {
+      s_axis.push(Number((p * 1.35).toFixed(3))); // Base price 1.35
+    }
+    
+    const t_axis = [
+      "2023-10-27 (剩余0天)", 
+      "2023-11-03 (剩余7天)",
+      "2023-11-10 (剩余14天)",
+      "2023-11-24 (剩余28天)"
+    ];
+    
+    const payoff_matrix = [];
+    for (let i = 0; i < s_axis.length; i++) {
+      const row = [];
+      for (let j = 0; j < t_axis.length; j++) {
+        // Mock PnL function: parabolic shape centered at 1.35
+        const s = s_axis[i];
+        const t_factor = 1 - (j * 0.1);
+        const pnl = (10000 * Math.exp(-(Math.pow(s - 1.35, 2) / 0.01))) * t_factor - 2000;
+        row.push(Number(pnl.toFixed(2)));
+      }
+      payoff_matrix.push(row);
+    }
+    
+    return {
+      data: {
+        S_axis: s_axis,
+        T_axis: t_axis,
+        payoff_matrix,
+        current_pnl: 500.0,
+        max_profit: 8000.0,
+        max_loss: -2000.0,
+        underlying_price: 1.350,
+        underlying_name: symbol || "588000.SH",
+        legs_summary: [
+          {
+            contract_code: "10009783",
+            contract_name: "科创50购10月1400",
+            contract_type: "call",
+            strike: 1.4,
+            expiry: "2023-10-25",
+            position_type: "buy",
+            quantity: 10,
+            cost_price: 0.05,
+            sigma: 0.25,
+            days_to_expiry: 15
+          }
+        ]
+      },
+      error: null
+    };
+  },
+
+  getMarginStress: async (accountId: string, symbol?: string) => {
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
+    const scenarios = [];
+    const shocks = [-0.2, -0.15, -0.1, -0.05, 0, 0.05, 0.1, 0.15, 0.2];
+    
+    for (const shock of shocks) {
+      const is_forced_close = shock < -0.15;
+      scenarios.push({
+        shock_pct: shock,
+        shock_label: `${(shock * 100).toFixed(0)}%`,
+        new_undl_price: 1.35 * (1 + shock),
+        gross_margin: 60000 + (Math.abs(shock) * 50000),
+        combination_discount: 10000,
+        net_margin: 50000 + (Math.abs(shock) * 50000) - 10000,
+        margin_gap: is_forced_close ? 5000 : 0,
+        is_forced_close,
+        option_value_change: shock * 10000
+      });
+    }
+    
+    return {
+      data: {
+        current_margin: 50000.0,
+        gross_margin_no_discount: 60000.0,
+        combination_discount: 10000.0,
+        available_cash: 100000.0,
+        margin_buffer: 50000.0,
+        scenarios,
+        legs_count: 5,
+        legs_summary: []
+      },
+      error: null
+    };
   }
 };
 

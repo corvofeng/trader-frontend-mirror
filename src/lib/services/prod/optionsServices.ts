@@ -287,6 +287,36 @@ export const optionsService: OptionsService = {
     }
   },
 
+  getPayoffSurface: async (accountId: string, symbol?: string) => {
+    try {
+      const url = `/api/options/payoff-surface/${accountId}${symbol ? `?symbol=${symbol}` : ''}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error('Failed to fetch payoff surface');
+      }
+      const data = await response.json();
+      return { data: data.data, error: null };
+    } catch (error) {
+      console.error('Error fetching payoff surface:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  getMarginStress: async (accountId: string, symbol?: string) => {
+    try {
+      const url = `/api/options/margin-stress/${accountId}${symbol ? `?symbol=${symbol}` : ''}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error('Failed to fetch margin stress data');
+      }
+      const data = await response.json();
+      return { data: data.data, error: null };
+    } catch (error) {
+      console.error('Error fetching margin stress data:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
   getAvailableStrategies: async () => {
     try {
       const response = await fetch('/api/options/strategies');

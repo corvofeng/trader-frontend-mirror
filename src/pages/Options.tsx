@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { logger } from '../shared/utils/logger';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { BarChart2, TrendingUp, Briefcase, Calculator, RefreshCw, Shield, Calendar, ListChecks } from 'lucide-react';
+import { BarChart2, TrendingUp, Briefcase, Calculator, RefreshCw, Shield, Calendar, ListChecks, Activity } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, addMonths, isSameMonth, isSameDay } from 'date-fns';
 import { Theme, themes } from '../lib/theme';
 import { OptionsChain } from '../features/options/components/OptionsChain';
 import { TimeValueChart } from '../features/options/components/TimeValueChart';
 import { VolatilitySurface } from '../features/options/components/VolatilitySurface';
 import { OptionsPortfolio } from '../features/options/components/OptionsPortfolio';
+import { RiskAnalysis } from '../features/options/components/RiskAnalysis';
 import { OptionsTradePlans } from '../features/options/components/OptionsTradePlans';
 import { OptionsCalculatorCard } from '../features/options/components/OptionsCalculatorCard';
 import { OptionsCalculatorModal } from './options/OptionsCalculatorModal';
@@ -24,7 +25,7 @@ interface OptionsProps {
   theme: Theme;
 }
 
-type OptionsTab = 'data' | 'portfolio' | 'trading' | 'management' | 'whitelist' | 'calendar' | 'sequential';
+type OptionsTab = 'data' | 'portfolio' | 'trading' | 'management' | 'whitelist' | 'calendar' | 'sequential' | 'risk';
 
 export function Options({ theme }: OptionsProps) {
   const location = useLocation();
@@ -32,7 +33,7 @@ export function Options({ theme }: OptionsProps) {
   const [activeTab, setActiveTab] = useState<OptionsTab>(() => {
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab') as OptionsTab;
-    return tab && ['data', 'portfolio', 'trading', 'management', 'whitelist', 'calendar', 'sequential'].includes(tab) ? tab : 'data';
+    return tab && ['data', 'portfolio', 'trading', 'management', 'whitelist', 'calendar', 'sequential', 'risk'].includes(tab) ? tab : 'data';
   });
 
   const [availableSymbols, setAvailableSymbols] = useState<string[]>([]);
@@ -295,13 +296,14 @@ export function Options({ theme }: OptionsProps) {
   }, [activeTab, currentMonth, tradingDaysByYear]);
 
   const tabs = [
-    { id: 'data' as OptionsTab, name: 'Options Data', icon: BarChart2 },
+    { id: 'data' as OptionsTab, name: 'Market', icon: BarChart2 },
     { id: 'portfolio' as OptionsTab, name: 'Portfolio', icon: Briefcase },
-    { id: 'trading' as OptionsTab, name: 'Trade Plans', icon: TrendingUp },
-    { id: 'management' as OptionsTab, name: 'Portfolio Management', icon: Calculator },
+    { id: 'trading' as OptionsTab, name: 'Plans', icon: TrendingUp },
+    { id: 'management' as OptionsTab, name: 'Manage', icon: Calculator },
     { id: 'whitelist' as OptionsTab, name: 'Whitelist', icon: Shield },
-    { id: 'calendar' as OptionsTab, name: 'Order Calendar', icon: Calendar },
-    { id: 'sequential' as OptionsTab, name: 'Sequential Tasks', icon: ListChecks },
+    { id: 'calendar' as OptionsTab, name: 'Calendar', icon: Calendar },
+    { id: 'sequential' as OptionsTab, name: 'Tasks', icon: ListChecks },
+    { id: 'risk' as OptionsTab, name: 'Risk', icon: Activity },
   ];
 
   return (
@@ -740,6 +742,17 @@ export function Options({ theme }: OptionsProps) {
             <RelatedLinks 
               theme={theme}
               currentPath="/options?tab=calendar" 
+              maxItems={4}
+            />
+          </div>
+        )}
+
+        {activeTab === 'risk' && (
+          <div className="space-y-6">
+            <RiskAnalysis theme={theme} selectedAccountId={selectedAccountId} selectedSymbol={selectedSymbol} />
+            <RelatedLinks 
+              theme={theme}
+              currentPath="/options?tab=risk" 
               maxItems={4}
             />
           </div>

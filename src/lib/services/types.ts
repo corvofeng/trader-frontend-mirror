@@ -666,12 +666,60 @@ export interface OptionContractDetail {
   [key: string]: any;
 }
 
+export interface PayoffSurfaceData {
+  S_axis: number[];
+  T_axis: string[];
+  payoff_matrix: number[][];
+  current_pnl: number;
+  max_profit: number;
+  max_loss: number;
+  underlying_price: number;
+  underlying_name: string;
+  legs_summary: Array<{
+    contract_code: string;
+    contract_name: string;
+    contract_type: string;
+    strike: number;
+    expiry: string;
+    position_type: string;
+    quantity: number;
+    cost_price: number;
+    sigma: number;
+    days_to_expiry: number;
+  }>;
+}
+
+export interface MarginStressScenario {
+  shock_pct: number;
+  shock_label: string;
+  new_undl_price: number;
+  gross_margin: number;
+  combination_discount: number;
+  net_margin: number;
+  margin_gap: number;
+  is_forced_close: boolean;
+  option_value_change: number;
+}
+
+export interface MarginStressData {
+  current_margin: number;
+  gross_margin_no_discount: number;
+  combination_discount: number;
+  available_cash: number;
+  margin_buffer: number;
+  scenarios: MarginStressScenario[];
+  legs_count: number;
+  legs_summary: any[];
+}
+
 export interface OptionsService {
   getOptionsData: (symbol?: string) => Promise<ServiceResponse<OptionsData>>;
   getOptionContractDetail: (contractCode: string) => Promise<ServiceResponse<OptionContractDetail>>;
   getAvailableSymbols: () => Promise<ServiceResponse<string[]>>;
   getOptionsPortfolio: (userId: string, accountId?: string | null, options?: { symbol?: string }) => Promise<ServiceResponse<OptionsPortfolioData>>;
   getPortfolioAnalysis: (userId: string, accountId?: string | null) => Promise<ServiceResponse<Record<string, ExpiryAnalysisReport>>>;
+  getPayoffSurface: (accountId: string, symbol?: string) => Promise<ServiceResponse<PayoffSurfaceData>>;
+  getMarginStress: (accountId: string, symbol?: string) => Promise<ServiceResponse<MarginStressData>>;
   getAvailableStrategies: () => Promise<ServiceResponse<string[]>>;
   saveCustomStrategy: (
     strategy: CustomOptionsStrategy | Omit<CustomOptionsStrategy, 'id' | 'createdAt' | 'updatedAt'>
