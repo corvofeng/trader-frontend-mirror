@@ -312,24 +312,44 @@ export function Portfolio({
   };
 
   const handleScreenshot = async () => {
-  if (!journalRef.current) {
-    logger.debug('[Portfolio] Guard: journalRef missing');
-    return;
-  }
+    if (!journalRef.current) {
+      logger.debug('[Portfolio] Guard: journalRef missing');
+      return;
+    }
     
     try {
       const node = journalRef.current;
+      
+      // 获取当前主题的背景色
+      const getBackgroundColor = (t: Theme) => {
+        switch (t) {
+          case 'dark': return '#111827'; // gray-900
+          case 'blue': return '#eff6ff'; // blue-50
+          case 'light':
+          default: return '#f3f4f6'; // gray-100
+        }
+      };
+
+      const padding = 40; // 增加内边距
+      const originalWidth = node.scrollWidth;
+      const originalHeight = node.scrollHeight;
+      const width = originalWidth + padding * 2;
+      const height = originalHeight + padding * 2;
+
       const dataUrl = await toPng(node, {
         cacheBust: true,
-        pixelRatio: 2,
-        quality: 0.95,
-        // 为截图添加额外的底部内边距，避免最下方文本被截断
+        pixelRatio: 4, // 进一步提高分辨率以对抗压缩
+        quality: 1.0,
+        width: width,
+        height: height,
         style: {
-          paddingBottom: '24px',
-          backgroundColor: 'transparent',
+          padding: `${padding}px`,
+          backgroundColor: getBackgroundColor(theme),
+          boxSizing: 'border-box',
+          width: `${width}px`,
+          height: `${height}px`,
+          margin: '0', // 确保没有外边距干扰
         },
-        width: node.scrollWidth,
-        height: node.scrollHeight + 24,
       });
       
       setScreenshotPreview(dataUrl);
