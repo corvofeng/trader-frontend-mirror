@@ -119,6 +119,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   const { currencyConfig } = useCurrency();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [activeSymbol, setActiveSymbol] = useState<string>(selectedSymbol || '');
+  const [restOrders, setRestOrders] = useState<OptionOrder[]>([]);
   
   // Activity Log State
   const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>([]);
@@ -586,15 +587,47 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     fetchCustomStrategies();
   }, [selectedAccountIdProp]);
 
-  // Memoize and sort orders from WebSocket
+  // Fetch REST orders when account changes
+  useEffect(() => {
+    let mounted = true;
+    const fetchOrders = async () => {
+      if (!selectedAccountIdProp) return;
+      try {
+        const { data, error } = await optionsService.getOptionOrders(selectedAccountIdProp, currentUserId, { only_today: true });
+        if (mounted && data) {
+          setRestOrders(data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch option orders:', err);
+      }
+    };
+
+    if (selectedAccountIdProp) {
+      fetchOrders();
+      // Poll every 10 seconds as backup to WebSocket
+      const interval = setInterval(fetchOrders, 10000);
+      return () => {
+        mounted = false;
+        clearInterval(interval);
+      };
+    } else {
+      setRestOrders([]);
+    }
+  }, [selectedAccountIdProp, currentUserId]);
+
+  // Memoize and sort orders from WebSocket or REST
   const todayOrders = React.useMemo(() => {
-    if (!wsOrders || wsOrders.length === 0) return [];
-    return [...wsOrders].sort((a, b) => {
+    // Prefer WebSocket orders if available, otherwise fallback to REST
+    const source = (wsOrders && wsOrders.length > 0) ? wsOrders : restOrders;
+    
+    if (!source || source.length === 0) return [];
+    
+    return [...source].sort((a, b) => {
       const timeA = a.order_time ? new Date(a.order_time).getTime() : 0;
       const timeB = b.order_time ? new Date(b.order_time).getTime() : 0;
       return timeB - timeA;
     });
-  }, [wsOrders]);
+  }, [wsOrders, restOrders]);
 
   // Query orders via WebSocket when account changes
   useEffect(() => {
