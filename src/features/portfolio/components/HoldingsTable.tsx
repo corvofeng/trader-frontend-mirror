@@ -48,11 +48,11 @@ export function HoldingsTable({
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <h3 className={`text-lg font-semibold ${themes[theme].text} whitespace-nowrap`}>持仓列表</h3>
+        <h3 className={`text-xl font-semibold ${themes[theme].text} whitespace-nowrap`}>持仓列表</h3>
         <select
           value={holdingsPerPage}
           onChange={(e) => onHoldingsPerPageChange(Number(e.target.value))}
-          className={`px-2 py-1 rounded-md text-sm ${themes[theme].input} ${themes[theme].text}`}
+          className={`px-2 py-1 rounded-md text-base ${themes[theme].input} ${themes[theme].text}`}
         >
           <option value={5}>每页 5 条</option>
           <option value={10}>每页 10 条</option>
@@ -66,7 +66,7 @@ export function HoldingsTable({
           <thead className={`${themes[theme].background}`}>
             <tr>
                       <th 
-                        className={`w-[34%] md:w-[30%] px-1 py-2 sm:px-4 sm:py-3 text-left text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
+                        className={`w-[34%] md:w-[30%] px-1 py-2 sm:px-4 sm:py-3 text-left text-sm font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
                         onClick={() => onHoldingsSort('stock_code')}
                       >
                         <div className="flex items-center space-x-1">
@@ -75,7 +75,7 @@ export function HoldingsTable({
                         </div>
                       </th>
                       <th 
-                        className={`w-[30%] md:w-[30%] px-1 py-2 sm:px-4 sm:py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
+                        className={`w-[30%] md:w-[30%] px-1 py-2 sm:px-4 sm:py-3 text-right text-sm font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
                         onClick={() => onHoldingsSort('total_value')}
                       >
                         <div className="flex items-center justify-end space-x-1">
@@ -84,7 +84,7 @@ export function HoldingsTable({
                         </div>
                       </th>
                       <th 
-                        className={`w-[24%] md:w-[25%] px-1 py-2 sm:px-4 sm:py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
+                        className={`w-[24%] md:w-[25%] px-1 py-2 sm:px-4 sm:py-3 text-right text-sm font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
                         onClick={() => onHoldingsSort('profit_loss_percentage')}
                       >
                         <div className="flex items-center justify-end space-x-1">
@@ -92,7 +92,7 @@ export function HoldingsTable({
                           <SortIcon field="profit_loss_percentage" currentSort={holdingsSort} />
                         </div>
                       </th>
-                      <th className={`w-[12%] md:w-[15%] px-1 py-2 sm:px-4 sm:py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
+                      <th className={`w-[12%] md:w-[15%] px-1 py-2 sm:px-4 sm:py-3 text-right text-sm font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
                         <span className="hidden sm:inline">详情</span>
                       </th>
                     </tr>
@@ -102,17 +102,17 @@ export function HoldingsTable({
               <tr key={holding.stock_code} className={themes[theme].cardHover}>
                 <td className="px-1 py-2 sm:px-4 sm:py-3 truncate">
                    <div className="flex flex-col">
-                      <div className={`text-sm font-medium ${themes[theme].text}`}>{holding.stock_code}</div>
-                      <div className={`text-xs ${themes[theme].text} opacity-75 truncate max-w-full`}>{holding.stock_name}</div>
+                      <div className={`text-base font-medium ${themes[theme].text}`}>{holding.stock_code}</div>
+                      <div className={`text-sm ${themes[theme].text} opacity-75 truncate max-w-full`}>{holding.stock_name}</div>
                    </div>
                 </td>
-                <td className={`px-1 py-2 sm:px-4 sm:py-3 text-right text-sm ${themes[theme].text}`}>
+                <td className={`px-1 py-2 sm:px-4 sm:py-3 text-right text-base ${themes[theme].text}`}>
                   <div>{formatCurrency(holding.total_value, currencyConfig)}</div>
-                  <div className="text-xs opacity-75">
+                  <div className="text-sm opacity-75">
                     {totalPortfolioValue > 0 ? ((holding.total_value / totalPortfolioValue) * 100).toFixed(2) : '0.00'}%
                   </div>
                 </td>
-                <td className={`px-1 py-2 sm:px-4 sm:py-3 text-right text-sm font-medium ${
+                <td className={`px-1 py-2 sm:px-4 sm:py-3 text-right text-base font-medium ${
                   holding.profit_loss_percentage >= 0 ? 'text-green-600' : 'text-red-600'
                 }`}>
                   {holding.profit_loss_percentage >= 0 ? '+' : ''}{holding.profit_loss_percentage.toFixed(2)}%
@@ -124,9 +124,9 @@ export function HoldingsTable({
                             e.stopPropagation();
                             onAnalyzeStock(holding.stock_code, holding.stock_name);
                           }}
-                          className={`px-2 py-1 rounded-md text-xs ${themes[theme].secondary} flex items-center gap-1 opacity-80 hover:opacity-100 transition-opacity whitespace-nowrap`}
+                          className={`px-2 py-1 rounded-md text-sm ${themes[theme].secondary} flex items-center gap-1 opacity-80 hover:opacity-100 transition-opacity whitespace-nowrap`}
                         >
-                          <TrendingUp size={14} />
+                          <TrendingUp size={16} />
                           <span className="hidden sm:inline">详情</span>
                         </button>
                      </div>
@@ -138,7 +138,7 @@ export function HoldingsTable({
       </div>
 
       <div className="flex items-center justify-between mt-4">
-                <div className={`text-sm ${themes[theme].text}`}>
+                <div className={`text-base ${themes[theme].text}`}>
                   显示 {Math.min(holdings.length, (holdingsPage - 1) * holdingsPerPage + 1)} 到 {Math.min(holdings.length, holdingsPage * holdingsPerPage)} 条，共 {holdings.length} 条持仓
                 </div>
                 <div className="flex gap-2">

@@ -40,11 +40,11 @@ export function TradesTable({
     <div>
       {showHeader && (
         <div className="flex justify-between items-center mb-4">
-          <h3 className={`text-lg font-semibold ${themes[theme].text} whitespace-nowrap`}>成交记录</h3>
+          <h3 className={`text-xl font-semibold ${themes[theme].text} whitespace-nowrap`}>成交记录</h3>
           <select
             value={tradesPerPage}
             onChange={(e) => onTradesPerPageChange(Number(e.target.value))}
-            className={`px-2 py-1 rounded-md text-sm ${themes[theme].input} ${themes[theme].text}`}
+            className={`px-2 py-1 rounded-md text-base ${themes[theme].input} ${themes[theme].text}`}
           >
             <option value={5}>每页 5 条</option>
             <option value={10}>每页 10 条</option>
@@ -58,7 +58,7 @@ export function TradesTable({
           <thead className={`${themes[theme].background}`}>
             <tr>
               <th 
-                className={`px-6 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
+                className={`px-6 py-3 text-left text-sm font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
                 onClick={() => onSort('created_at')}
               >
                 日期
@@ -69,7 +69,7 @@ export function TradesTable({
                 )}
               </th>
               <th 
-                className={`px-6 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
+                className={`px-6 py-3 text-left text-sm font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
                 onClick={() => onSort('stock_code')}
               >
                 股票
@@ -80,7 +80,7 @@ export function TradesTable({
                 )}
               </th>
               <th 
-                className={`px-6 py-3 text-center text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
+                className={`px-6 py-3 text-center text-sm font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
                 onClick={() => onSort('operation')}
               >
                 方向
@@ -91,7 +91,7 @@ export function TradesTable({
                 )}
               </th>
               <th 
-                className={`px-6 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
+                className={`px-6 py-3 text-right text-sm font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
                 onClick={() => onSort('target_price')}
               >
                 价格
@@ -102,7 +102,7 @@ export function TradesTable({
                 )}
               </th>
               <th 
-                className={`px-6 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
+                className={`px-6 py-3 text-right text-sm font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
                 onClick={() => onSort('quantity')}
               >
                 数量
@@ -112,7 +112,7 @@ export function TradesTable({
                   </span>
                 )}
               </th>
-              <th className={`px-6 py-3 text-right text-xs font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
+              <th className={`px-6 py-3 text-right text-sm font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
                 金额
               </th>
             </tr>
@@ -120,25 +120,25 @@ export function TradesTable({
           <tbody className={`divide-y ${themes[theme].border}`}>
             {paginatedTrades.map((trade, idx) => (
               <tr key={`${trade.stock_code}-${trade.created_at}-${idx}`} className={themes[theme].cardHover}>
-                <td className={`px-6 py-4 text-sm ${themes[theme].text}`}>
+                <td className={`px-6 py-4 text-base ${themes[theme].text}`}>
                   {format(new Date(trade.created_at), 'MMM d, yyyy HH:mm')}
                 </td>
                 <td className="px-6 py-4">
                   <div>
-                    <div className={`text-sm font-medium ${themes[theme].text}`}>{trade.stock_code}</div>
-                    <div className={`text-sm ${themes[theme].text} opacity-75`}>{trade.stock_name}</div>
+                    <div className={`text-base font-medium ${themes[theme].text}`}>{trade.stock_code}</div>
+                    <div className={`text-base ${themes[theme].text} opacity-75`}>{trade.stock_name}</div>
                   </div>
                 </td>
-                <td className={`px-6 py-4 text-center text-sm ${themes[theme].text}`}>
+                <td className={`px-6 py-4 text-center text-base ${themes[theme].text}`}>
                   {trade.operation === 'buy' ? '买入' : '卖出'}
                 </td>
-                <td className={`px-6 py-4 text-right text-sm ${themes[theme].text}`}>
+                <td className={`px-6 py-4 text-right text-base ${themes[theme].text}`}>
                   {formatCurrency(trade.target_price, currencyConfig)}
                 </td>
-                <td className={`px-6 py-4 text-right text-sm ${themes[theme].text}`}>
+                <td className={`px-6 py-4 text-right text-base ${themes[theme].text}`}>
                   {trade.quantity}
                 </td>
-                <td className={`px-6 py-4 text-right text-sm ${themes[theme].text}`}>
+                <td className={`px-6 py-4 text-right text-base ${themes[theme].text}`}>
                   {formatCurrency(trade.target_price * trade.quantity, currencyConfig)}
                 </td>
               </tr>
@@ -148,7 +148,7 @@ export function TradesTable({
       </div>
 
       <div className="flex items-center justify-between mt-4">
-        <div className={`text-sm ${themes[theme].text} whitespace-nowrap`}>
+        <div className={`text-base ${themes[theme].text} whitespace-nowrap`}>
           显示第 {Math.min(trades.length, (tradesPage - 1) * tradesPerPage + 1)} 到第 {Math.min(trades.length, tradesPage * tradesPerPage)} 条，共 {trades.length} 条记录
         </div>
         <div className="flex gap-2">

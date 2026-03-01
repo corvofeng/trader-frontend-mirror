@@ -38,7 +38,7 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid, userId, selectedA
         const formatted = text
           .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
           .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>');
-        html += `<p class="mb-2 leading-relaxed text-sm ${themes[theme].text}">${formatted}</p>`;
+        html += `<p class="mb-2 leading-relaxed text-base ${themes[theme].text}">${formatted}</p>`;
       }
       paragraph = '';
     };
@@ -70,10 +70,10 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid, userId, selectedA
           .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
           .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>');
         const common = `leading-tight whitespace-normal ${themes[theme].text}`;
-        if (level === 1) html += `<h1 class="text-lg font-semibold mt-3 mb-2 ${common}">${text}</h1>`;
-        else if (level === 2) html += `<h2 class="text-base font-semibold mt-3 mb-2 ${common}">${text}</h2>`;
-        else if (level === 3) html += `<h3 class="text-sm font-semibold mt-2 mb-1 ${common}">${text}</h3>`;
-        else html += `<h4 class="text-xs font-medium mt-2 mb-1 ${common}">${text}</h4>`;
+        if (level === 1) html += `<h1 class="text-2xl font-semibold mt-4 mb-3 ${common}">${text}</h1>`;
+        else if (level === 2) html += `<h2 class="text-xl font-semibold mt-3 mb-2 ${common}">${text}</h2>`;
+        else if (level === 3) html += `<h3 class="text-lg font-semibold mt-2 mb-1 ${common}">${text}</h3>`;
+        else html += `<h4 class="text-base font-medium mt-2 mb-1 ${common}">${text}</h4>`;
         continue;
       }
 
@@ -101,7 +101,7 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid, userId, selectedA
 
         // 判断缩进（简单按前导空格判断二级列表）
         const indentClass = /^\s{2,}/.test(line) ? 'ml-4' : '';
-        html += `<li class="text-sm ${themes[theme].text} ${indentClass}">${item}</li>`;
+        html += `<li class="text-base ${themes[theme].text} ${indentClass}">${item}</li>`;
         continue;
       }
 
@@ -183,10 +183,10 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid, userId, selectedA
         <div className="p-6 border-b border-gray-200">
           <div className="flex justify-between items-center">
             <div>
-              <h2 className={`text-xl font-bold leading-tight whitespace-nowrap flex-shrink-0 ${themes[theme].text}`}>
+              <h2 className={`text-2xl font-bold leading-tight whitespace-nowrap flex-shrink-0 ${themes[theme].text}`}>
                 智能分析报告
               </h2>
-              <p className={`text-sm ${themes[theme].text} opacity-75 whitespace-nowrap`}>
+              <p className={`text-base ${themes[theme].text} opacity-75 whitespace-nowrap`}>
                 分析时间: {new Date(analysis.analysis_time).toLocaleString()}
               </p>
             </div>
@@ -203,10 +203,10 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid, userId, selectedA
         <div className="p-4 sm:p-6">
           <div className="flex items-center gap-2 mb-4">
             <FileText className="w-5 h-5 text-blue-500" />
-            <h3 className={`text-lg font-semibold leading-tight whitespace-nowrap flex-shrink-0 ${themes[theme].text}`}>分析报告</h3>
+            <h3 className={`text-xl font-semibold leading-tight whitespace-nowrap flex-shrink-0 ${themes[theme].text}`}>分析报告</h3>
           </div>
           <div 
-            className={`${themes[theme].text} text-sm leading-relaxed space-y-2 break-words`}
+            className={`${themes[theme].text} text-base leading-relaxed space-y-2 break-words`}
             dangerouslySetInnerHTML={{ 
               __html: renderMarkdownContent(analysis.content) 
             }}
@@ -263,46 +263,46 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid, userId, selectedA
       content: (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="text-center">
-            <p className={`text-lg font-semibold ${getValueColor(analysis.overall_metrics.total_return)}`}>
+            <p className={`text-xl font-semibold ${getValueColor(analysis.overall_metrics.total_return)}`}>
               {analysis.overall_metrics.total_return >= 0 ? '+' : ''}{analysis.overall_metrics.total_return.toFixed(2)}%
             </p>
-            <p className={`text-sm ${themes[theme].text} opacity-75`}>总收益率</p>
+            <p className={`text-base ${themes[theme].text} opacity-75`}>总收益率</p>
           </div>
           <div className="text-center">
-            <p className={`text-lg font-semibold ${getValueColor(analysis.overall_metrics.annualized_return)}`}>
+            <p className={`text-xl font-semibold ${getValueColor(analysis.overall_metrics.annualized_return)}`}>
               {analysis.overall_metrics.annualized_return >= 0 ? '+' : ''}{analysis.overall_metrics.annualized_return.toFixed(2)}%
             </p>
-            <p className={`text-sm ${themes[theme].text} opacity-75`}>年化收益</p>
+            <p className={`text-base ${themes[theme].text} opacity-75`}>年化收益</p>
           </div>
           <div className="text-center">
-            <p className={`text-lg font-semibold ${themes[theme].text}`}>
+            <p className={`text-xl font-semibold ${themes[theme].text}`}>
               {analysis.overall_metrics.volatility.toFixed(1)}%
             </p>
-            <p className={`text-sm ${themes[theme].text} opacity-75`}>波动率</p>
+            <p className={`text-base ${themes[theme].text} opacity-75`}>波动率</p>
           </div>
           <div className="text-center">
-            <p className={`text-lg font-semibold ${themes[theme].text}`}>
+            <p className={`text-xl font-semibold ${themes[theme].text}`}>
               {analysis.overall_metrics.sharpe_ratio.toFixed(2)}
             </p>
-            <p className={`text-sm ${themes[theme].text} opacity-75`}>夏普比率</p>
+            <p className={`text-base ${themes[theme].text} opacity-75`}>夏普比率</p>
           </div>
           <div className="text-center">
-            <p className={`text-lg font-semibold ${themes[theme].text}`}>
+            <p className={`text-xl font-semibold ${themes[theme].text}`}>
               {analysis.overall_metrics.max_drawdown.toFixed(1)}%
             </p>
-            <p className={`text-sm ${themes[theme].text} opacity-75`}>最大回撤</p>
+            <p className={`text-base ${themes[theme].text} opacity-75`}>最大回撤</p>
           </div>
           <div className="text-center">
-            <p className={`text-lg font-semibold ${themes[theme].text}`}>
+            <p className={`text-xl font-semibold ${themes[theme].text}`}>
               {analysis.overall_metrics.win_rate.toFixed(1)}%
             </p>
-            <p className={`text-sm ${themes[theme].text} opacity-75`}>胜率</p>
+            <p className={`text-base ${themes[theme].text} opacity-75`}>胜率</p>
           </div>
           <div className="text-center">
-            <p className={`text-lg font-semibold ${themes[theme].text}`}>
+            <p className={`text-xl font-semibold ${themes[theme].text}`}>
               {analysis.overall_metrics.profit_factor.toFixed(2)}
             </p>
-            <p className={`text-sm ${themes[theme].text} opacity-75`}>盈亏比</p>
+            <p className={`text-base ${themes[theme].text} opacity-75`}>盈亏比</p>
           </div>
         </div>
       )
@@ -316,12 +316,12 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid, userId, selectedA
           {analysis.sector_allocation.map((sector, index) => (
             <div key={index} className={`${themes[theme].background} rounded-lg p-3`}>
               <div className="flex justify-between items-center mb-2">
-                <span className={`font-medium ${themes[theme].text}`}>{sector.sector}</span>
-                <span className={`text-sm ${themes[theme].text} opacity-75`}>
+                <span className={`text-lg font-medium ${themes[theme].text}`}>{sector.sector}</span>
+                <span className={`text-base ${themes[theme].text} opacity-75`}>
                   {sector.weight.toFixed(1)}%
                 </span>
               </div>
-              <div className="flex justify-between text-sm">
+              <div className="flex justify-between text-base">
                 <span className={`${getValueColor(sector.return)}`}>
                   收益: {sector.return >= 0 ? '+' : ''}{sector.return.toFixed(2)}%
                 </span>
@@ -342,29 +342,29 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid, userId, selectedA
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-3">
             <div className="text-center">
-              <p className={`text-lg font-semibold ${themes[theme].text}`}>
+              <p className={`text-xl font-semibold ${themes[theme].text}`}>
                 {analysis.risk_analysis.portfolio_beta.toFixed(2)}
               </p>
-              <p className={`text-sm ${themes[theme].text} opacity-75`}>组合Beta</p>
+              <p className={`text-base ${themes[theme].text} opacity-75`}>组合Beta</p>
             </div>
             <div className="text-center">
-              <p className={`text-lg font-semibold ${themes[theme].text}`}>
+              <p className={`text-xl font-semibold ${themes[theme].text}`}>
                 {analysis.risk_analysis.var_95.toFixed(1)}%
               </p>
-              <p className={`text-sm ${themes[theme].text} opacity-75`}>VaR (95%)</p>
+              <p className={`text-base ${themes[theme].text} opacity-75`}>VaR (95%)</p>
             </div>
             <div className="text-center">
-              <p className={`text-lg font-semibold ${themes[theme].text}`}>
+              <p className={`text-xl font-semibold ${themes[theme].text}`}>
                 {analysis.risk_analysis.concentration_risk.toFixed(1)}%
               </p>
-              <p className={`text-sm ${themes[theme].text} opacity-75`}>集中度风险</p>
+              <p className={`text-base ${themes[theme].text} opacity-75`}>集中度风险</p>
             </div>
           </div>
           <div>
-            <h4 className={`text-sm font-medium ${themes[theme].text} mb-2`}>相关性矩阵</h4>
+            <h4 className={`text-base font-medium ${themes[theme].text} mb-2`}>相关性矩阵</h4>
             <div className="space-y-2">
               {analysis.risk_analysis.correlation_matrix.slice(0, 3).map((corr, index) => (
-                <div key={index} className="flex justify-between text-sm">
+                <div key={index} className="flex justify-between text-base">
                   <span className={`${themes[theme].text} opacity-75`}>
                     {corr.stock1} - {corr.stock2}
                   </span>
@@ -387,12 +387,12 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid, userId, selectedA
           {analysis.rebalancing_suggestions.map((suggestion, index) => (
             <div key={index} className={`${themes[theme].background} rounded-lg p-3`}>
               <div className="flex justify-between items-center mb-2">
-                <span className={`font-medium ${themes[theme].text}`}>{suggestion.stock_code}</span>
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getActionColor(suggestion.action)}`}>
+                <span className={`text-lg font-medium ${themes[theme].text}`}>{suggestion.stock_code}</span>
+                <span className={`px-2 py-1 rounded-full text-sm font-medium ${getActionColor(suggestion.action)}`}>
                   {suggestion.action === 'buy' ? '买入' : suggestion.action === 'sell' ? '卖出' : '持有'}
                 </span>
               </div>
-              <div className="flex justify-between text-sm mb-2">
+              <div className="flex justify-between text-base mb-2">
                 <span className={`${themes[theme].text} opacity-75`}>
                   当前权重: {suggestion.current_weight.toFixed(1)}%
                 </span>
@@ -400,7 +400,7 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid, userId, selectedA
                   建议权重: {suggestion.suggested_weight.toFixed(1)}%
                 </span>
               </div>
-              <p className={`text-sm ${themes[theme].text} opacity-75`}>{suggestion.reason}</p>
+              <p className={`text-base ${themes[theme].text} opacity-75`}>{suggestion.reason}</p>
             </div>
           ))}
         </div>
@@ -415,21 +415,21 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid, userId, selectedA
           <div className="text-center">
             <div className="flex items-center justify-center gap-2 mb-2">
               {getTrendIcon(analysis.market_outlook.trend)}
-              <span className={`text-lg font-semibold ${themes[theme].text}`}>
+              <span className={`text-xl font-semibold ${themes[theme].text}`}>
                 {analysis.market_outlook.trend === 'bullish' ? '看涨' : 
                  analysis.market_outlook.trend === 'bearish' ? '看跌' : '中性'}
               </span>
             </div>
-            <p className={`text-sm ${themes[theme].text} opacity-75`}>
+            <p className={`text-base ${themes[theme].text} opacity-75`}>
               置信度: {analysis.market_outlook.confidence.toFixed(0)}% | 
               时间范围: {analysis.market_outlook.time_horizon}
             </p>
           </div>
           <div>
-            <h4 className={`text-sm font-medium ${themes[theme].text} mb-2`}>关键因素</h4>
+            <h4 className={`text-base font-medium ${themes[theme].text} mb-2`}>关键因素</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               {analysis.market_outlook.key_factors.map((factor, index) => (
-                <div key={index} className={`${themes[theme].background} rounded p-2 text-sm ${themes[theme].text}`}>
+                <div key={index} className={`${themes[theme].background} rounded p-2 text-base ${themes[theme].text}`}>
                   {factor}
                 </div>
               ))}

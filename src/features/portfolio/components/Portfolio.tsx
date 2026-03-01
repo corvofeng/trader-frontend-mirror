@@ -392,8 +392,16 @@ export function Portfolio({
     }
   };
 
+  const handlePrint = () => {
+    setShowPreview(false);
+    // 等待模态框关闭动画完成
+    setTimeout(() => {
+      window.print();
+    }, 300);
+  };
+
   return (
-    <div className="space-y-6" ref={journalRef}>
+    <div className="space-y-6 printable-content" ref={journalRef}>
       {isSnapshot && (
         <div className="bg-amber-50 border-l-4 border-amber-500 p-4 mb-4 dark:bg-amber-900/30">
           <div className="flex">
@@ -428,29 +436,33 @@ export function Portfolio({
 
       {/* Stock Analysis Modal */}
       {selectedStockForAnalysis && (
-        <StockAnalysisModal
-          stockCode={selectedStockForAnalysis.code}
-          stockName={selectedStockForAnalysis.name}
-          theme={theme}
-          userId={userId}
-          accountId={selectedAccountId}
-          onClose={() => setSelectedStockForAnalysis(null)}
-        />
+        <div className="no-print">
+          <StockAnalysisModal
+            stockCode={selectedStockForAnalysis.code}
+            stockName={selectedStockForAnalysis.name}
+            theme={theme}
+            userId={userId}
+            accountId={selectedAccountId}
+            onClose={() => setSelectedStockForAnalysis(null)}
+          />
+        </div>
       )}
       <div className={`${themes[theme].card} rounded-lg shadow-md`}>
         <div className="p-3 md:p-6 border-b border-gray-200">
-          <OverviewControls
-            theme={theme}
-            userId={userId}
-            selectedAccountId={selectedAccountId ?? null}
-            onAccountChange={onAccountChange}
-            dateRange={dateRange}
-            onDateRangeChange={onDateRangeChange}
-            isSharedView={isSharedView}
-            portfolioUuid={portfolioUuid}
-            onQuickSelect={setQuickDateRange}
-            onRefresh={refreshAll}
-          />
+          <div className="no-print">
+            <OverviewControls
+              theme={theme}
+              userId={userId}
+              selectedAccountId={selectedAccountId ?? null}
+              onAccountChange={onAccountChange}
+              dateRange={dateRange}
+              onDateRangeChange={onDateRangeChange}
+              isSharedView={isSharedView}
+              portfolioUuid={portfolioUuid}
+              onQuickSelect={setQuickDateRange}
+              onRefresh={refreshAll}
+            />
+          </div>
           <FadeIn delay={100}>
             <StatsGrid
               theme={theme}
@@ -628,6 +640,7 @@ export function Portfolio({
             setScreenshotPreview(null);
           }}
           onSave={handleSaveScreenshot}
+          contentRef={journalRef}
         />
       )}
     </div>

@@ -20,25 +20,25 @@ export function PortfolioHeader({
   return (
     <div className="flex justify-between items-center mb-4 px-6">
       <div className="flex items-center gap-2">
-        <h2 className={`text-xl font-semibold leading-tight whitespace-nowrap flex-shrink-0 ${themes[theme].text}`}>{title}</h2>
+        <h2 className={`text-2xl font-semibold leading-tight whitespace-nowrap flex-shrink-0 ${themes[theme].text}`}>{title}</h2>
         <button 
           onClick={onToggle}
-          className={`${themes[theme].secondary} rounded-full p-1`}
+          className={`${themes[theme].secondary} rounded-full p-1 no-print`}
         >
           {showPortfolioAnalysis ? (
-            <ChevronUp className="w-4 h-4" />
+            <ChevronUp className="w-5 h-5" />
           ) : (
-            <ChevronDown className="w-4 h-4" />
+            <ChevronDown className="w-5 h-5" />
           )}
         </button>
       </div>
 
       <button
         onClick={onScreenshot}
-        className={`flex items-center gap-2 px-3 py-1.5 rounded-md whitespace-nowrap ${themes[theme].secondary} hover:opacity-80 transition-opacity`}
+        className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-base whitespace-nowrap ${themes[theme].secondary} hover:opacity-80 transition-opacity no-print`}
         title="生成持仓截图"
       >
-        <Camera className="w-4 h-4" />
+        <Camera className="w-5 h-5" />
         <span>分享截图</span>
       </button>
     </div>

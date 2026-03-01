@@ -39,3 +39,43 @@
     }
   }
 }
+
+@media print {
+  /* Hide everything by default */
+  body * {
+    visibility: hidden;
+  }
+
+  /* Show only the printable content */
+  .printable-content, .printable-content * {
+    visibility: visible;
+  }
+
+  /* Position the printable content at top-left */
+  .printable-content {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background-color: white !important; /* Force white background for print */
+    color: black !important; /* Force black text for better contrast */
+  }
+
+  /* Force background colors to print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide elements marked as no-print */
+  .no-print, .no-print * {
+    display: none !important;
+  }
+  
+  /* Remove shadows and borders that might look bad in print */
+  .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl {
+    box-shadow: none !important;
+  }
+}
