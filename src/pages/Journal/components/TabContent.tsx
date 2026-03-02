@@ -108,7 +108,7 @@ export function TabContent({
   if (activeTab === 'operations' && !portfolioUuid) {
     return (
       <div className="space-y-6">
-        <OperationsView theme={theme} />
+        <OperationsView theme={theme} accountAlias={selectedAccountId} />
         <RelatedLinks 
           theme={theme} 
           currentPath="/journal?tab=operations" 

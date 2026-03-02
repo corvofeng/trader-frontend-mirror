@@ -8,9 +8,10 @@ import { OperationsChart } from './OperationsChart';
 
 interface OperationsViewProps {
   theme: Theme;
+  accountAlias?: string | null;
 }
 
-export function OperationsView({ theme }: OperationsViewProps) {
+export function OperationsView({ theme, accountAlias }: OperationsViewProps) {
   const [operations, setOperations] = useState<Operation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -22,6 +23,12 @@ export function OperationsView({ theme }: OperationsViewProps) {
   const [showDetails, setShowDetails] = useState(false);
 
   const fetchOperations = useCallback(async (refresh = false) => {
+    if (!accountAlias) {
+      setOperations([]);
+      setIsLoading(false);
+      return;
+    }
+
     try {
       if (refresh) {
         setIsRefreshing(true);
@@ -31,7 +38,8 @@ export function OperationsView({ theme }: OperationsViewProps) {
 
       const { data, error } = await operationService.getOperations(
         dateRange.startDate,
-        dateRange.endDate
+        dateRange.endDate,
+        accountAlias
       );
 
       if (error) throw error;
@@ -42,7 +50,7 @@ export function OperationsView({ theme }: OperationsViewProps) {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [dateRange.startDate, dateRange.endDate]);
+  }, [dateRange.startDate, dateRange.endDate, accountAlias]);
 
   useEffect(() => {
     fetchOperations();

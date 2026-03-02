@@ -260,7 +260,7 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
       )}
 
       {activeTab === 'operations' && !portfolioUuid && (
-        <OperationsView theme={theme} />
+        <OperationsView theme={theme} accountAlias={selectedAccountId} />
       )}
 
       {activeTab === 'analysis' && (

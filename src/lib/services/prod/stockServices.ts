@@ -433,11 +433,11 @@ export const currencyService: CurrencyService = {
 };
 
 export const operationService: OperationService = {
-  getOperations: async (startDate: string, endDate: string) => {
+  getOperations: async (startDate: string, endDate: string, accountAlias: string) => {
     try {
-      const response = await fetch(
-        `/api/operations?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`
-      );
+      const url = `/api/portfolio/${encodeURIComponent(accountAlias)}/operations?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`;
+      
+      const response = await fetch(url);
       
       if (!response.ok) {
         throw new Error('Failed to fetch operations');

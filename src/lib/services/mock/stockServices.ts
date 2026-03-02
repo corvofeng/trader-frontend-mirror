@@ -500,8 +500,9 @@ export const currencyService: CurrencyService = {
 };
 
 export const operationService: OperationService = {
-  getOperations: async (startDate: string, endDate: string) => {
+  getOperations: async (startDate: string, endDate: string, accountAlias: string) => {
     await new Promise(resolve => setTimeout(resolve, 800));
+    console.log(`Fetching operations for ${accountAlias} from ${startDate} to ${endDate}`);
     const operations = generateMockOperations(startDate, endDate);
     return { data: operations, error: null };
   }

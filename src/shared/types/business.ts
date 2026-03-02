@@ -51,7 +51,7 @@ export interface CurrencyService {
 }
 
 export interface OperationService {
-  getOperations: (startDate: string, endDate: string) => Promise<ServiceResponse<Operation[]>>;
+  getOperations: (startDate: string, endDate: string, accountAlias: string) => Promise<ServiceResponse<Operation[]>>;
 }
 
 export interface UploadService {
