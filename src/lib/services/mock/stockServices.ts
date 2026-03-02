@@ -85,9 +85,16 @@ export const authService: AuthService = {
 };
 
 export const tradeService: TradeService = {
-  getTrades: async (userId: string, stockCode?: string, status?: string) => {
-    await new Promise(resolve => setTimeout(resolve, 600));
+  getTrades: async (userId: string, stockCode?: string, status?: string, accountAlias?: string) => {
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
+    // Filter by user
     let filteredTrades = mockTrades.filter(trade => trade.user_id === userId);
+    
+    // Filter by account alias if provided
+    if (accountAlias) {
+      filteredTrades = filteredTrades.filter(trade => trade.account_alias === accountAlias);
+    }
     
     if (stockCode) {
       filteredTrades = filteredTrades.filter(trade => trade.stock_code === stockCode);

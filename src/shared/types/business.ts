@@ -8,8 +8,8 @@ export interface AuthService {
 }
 
 export interface TradeService {
-  getTrades: (userId: string, stockCode?: string, status?: string) => Promise<ServiceResponse<Trade[]>>;
-  createTrade: (trade: Omit<Trade, 'id' | 'created_at'>) => Promise<ServiceResponse<Trade>>;
+  getTrades: (userId: string, stockCode?: string, status?: string, accountAlias?: string) => Promise<ServiceResponse<Trade[]>>;
+  createTrade: (trade: Omit<Trade, 'id' | 'created_at' | 'updated_at'>) => Promise<ServiceResponse<Trade>>;
   updateTrade: (trade: Trade) => Promise<ServiceResponse<Trade>>;
 }
 

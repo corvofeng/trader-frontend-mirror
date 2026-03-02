@@ -28,6 +28,7 @@ export interface Trade {
   quantity: number;
   notes: string;
   status: 'pending' | 'completed' | 'cancelled';
+  execute_immediately?: boolean;
   created_at: string;
   updated_at: string;
 }

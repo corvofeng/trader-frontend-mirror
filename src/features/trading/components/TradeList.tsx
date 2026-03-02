@@ -117,7 +117,8 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
         const { data } = await tradeService.getTrades(
           user.id, 
           showAllTrades ? undefined : selectedStockCode, 
-          filter
+          filter,
+          selectedAccountId || undefined
         );
         if (data) setTrades(data);
       }
@@ -138,7 +139,7 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
   useEffect(() => {
     setIsLoading(true);
     fetchTrades();
-  }, [fetchTrades]);
+  }, [fetchTrades, selectedAccountId]);
 
   useEffect(() => {
     setShowAllTrades(false);

@@ -20,6 +20,7 @@ export function TradeForm({ selectedStock, theme }: TradeFormProps) {
   const [targetPrice, setTargetPrice] = useState('');
   const [quantity, setQuantity] = useState('');
   const [notes, setNotes] = useState('');
+  const [executeImmediately, setExecuteImmediately] = useState(false);
   const [showConfigEditor, setShowConfigEditor] = useState(false);
   const { currencyConfig } = useCurrency();
 
@@ -63,7 +64,8 @@ export function TradeForm({ selectedStock, theme }: TradeFormProps) {
         target_price: parseFloat(targetPrice),
         quantity: parseInt(quantity),
         notes,
-        status: 'pending'
+        status: 'pending',
+        execute_immediately: executeImmediately
       });
 
       if (error) throw error;
@@ -71,6 +73,7 @@ export function TradeForm({ selectedStock, theme }: TradeFormProps) {
       toast.success('Trade plan added successfully!');
       setQuantity('');
       setNotes('');
+      setExecuteImmediately(false);
       if (!selectedStock) {
         setStockCode('');
         setStockName('');
@@ -191,6 +194,19 @@ export function TradeForm({ selectedStock, theme }: TradeFormProps) {
                 className={inputClasses}
                 rows={3}
               />
+            </div>
+
+            <div className="flex items-center">
+              <input
+                id="execute-immediately"
+                type="checkbox"
+                checked={executeImmediately}
+                onChange={(e) => setExecuteImmediately(e.target.checked)}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <label htmlFor="execute-immediately" className={`ml-2 block text-sm ${themes[theme].text}`}>
+                Execute Immediately
+              </label>
             </div>
 
             <button

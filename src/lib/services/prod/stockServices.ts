@@ -71,12 +71,15 @@ const getCurrentAccountAlias = () => {
 };
 
 export const tradeService: TradeService = {
-  getTrades: async (userId: string, stock_code?: string, status?: string) => {
-    const accountAlias = getCurrentAccountAlias();
+  getTrades: async (userId: string, stock_code?: string, status?: string, accountAlias?: string) => {
     const params = new URLSearchParams();
-    if (accountAlias) {
-      params.set('account_alias', accountAlias);
+    
+    // Use passed accountAlias or fallback to current selected
+    const targetAccount = accountAlias || getCurrentAccountAlias();
+    if (targetAccount) {
+      params.set('account_alias', targetAccount);
     }
+    
     const url = params.toString() ? `/api/actions?${params.toString()}` : '/api/actions';
     let filteredTrades = await (await fetch(url)).json();
     console.log(userId, stock_code, status, filteredTrades);
