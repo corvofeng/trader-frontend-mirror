@@ -65,7 +65,11 @@ export function TabContent({
   if (activeTab === 'trades' && !portfolioUuid) {
     return (
       <div className="flex flex-col gap-6">
-        <TradeForm selectedStock={selectedStock} theme={theme} />
+        <TradeForm 
+          selectedStock={selectedStock} 
+          theme={theme} 
+          accountAlias={selectedAccountId}
+        />
         <TradeList selectedStockCode={selectedStock?.stock_code} theme={theme} />
         <RelatedLinks 
           theme={theme} 

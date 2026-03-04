@@ -11,9 +11,10 @@ import { StockConfigEditor } from '../StockConfigEditor';
 interface TradeFormProps {
   selectedStock: Stock | null;
   theme: Theme;
+  accountAlias?: string | null;
 }
 
-export function TradeForm({ selectedStock, theme }: TradeFormProps) {
+export function TradeForm({ selectedStock, theme, accountAlias }: TradeFormProps) {
   const [stockCode, setStockCode] = useState('');
   const [stockName, setStockName] = useState('');
   const [operation, setOperation] = useState<'buy' | 'sell'>('buy');
@@ -45,19 +46,22 @@ export function TradeForm({ selectedStock, theme }: TradeFormProps) {
         return;
       }
 
-      let accountAlias: string | null = null;
-      try {
-        accountAlias =
-          localStorage.getItem('journalSelectedAccountAlias') ||
-          localStorage.getItem('journalAccountId') ||
-          localStorage.getItem('selectedAccountAlias');
-      } catch {
-        accountAlias = null;
+      let targetAccountAlias = accountAlias;
+      
+      if (!targetAccountAlias) {
+        try {
+          targetAccountAlias =
+            localStorage.getItem('journalSelectedAccountAlias') ||
+            localStorage.getItem('journalAccountId') ||
+            localStorage.getItem('selectedAccountAlias');
+        } catch {
+          targetAccountAlias = null;
+        }
       }
 
       const { error } = await tradeService.createTrade({
         user_id: user.id,
-        account_alias: accountAlias || undefined,
+        account_alias: targetAccountAlias || undefined,
         stock_code: stockCode.toUpperCase(),
         stock_name: stockName,
         operation,
@@ -112,19 +116,21 @@ export function TradeForm({ selectedStock, theme }: TradeFormProps) {
             )}
           </div>
           
-          <div className="grid gap-4">
-            <div>
-              <label className={`block text-sm font-medium ${themes[theme].text}`}>Stock Code</label>
-              <input
-                type="text"
-                value={stockCode}
-                onChange={(e) => setStockCode(e.target.value)}
-                className={inputClasses}
-                placeholder="AAPL"
-                required
-                readOnly={!!selectedStock}
-              />
-              <div className="mt-2">
+          <div className="grid gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className={`block text-sm font-medium ${themes[theme].text}`}>Stock Code</label>
+                <input
+                  type="text"
+                  value={stockCode}
+                  onChange={(e) => setStockCode(e.target.value)}
+                  className={inputClasses}
+                  placeholder="AAPL"
+                  required
+                  readOnly={!!selectedStock}
+                />
+              </div>
+              <div>
                 <label className={`block text-sm font-medium ${themes[theme].text}`}>Stock Name</label>
                 <input
                   type="text"
@@ -137,52 +143,56 @@ export function TradeForm({ selectedStock, theme }: TradeFormProps) {
               </div>
             </div>
 
-            <div>
-              <label className={`block text-sm font-medium ${themes[theme].text}`}>Operation</label>
-              <select
-                value={operation}
-                onChange={(e) => setOperation(e.target.value as 'buy' | 'sell')}
-                className={inputClasses}
-              >
-                <option value="buy">Buy</option>
-                <option value="sell">Sell</option>
-              </select>
-            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className={`block text-sm font-medium ${themes[theme].text}`}>Operation</label>
+                <select
+                  value={operation}
+                  onChange={(e) => setOperation(e.target.value as 'buy' | 'sell')}
+                  className={inputClasses}
+                >
+                  <option value="buy">Buy</option>
+                  <option value="sell">Sell</option>
+                </select>
+              </div>
 
-            <div>
-              <label className={`block text-sm font-medium ${themes[theme].text}`}>Target Price</label>
-              <div className="relative">
+              <div>
+                <label className={`block text-sm font-medium ${themes[theme].text}`}>Target Price</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    value={targetPrice}
+                    onChange={(e) => setTargetPrice(e.target.value)}
+                    className={`${inputClasses} pl-8`}
+                    step="0.01"
+                    required
+                  />
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                    {currencyConfig.symbol}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className={`block text-sm font-medium ${themes[theme].text}`}>Quantity</label>
                 <input
                   type="number"
-                  value={targetPrice}
-                  onChange={(e) => setTargetPrice(e.target.value)}
-                  className={`${inputClasses} pl-8`}
-                  step="0.01"
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  className={inputClasses}
                   required
                 />
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
-                  {currencyConfig.symbol}
-                </span>
               </div>
             </div>
 
-            <div>
-              <label className={`block text-sm font-medium ${themes[theme].text}`}>Quantity</label>
-              <input
-                type="number"
-                value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
-                className={inputClasses}
-                required
-              />
-            </div>
-
             {targetPrice && quantity && (
-              <div>
-                <label className={`block text-sm font-medium ${themes[theme].text}`}>Total Value</label>
-                <p className={`text-lg font-medium ${themes[theme].text}`}>
-                  {formatCurrency(totalValue, currencyConfig)}
-                </p>
+              <div className={`p-4 rounded-md ${themes[theme].secondary} bg-opacity-50 border border-gray-200 dark:border-gray-700`}>
+                <div className="flex justify-between items-center">
+                  <span className={`text-sm font-medium ${themes[theme].text} opacity-80`}>Estimated Total Value</span>
+                  <span className={`text-xl font-bold ${themes[theme].text}`}>
+                    {formatCurrency(totalValue, currencyConfig)}
+                  </span>
+                </div>
               </div>
             )}
 
@@ -193,29 +203,39 @@ export function TradeForm({ selectedStock, theme }: TradeFormProps) {
                 onChange={(e) => setNotes(e.target.value)}
                 className={inputClasses}
                 rows={3}
+                placeholder="Add any notes about this trade plan..."
               />
             </div>
 
-            <div className="flex items-center">
-              <input
-                id="execute-immediately"
-                type="checkbox"
-                checked={executeImmediately}
-                onChange={(e) => setExecuteImmediately(e.target.checked)}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-              />
-              <label htmlFor="execute-immediately" className={`ml-2 block text-sm ${themes[theme].text}`}>
-                Execute Immediately
-              </label>
-            </div>
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex items-center">
+                <input
+                  id="execute-immediately"
+                  type="checkbox"
+                  checked={executeImmediately}
+                  onChange={(e) => setExecuteImmediately(e.target.checked)}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="execute-immediately" className={`ml-2 block text-sm ${themes[theme].text}`}>
+                  Execute Immediately
+                </label>
+              </div>
 
-            <button
-              type="submit"
-              className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md ${themes[theme].primary} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
-            >
-              <PlusCircle className="w-5 h-5 mr-2" />
-              Add Trade Plan
-            </button>
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                {accountAlias && (
+                  <span className={`text-sm ${themes[theme].text} opacity-70 hidden sm:inline`}>
+                    to <span className="font-medium text-blue-500">{accountAlias}</span>
+                  </span>
+                )}
+                <button
+                  type="submit"
+                  className={`w-full sm:w-auto inline-flex items-center justify-center px-6 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 shadow-sm transition-all duration-200`}
+                >
+                  <PlusCircle className="w-5 h-5 mr-2" />
+                  Add Plan
+                </button>
+              </div>
+            </div>
           </div>
         </form>
       )}

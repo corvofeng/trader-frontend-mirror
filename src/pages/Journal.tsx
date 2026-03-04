@@ -224,7 +224,11 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
 
       {activeTab === 'trades' && !portfolioUuid && (
         <div className="flex flex-col gap-4 sm:gap-6">
-          <TradeForm selectedStock={selectedStock} theme={theme} />
+          <TradeForm 
+            selectedStock={selectedStock} 
+            theme={theme} 
+            accountAlias={selectedAccountId}
+          />
           <TradeList
             selectedStockCode={selectedStock?.stock_code}
             theme={theme}
