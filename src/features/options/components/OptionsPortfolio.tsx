@@ -1992,6 +1992,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                       isTBoardExpanded={tBoardExpandedGroups[group.expiry] !== false}
                       onToggleTBoard={() => toggleTBoardGroup(group.expiry)}
                       analysis={portfolioData.expiry_analysis?.[group.expiry]}
+                      onRefresh={fetchPortfolio}
                     />
                   </div>
                 );

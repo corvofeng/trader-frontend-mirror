@@ -58,6 +58,7 @@ interface ExpiryGroupCardProps {
   };
   whitelists?: OptionWhitelist[];
   isRefreshing?: boolean;
+  onRefresh?: () => void;
 }
 
 const renderReportMarkdown = (raw: string, theme: Theme) => {
@@ -193,14 +194,15 @@ export function ExpiryGroupCard({
   onToggleTBoard,
   analysis,
   whitelists = [],
-  isRefreshing
+  isRefreshing,
+  onRefresh
 }: ExpiryGroupCardProps) {
   const { queryPrice, prices, isConnected, connect } = useOptionPriceWebSocket();
   const [localState, setLocalState] = useState<{ data: OptionsData | null; symbol: string | null }>({ data: null, symbol: null });
   const { data: localOptionsData, symbol: localDataSymbol } = localState;
 
   const [advisedModal, setAdvisedModal] = useState<{ combo: AdvisedCombination; quantity: number } | null>(null);
-  const [confirmData, setConfirmData] = useState<{ ids: string[]; meta?: { action?: string; comboType?: 'call' | 'put'; strike?: number; expiry?: string; strategyIds?: string[]; category?: string; defaultComboCount?: number; perLegMaxQty?: Record<string, number>; quote?: OptionQuote; contract_code?: string; contract_code_full?: string }; title: string; description: string } | null>(null);
+  const [confirmData, setConfirmData] = useState<{ ids: string[]; meta?: { action?: string; comboType?: 'call' | 'put'; strike?: number; expiry?: string; strategyIds?: string[]; category?: string; defaultComboCount?: number; perLegMaxQty?: Record<string, number>; quote?: OptionQuote; contract_code?: string; contract_code_full?: string; strategies?: Array<{ strategy: OptionsStrategy; qty: number }> }; title: string; description: string } | null>(null);
   const [qtyOverrides, setQtyOverrides] = useState<Record<string, number>>({});
   const [syncPrice, setSyncPrice] = useState<number | null>(null);
   const basePositions = useMemo(() => filterAndSortPositions(group.single), [filterAndSortPositions, group.single]);
@@ -728,8 +730,8 @@ export function ExpiryGroupCard({
                               </thead>
                               <tbody className={`divide-y ${themes[theme].border}`}>
                                 {(() => {
-                                  const callCombos = new Map<number, number>();
-                                  const putCombos = new Map<number, number>();
+                                  const callStrategiesMap = new Map<number, { strategy: OptionsStrategy, qty: number }[]>();
+                                  const putStrategiesMap = new Map<number, { strategy: OptionsStrategy, qty: number }[]>();
                                   (allExpiryBuckets || []).forEach(bucket => {
                                     bucket.complex.forEach(s => {
                                       if (s.positions.some(p => p.expiry === group.expiry)) {
@@ -739,8 +741,16 @@ export function ExpiryGroupCard({
                                         const relevantPositions = s.positions.filter(pos => pos.expiry === group.expiry);
                                         const strategyQty = relevantPositions.find(pos => pos.position_type === 'buy')?.quantity || relevantPositions[0]?.quantity || 0;
 
-                                        c.forEach((_, k) => callCombos.set(k, (callCombos.get(k) ?? 0) + strategyQty));
-                                        p.forEach((_, k) => putCombos.set(k, (putCombos.get(k) ?? 0) + strategyQty));
+                                        c.forEach((_, k) => {
+                                           const list = callStrategiesMap.get(k) || [];
+                                           list.push({ strategy: s, qty: strategyQty });
+                                           callStrategiesMap.set(k, list);
+                                        });
+                                        p.forEach((_, k) => {
+                                           const list = putStrategiesMap.get(k) || [];
+                                           list.push({ strategy: s, qty: strategyQty });
+                                           putStrategiesMap.set(k, list);
+                                        });
                                       }
                                     });
                                   });
@@ -815,8 +825,12 @@ export function ExpiryGroupCard({
                                         const avail = Number(p.available ?? base) || 0;
                                         return sum + avail;
                                       }, 0);
-                                    const comboCallQty = callCombos.get(s) ?? 0;
-                                    const comboPutQty = putCombos.get(s) ?? 0;
+                                    
+                                    const comboCallStrategies = callStrategiesMap.get(s) || [];
+                                    const comboPutStrategies = putStrategiesMap.get(s) || [];
+                                    const comboCallQty = comboCallStrategies.reduce((acc, item) => acc + item.qty, 0);
+                                    const comboPutQty = comboPutStrategies.reduce((acc, item) => acc + item.qty, 0);
+
                                     let risk = 0;
                                     if (underlyingPrice != null) {
                                       const up = underlyingPrice;
@@ -847,6 +861,8 @@ export function ExpiryGroupCard({
                                       putCovered, 
                                       putCoveredAvail,
                                       comboPutQty, 
+                                      comboCallStrategies,
+                                      comboPutStrategies,
                                       risk 
                                     };
                                   });
@@ -932,45 +948,34 @@ export function ExpiryGroupCard({
                                       <tr key={`trow-top-${group.expiry}-${m.s}`} className={themes[theme].cardHover} style={{ backgroundImage: bg, backgroundColor: timeValueColor }}>
                                         <td className={`text-center py-2 ${themes[theme].text}`}>
                                           <div className="flex flex-col items-center gap-1">
-                                            <span className={`${themes[theme].text}`}>{m.comboCallQty}</span>
-                                            {m.comboCallQty > 0 && (
-                                              <>
-                                              <button
-                                                className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
-                                                onClick={() => {
-                                                  const ids: string[] = [];
-                                                  const strategyIds: string[] = [];
-                                                  let defaultComboCountSum = 0;
-                                                  const perLegMaxQty: Record<string, number> = {};
-                                                  (allExpiryBuckets || []).forEach(bucket => {
-                                                    bucket.complex.forEach(s => {
-                                                      if (s.positions.some(p => p.expiry === group.expiry)) {
-                                                        const comboMap = computeCombosForPositions(s, 'call');
-                                                        const count = comboMap.get(m.s) || 0;
-                                                        if (count > 0) {
-                                                          const relevantPositions = s.positions.filter(p => p.expiry === group.expiry);
-                                                          ids.push(...relevantPositions.map(p => p.id));
-                                                          strategyIds.push(s.id);
-                                                          const strategyQty = relevantPositions.find(p => p.position_type === 'buy')?.quantity || relevantPositions[0]?.quantity || 0;
-                                                          defaultComboCountSum += strategyQty;
-                                                          relevantPositions.forEach(p => { perLegMaxQty[p.id] = p.quantity; });
-                                                        }
-                                                      }
-                                                    });
-                                                  });
-                                                  const uniqueIds = Array.from(new Set(ids));
-                                                  const uniqueStrategyIds = Array.from(new Set(strategyIds));
-                                                  if (uniqueIds.length > 0) {
+                                            {m.comboCallStrategies.length > 0 ? (
+                                              <div className="flex items-center gap-1">
+                                                 <span className={`${themes[theme].text} cursor-help`} title={m.comboCallStrategies.map(s => `${s.strategy.name} (${s.qty})`).join('\n')}>
+                                                   {m.comboCallStrategies.reduce((sum, s) => sum + s.qty, 0)}
+                                                 </span>
+                                                 <button
+                                                  className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
+                                                  onClick={() => {
                                                     setConfirmData({
-                                                      ids: uniqueIds,
-                                                      meta: { action: 'unwind_combo', comboType: 'call', strike: m.s, expiry: group.expiry, strategyIds: uniqueStrategyIds, defaultComboCount: defaultComboCountSum, perLegMaxQty, quote, contract_code: quote?.call_contract_code, contract_code_full: quote?.call_contract_code_full },
-                                                      title: '确认解除组合',
-                                                      description: `将解除组合：CALL 组合 @${m.s}（到期 ${format(new Date(group.expiry), 'yyyy-MM-dd')}），涉及腿数 ${uniqueIds.length}`
+                                                      ids: [],
+                                                      meta: { 
+                                                        action: 'unwind_combo_selection', 
+                                                        comboType: 'call', 
+                                                        strike: m.s, 
+                                                        expiry: group.expiry, 
+                                                        strategies: m.comboCallStrategies,
+                                                        quote, 
+                                                        contract_code: quote?.call_contract_code, 
+                                                        contract_code_full: quote?.call_contract_code_full 
+                                                      },
+                                                      title: '组合操作',
+                                                      description: `管理 ${m.s} ${group.expiry} 的 Call 组合`
                                                     });
-                                                  }
-                                                }}
-                                              >解除组合</button>
-                                              </>
+                                                  }}
+                                                >解除</button>
+                                              </div>
+                                            ) : (
+                                              <span className={`${themes[theme].text}`}>0</span>
                                             )}
                                           </div>
                                         </td>
@@ -1077,45 +1082,34 @@ export function ExpiryGroupCard({
                                         </td>
                                         <td className={`text-center py-2 ${themes[theme].text}`}>
                                           <div className="flex flex-col items-center gap-1">
-                                            <span className={`${themes[theme].text}`}>{m.comboPutQty}</span>
-                                            {m.comboPutQty > 0 && (
-                                              <>
-                                              <button
-                                                className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
-                                                onClick={() => {
-                                                  const ids: string[] = [];
-                                                  const strategyIds: string[] = [];
-                                                  let defaultComboCountSum = 0;
-                                                  const perLegMaxQty: Record<string, number> = {};
-                                                  (allExpiryBuckets || []).forEach(bucket => {
-                                                    bucket.complex.forEach(s => {
-                                                      if (s.positions.some(p => p.expiry === group.expiry)) {
-                                                        const comboMap = computeCombosForPositions(s, 'put');
-                                                        const count = comboMap.get(m.s) || 0;
-                                                        if (count > 0) {
-                                                          const relevantPositions = s.positions.filter(p => p.expiry === group.expiry);
-                                                          ids.push(...relevantPositions.map(p => p.id));
-                                                          strategyIds.push(s.id);
-                                                          const strategyQty = relevantPositions.find(p => p.position_type === 'buy')?.quantity || relevantPositions[0]?.quantity || 0;
-                                                          defaultComboCountSum += strategyQty;
-                                                          relevantPositions.forEach(p => { perLegMaxQty[p.id] = p.quantity; });
-                                                        }
-                                                      }
-                                                    });
-                                                  });
-                                                  const uniqueIds = Array.from(new Set(ids));
-                                                  const uniqueStrategyIds = Array.from(new Set(strategyIds));
-                                                  if (uniqueIds.length > 0) {
+                                            {m.comboPutStrategies.length > 0 ? (
+                                              <div className="flex items-center gap-1">
+                                                 <span className={`${themes[theme].text} cursor-help`} title={m.comboPutStrategies.map(s => `${s.strategy.name} (${s.qty})`).join('\n')}>
+                                                   {m.comboPutStrategies.reduce((sum, s) => sum + s.qty, 0)}
+                                                 </span>
+                                                 <button
+                                                  className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
+                                                  onClick={() => {
                                                     setConfirmData({
-                                                      ids: uniqueIds,
-                                                      meta: { action: 'unwind_combo', comboType: 'put', strike: m.s, expiry: group.expiry, strategyIds: uniqueStrategyIds, defaultComboCount: defaultComboCountSum, perLegMaxQty, quote, contract_code: quote?.put_contract_code, contract_code_full: quote?.put_contract_code_full },
-                                                      title: '确认解除组合',
-                                                      description: `将解除组合：PUT 组合 @${m.s}（到期 ${format(new Date(group.expiry), 'yyyy-MM-dd')}），涉及腿数 ${uniqueIds.length}`
+                                                      ids: [],
+                                                      meta: { 
+                                                        action: 'unwind_combo_selection', 
+                                                        comboType: 'put', 
+                                                        strike: m.s, 
+                                                        expiry: group.expiry, 
+                                                        strategies: m.comboPutStrategies,
+                                                        quote, 
+                                                        contract_code: quote?.put_contract_code, 
+                                                        contract_code_full: quote?.put_contract_code_full 
+                                                      },
+                                                      title: '组合操作',
+                                                      description: `管理 ${m.s} ${group.expiry} 的 Put 组合`
                                                     });
-                                                  }
-                                                }}
-                                              >解除组合</button>
-                                              </>
+                                                  }}
+                                                >解除</button>
+                                              </div>
+                                            ) : (
+                                              <span className={`${themes[theme].text}`}>0</span>
                                             )}
                                           </div>
                                         </td>
@@ -1479,7 +1473,56 @@ export function ExpiryGroupCard({
         <div className={`text-lg font-semibold ${themes[theme].text}`}>{confirmData.title}</div>
         <div className={`mt-2 text-sm ${themes[theme].text}`}>{confirmData.description}</div>
         <div className="mt-4 overflow-y-auto min-h-0 flex-1 space-y-2">
-          {confirmData.meta?.action === 'unwind_combo' ? (
+          {confirmData.meta?.action === 'unwind_combo_selection' ? (
+            <div className="space-y-4">
+              {(confirmData.meta.strategies || []).map((item, idx) => (
+                <div key={`strat-select-${idx}`} className={`p-3 rounded border ${themes[theme].border} flex items-center justify-between`}>
+                  <div>
+                    <div className={`font-semibold ${themes[theme].text}`}>
+                      {item.strategy.name}
+                      <span className="ml-2 text-xs font-normal opacity-50">{item.strategy.id}</span>
+                    </div>
+                    <div className={`text-sm opacity-75 ${themes[theme].text}`}>数量: {item.qty}</div>
+                    <div className={`text-xs opacity-50 ${themes[theme].text}`}>
+                      {item.strategy.positions.map(p => `${p.contract_code || p.symbol} x ${p.quantity}`).join(', ')}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      className="px-3 py-1.5 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition-colors"
+                      onClick={async () => {
+                         const ids = item.strategy.positions.map(p => p.id);
+                         const overrides: Record<string, number> = {};
+                         item.strategy.positions.forEach(p => {
+                           overrides[p.id] = Number(p.quantity);
+                         });
+                         
+                         await onClosePositions(ids, undefined, overrides);
+                         setConfirmData(null);
+                      }}
+                    >清仓</button>
+                    <button
+                      className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition-colors"
+                      onClick={async () => {
+                         if (!selectedAccountId) {
+                            toast.error('未选择账户');
+                            return;
+                         }
+                         const { error } = await optionsService.clearCombination(selectedAccountId, item.strategy.id);
+                         if (error) {
+                           toast.error('解除组合失败: ' + error.message);
+                         } else {
+                           toast.success('解除组合成功');
+                           setConfirmData(null);
+                           onRefresh?.();
+                         }
+                      }}
+                    >解除组合</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : confirmData.meta?.action === 'unwind_combo' ? (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className={`text-sm ${themes[theme].text}`}>组合数</div>
