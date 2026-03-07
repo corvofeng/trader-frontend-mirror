@@ -7,6 +7,9 @@ export const renderMarkdown = (raw: string, theme: Theme) => {
   let paragraph = '';
   let inList = false;
   let listTag: 'ul' | 'ol' | null = null;
+  let inTable = false;
+  let tableHeader: string[] = [];
+  let tableRows: string[][] = [];
 
   const formatText = (text: string) => {
     return text
@@ -31,8 +34,93 @@ export const renderMarkdown = (raw: string, theme: Theme) => {
     }
   };
 
-  for (const line of lines) {
+  const closeTable = () => {
+    if (inTable) {
+      html += `<div class="overflow-x-auto mb-4 border rounded-lg ${themes[theme].border}"><table class="min-w-full divide-y ${themes[theme].border}">`;
+      
+      // Header
+      if (tableHeader.length > 0) {
+        html += `<thead class="bg-gray-50 dark:bg-gray-800"><tr>`;
+        tableHeader.forEach(cell => {
+           html += `<th scope="col" class="px-4 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-70 uppercase tracking-wider">${formatText(cell.trim())}</th>`;
+        });
+        html += `</tr></thead>`;
+      }
+
+      // Body
+      html += `<tbody class="divide-y ${themes[theme].border} bg-white dark:bg-gray-900">`;
+      tableRows.forEach(row => {
+        html += `<tr>`;
+        row.forEach(cell => {
+          html += `<td class="px-4 py-2 text-sm ${themes[theme].text} whitespace-nowrap">${formatText(cell.trim())}</td>`;
+        });
+        html += `</tr>`;
+      });
+      html += `</tbody></table></div>`;
+
+      inTable = false;
+      tableHeader = [];
+      tableRows = [];
+    }
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     const trimmed = line.trim();
+
+    // Table detection
+    const isTableLine = trimmed.startsWith('|') || (trimmed.includes('|') && trimmed.length > 2);
+    
+    if (isTableLine) {
+       flushParagraph();
+       closeList();
+
+       // Check if it's a separator line (only dashes and pipes)
+       const isSeparator = /^[\s|:-]+$/.test(trimmed) && trimmed.includes('-');
+
+       if (isSeparator) {
+          // If we encounter a separator but haven't started a table, 
+          // it means the previous line was actually the header.
+          // But our loop structure processes line by line.
+          // We need to look ahead or handle state carefully.
+          // Simplified: If we are not inTable, this line is useless unless we buffered the previous line as header?
+          // Actually, standard markdown: Header \n Separator \n Rows
+          
+          // Let's change approach:
+          // If current line looks like a separator:
+          //   AND previous line looked like a table row (pipes)
+          //   THEN start table, treat previous line as header.
+          continue; 
+       }
+
+       // Parse cells
+       const cells = trimmed.split('|').filter((c, idx, arr) => {
+         // Remove first and last empty elements if the line starts/ends with pipe
+         if (idx === 0 && c.trim() === '' && trimmed.startsWith('|')) return false;
+         if (idx === arr.length - 1 && c.trim() === '' && trimmed.endsWith('|')) return false;
+         return true;
+       });
+
+       // Look ahead for separator to decide if this is a header
+       const nextLine = lines[i + 1]?.trim();
+       const nextIsSeparator = nextLine && /^[\s|:-]+$/.test(nextLine) && nextLine.includes('-');
+
+       if (!inTable && nextIsSeparator) {
+          inTable = true;
+          tableHeader = cells;
+          // Skip next line (separator)
+          i++; 
+          continue;
+       }
+
+       if (inTable) {
+          tableRows.push(cells);
+          continue;
+       }
+    } else {
+       // Not a table line, but we might be in a table
+       closeTable();
+    }
 
     // Horizontal Rule
     if (/^(-{3,}|\*\*\*)$/.test(trimmed)) {
@@ -103,5 +191,6 @@ export const renderMarkdown = (raw: string, theme: Theme) => {
 
   flushParagraph();
   closeList();
+  closeTable();
   return html;
 };

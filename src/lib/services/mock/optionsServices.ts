@@ -1295,7 +1295,7 @@ export const optionsService: OptionsService = {
         risk_positions_count: 2,
         safe_positions_count: 5,
         strategies_count: 3,
-        report: '### 风险提示\n当前持仓存在较高风险，建议尽快调整。',
+        report: '### 风险提示\n当前持仓存在较高风险，建议尽快调整。\n\n| 风险指标 | 当前值 | 阈值 |\n|---|---|---|\n| Delta | 0.8 | 0.5 |\n| Gamma | 0.1 | 0.05 |\n\n请关注上述指标。',
         exercise_analysis: {
           call_covered_count: 0,
           call_covered_positions: [],
