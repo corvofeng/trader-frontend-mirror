@@ -680,13 +680,21 @@ export const optionsService: OptionsService = {
         throw new Error('Failed to fetch option orders stats');
       }
       const raw = await response.json();
-      if (raw && typeof raw === 'object' && (raw as { stats?: unknown }).stats && typeof (raw as { stats?: unknown }).stats === 'object') {
-        return {
-          data: (raw as { stats: Record<string, { completed_count: number; pending_count: number; total_count: number }> }).stats,
-          error: null
-        };
+      
+      let stats = raw;
+      if (raw && typeof raw === 'object') {
+        // Try to find the map if it's nested under 'stats' or 'data'
+        if ('stats' in raw && raw.stats && typeof raw.stats === 'object') {
+            stats = raw.stats;
+        } else if ('data' in raw && raw.data && typeof raw.data === 'object') {
+            stats = raw.data;
+        }
       }
-      return { data: null, error: null };
+
+      return {
+        data: stats as Record<string, { completed_count: number; pending_count: number; junk_count: number; total_count: number }>,
+        error: null
+      };
     } catch (error) {
       console.error('Error fetching option orders stats:', error);
       return { data: null, error: error as Error };

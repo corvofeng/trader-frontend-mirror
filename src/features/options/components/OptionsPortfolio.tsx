@@ -1430,7 +1430,12 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                       </span>
                     </td>
                     <td className={`px-6 py-4 whitespace-nowrap text-sm ${themes[theme].text}`}>
-                      {order.order_status_name}
+                      <div>{order.order_status_name}</div>
+                      {order.order_status_name === 'JUNK' && order.cancel_info && (
+                        <div className="text-[10px] text-red-500 mt-1 whitespace-normal break-all">
+                          {order.cancel_info}
+                        </div>
+                      )}
                     </td>
                     <td className={`px-6 py-4 whitespace-nowrap text-sm text-right ${themes[theme].text}`}>
                       <div>限: {formatCurrency(order.limit_price, currencyConfig, 4)}</div>

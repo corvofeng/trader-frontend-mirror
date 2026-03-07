@@ -71,7 +71,7 @@ export function Options({ theme }: OptionsProps) {
   const [ordersError, setOrdersError] = useState<string | null>(null);
   const [tradingDaysByYear, setTradingDaysByYear] = useState<Record<number, Set<string>>>({});
   const [tradingCalendarError, setTradingCalendarError] = useState<string | null>(null);
-  const [ordersStatsByMonth, setOrdersStatsByMonth] = useState<Record<string, Record<string, { completed_count: number; pending_count: number; total_count: number }>>>({});
+  const [ordersStatsByMonth, setOrdersStatsByMonth] = useState<Record<string, Record<string, { completed_count: number; pending_count: number; junk_count: number; total_count: number }>>>({});
   const [selectedDate, setSelectedDate] = useState<string>(() => format(new Date(), 'yyyy-MM-dd'));
   const [currentMonth, setCurrentMonth] = useState<Date>(() => new Date());
 
@@ -180,6 +180,10 @@ export function Options({ theme }: OptionsProps) {
         ...prev,
         [dateStr]: data || []
       }));
+
+      // Update stats based on loaded orders to ensure consistency
+      // REMOVED: We now rely on the backend stats API to provide accurate counts (including junk_count)
+      // to avoid client-side calculation discrepancies.
     } catch (err) {
       console.error('Failed to load option orders', err);
       setOrdersError('加载期权订单失败');
@@ -203,7 +207,11 @@ export function Options({ theme }: OptionsProps) {
     if (activeTab !== 'calendar') return;
     if (!selectedAccountId) return;
     const monthKey = format(currentMonth, 'yyyy-MM');
-    if (ordersStatsByMonth[monthKey]) return;
+    
+    // Use a ref or just fetch every time month changes. 
+    // We prioritize correctness over saving one request per month view.
+    // Merging logic ensures we don't overwrite detailed daily stats with bulk stats.
+    
     let cancelled = false;
     const fetchStats = async () => {
       try {
@@ -224,7 +232,7 @@ export function Options({ theme }: OptionsProps) {
     return () => {
       cancelled = true;
     };
-  }, [activeTab, currentMonth, selectedAccountId, ordersStatsByMonth]);
+  }, [activeTab, currentMonth, selectedAccountId]);
 
   React.useEffect(() => {
     if (activeTab !== 'calendar') return;
@@ -603,8 +611,11 @@ export function Options({ theme }: OptionsProps) {
                             type="button"
                             className={baseClass}
                             onClick={() => {
+                              const isSame = selectedDate === dateStr;
                               setSelectedDate(dateStr);
-                              if (!ordersByDate[dateStr]) {
+                              // 如果数据已存在，或者用户点击当前选中的日期（可能是重试或刷新），强制刷新
+                              // 如果点击不同日期且无缓存，让 useEffect 处理加载以避免重复请求
+                              if (ordersByDate[dateStr] || isSame) {
                                 loadOrdersForDate(dateStr);
                               }
                             }}
@@ -618,11 +629,18 @@ export function Options({ theme }: OptionsProps) {
                                   <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-100 px-1.5 py-0.5 text-[10px] font-medium">
                                     共 {stats.total_count}
                                   </span>
-                                  {stats.pending_count > 0 && (
-                                    <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-100 px-1.5 py-0.5 text-[10px] font-medium">
-                                      待 {stats.pending_count}
-                                    </span>
-                                  )}
+                                  <div className="flex flex-wrap justify-end gap-0.5 max-w-full">
+                                    {stats.pending_count > 0 && (
+                                      <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-100 px-1.5 py-0.5 text-[10px] font-medium">
+                                        待 {stats.pending_count}
+                                      </span>
+                                    )}
+                                    {stats.junk_count > 0 && (
+                                      <span className="inline-flex items-center rounded-full bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-100 px-1.5 py-0.5 text-[10px] font-medium">
+                                        废 {stats.junk_count}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -708,7 +726,12 @@ export function Options({ theme }: OptionsProps) {
                                 </span>
                               </td>
                               <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
-                                {order.order_status_name}
+                                <div>{order.order_status_name}</div>
+                                {order.order_status_name === 'JUNK' && order.cancel_info && (
+                                  <div className="text-[10px] text-red-500 mt-1 whitespace-normal break-all">
+                                    {order.cancel_info}
+                                  </div>
+                                )}
                               </td>
                               <td className="px-4 py-2 whitespace-nowrap text-xs text-right text-gray-700 dark:text-gray-200">
                                 <div>限价 {order.limit_price?.toFixed ? order.limit_price.toFixed(4) : order.limit_price}</div>
