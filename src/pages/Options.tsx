@@ -696,10 +696,9 @@ export function Options({ theme }: OptionsProps) {
                             <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">时间</th>
                             <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">名称</th>
                             <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">方向</th>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
                             <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">价格</th>
                             <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">数量 (成/总)</th>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">策略/备注</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
                           </tr>
                         </thead>
                         <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
@@ -725,14 +724,6 @@ export function Options({ theme }: OptionsProps) {
                                   {order.op_type_name_zh || order.op_type_name}
                                 </span>
                               </td>
-                              <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
-                                <div>{order.order_status_name}</div>
-                                {order.order_status_name === 'JUNK' && order.cancel_info && (
-                                  <div className="text-[10px] text-red-500 mt-1 whitespace-normal break-all">
-                                    {order.cancel_info}
-                                  </div>
-                                )}
-                              </td>
                               <td className="px-4 py-2 whitespace-nowrap text-xs text-right text-gray-700 dark:text-gray-200">
                                 <div>限价 {order.limit_price?.toFixed ? order.limit_price.toFixed(4) : order.limit_price}</div>
                                 {order.traded_price ? (
@@ -745,10 +736,10 @@ export function Options({ theme }: OptionsProps) {
                                 {order.volume_traded}/{order.volume_total_original}
                               </td>
                               <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
-                                <div>{order.strategy_name || '-'}</div>
-                                {order.remark && (
-                                  <div className="text-[10px] text-gray-500 truncate max-w-xs">
-                                    {order.remark}
+                                <div>{order.order_status_name}</div>
+                                {order.order_status_name === 'JUNK' && order.cancel_info && (
+                                  <div className="text-[10px] text-red-500 mt-1 whitespace-normal break-all max-w-[240px]">
+                                    {order.cancel_info}
                                   </div>
                                 )}
                               </td>

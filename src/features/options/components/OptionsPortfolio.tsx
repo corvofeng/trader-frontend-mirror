@@ -119,14 +119,13 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   const { currencyConfig } = useCurrency();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [activeSymbol, setActiveSymbol] = useState<string>(selectedSymbol || '');
-  const [restOrders, setRestOrders] = useState<OptionOrder[]>([]);
   
   // Activity Log State
   const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>([]);
   const [isLogOpen, setIsLogOpen] = useState(false);
   const previousPositionsRef = useRef<Record<string, OptionsPosition>>({});
   const isBaselineEstablishedRef = useRef(false);
-  const { isConnected, send, portfolioSnapshot, prices, queryPrice, orders: wsOrders, queryOrders } = useOptionPriceWebSocket();
+  const { isConnected, send, portfolioSnapshot, prices, queryPrice } = useOptionPriceWebSocket();
   const requestedSymbolsRef = useRef<Set<string>>(new Set());
 
   // State for collapsible expiry groups
@@ -587,57 +586,6 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     fetchCustomStrategies();
   }, [selectedAccountIdProp]);
 
-  // Fetch REST orders when account changes
-  useEffect(() => {
-    let mounted = true;
-    const fetchOrders = async () => {
-      if (!selectedAccountIdProp) return;
-      try {
-        const { data, error } = await optionsService.getOptionOrders(selectedAccountIdProp, currentUserId, { only_today: true });
-        if (mounted && data) {
-          setRestOrders(data);
-        }
-      } catch (err) {
-        console.error('Failed to fetch option orders:', err);
-      }
-    };
-
-    if (selectedAccountIdProp) {
-      fetchOrders();
-      // Poll every 10 seconds as backup to WebSocket
-      const interval = setInterval(fetchOrders, 10000);
-      return () => {
-        mounted = false;
-        clearInterval(interval);
-      };
-    } else {
-      setRestOrders([]);
-    }
-  }, [selectedAccountIdProp, currentUserId]);
-
-  // Memoize and sort orders from WebSocket or REST
-  const todayOrders = React.useMemo(() => {
-    // Prefer WebSocket orders if available, otherwise fallback to REST
-    const source = (wsOrders && wsOrders.length > 0) ? wsOrders : restOrders;
-    
-    if (!source || source.length === 0) return [];
-    
-    return [...source].sort((a, b) => {
-      const timeA = a.order_time ? new Date(a.order_time).getTime() : 0;
-      const timeB = b.order_time ? new Date(b.order_time).getTime() : 0;
-      return timeB - timeA;
-    });
-  }, [wsOrders, restOrders]);
-
-  // Query orders via WebSocket when account changes
-  useEffect(() => {
-    if (selectedAccountIdProp && isConnected) {
-      queryOrders(selectedAccountIdProp);
-      // Poll occasionally to ensure sync if backend doesn't push updates for all events
-      const interval = setInterval(() => queryOrders(selectedAccountIdProp), 5000);
-      return () => clearInterval(interval);
-    }
-  }, [selectedAccountIdProp, isConnected, queryOrders]);
 
   const toggleStrategyExpansion = (strategyId: string) => {
     setExpandedStrategies(prev => 
@@ -1387,84 +1335,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         </div>
       )}
 
-      {/* Today's Orders */}
-      {todayOrders.length > 0 && (
-        <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
-          <div className="p-6 border-b border-gray-200">
-            <h2 className={`text-xl font-bold ${themes[theme].text}`}>
-              今日订单
-            </h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className={`min-w-full divide-y ${themes[theme].divide}`}>
-              <thead className={themes[theme].tableHeader}>
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">时间</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">名称</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">方向</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">价格</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">数量 (成/总)</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">策略/备注</th>
-                </tr>
-              </thead>
-              <tbody className={`divide-y ${themes[theme].divide}`}>
-                {todayOrders.map((order, idx) => (
-                  <tr key={idx} className={themes[theme].tableRow}>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${themes[theme].text}`}>
-                      {order.order_time ? (order.order_time.split(' ')[1] || order.order_time) : '-'}
-                    </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${themes[theme].text}`}>
-                      <div className="font-medium">{order.instrument_name}</div>
-                      {order.is_combination && (
-                        <span className="text-xs text-purple-500 bg-purple-100 dark:bg-purple-900 px-1 rounded">组合</span>
-                      )}
-                    </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm`}>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        ((order.op_type_name || '').includes('OPEN') || (order.op_type_name_zh || '').includes('开')) 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-blue-100 text-blue-800'
-                      }`}>
-                        {order.op_type_name_zh || order.op_type_name}
-                      </span>
-                    </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${themes[theme].text}`}>
-                      <div>{order.order_status_name}</div>
-                      {order.order_status_name === 'JUNK' && order.cancel_info && (
-                        <div className="text-[10px] text-red-500 mt-1 whitespace-normal break-all">
-                          {order.cancel_info}
-                        </div>
-                      )}
-                    </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm text-right ${themes[theme].text}`}>
-                      <div>限: {formatCurrency(order.limit_price, currencyConfig, 4)}</div>
-                      {order.traded_price > 0 && <div className="text-gray-500 text-xs">成: {formatCurrency(order.traded_price, currencyConfig, 4)}</div>}
-                    </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm text-right ${themes[theme].text}`}>
-                      {order.volume_traded} / {order.volume_total_original}
-                    </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${themes[theme].text}`}>
-                      <div>{order.strategy_name}</div>
-                      {order.compact_no && (
-                        <div className="text-xs text-purple-600 dark:text-purple-400">
-                          组合编号: {order.compact_no}
-                        </div>
-                      )}
-                      {order.contract_ids && order.contract_ids.length > 0 && (
-                        <div className="text-xs text-gray-500 mt-1" title={order.contract_ids.join(', ')}>
-                          合约: {order.contract_ids.length > 1 ? `${order.contract_ids.length}个合约` : order.contract_ids[0]}
-                        </div>
-                      )}
-                      <div className="text-xs text-gray-500">{order.remark}</div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+
 
       {/* Controls - REMOVED */}
 

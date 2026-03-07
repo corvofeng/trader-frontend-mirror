@@ -508,7 +508,6 @@ export interface OptionOrder {
   traded_price: number;
   volume_total_original: number;
   volume_traded: number;
-  strategy_name: string;
   remark: string;
   order_time: string;
   is_combination: boolean;
