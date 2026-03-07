@@ -35,34 +35,34 @@ export const renderMarkdown = (raw: string, theme: Theme) => {
   };
 
   const closeTable = () => {
-    if (inTable) {
-      html += `<div class="overflow-x-auto mb-4 border rounded-lg ${themes[theme].border}"><table class="min-w-full divide-y ${themes[theme].border}">`;
-      
-      // Header
-      if (tableHeader.length > 0) {
-        html += `<thead class="bg-gray-50 dark:bg-gray-800"><tr>`;
-        tableHeader.forEach(cell => {
-           html += `<th scope="col" class="px-4 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-70 uppercase tracking-wider">${formatText(cell.trim())}</th>`;
-        });
-        html += `</tr></thead>`;
-      }
+     if (inTable) {
+       html += `<div class="overflow-x-auto mb-4 border rounded-lg ${themes[theme].border}"><table class="min-w-full table-fixed divide-y ${themes[theme].border}">`;
+       
+       // Header
+       if (tableHeader.length > 0) {
+         html += `<thead class="bg-gray-50 dark:bg-gray-800"><tr>`;
+         tableHeader.forEach(cell => {
+             html += `<th scope="col" class="px-4 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-70 uppercase tracking-wider break-words">${formatText(cell.trim())}</th>`;
+          });
+         html += `</tr></thead>`;
+       }
 
-      // Body
-      html += `<tbody class="divide-y ${themes[theme].border} bg-white dark:bg-gray-900">`;
-      tableRows.forEach(row => {
-        html += `<tr>`;
-        row.forEach(cell => {
-          html += `<td class="px-4 py-2 text-sm ${themes[theme].text} whitespace-nowrap">${formatText(cell.trim())}</td>`;
-        });
-        html += `</tr>`;
-      });
-      html += `</tbody></table></div>`;
+       // Body
+       html += `<tbody class="divide-y ${themes[theme].border} bg-white dark:bg-gray-900">`;
+       tableRows.forEach(row => {
+         html += `<tr>`;
+         row.forEach(cell => {
+           html += `<td class="px-4 py-2 text-sm ${themes[theme].text} break-words align-top">${formatText(cell.trim())}</td>`;
+         });
+         html += `</tr>`;
+       });
+       html += `</tbody></table></div>`;
 
-      inTable = false;
-      tableHeader = [];
-      tableRows = [];
-    }
-  };
+       inTable = false;
+       tableHeader = [];
+       tableRows = [];
+     }
+   };
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
