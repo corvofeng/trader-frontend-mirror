@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { format } from 'date-fns';
-import { Calendar, TrendingUp, TrendingDown, Activity, Shield, Target, Layers, ChevronDown, ChevronUp, RefreshCw, List, Play } from 'lucide-react';
+import { Calendar, TrendingUp, TrendingDown, Activity, Shield, Target, Layers, ChevronDown, ChevronUp, RefreshCw, List, Play, BarChart2 } from 'lucide-react';
 import { PortfolioActivityLog, ActivityLogEntry } from './PortfolioActivityLog';
 import { Hash } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
@@ -1337,7 +1337,29 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
 
 
 
-      {/* Controls - REMOVED */}
+      {/* View Mode Controls */}
+      <div className="flex items-center space-x-1 border-b border-gray-200 dark:border-gray-700 mb-6 overflow-x-auto">
+        <button
+          onClick={() => setViewMode('expiry')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+            viewMode === 'expiry'
+              ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+          }`}
+        >
+          按到期日
+        </button>
+        <button
+          onClick={() => setViewMode('grouped')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+            viewMode === 'grouped'
+              ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+          }`}
+        >
+          按策略组合
+        </button>
+      </div>
 
       {/* Portfolio Content */}
       {viewMode === 'grouped' && (

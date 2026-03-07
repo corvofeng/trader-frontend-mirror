@@ -7,6 +7,7 @@ import { OptionsCalculatorCard } from '../../../features/options/components/Opti
 import { OptionsPortfolioManagement } from '../../../features/options/components/OptionsPortfolioManagement';
 import { HoldingsStrategyBuilder } from '../../../features/options/components/HoldingsStrategyBuilder';
 import { VolatilitySurface } from '../../../features/options/components/VolatilitySurface';
+import { OptionsAnalysisTab } from './OptionsAnalysisTab';
 import { RelatedLinks } from '../../../shared/components';
 import { Theme } from '../../../lib/theme';
 import type { OptionsData } from '../../../lib/services/types';
@@ -38,6 +39,19 @@ export function OptionsTabContent({
   onOpenCalculator,
   onRetry
 }: OptionsTabContentProps) {
+  if (activeTab === 'analysis') {
+    return (
+      <div className="space-y-6">
+        <OptionsAnalysisTab theme={theme} selectedSymbol={selectedSymbol} />
+        <RelatedLinks 
+          theme={theme}
+          currentPath="/options?tab=analysis" 
+          maxItems={4}
+        />
+      </div>
+    );
+  }
+
   if (activeTab === 'data') {
     return (
       <div className="space-y-6">

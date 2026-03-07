@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { logger } from '../../shared/utils/logger';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { BarChart2, TrendingUp, Briefcase, Calculator } from 'lucide-react';
+import { BarChart2, TrendingUp, Briefcase, Calculator, BookOpen } from 'lucide-react';
 import { OptionsHeader } from './components/OptionsHeader';
 import { OptionsTabNavigation } from './components/OptionsTabNavigation';
 import { OptionsTabContent } from './components/OptionsTabContent';
@@ -16,7 +16,7 @@ interface OptionsProps {
   theme: Theme;
 }
 
-type OptionsTab = 'data' | 'portfolio' | 'trading' | 'management';
+type OptionsTab = 'data' | 'portfolio' | 'trading' | 'management' | 'analysis';
 
 export function Options({ theme }: OptionsProps) {
   const location = useLocation();
@@ -24,7 +24,7 @@ export function Options({ theme }: OptionsProps) {
   const [activeTab, setActiveTab] = useState<OptionsTab>(() => {
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab') as OptionsTab;
-    return tab && ['data', 'portfolio', 'trading', 'management'].includes(tab) ? tab : 'data';
+    return tab && ['data', 'portfolio', 'trading', 'management', 'analysis'].includes(tab) ? tab : 'data';
   });
 
   const [availableSymbols, setAvailableSymbols] = useState<string[]>([]);
@@ -119,6 +119,7 @@ export function Options({ theme }: OptionsProps) {
   const tabs = [
     { id: 'data' as OptionsTab, name: 'Options Data', icon: BarChart2 },
     { id: 'portfolio' as OptionsTab, name: 'Portfolio', icon: Briefcase },
+    { id: 'analysis' as OptionsTab, name: 'Analysis', icon: BookOpen },
     { id: 'trading' as OptionsTab, name: 'Trade Plans', icon: TrendingUp },
     { id: 'management' as OptionsTab, name: 'Portfolio Management', icon: Calculator },
   ];

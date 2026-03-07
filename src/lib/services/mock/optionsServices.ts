@@ -1286,8 +1286,94 @@ export const optionsService: OptionsService = {
 
   getPortfolioAnalysis: async (userId: string, accountId?: string | null) => {
     await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Mock Expiry Analysis Data
+    const mockAnalysis: Record<string, any> = {
+      '2024-03-15': {
+        expiry_date: '2024-03-15',
+        phase: 'critical',
+        risk_positions_count: 2,
+        safe_positions_count: 5,
+        strategies_count: 3,
+        report: '### 风险提示\n当前持仓存在较高风险，建议尽快调整。',
+        exercise_analysis: {
+          call_covered_count: 0,
+          call_covered_positions: [],
+          call_covered_stock_to_deliver: 0,
+          call_obligation_count: 2,
+          call_obligation_count_worst: 2,
+          call_obligation_positions: [],
+          call_risk_exposure: 5000,
+          put_covered_count: 0,
+          put_covered_positions: [],
+          put_obligation_count: 1,
+          put_obligation_count_worst: 1,
+          put_obligation_positions: [],
+          put_risk_cash_needed: 3000,
+          risk_summary: 'Critical risk detected',
+          strategies: [],
+          total_cash_needed_worst: 3000,
+          total_stock_deliver_worst: 0
+        }
+      },
+      '2024-02-16': {
+        expiry_date: '2024-02-16',
+        phase: 'urgent', 
+        risk_positions_count: 0,
+        safe_positions_count: 2,
+        strategies_count: 1,
+        report: '### 紧急提示\n临近到期，请注意。',
+        exercise_analysis: {
+          call_covered_count: 0,
+          call_covered_positions: [],
+          call_covered_stock_to_deliver: 0,
+          call_obligation_count: 0,
+          call_obligation_count_worst: 0,
+          call_obligation_positions: [],
+          call_risk_exposure: 0,
+          put_covered_count: 0,
+          put_covered_positions: [],
+          put_obligation_count: 0,
+          put_obligation_count_worst: 0,
+          put_obligation_positions: [],
+          put_risk_cash_needed: 0,
+          risk_summary: 'Urgent attention needed',
+          strategies: [],
+          total_cash_needed_worst: 0,
+          total_stock_deliver_worst: 0
+        }
+      },
+      '2024-05-17': {
+        expiry_date: '2024-05-17',
+        phase: 'normal',
+        risk_positions_count: 0,
+        safe_positions_count: 4,
+        strategies_count: 1,
+        report: '### 正常状态\n当前持仓安全。',
+        exercise_analysis: {
+          call_covered_count: 0,
+          call_covered_positions: [],
+          call_covered_stock_to_deliver: 0,
+          call_obligation_count: 0,
+          call_obligation_count_worst: 0,
+          call_obligation_positions: [],
+          call_risk_exposure: 0,
+          put_covered_count: 0,
+          put_covered_positions: [],
+          put_obligation_count: 0,
+          put_obligation_count_worst: 0,
+          put_obligation_positions: [],
+          put_risk_cash_needed: 0,
+          risk_summary: 'Normal',
+          strategies: [],
+          total_cash_needed_worst: 0,
+          total_stock_deliver_worst: 0
+        }
+      }
+    };
+
     return {
-      data: {}, // mockExpiryAnalysis placeholder
+      data: mockAnalysis,
       error: null
     };
   },

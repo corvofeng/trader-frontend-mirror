@@ -61,104 +61,7 @@ interface ExpiryGroupCardProps {
   onRefresh?: () => void;
 }
 
-const renderReportMarkdown = (raw: string, theme: Theme) => {
-  const content = raw.trim().replace(/\n{3,}/g, '\n\n');
-  const lines = content.split(/\r?\n/);
-  let html = '';
-  let paragraph = '';
-  let inList = false;
 
-  const formatText = (text: string) => {
-    return text
-      .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
-      .replace(/`(.*?)`/g, '<code class="bg-gray-100 dark:bg-gray-800 px-1 rounded text-xs font-mono">$1</code>');
-  };
-
-  const flushParagraph = () => {
-    const text = paragraph.trim();
-    if (text) {
-      html += `<p class="mb-2 leading-relaxed text-sm ${themes[theme].text}">${formatText(text)}</p>`;
-    }
-    paragraph = '';
-  };
-
-  const flushList = () => {
-    if (inList) {
-      html += '</ul>';
-      inList = false;
-    }
-  };
-
-  lines.forEach((line) => {
-    const trimmed = line.trim();
-    
-    if (trimmed.startsWith('#')) {
-      flushParagraph();
-      flushList();
-      const level = trimmed.match(/^#+/)?.[0].length || 0;
-      const text = trimmed.replace(/^#+\s*/, '');
-      const sizeClass = level === 1 ? 'text-lg' : level === 2 ? 'text-base' : 'text-sm';
-      html += `<h${level} class="${sizeClass} font-bold mt-3 mb-2 ${themes[theme].text}">${formatText(text)}</h${level}>`;
-    } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-      flushParagraph();
-      if (!inList) {
-        html += `<ul class="list-disc pl-5 mb-2 space-y-1 ${themes[theme].text}">`;
-        inList = true;
-      }
-      const text = trimmed.substring(1).trim();
-      html += `<li class="text-sm pl-1">${formatText(text)}</li>`;
-    } else if (trimmed.startsWith('> ')) {
-      flushParagraph();
-      flushList();
-      const text = trimmed.substring(1).trim();
-      html += `<blockquote class="border-l-4 border-gray-300 pl-4 italic my-2 text-sm ${themes[theme].text} opacity-80">${formatText(text)}</blockquote>`;
-    } else if (trimmed === '') {
-      flushParagraph();
-      flushList();
-    } else {
-      if (inList) {
-        flushList();
-      }
-      paragraph += (paragraph ? ' ' : '') + line;
-    }
-  });
-  flushParagraph();
-  flushList();
-  return html;
-};
-
-const getPhaseLabel = (phase: string | undefined) => {
-  const p = (phase || '').toLowerCase();
-  
-  if (p.includes('warning') || p.includes('alert')) return '⚠️ 警告';
-  if (p.includes('danger') || p.includes('critical') || p.includes('risk')) return '🔴 风险';
-  if (p.includes('safe') || p.includes('normal') || p.includes('secure')) return '🟢 安全';
-  
-  return '🔵 常规';
-};
-
-const getPhaseStyles = (phase: string | undefined, theme: Theme) => {
-  const p = (phase || '').toLowerCase();
-  
-  if (p.includes('warning') || p.includes('alert')) {
-     return theme === 'dark' 
-        ? 'bg-amber-900/20 border-amber-800/30' 
-        : 'bg-amber-50 border-amber-200';
-  }
-  if (p.includes('danger') || p.includes('critical') || p.includes('risk')) {
-     return theme === 'dark'
-        ? 'bg-red-900/20 border-red-800/30'
-        : 'bg-red-50 border-red-200';
-  }
-  if (p.includes('safe') || p.includes('normal') || p.includes('secure')) {
-     return theme === 'dark'
-        ? 'bg-green-900/20 border-green-800/30'
-        : 'bg-green-50 border-green-200';
-  }
-  
-  return theme === 'dark' ? 'bg-gray-800/30 border-gray-700' : 'bg-gray-50/50 border-gray-200';
-};
 
 export function ExpiryGroupCard({
   theme,
@@ -206,7 +109,6 @@ export function ExpiryGroupCard({
   const [qtyOverrides, setQtyOverrides] = useState<Record<string, number>>({});
   const [syncPrice, setSyncPrice] = useState<number | null>(null);
   const basePositions = useMemo(() => filterAndSortPositions(group.single), [filterAndSortPositions, group.single]);
-  const [showAnalysisDrawer, setShowAnalysisDrawer] = useState(false);
 
   const filteredPositions = useMemo(() => selectedSymbol
     ? basePositions.filter(p => p.opt_undl_code_full === selectedSymbol)
@@ -455,18 +357,7 @@ export function ExpiryGroupCard({
               {selectedSymbol && underlyingPrice != null && (
                 <div className={`text-sm ${themes[theme].text}`}>标的价 {underlyingPrice.toFixed(4)}</div>
               )}
-              {analysis && analysis.report && (
-                <button
-                  onClick={() => setShowAnalysisDrawer(true)}
-                  className={`flex items-center gap-1 px-3 py-1 rounded text-xs ${getPhaseStyles(analysis.phase, theme)} transition-colors`}
-                >
-                  <PanelRightOpen className="w-3 h-3" />
-                  <span>查看分析报告</span>
-                  <span className={`ml-1 text-[10px] px-1.5 py-0.5 rounded-full border ${themes[theme].border} bg-white/50 dark:bg-black/20`}>
-                    {getPhaseLabel(analysis.phase)}
-                  </span>
-                </button>
-              )}
+
               <button
                 onClick={onToggleExpand}
                 className={`px-3 py-1 rounded text-xs ${themes[theme].secondary}`}
@@ -492,60 +383,7 @@ export function ExpiryGroupCard({
         </div>
       </div>
 
-      {/* Analysis Drawer */}
-      {showAnalysisDrawer && analysis && (
-        <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true">
-          {/* Backdrop */}
-          <div 
-            className="absolute inset-0 bg-black/30 backdrop-blur-sm transition-opacity" 
-            onClick={() => setShowAnalysisDrawer(false)}
-          />
-          
-          {/* Drawer Panel */}
-          <div className={`relative w-full max-w-md h-full shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col ${themes[theme].card}`}>
-            {/* Header */}
-            <div className={`flex items-center justify-between p-4 border-b ${themes[theme].border} ${getPhaseStyles(analysis.phase, theme)}`}>
-              <div className="flex items-center gap-2">
-                <h3 className={`font-semibold ${themes[theme].text}`}>到期日分析报告</h3>
-                <span className={`text-xs px-2 py-0.5 rounded-full border ${themes[theme].border} bg-white/50 dark:bg-black/20 ${themes[theme].text}`}>
-                  {getPhaseLabel(analysis.phase)}
-                </span>
-              </div>
-              <button 
-                onClick={() => setShowAnalysisDrawer(false)}
-                className={`p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors ${themes[theme].text}`}
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6">
-               <div className="mb-6">
-                 <h4 className={`text-xs font-semibold uppercase tracking-wider mb-3 ${themes[theme].text} opacity-60`}>统计数据</h4>
-                 <div className="grid grid-cols-3 gap-3">
-                    <div className={`p-3 rounded border ${themes[theme].border} bg-red-50 dark:bg-red-900/10`}>
-                      <div className="text-xs text-red-600 dark:text-red-400 mb-1">风险持仓</div>
-                      <div className={`text-xl font-bold ${themes[theme].text}`}>{analysis.risk_positions_count}</div>
-                    </div>
-                    <div className={`p-3 rounded border ${themes[theme].border} bg-green-50 dark:bg-green-900/10`}>
-                      <div className="text-xs text-green-600 dark:text-green-400 mb-1">安全持仓</div>
-                      <div className={`text-xl font-bold ${themes[theme].text}`}>{analysis.safe_positions_count}</div>
-                    </div>
-                    <div className={`p-3 rounded border ${themes[theme].border} ${themes[theme].background}`}>
-                      <div className={`text-xs ${themes[theme].text} opacity-70 mb-1`}>策略组合</div>
-                      <div className={`text-xl font-bold ${themes[theme].text}`}>{analysis.strategies_count}</div>
-                    </div>
-                 </div>
-               </div>
 
-               <div className="prose prose-sm max-w-none">
-                 <div dangerouslySetInnerHTML={{ __html: renderReportMarkdown(analysis.report, theme) }} />
-               </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className="p-6">
         <div className="space-y-4">
