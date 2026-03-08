@@ -89,6 +89,12 @@ export function RiskAnalysis({ theme, selectedAccountId, selectedSymbol }: RiskA
   useEffect(() => {
     if (!surfaceChartRef.current || !surfaceData) return;
 
+    // Defensive check for required data arrays
+    if (!Array.isArray(surfaceData.S_axis) || !Array.isArray(surfaceData.T_axis) || !Array.isArray(surfaceData.payoff_matrix)) {
+      console.warn('Invalid surface data format:', surfaceData);
+      return;
+    }
+
     if (!chartInstance.current) {
       chartInstance.current = echarts.init(surfaceChartRef.current);
     }

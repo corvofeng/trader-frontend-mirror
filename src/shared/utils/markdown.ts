@@ -1,6 +1,7 @@
 import { Theme, themes } from '../../lib/theme';
 
 export const renderMarkdown = (raw: string, theme: Theme) => {
+  if (typeof raw !== 'string') return '';
   const content = raw.trim().replace(/\n{3,}/g, '\n\n');
   const lines = content.split(/\r?\n/);
   let html = '';

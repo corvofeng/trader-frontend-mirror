@@ -124,7 +124,7 @@ export function OptionsAnalysisView({ portfolioData, theme }: OptionsAnalysisVie
             {isExpanded && (
               <div className="p-6 bg-white dark:bg-gray-900/20">
                  <div className="prose prose-sm max-w-none">
-                    <div dangerouslySetInnerHTML={{ __html: renderMarkdown(analysis.report, theme) }} />
+                    <div dangerouslySetInnerHTML={{ __html: renderMarkdown(typeof analysis.report === 'string' ? analysis.report : '', theme) }} />
                  </div>
               </div>
             )}
