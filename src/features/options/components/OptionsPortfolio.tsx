@@ -708,7 +708,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       }
     } catch (e) {
       console.error(e as Error);
-      toast.error('同步失败');
+      toast.error(e instanceof Error ? e.message : '同步失败');
     }
   };
 
@@ -1205,7 +1205,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         console.error(refreshError);
       }
     } catch (e) {
-      toast.error('执行失败');
+      toast.error(e instanceof Error ? e.message : '执行失败');
       console.error(e);
     }
   };

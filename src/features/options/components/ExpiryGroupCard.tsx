@@ -795,13 +795,14 @@ export function ExpiryGroupCard({
                                                   className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
                                                   onClick={() => {
                                                     setConfirmData({
-                                                      ids: [],
+                                                      ids: m.comboCallStrategies.flatMap(s => s.strategy.positions.map(p => p.id)),
                                                       meta: { 
                                                         action: 'unwind_combo_selection', 
                                                         comboType: 'call', 
                                                         strike: m.s, 
                                                         expiry: group.expiry, 
                                                         strategies: m.comboCallStrategies,
+                                                        strategyIds: m.comboCallStrategies.map(s => s.strategy.id),
                                                         quote, 
                                                         contract_code: quote?.call_contract_code, 
                                                         contract_code_full: quote?.call_contract_code_full 
@@ -929,13 +930,14 @@ export function ExpiryGroupCard({
                                                   className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
                                                   onClick={() => {
                                                     setConfirmData({
-                                                      ids: [],
+                                                      ids: m.comboPutStrategies.flatMap(s => s.strategy.positions.map(p => p.id)),
                                                       meta: { 
                                                         action: 'unwind_combo_selection', 
                                                         comboType: 'put', 
                                                         strike: m.s, 
                                                         expiry: group.expiry, 
                                                         strategies: m.comboPutStrategies,
+                                                        strategyIds: m.comboPutStrategies.map(s => s.strategy.id),
                                                         quote, 
                                                         contract_code: quote?.put_contract_code, 
                                                         contract_code_full: quote?.put_contract_code_full 
@@ -1329,33 +1331,21 @@ export function ExpiryGroupCard({
                     <button
                       className="px-3 py-1.5 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition-colors"
                       onClick={async () => {
-                         const ids = item.strategy.positions.map(p => p.id);
-                         const overrides: Record<string, number> = {};
-                         item.strategy.positions.forEach(p => {
-                           overrides[p.id] = Number(p.quantity);
-                         });
-                         
-                         await onClosePositions(ids, undefined, overrides);
-                         setConfirmData(null);
-                      }}
-                    >清仓</button>
-                    <button
-                      className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition-colors"
-                      onClick={async () => {
                          if (!selectedAccountId) {
                             toast.error('未选择账户');
                             return;
                          }
                          const { error } = await optionsService.clearCombination(selectedAccountId, item.strategy.id);
                          if (error) {
-                           toast.error('解除组合失败: ' + error.message);
+                           toast.error('清仓失败: ' + error.message);
                          } else {
-                           toast.success('解除组合成功');
+                           toast.success('已启动清仓任务');
                            setConfirmData(null);
                            onRefresh?.();
                          }
                       }}
-                    >解除组合</button>
+                    >清仓</button>
+
                   </div>
                 </div>
               ))}
@@ -2046,7 +2036,7 @@ export function ExpiryGroupCard({
 
                 const resp = await optionsService.updatePositions({ updates: [{ type: p.type, position_type: p.position_type, strike, expiry: String(confirmData.meta?.expiry || group.expiry), quantity: q, original_quantity: origAvailSum, change_quantity: change, is_covered: category === 'call_covered' || category === 'put_covered', symbol: foundSymbol, option_type: p.type, strike_price: String(strike), price: syncPrice != null ? syncPrice : undefined }], positions: positionsToSend, accountId: selectedAccountId || null, userId: userId || null });
                 if (resp.error) {
-                  toast.error('同步失败');
+                  toast.error(resp.error.message || '同步失败');
                 } else {
                   toast.success('已同步持仓数量');
                 }
@@ -2063,7 +2053,7 @@ export function ExpiryGroupCard({
                 };
                 const resp = await optionsService.closeCombination(payload, selectedAccountId || null, userId || null);
                 if (resp.error) {
-                  toast.error('解除组合失败');
+                  toast.error(resp.error.message || '解除组合失败');
                 } else {
                   toast.success('解除组合成功');
                 }

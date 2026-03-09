@@ -244,6 +244,12 @@ export const optionsService: OptionsService = {
         throw new Error('Failed to fetch available symbols');
       }
       const data = await response.json();
+
+      if (data && Array.isArray(data.failed) && data.failed.length > 0) {
+        const errorMsg = data.failed.map((f: any) => f.error || JSON.stringify(f)).join('; ');
+        return { data, error: new Error(errorMsg) };
+      }
+
       return { data, error: null };
     } catch (error) {
       console.error('Error fetching available symbols:', error);
@@ -436,10 +442,27 @@ export const optionsService: OptionsService = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      if (!response.ok) {
-        throw new Error('Failed to sync positions');
+
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        // ignore
       }
-      const data = await response.json();
+
+      if (!response.ok) {
+        if (data && Array.isArray(data.failed) && data.failed.length > 0) {
+           const errorMsg = data.failed.map((f: any) => f.error || JSON.stringify(f)).join('; ');
+           throw new Error(errorMsg);
+        }
+        throw new Error((data && data.error) || 'Failed to sync positions');
+      }
+
+      if (data && Array.isArray(data.failed) && data.failed.length > 0) {
+        const errorMsg = data.failed.map((f: any) => f.error || JSON.stringify(f)).join('; ');
+        return { data, error: new Error(errorMsg) };
+      }
+
       return { data, error: null };
     } catch (error) {
       console.error('Error syncing positions:', error);
@@ -455,10 +478,27 @@ export const optionsService: OptionsService = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(combo)
       });
-      if (!response.ok) {
-        throw new Error('Failed to execute combination');
+
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        // ignore
       }
-      const data = await response.json();
+
+      if (!response.ok) {
+        if (data && Array.isArray(data.failed) && data.failed.length > 0) {
+           const errorMsg = data.failed.map((f: any) => f.error || JSON.stringify(f)).join('; ');
+           throw new Error(errorMsg);
+        }
+        throw new Error((data && data.error) || 'Failed to execute combination');
+      }
+
+      if (data && Array.isArray(data.failed) && data.failed.length > 0) {
+        const errorMsg = data.failed.map((f: any) => f.error || JSON.stringify(f)).join('; ');
+        return { data, error: new Error(errorMsg) };
+      }
+
       return { data, error: null };
     } catch (error) {
       console.error('Error executing combination:', error);
@@ -474,10 +514,27 @@ export const optionsService: OptionsService = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      if (!response.ok) {
-        throw new Error('Failed to close combination');
+
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        // ignore
       }
-      const data = await response.json();
+
+      if (!response.ok) {
+        if (data && Array.isArray(data.failed) && data.failed.length > 0) {
+           const errorMsg = data.failed.map((f: any) => f.error || JSON.stringify(f)).join('; ');
+           throw new Error(errorMsg);
+        }
+        throw new Error((data && data.error) || 'Failed to close combination');
+      }
+
+      if (data && Array.isArray(data.failed) && data.failed.length > 0) {
+        const errorMsg = data.failed.map((f: any) => f.error || JSON.stringify(f)).join('; ');
+        return { data, error: new Error(errorMsg) };
+      }
+
       return { data, error: null };
     } catch (error) {
       console.error('Error closing combination:', error);
