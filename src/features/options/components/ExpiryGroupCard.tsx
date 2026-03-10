@@ -973,8 +973,8 @@ export function ExpiryGroupCard({
                       <h4 className={`text-lg font-semibold ${themes[theme].text}`}>组合建议</h4>
                     </div>
                     <div className={`${themes[theme].background} rounded-lg p-4 border ${themes[theme].border} space-y-2`}>
-                      {advisedCombinations.map((c) => (
-                        <div key={`advised-${group.expiry}-${c.type}-${c.buy_strike}-${c.sell_strike}`} className="flex items-center justify-between gap-2">
+                      {advisedCombinations.map((c, i) => (
+                        <div key={`advised-${group.expiry}-${c.type}-${c.buy_strike}-${c.sell_strike}-${i}`} className="flex items-center justify-between gap-2">
                           <div className={`text-sm ${themes[theme].text}`}>{c.description}</div>
                           <div className="flex items-center gap-2">
                             {!!onLoadAdvised && (
@@ -1345,6 +1345,36 @@ export function ExpiryGroupCard({
                          }
                       }}
                     >清仓</button>
+                    <button
+                      className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition-colors"
+                      onClick={async () => {
+                        if (!selectedAccountId) {
+                          toast.error('未选择账户');
+                          return;
+                        }
+
+                        const payload = {
+                          strategy_id: item.strategy.id,
+                          comb_id: item.strategy.id,
+                          positions: item.strategy.positions,
+                          meta: {
+                            ...(confirmData.meta || {}),
+                            action: 'release_combination',
+                            strategyIds: [item.strategy.id],
+                          },
+                          overrides: {},
+                        };
+
+                        const resp = await optionsService.closeCombination(payload, selectedAccountId || null, userId || null);
+                        if (resp.error) {
+                          toast.error('解除组合失败: ' + resp.error.message);
+                        } else {
+                          toast.success('解除组合成功');
+                          setConfirmData(null);
+                          onRefresh?.();
+                        }
+                      }}
+                    >解除组合</button>
 
                   </div>
                 </div>
@@ -2056,6 +2086,7 @@ export function ExpiryGroupCard({
                   toast.error(resp.error.message || '解除组合失败');
                 } else {
                   toast.success('解除组合成功');
+                  onRefresh?.();
                 }
                 setConfirmData(null);
               } else if (confirmData.meta?.action === 'clear_combination') {

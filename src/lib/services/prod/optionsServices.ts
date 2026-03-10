@@ -175,6 +175,45 @@ const adaptToPortfolioData = (data: any): OptionsPortfolioData => {
   };
 };
 
+const collectBatchErrors = (data: unknown): string[] => {
+  const errors: string[] = [];
+
+  const record =
+    data && typeof data === 'object' ? (data as Record<string, unknown>) : null;
+
+  const failed = Array.isArray(record?.failed) ? record?.failed : [];
+  for (const item of failed) {
+    const obj = item && typeof item === 'object' ? (item as Record<string, unknown>) : null;
+    const msg = obj?.error || obj?.message || (item ? JSON.stringify(item) : '');
+    if (msg) errors.push(String(msg));
+  }
+
+  const dataRecord =
+    record?.data && typeof record.data === 'object' ? (record.data as Record<string, unknown>) : null;
+  const results = Array.isArray(record?.results)
+    ? record?.results
+    : Array.isArray(dataRecord?.results)
+      ? dataRecord?.results
+      : [];
+  for (const item of results) {
+    const obj = item && typeof item === 'object' ? (item as Record<string, unknown>) : null;
+    if (!obj) continue;
+    const ok = obj.success;
+    const errMsg = obj.error || obj.error_msg || obj.message;
+    if (ok === false || errMsg) {
+      const prefix = obj.strategy_id ? `策略 ${String(obj.strategy_id)}: ` : '';
+      const msg = errMsg || JSON.stringify(item);
+      errors.push(`${prefix}${String(msg)}`);
+    }
+  }
+
+  const rootFail =
+    record && record.success === false ? (record.error || record.error_msg || record.message) : null;
+  if (rootFail) errors.push(String(rootFail));
+
+  return errors;
+};
+
 // Cache for options data to prevent redundant requests
 const optionsDataCache: Record<string, Promise<{ data: unknown; error: Error | null }>> = {};
 
@@ -523,17 +562,13 @@ export const optionsService: OptionsService = {
       }
 
       if (!response.ok) {
-        if (data && Array.isArray(data.failed) && data.failed.length > 0) {
-           const errorMsg = data.failed.map((f: any) => f.error || JSON.stringify(f)).join('; ');
-           throw new Error(errorMsg);
-        }
-        throw new Error((data && data.error) || 'Failed to close combination');
+        const batchErrors = collectBatchErrors(data);
+        if (batchErrors.length > 0) throw new Error(batchErrors.join('; '));
+        throw new Error((data && (data.error || data.error_msg || data.message)) || 'Failed to close combination');
       }
 
-      if (data && Array.isArray(data.failed) && data.failed.length > 0) {
-        const errorMsg = data.failed.map((f: any) => f.error || JSON.stringify(f)).join('; ');
-        return { data, error: new Error(errorMsg) };
-      }
+      const batchErrors = collectBatchErrors(data);
+      if (batchErrors.length > 0) return { data, error: new Error(batchErrors.join('; ')) };
 
       return { data, error: null };
     } catch (error) {
