@@ -66,7 +66,7 @@ const SITE_SECTIONS: SiteSection[] = [
       },
       {
         title: 'Trade History',
-        path: '/journal?tab=history',
+        path: '/admin?tab=history',
         description: 'Review completed trades and charts'
       }
     ]
@@ -77,7 +77,7 @@ const SITE_SECTIONS: SiteSection[] = [
     links: [
       {
         title: 'Performance Analysis',
-        path: '/journal?tab=analysis',
+        path: '/admin?tab=analysis',
         description: 'Detailed performance metrics and insights'
       },
       {

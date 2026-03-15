@@ -7,13 +7,15 @@ interface HeroSectionProps {
   onThemeChange: (theme: Theme) => void;
   onNavigateToJournal: () => void;
   onNavigateToOptions: () => void;
+  onNavigateToAdmin: () => void;
 }
 
 export function HeroSection({ 
   theme, 
   onThemeChange, 
   onNavigateToJournal, 
-  onNavigateToOptions 
+  onNavigateToOptions,
+  onNavigateToAdmin
 }: HeroSectionProps) {
   const isDark = theme === 'dark';
 
@@ -29,17 +31,27 @@ export function HeroSection({
       }}
     >
       <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 flex justify-end">
-        <button
-          onClick={() => onThemeChange(isDark ? 'light' : 'dark')}
-          className={`p-2 rounded-full ${isDark ? 'bg-gray-800 text-gray-200' : 'bg-gray-100 text-gray-800'} hover:bg-opacity-90 transition-colors duration-200`}
-          aria-label="Toggle theme"
-        >
-          {isDark ? (
-            <Sun className="w-5 h-5" />
-          ) : (
-            <Moon className="w-5 h-5" />
-          )}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onNavigateToAdmin}
+            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors duration-200 ${
+              isDark ? 'bg-gray-800 text-gray-200 hover:bg-gray-700' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+            }`}
+          >
+            Admin
+          </button>
+          <button
+            onClick={() => onThemeChange(isDark ? 'light' : 'dark')}
+            className={`p-2 rounded-full ${isDark ? 'bg-gray-800 text-gray-200' : 'bg-gray-100 text-gray-800'} hover:bg-opacity-90 transition-colors duration-200`}
+            aria-label="Toggle theme"
+          >
+            {isDark ? (
+              <Sun className="w-5 h-5" />
+            ) : (
+              <Moon className="w-5 h-5" />
+            )}
+          </button>
+        </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">

@@ -35,7 +35,7 @@ const ALL_LINKS: RelatedLink[] = [
   {
     title: 'Trade History',
     description: 'Review your completed trades and performance',
-    path: '/journal?tab=history',
+    path: '/admin?tab=history',
     icon: BarChart2,
     category: 'analysis'
   },

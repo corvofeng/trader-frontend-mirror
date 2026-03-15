@@ -50,6 +50,26 @@ export function Navigation({
           
           {/* Desktop menu */}
           <div className="hidden md:flex items-center space-x-4">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => navigate('/journal')}
+                className={`px-3 py-2 rounded-md text-sm font-medium ${themes[theme].secondary}`}
+              >
+                Journal
+              </button>
+              <button
+                onClick={() => navigate('/options')}
+                className={`px-3 py-2 rounded-md text-sm font-medium ${themes[theme].secondary}`}
+              >
+                Options
+              </button>
+              <button
+                onClick={() => navigate('/admin')}
+                className={`px-3 py-2 rounded-md text-sm font-medium ${themes[theme].secondary}`}
+              >
+                Admin
+              </button>
+            </div>
             <div className="relative">
               <button
                 onClick={onThemeDropdownToggle}
@@ -132,6 +152,35 @@ export function Navigation({
         {mobileMenuOpen && (
           <div className={`md:hidden ${themes[theme].card} border-t ${themes[theme].border} py-4 absolute left-0 right-0 shadow-lg`}>
             <div className="flex flex-col space-y-4 px-4">
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => {
+                    navigate('/journal');
+                    onMobileMenuToggle();
+                  }}
+                  className={`w-full px-4 py-2 rounded-md text-sm font-medium text-left ${themes[theme].secondary}`}
+                >
+                  Journal
+                </button>
+                <button
+                  onClick={() => {
+                    navigate('/options');
+                    onMobileMenuToggle();
+                  }}
+                  className={`w-full px-4 py-2 rounded-md text-sm font-medium text-left ${themes[theme].secondary}`}
+                >
+                  Options
+                </button>
+                <button
+                  onClick={() => {
+                    navigate('/admin');
+                    onMobileMenuToggle();
+                  }}
+                  className={`w-full px-4 py-2 rounded-md text-sm font-medium text-left ${themes[theme].secondary}`}
+                >
+                  Admin
+                </button>
+              </div>
               <div className="flex justify-center space-x-2">
                 {Object.keys(themes).map((themeName) => (
                   <button

@@ -9,21 +9,33 @@ interface AccountSelectorProps {
   theme: Theme;
   selectedAccountId: string | null;
   onAccountChange: (accountId: string) => void;
+  mode?: 'all' | 'options' | 'stocks';
   preferOptions?: boolean;
   refreshKey?: number;
+  showCreate?: boolean;
 }
 
 // Simple in-memory cache per user and mode (options vs stocks)
 const accountsCache: Map<string, Account[]> = new Map();
 
-export function AccountSelector({ userId, theme, selectedAccountId, onAccountChange, preferOptions = true, refreshKey }: AccountSelectorProps) {
+export function AccountSelector({
+  userId,
+  theme,
+  selectedAccountId,
+  onAccountChange,
+  mode,
+  preferOptions = true,
+  refreshKey,
+  showCreate = true
+}: AccountSelectorProps) {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newAccountName, setNewAccountName] = useState('');
   const [newAccountDescription, setNewAccountDescription] = useState('');
   const [loading, setLoading] = useState(false);
-  const cacheKey = `${preferOptions ? 'options' : 'stocks'}:${userId}`;
+  const resolvedMode: 'all' | 'options' | 'stocks' = mode ?? (preferOptions ? 'options' : 'stocks');
+  const cacheKey = `${resolvedMode}:${userId}`;
 
   const loadAccounts = useCallback(async (forceRefresh: boolean = false) => {
     setLoading(true);
@@ -46,23 +58,56 @@ export function AccountSelector({ userId, theme, selectedAccountId, onAccountCha
       return;
     }
 
-    let finalResponse;
-    if (preferOptions) {
+    const mergeAccounts = (lists: Account[][]) => {
+      const map = new Map<string, Account>();
+      for (const list of lists) {
+        for (const account of list) {
+          const key = account.alias || account.id;
+          if (!key) continue;
+          const existing = map.get(key);
+          if (!existing) {
+            map.set(key, account);
+            continue;
+          }
+          if (!existing.is_default && account.is_default) {
+            map.set(key, account);
+          }
+        }
+      }
+      return Array.from(map.values());
+    };
+
+    let loadedAccounts: Account[] = [];
+    if (resolvedMode === 'all') {
+      const [stocksResponse, optionsResponse] = await Promise.all([
+        accountService.getAccounts(userId),
+        accountService.getOptionsAccounts(userId),
+      ]);
+      loadedAccounts = mergeAccounts([
+        (stocksResponse.data || []) as Account[],
+        (optionsResponse.data || []) as Account[],
+      ]);
+    } else if (resolvedMode === 'options') {
       const response = await accountService.getOptionsAccounts(userId);
-      finalResponse = response?.data ? response : await accountService.getAccounts(userId);
+      loadedAccounts = (response.data || []) as Account[];
+      if (loadedAccounts.length === 0) {
+        const fallback = await accountService.getAccounts(userId);
+        loadedAccounts = (fallback.data || []) as Account[];
+      }
     } else {
-      finalResponse = await accountService.getAccounts(userId);
+      const response = await accountService.getAccounts(userId);
+      loadedAccounts = (response.data || []) as Account[];
     }
-    if (finalResponse.data) {
-      const accounts = finalResponse.data;
-      setAccounts(accounts);
-      accountsCache.set(cacheKey, accounts);
+
+    if (loadedAccounts.length > 0) {
+      setAccounts(loadedAccounts);
+      accountsCache.set(cacheKey, loadedAccounts);
       
       // Auto-select default if none provided or invalid
-      const isAccountValid = selectedAccountId && accounts.some(a => (a.alias || a.id) === selectedAccountId);
+      const isAccountValid = selectedAccountId && loadedAccounts.some(a => (a.alias || a.id) === selectedAccountId);
 
-      if ((!selectedAccountId || !isAccountValid) && accounts.length > 0) {
-        const defaultAccount = accounts.find(acc => acc.is_default) || accounts[0];
+      if ((!selectedAccountId || !isAccountValid) && loadedAccounts.length > 0) {
+        const defaultAccount = loadedAccounts.find(acc => acc.is_default) || loadedAccounts[0];
         const key = defaultAccount.alias || defaultAccount.id;
         if (key !== selectedAccountId) {
           onAccountChange(key);
@@ -70,7 +115,7 @@ export function AccountSelector({ userId, theme, selectedAccountId, onAccountCha
       }
     }
     setLoading(false);
-  }, [userId, preferOptions, cacheKey, selectedAccountId, onAccountChange]);
+  }, [userId, resolvedMode, cacheKey, selectedAccountId, onAccountChange]);
 
   useEffect(() => {
     loadAccounts(false);
@@ -135,16 +180,18 @@ export function AccountSelector({ userId, theme, selectedAccountId, onAccountCha
             <div className="p-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className={`text-lg font-semibold ${themes[theme].text}`}>账户管理</h3>
-                <button
-                  onClick={() => setShowAddForm(!showAddForm)}
-                  className={`p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200`}
-                  title="添加新账户"
-                >
-                  <Plus className="w-5 h-5" />
-                </button>
+                {showCreate && resolvedMode !== 'all' && (
+                  <button
+                    onClick={() => setShowAddForm(!showAddForm)}
+                    className={`p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200`}
+                    title="添加新账户"
+                  >
+                    <Plus className="w-5 h-5" />
+                  </button>
+                )}
               </div>
 
-              {showAddForm && (
+              {showCreate && resolvedMode !== 'all' && showAddForm && (
                 <div className="mb-4 space-y-3 animate-fadeIn">
                   <input
                     type="text"
@@ -223,7 +270,7 @@ export function AccountSelector({ userId, theme, selectedAccountId, onAccountCha
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        {!account.is_default && (
+                        {resolvedMode !== 'all' && !account.is_default && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();

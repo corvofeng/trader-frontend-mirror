@@ -11,6 +11,7 @@ import type { Theme } from './lib/theme';
 const Landing = React.lazy(() => import('./pages/Landing').then(module => ({ default: module.Landing })));
 const Journal = React.lazy(() => import('./pages/Journal').then(module => ({ default: module.Journal })));
 const Options = React.lazy(() => import('./pages/Options').then(module => ({ default: module.Options })));
+const Admin = React.lazy(() => import('./pages/Admin').then(module => ({ default: module.Admin })));
 
 const Loading = () => (
   <div className="flex items-center justify-center min-h-[50vh]">
@@ -107,6 +108,10 @@ function AppContent() {
           <Route
             path="/options"
             element={<Options theme={theme} />}
+          />
+          <Route
+            path="/admin"
+            element={<Admin theme={theme} />}
           />
         </Routes>
       </Suspense>

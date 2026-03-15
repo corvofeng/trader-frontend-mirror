@@ -53,6 +53,28 @@ export function Breadcrumbs({ theme, customItems }: BreadcrumbsProps) {
       }
     } else if (pathSegments.includes('options')) {
       breadcrumbs.push({ label: 'Options Trading', path: '/options', isActive: true });
+    } else if (pathSegments.includes('admin')) {
+      breadcrumbs.push({ label: 'Admin', path: '/admin' });
+      if (tab) {
+        const tabLabels: Record<string, string> = {
+          operations: 'Operations',
+          calendar: 'Calendar',
+          analysis: 'Analysis',
+          history: 'History',
+          tasks: 'Tasks'
+        };
+        if (tabLabels[tab]) {
+          breadcrumbs.push({
+            label: tabLabels[tab],
+            path: `/admin?tab=${tab}`,
+            isActive: true
+          });
+        } else {
+          breadcrumbs[breadcrumbs.length - 1] = { ...breadcrumbs[breadcrumbs.length - 1], isActive: true };
+        }
+      } else {
+        breadcrumbs[breadcrumbs.length - 1] = { ...breadcrumbs[breadcrumbs.length - 1], isActive: true };
+      }
     }
     
     return breadcrumbs;

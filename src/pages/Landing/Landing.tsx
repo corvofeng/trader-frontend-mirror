@@ -23,6 +23,7 @@ export function Landing({ theme, onThemeChange }: LandingProps) {
         onThemeChange={onThemeChange}
         onNavigateToJournal={() => navigate('/journal')}
         onNavigateToOptions={() => navigate('/options')}
+        onNavigateToAdmin={() => navigate('/admin')}
       />
       
       <main className="flex-grow">

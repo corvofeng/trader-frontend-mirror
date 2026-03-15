@@ -1,20 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { logger } from '../shared/utils/logger';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Briefcase, LayoutGrid, History, Upload, Activity, BookOpen, Settings } from 'lucide-react';
+import { Briefcase, LayoutGrid, Upload, Activity, Settings } from 'lucide-react';
 import { TradeForm, TradeList, StockSearch } from '../features/trading';
-import DailyTradeHistory from '../features/trading/components/DailyTradeHistory';
-import HistoryTradesChart from '../features/trading/components/HistoryTradesChart';
 import { Portfolio } from '../features/portfolio';
 import { OperationsView, UploadPage } from './Journal/features';
-import { } from '../shared/components';
 import { Theme, themes } from '../lib/theme';
 import { portfolioService, accountService } from '../lib/services';
-import { StockChart } from '../features/trading/components/StockChart';
 import { AccountSelector } from '../shared/components/AccountSelector';
 import type { Stock, Holding, Trade } from '../lib/services/types';
 import { TabNavigation } from './Journal/components/TabNavigation';
-import { TabContent } from './Journal/components/TabContent';
 
 interface JournalProps {
   selectedStock: Stock | null;
@@ -22,17 +17,27 @@ interface JournalProps {
   onStockSelect: (stock: Stock) => void;
 }
 
-type Tab = 'portfolio' | 'trades' | 'history' | 'analysis' | 'settings' | 'operations' | 'upload';
+type Tab = 'portfolio' | 'trades' | 'settings' | 'operations' | 'upload';
 
 const DEMO_USER_ID = 'mock-user-id';
 
 export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
   const location = useLocation();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tab = params.get('tab');
+    if (tab === 'analysis' || tab === 'history') {
+      params.set('tab', tab);
+      navigate(`/admin?${params.toString()}`, { replace: true });
+    }
+  }, [location.search, navigate]);
+
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab') as Tab;
-    return tab && ['portfolio', 'trades', 'history', 'analysis', 'settings', 'operations', 'upload'].includes(tab)
+    return tab && ['portfolio', 'trades', 'settings', 'operations', 'upload'].includes(tab)
       ? tab
       : 'portfolio';
   });
@@ -133,10 +138,8 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
   const tabs = [
     { id: 'portfolio' as Tab, name: 'Portfolio', icon: Briefcase },
     { id: 'trades' as Tab, name: 'Trade Plans', icon: LayoutGrid },
-    { id: 'history' as Tab, name: 'Trade History', icon: History },
     { id: 'upload' as Tab, name: 'Upload', icon: Upload },
     { id: 'operations' as Tab, name: 'Operations', icon: Activity },
-    { id: 'analysis' as Tab, name: 'Analysis', icon: BookOpen },
     { id: 'settings' as Tab, name: 'Settings', icon: Settings },
   ];
 
@@ -237,52 +240,12 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
         </div>
       )}
 
-      {activeTab === 'history' && !portfolioUuid && (
-        <div className="space-y-4 sm:space-y-6">
-          {selectedStock?.stock_code && (
-            <StockChart stockCode={selectedStock.stock_code} theme={theme} />
-          )}
-          <HistoryTradesChart
-            theme={theme}
-            startDate={dateRange.startDate}
-            endDate={dateRange.endDate}
-            selectedAccountId={selectedAccountId}
-            selectedStockCode={selectedStock?.stock_code}
-          />
-          <DailyTradeHistory 
-            theme={theme}
-            startDate={dateRange.startDate}
-            endDate={dateRange.endDate}
-            selectedStockCode={selectedStock?.stock_code}
-            selectedAccountId={selectedAccountId}
-          />
-        </div>
-      )}
-
       {activeTab === 'upload' && !portfolioUuid && (
         <UploadPage theme={theme} />
       )}
 
       {activeTab === 'operations' && !portfolioUuid && (
         <OperationsView theme={theme} accountAlias={selectedAccountId} />
-      )}
-
-      {activeTab === 'analysis' && (
-        <TabContent
-          activeTab={activeTab}
-          selectedStock={selectedStock}
-          theme={theme}
-          holdings={holdings}
-          recentTrades={recentTrades}
-          dateRange={dateRange}
-          onDateRangeChange={setDateRange}
-          portfolioUuid={portfolioUuid}
-          userId={DEMO_USER_ID}
-          selectedAccountId={selectedAccountId}
-          onAccountChange={(accountId) => {
-            setSelectedAccountId(accountId);
-          }}
-        />
       )}
 
       {activeTab === 'settings' && !portfolioUuid && (
@@ -295,12 +258,12 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
       )}
 
       {/* Show message for restricted tabs in shared view */}
-      {portfolioUuid && !['portfolio', 'analysis'].includes(activeTab) && (
+      {portfolioUuid && activeTab !== 'portfolio' && (
         <div className={`${themes[theme].card} rounded-lg p-8 text-center`}>
           <div className={`${themes[theme].text} opacity-70`}>
             <Briefcase className="w-12 h-12 mx-auto mb-4 opacity-40" />
             <p className="text-lg font-medium">This feature is not available in shared portfolio view</p>
-            <p className="text-sm">Switch to Portfolio or Analysis tab to view shared data</p>
+            <p className="text-sm">Switch to Portfolio tab to view shared data</p>
           </div>
         </div>
       )}

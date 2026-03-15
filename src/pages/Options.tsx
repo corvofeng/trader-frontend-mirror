@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { logger } from '../shared/utils/logger';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { BarChart2, TrendingUp, Briefcase, Calculator, RefreshCw, Shield, Calendar, ListChecks, Activity, BookOpen } from 'lucide-react';
+import { BarChart2, TrendingUp, Briefcase, Calculator, RefreshCw, Shield, Calendar, Activity, BookOpen } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, addMonths, isSameMonth, isSameDay } from 'date-fns';
 import { Theme, themes } from '../lib/theme';
 import { OptionsChain } from '../features/options/components/OptionsChain';
@@ -16,7 +16,6 @@ import { RelatedLinks, AccountSelector } from '../shared/components';
 import { optionsService, authService } from '../lib/services';
 import { OptionsPortfolioManagement } from '../features/options/components/OptionsPortfolioManagement';
 import { OptionWhitelistManager } from '../features/options/components/OptionWhitelistManager';
-import { SequentialTradeTasks } from '../features/options/components/SequentialTradeTasks';
 import { OptionsAnalysisTab } from './Options/components/OptionsAnalysisTab';
 import type { OptionsData, OptionOrder } from '../lib/services/types';
 import { OptionPriceWebSocketProvider } from '../features/options/context/OptionPriceWebSocketContext';
@@ -26,15 +25,25 @@ interface OptionsProps {
   theme: Theme;
 }
 
-type OptionsTab = 'data' | 'portfolio' | 'trading' | 'management' | 'whitelist' | 'calendar' | 'sequential' | 'risk' | 'analysis';
+type OptionsTab = 'data' | 'portfolio' | 'trading' | 'management' | 'whitelist' | 'calendar' | 'risk' | 'analysis';
 
 export function Options({ theme }: OptionsProps) {
   const location = useLocation();
   const navigate = useNavigate();
+
+  React.useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tab = params.get('tab');
+    if (tab === 'sequential') {
+      params.set('tab', 'tasks');
+      navigate(`/admin?${params.toString()}`, { replace: true });
+    }
+  }, [location.search, navigate]);
+
   const [activeTab, setActiveTab] = useState<OptionsTab>(() => {
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab') as OptionsTab;
-    return tab && ['data', 'portfolio', 'trading', 'management', 'whitelist', 'calendar', 'sequential', 'risk', 'analysis'].includes(tab) ? tab : 'data';
+    return tab && ['data', 'portfolio', 'trading', 'management', 'whitelist', 'calendar', 'risk', 'analysis'].includes(tab) ? tab : 'data';
   });
 
   const [availableSymbols, setAvailableSymbols] = useState<string[]>([]);
@@ -312,7 +321,6 @@ export function Options({ theme }: OptionsProps) {
     { id: 'management' as OptionsTab, name: 'Manage', icon: Calculator },
     { id: 'whitelist' as OptionsTab, name: 'Whitelist', icon: Shield },
     { id: 'calendar' as OptionsTab, name: 'Calendar', icon: Calendar },
-    { id: 'sequential' as OptionsTab, name: 'Tasks', icon: ListChecks },
     { id: 'risk' as OptionsTab, name: 'Risk', icon: Activity },
   ];
 
@@ -526,17 +534,6 @@ export function Options({ theme }: OptionsProps) {
             <RelatedLinks 
               theme={theme}
               currentPath="/options?tab=whitelist" 
-              maxItems={4}
-            />
-          </div>
-        )}
-
-        {activeTab === 'sequential' && (
-          <div className="space-y-6">
-            <SequentialTradeTasks theme={theme} selectedAccountId={selectedAccountId} />
-            <RelatedLinks 
-              theme={theme}
-              currentPath="/options?tab=sequential" 
               maxItems={4}
             />
           </div>
