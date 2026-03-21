@@ -1,4 +1,4 @@
-import type { OptionsService, OptionsPortfolioData, OptionsPosition, OptionsStrategy, RatioSpreadPlanResult, OptionWhitelist, ServiceResponse, AdvisedCombination, OptionOrder, SequentialTradeTask } from '../types';
+import type { OptionsService, OptionsPortfolioData, OptionsPosition, OptionsStrategy, RatioSpreadPlanResult, OptionWhitelist, ServiceResponse, AdvisedCombination, OptionOrder, SequentialTradeTask, SequentialTradeStatus } from '../types';
 import type { CustomOptionsStrategy } from '../types';
 
 // 支持的期权标的列表
@@ -1163,6 +1163,9 @@ export const optionsService: OptionsService = {
   getSequentialTrades: async (accountId: string, options?: { status?: string; limit?: number; offset?: number }) => {
     const now = new Date();
     const toIso = (d: Date) => d.toISOString();
+    const limit = Math.max(1, Math.min(Number(options?.limit ?? 50) || 50, 200));
+    const offset = Math.max(0, Number(options?.offset ?? 0) || 0);
+
     const base: SequentialTradeTask[] = [
       {
         id: 1,
@@ -1241,20 +1244,56 @@ export const optionsService: OptionsService = {
         timeout_seconds: 600
       }
     ];
+
+    const statuses: SequentialTradeStatus[] = [
+      'pending',
+      'executing',
+      'completed',
+      'failed',
+      'timeout',
+      'paused',
+      'cancelled'
+    ];
+    const envs = ['prod', 'staging', 'dev', 'test'];
+    const total = 120;
+    for (let i = 3; i <= total; i++) {
+      const status = statuses[(i - 3) % statuses.length];
+      base.push({
+        id: i,
+        account_id: accountId,
+        account_alias: accountId,
+        env: envs[(i - 3) % envs.length],
+        combo_id: `COMBO-${String(i).padStart(3, '0')}`,
+        expiry_date: toIso(new Date(now.getTime() + ((i % 30) + 1) * 24 * 60 * 60 * 1000)),
+        action_type: i % 2 === 0 ? 'RELEASE_COMBINATION' : 'CLOSE_STRATEGY',
+        status,
+        current_step: null,
+        steps_count: null,
+        current_step_index: null,
+        created_at: toIso(new Date(now.getTime() - (i + 2) * 60 * 1000)),
+        updated_at: toIso(new Date(now.getTime() - (i + 1) * 60 * 1000)),
+        completed_at: status === 'completed' ? toIso(new Date(now.getTime() - i * 60 * 1000)) : null,
+        error_msg: status === 'failed' ? 'Mock error: order rejected' : null,
+        timeout_seconds: 600
+      });
+    }
+
     let filtered = base;
     if (options?.status && options.status !== 'all') {
       const s = options.status.toLowerCase();
       filtered = base.filter(t => t.status.toLowerCase() === s);
     }
+
+    const paged = filtered.slice(offset, offset + limit);
     return {
-      data: filtered,
+      data: paged,
       error: null
     };
   },
 
   getSequentialTradeDetail: async (accountAlias: string, tradeId: number | string) => {
     const idNum = Number(tradeId);
-    const base = await optionsService.getSequentialTrades(accountAlias, { limit: 50, offset: 0 });
+    const base = await optionsService.getSequentialTrades(accountAlias, { limit: 10000, offset: 0 });
     const found = base.data?.find(t => t.id === idNum) || null;
     return {
       data: found,

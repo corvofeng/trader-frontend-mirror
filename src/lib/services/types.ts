@@ -53,7 +53,7 @@ export interface PortfolioData {
   balance?: number;
   available?: number;
   frozen?: number;
-  fetch_balance?: any;
+  fetch_balance?: unknown;
 }
 
 export interface StockData {
@@ -407,10 +407,35 @@ export interface OptionSurfacePoint {
   value: number;
 }
 
+export interface VerticalSpreadMonthlyPriceRange {
+  min: number;
+  max: number;
+}
+
+export interface VerticalSpreadMonthlyPricePoint {
+  expiry?: string;
+  month?: string;
+  price?: number;
+  value?: number;
+  min?: number;
+  max?: number;
+  [key: string]: unknown;
+}
+
+export interface VerticalSpreadMonthlyPriceItem {
+  option_type: 'call' | 'put' | string;
+  lower_strike: number;
+  upper_strike: number;
+  spread_width: number;
+  prices_by_expiry: Array<number | VerticalSpreadMonthlyPricePoint>;
+  price_range: VerticalSpreadMonthlyPriceRange;
+}
+
 export interface OptionsData {
   quotes: OptionQuote[];
   surface: OptionSurfacePoint[];
   opt_undl_code_full?: string;
+  vertical_spread_monthly_prices?: VerticalSpreadMonthlyPriceItem[];
 }
 
 // Options Portfolio Types
@@ -593,11 +618,11 @@ export interface OptionsPortfolioData {
 
 export interface ExerciseAnalysis {
   call_covered_count: number;
-  call_covered_positions: any[];
+  call_covered_positions: unknown[];
   call_covered_stock_to_deliver: number;
   call_obligation_count: number;
   call_obligation_count_worst: number;
-  call_obligation_positions: any[];
+  call_obligation_positions: unknown[];
   call_obligation_stock_required: number;
   call_obligation_stock_required_worst: number;
   put_obligation_avg_price: number;
@@ -606,7 +631,7 @@ export interface ExerciseAnalysis {
   put_obligation_cash_required_worst: number;
   put_obligation_count: number;
   put_obligation_count_worst: number;
-  put_obligation_positions: any[];
+  put_obligation_positions: unknown[];
   put_obligation_stock_to_buy: number;
   put_obligation_stock_to_buy_worst: number;
   total_exercise_count: number;
@@ -663,9 +688,9 @@ export interface OptionContractDetail {
     ExpireDate: number;
     InstrumentName: string;
     OptExercisePrice: number;
-    [key: string]: any;
+    [key: string]: unknown;
   };
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface PayoffSurfaceData {
@@ -711,7 +736,7 @@ export interface MarginStressData {
   margin_buffer: number;
   scenarios: MarginStressScenario[];
   legs_count: number;
-  legs_summary: any[];
+  legs_summary: unknown[];
 }
 
 export interface OptionsService {

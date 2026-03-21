@@ -22,6 +22,8 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
   const [reloadKey, setReloadKey] = useState(0);
   const [actionLoading, setActionLoading] = useState<'pause' | 'resume' | 'terminate' | 'restart' | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [offset, setOffset] = useState(0);
+  const limit = 50;
 
   useEffect(() => {
     if (!selectedAccountId) {
@@ -29,6 +31,7 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
       setSelectedTaskId(null);
       setDetailById({});
       setError(null);
+      setOffset(0);
       return;
     }
     let cancelled = false;
@@ -38,8 +41,8 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
         setError(null);
         const { data, error: serviceError } = await optionsService.getSequentialTrades(selectedAccountId, {
           status: statusFilter === 'all' ? undefined : statusFilter,
-          limit: 50,
-          offset: 0
+          limit,
+          offset
         });
         if (cancelled) return;
         if (serviceError) {
@@ -47,12 +50,10 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
         }
         const list = data || [];
         setTasks(list);
-        if (list.length > 0) {
-          const firstId = list[0].id;
-          setSelectedTaskId(prev => prev ?? firstId);
-        } else {
-          setSelectedTaskId(null);
-        }
+        setSelectedTaskId(prev => {
+          if (prev != null && list.some(t => t.id === prev)) return prev;
+          return list.length > 0 ? list[0].id : null;
+        });
       } catch (error) {
         if (cancelled) return;
         setError(error instanceof Error ? error.message : '加载顺序交易任务失败');
@@ -68,7 +69,7 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
     return () => {
       cancelled = true;
     };
-  }, [selectedAccountId, statusFilter, reloadKey]);
+  }, [selectedAccountId, statusFilter, reloadKey, offset]);
 
   useEffect(() => {
     if (!selectedAccountId) return;
@@ -352,6 +353,10 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
     }
   };
 
+  const canPrevPage = offset > 0;
+  const canNextPage = tasks.length >= limit;
+  const currentPage = Math.floor(offset / limit) + 1;
+
   return (
     <div className={`${themes[theme].card} rounded-lg p-4 space-y-6`}>
       <div className="flex items-center justify-between gap-4">
@@ -367,6 +372,25 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap text-xs text-slate-500 dark:text-slate-300">
+            <span>第 {currentPage} 页</span>
+            <button
+              type="button"
+              onClick={() => setOffset(prev => Math.max(0, prev - limit))}
+              disabled={isLoading || !selectedAccountId || !canPrevPage}
+              className="px-2 py-1 rounded-full text-xs font-medium border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              上一页
+            </button>
+            <button
+              type="button"
+              onClick={() => setOffset(prev => prev + limit)}
+              disabled={isLoading || !selectedAccountId || !canNextPage}
+              className="px-2 py-1 rounded-full text-xs font-medium border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              下一页
+            </button>
+          </div>
           <button
             type="button"
             onClick={handleRefresh}
@@ -380,7 +404,10 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
             <button
               key={f.id}
               type="button"
-              onClick={() => setStatusFilter(f.id)}
+              onClick={() => {
+                setOffset(0);
+                setStatusFilter(f.id);
+              }}
               className={`px-2 py-1 rounded-full text-xs font-medium border transition-colors ${
                 statusFilter === f.id
                   ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-100'

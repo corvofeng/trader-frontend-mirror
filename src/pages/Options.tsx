@@ -5,6 +5,7 @@ import { BarChart2, TrendingUp, Briefcase, Calculator, RefreshCw, Shield, Activi
 import { Theme, themes } from '../lib/theme';
 import { OptionsChain } from '../features/options/components/OptionsChain';
 import { TimeValueChart } from '../features/options/components/TimeValueChart';
+import { VerticalSpreadMonthlyPricesChart } from '../features/options/components/VerticalSpreadMonthlyPricesChart';
 import { VolatilitySurface } from '../features/options/components/VolatilitySurface';
 import { OptionsPortfolio } from '../features/options/components/OptionsPortfolio';
 import { RiskAnalysis } from '../features/options/components/RiskAnalysis';
@@ -306,6 +307,12 @@ export function Options({ theme }: OptionsProps) {
                 />
 
                 <TimeValueChart
+                  theme={theme}
+                  optionsData={optionsData}
+                  selectedSymbol={selectedSymbol}
+                />
+
+                <VerticalSpreadMonthlyPricesChart
                   theme={theme}
                   optionsData={optionsData}
                   selectedSymbol={selectedSymbol}
