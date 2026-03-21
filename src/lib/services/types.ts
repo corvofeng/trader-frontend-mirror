@@ -757,6 +757,8 @@ export interface OptionsService {
   deleteWhitelist: (id: string | number, userId: string, accountId?: string | null) => Promise<ServiceResponse<void>>;
   getOptionOrders: (accountId: string, userId?: string | null, options?: { only_today?: boolean; date?: string }) => Promise<ServiceResponse<OptionOrder[]>>;
   getOptionOrdersStats: (accountId: string, month: string) => Promise<ServiceResponse<Record<string, { completed_count: number; pending_count: number; junk_count: number; total_count: number }>>>;
+  getAdminOrders: (accountId: string, options?: { date?: string; only_today?: boolean }) => Promise<ServiceResponse<OptionOrder[]>>;
+  getAdminOrdersStats: (accountId: string, month: string) => Promise<ServiceResponse<Record<string, { completed_count: number; pending_count: number; junk_count: number; total_count: number }>>>;
   getSequentialTrades: (accountId: string, options?: { status?: string; limit?: number; offset?: number }) => Promise<ServiceResponse<SequentialTradeTask[]>>;
   getSequentialTradeDetail: (accountAlias: string, tradeId: number | string) => Promise<ServiceResponse<SequentialTradeTask>>;
   pauseSequentialTrade: (accountAlias: string, tradeId: number | string) => Promise<ServiceResponse<void>>;

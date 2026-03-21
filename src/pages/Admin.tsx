@@ -91,7 +91,7 @@ export function Admin({ theme }: AdminProps) {
     try {
       setOrdersLoading(true);
       setOrdersError(null);
-      const { data, error } = await optionsService.getOptionOrders(selectedAccountId, effectiveUserId || null, { date: dateStr });
+      const { data, error } = await optionsService.getAdminOrders(selectedAccountId, { date: dateStr });
       if (error) {
         throw error;
       }
@@ -105,7 +105,7 @@ export function Admin({ theme }: AdminProps) {
     } finally {
       setOrdersLoading(false);
     }
-  }, [selectedAccountId, effectiveUserId]);
+  }, [selectedAccountId]);
 
   React.useEffect(() => {
     if (activeTab !== 'calendar') return;
@@ -126,7 +126,7 @@ export function Admin({ theme }: AdminProps) {
     let cancelled = false;
     const fetchStats = async () => {
       try {
-        const { data, error } = await optionsService.getOptionOrdersStats(selectedAccountId, monthKey);
+        const { data, error } = await optionsService.getAdminOrdersStats(selectedAccountId, monthKey);
         if (!cancelled && !error && data) {
           setOrdersStatsByMonth(prev => ({
             ...prev,

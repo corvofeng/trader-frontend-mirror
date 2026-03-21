@@ -793,6 +793,110 @@ export const optionsService: OptionsService = {
     }
   },
 
+  getAdminOrders: async (accountId: string, options?: { only_today?: boolean; date?: string }) => {
+    try {
+      const params = new URLSearchParams();
+      if (options?.only_today) params.set('only_today', 'true');
+      if (options?.date) params.set('date', options.date);
+      const queryString = params.toString() ? `?${params.toString()}` : '';
+
+      const response = await fetch(`/api/admin/${encodeURIComponent(accountId)}/orders${queryString}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch admin orders');
+      }
+      const raw = await response.json();
+      const payload =
+        raw && typeof raw === 'object' && 'data' in raw && (raw as { data?: unknown }).data !== undefined
+          ? (raw as { data?: unknown }).data
+          : raw;
+      const orders = Array.isArray(payload)
+        ? payload
+        : (Array.isArray((payload as { orders?: unknown }).orders)
+            ? (payload as { orders: unknown[] }).orders
+            : (Array.isArray((payload as { data?: unknown }).data)
+                ? ((payload as { data: unknown[] }).data as unknown[])
+                : []));
+
+      const toNumber = (v: unknown) => {
+        const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v) : NaN;
+        return Number.isFinite(n) ? n : 0;
+      };
+
+      const normalize = (item: unknown) => {
+        if (!item || typeof item !== 'object') return item;
+        const obj = item as Record<string, unknown>;
+        if (typeof obj.instrument_name === 'string' && typeof obj.order_time === 'string') return item;
+
+        const stockName = typeof obj.stock_name === 'string' ? obj.stock_name : (typeof obj.stockName === 'string' ? obj.stockName : undefined);
+        const stockCode = typeof obj.stock_code === 'string' ? obj.stock_code : (typeof obj.stockCode === 'string' ? obj.stockCode : undefined);
+        const direction = typeof obj.direction === 'string' ? obj.direction : (typeof obj.op_type_name === 'string' ? obj.op_type_name : undefined);
+        const status = typeof obj.order_status === 'string' ? obj.order_status : (typeof obj.order_status_name === 'string' ? obj.order_status_name : undefined);
+
+        if (!stockName && !stockCode && !direction && !status) return item;
+
+        const opZh =
+          direction && direction.includes('BUY') ? '买入' : direction && direction.includes('SELL') ? '卖出' : (direction || '');
+
+        return {
+          instrument_name: stockName && stockCode ? `${stockName} (${stockCode})` : (stockName || stockCode || '-'),
+          op_type_name: direction || '',
+          op_type_name_zh: opZh,
+          order_status_name: status || '',
+          limit_price: toNumber(obj.price ?? obj.limit_price),
+          traded_price: toNumber(obj.traded_price ?? obj.price),
+          volume_total_original: toNumber(obj.volume ?? obj.volume_total_original),
+          volume_traded: toNumber(obj.traded_volume ?? obj.volume_traded),
+          remark: typeof obj.order_id === 'string' ? obj.order_id : (typeof obj.remark === 'string' ? obj.remark : ''),
+          order_time: typeof obj.order_time === 'string' ? obj.order_time : '',
+          is_combination: Boolean(obj.is_combination),
+          instrument_id: stockCode || (typeof obj.instrument_id === 'string' ? obj.instrument_id : undefined),
+          contract_code_full: stockCode || (typeof obj.contract_code_full === 'string' ? obj.contract_code_full : undefined),
+          cancel_info: typeof obj.cancel_info === 'string' ? obj.cancel_info : undefined
+        };
+      };
+
+      const normalized = orders.map(normalize);
+      return { data: normalized as any, error: null };
+    } catch (error) {
+      console.error('Error fetching admin orders:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  getAdminOrdersStats: async (accountId: string, month: string) => {
+    try {
+      const params = new URLSearchParams();
+      params.set('month', month);
+      const queryString = params.toString() ? `?${params.toString()}` : '';
+      const response = await fetch(`/api/admin/${encodeURIComponent(accountId)}/orders-stats${queryString}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch admin orders stats');
+      }
+      const raw = await response.json();
+      const payload =
+        raw && typeof raw === 'object' && 'data' in raw && (raw as { data?: unknown }).data !== undefined
+          ? (raw as { data?: unknown }).data
+          : raw;
+
+      let stats = payload;
+      if (payload && typeof payload === 'object') {
+        if ('stats' in payload && (payload as { stats?: unknown }).stats && typeof (payload as { stats?: unknown }).stats === 'object') {
+          stats = (payload as { stats: unknown }).stats;
+        } else if ('data' in payload && (payload as { data?: unknown }).data && typeof (payload as { data?: unknown }).data === 'object') {
+          stats = (payload as { data: unknown }).data;
+        }
+      }
+
+      return {
+        data: stats as Record<string, { completed_count: number; pending_count: number; junk_count: number; total_count: number }>,
+        error: null
+      };
+    } catch (error) {
+      console.error('Error fetching admin orders stats:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
   getSequentialTrades: async (accountId: string, options?: { status?: string; limit?: number; offset?: number }) => {
     try {
       const params = new URLSearchParams();

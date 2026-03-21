@@ -1152,6 +1152,14 @@ export const optionsService: OptionsService = {
     };
   },
 
+  getAdminOrders: async function (accountId: string, options?: { only_today?: boolean; date?: string }): Promise<ServiceResponse<OptionOrder[]>> {
+    return this.getOptionOrders(accountId, null, options);
+  },
+
+  getAdminOrdersStats: async function (accountId: string, month: string): Promise<ServiceResponse<Record<string, { completed_count: number; pending_count: number; junk_count: number; total_count: number }>>> {
+    return this.getOptionOrdersStats(accountId, month);
+  },
+
   getSequentialTrades: async (accountId: string, options?: { status?: string; limit?: number; offset?: number }) => {
     const now = new Date();
     const toIso = (d: Date) => d.toISOString();
