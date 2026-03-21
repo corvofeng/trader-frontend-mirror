@@ -192,6 +192,25 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
     };
   };
 
+  const getEnvConfig = (env?: string | null) => {
+    const raw = String(env || '').trim();
+    const e = raw.toLowerCase();
+    if (!e) return null;
+    if (e === 'prod' || e === 'production') {
+      return { label: raw.toUpperCase(), className: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-100' };
+    }
+    if (e === 'stage' || e === 'staging') {
+      return { label: raw.toUpperCase(), className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-100' };
+    }
+    if (e === 'dev' || e === 'development') {
+      return { label: raw.toUpperCase(), className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-100' };
+    }
+    if (e === 'test' || e === 'qa' || e === 'local') {
+      return { label: raw.toUpperCase(), className: 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100' };
+    }
+    return { label: raw.toUpperCase(), className: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-100' };
+  };
+
   const formatTime = (iso?: string | null) => {
     if (!iso) return '';
     const d = new Date(iso);
@@ -406,6 +425,7 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
               <div className="space-y-2">
                 {tasks.map(task => {
                   const status = getStatusConfig(task.status);
+                  const env = getEnvConfig(task.env);
                   const progressText =
                     task.steps_count != null && task.steps_count > 0 && task.current_step != null
                       ? `${task.current_step}/${task.steps_count}`
@@ -428,10 +448,17 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
                         <div className={`font-medium ${themes[theme].text} truncate`}>
                           {task.action_type}
                         </div>
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full ${status.className}`}>
-                          <status.Icon className="w-3 h-3" />
-                          <span>{status.label}</span>
-                        </span>
+                        <div className="flex items-center gap-2">
+                          {env && (
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${env.className}`}>
+                              ENV {env.label}
+                            </span>
+                          )}
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full ${status.className}`}>
+                            <status.Icon className="w-3 h-3" />
+                            <span>{status.label}</span>
+                          </span>
+                        </div>
                       </div>
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex flex-col gap-0.5">
@@ -481,8 +508,19 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
                         <div className={`text-sm font-semibold ${themes[theme].text} mb-1`}>
                           任务 {selectedTask.id}
                         </div>
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                          {selectedTask.account_alias || selectedTask.account_id} · {selectedTask.action_type}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                            {selectedTask.account_alias || selectedTask.account_id} · {selectedTask.action_type}
+                          </div>
+                          {(() => {
+                            const env = getEnvConfig(selectedTask.env);
+                            if (!env) return null;
+                            return (
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${env.className}`}>
+                                ENV {env.label}
+                              </span>
+                            );
+                          })()}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">

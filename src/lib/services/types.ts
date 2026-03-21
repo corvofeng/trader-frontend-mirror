@@ -542,6 +542,7 @@ export interface SequentialTradeTask {
   id: number;
   account_id: string;
   account_alias?: string;
+  env?: string | null;
   combo_id?: string | number;
   expiry_date?: string;
   action_type: string;

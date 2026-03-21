@@ -108,6 +108,8 @@ export function ExpiryGroupCard({
   const [confirmData, setConfirmData] = useState<{ ids: string[]; meta?: { action?: string; comboType?: 'call' | 'put'; strike?: number; expiry?: string; strategyIds?: string[]; category?: string; defaultComboCount?: number; perLegMaxQty?: Record<string, number>; quote?: OptionQuote; contract_code?: string; contract_code_full?: string; strategies?: Array<{ strategy: OptionsStrategy; qty: number }> }; title: string; description: string } | null>(null);
   const [qtyOverrides, setQtyOverrides] = useState<Record<string, number>>({});
   const [syncPrice, setSyncPrice] = useState<number | null>(null);
+  const [isPageLocked, setIsPageLocked] = useState(false);
+  const pageLockRef = useRef(false);
   const basePositions = useMemo(() => filterAndSortPositions(group.single), [filterAndSortPositions, group.single]);
 
   const filteredPositions = useMemo(() => selectedSymbol
@@ -187,6 +189,23 @@ export function ExpiryGroupCard({
       return () => clearInterval(interval);
     }
   }, [isConnected, codes.join(','), queryPrice, isExpanded, confirmData]);
+
+  useEffect(() => {
+    if (!isPageLocked) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isPageLocked]);
 
   const isSelectedPosition = (p: OptionsPosition) => {
     return !!selectedSymbol && (p.opt_undl_code_full === selectedSymbol);
@@ -1308,7 +1327,12 @@ export function ExpiryGroupCard({
       </div>
   {confirmData && (
     <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center">
-      <div className="absolute inset-0 bg-black/40" onClick={() => setConfirmData(null)}></div>
+      <div
+        className="absolute inset-0 bg-black/40"
+        onClick={() => {
+          if (!isPageLocked) setConfirmData(null);
+        }}
+      ></div>
       <div className={`relative w-full rounded-t-xl border-t border-l border-r p-6 max-h-[85vh] flex flex-col md:w-auto md:min-w-[600px] md:max-w-2xl md:rounded-lg md:border md:max-h-[85vh] ${themes[theme].card} ${themes[theme].border}`}>
         <div className={`text-lg font-semibold ${themes[theme].text}`}>{confirmData.title}</div>
         <div className={`mt-2 text-sm ${themes[theme].text}`}>{confirmData.description}</div>
@@ -1329,7 +1353,8 @@ export function ExpiryGroupCard({
                   </div>
                   <div className="flex gap-2">
                     <button
-                      className="px-3 py-1.5 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition-colors"
+                      disabled={isPageLocked}
+                      className="px-3 py-1.5 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       onClick={async () => {
                          if (!selectedAccountId) {
                             toast.error('未选择账户');
@@ -1346,8 +1371,10 @@ export function ExpiryGroupCard({
                       }}
                     >清仓</button>
                     <button
-                      className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition-colors"
+                      disabled={isPageLocked}
+                      className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       onClick={async () => {
+                        if (pageLockRef.current) return;
                         if (!selectedAccountId) {
                           toast.error('未选择账户');
                           return;
@@ -1365,13 +1392,20 @@ export function ExpiryGroupCard({
                           overrides: {},
                         };
 
-                        const resp = await optionsService.closeCombination(payload, selectedAccountId || null, userId || null);
-                        if (resp.error) {
-                          toast.error('解除组合失败: ' + resp.error.message);
-                        } else {
-                          toast.success('解除组合成功');
-                          setConfirmData(null);
-                          onRefresh?.();
+                        pageLockRef.current = true;
+                        setIsPageLocked(true);
+                        try {
+                          const resp = await optionsService.closeCombination(payload, selectedAccountId || null, userId || null);
+                          if (resp.error) {
+                            toast.error('解除组合失败: ' + resp.error.message);
+                          } else {
+                            toast.success('解除组合成功');
+                            setConfirmData(null);
+                            onRefresh?.();
+                          }
+                        } finally {
+                          pageLockRef.current = false;
+                          setIsPageLocked(false);
                         }
                       }}
                     >解除组合</button>
@@ -2196,6 +2230,20 @@ export function ExpiryGroupCard({
               setAdvisedModal(null);
             }}
           >执行组合</button>
+        </div>
+      </div>
+    </div>
+  )}
+  {isPageLocked && (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/50" />
+      <div className={`relative w-[92%] max-w-md rounded-lg border p-5 ${themes[theme].card} ${themes[theme].border}`}>
+        <div className="flex items-center gap-3">
+          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500" />
+          <div className={`text-sm font-semibold ${themes[theme].text}`}>解除组合处理中…</div>
+        </div>
+        <div className={`mt-2 text-xs ${themes[theme].text} opacity-75`}>
+          接口返回前已临时锁定页面操作，请耐心等待，不要关闭页面或重复点击。
         </div>
       </div>
     </div>
