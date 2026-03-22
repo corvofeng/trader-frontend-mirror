@@ -11,6 +11,16 @@ export const renderMarkdown = (raw: string, theme: Theme) => {
   let inTable = false;
   let tableHeader: string[] = [];
   let tableRows: string[][] = [];
+  let inCodeBlock = false;
+  let codeBlockLines: string[] = [];
+
+  const escapeHtml = (text: string) =>
+    text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
 
   const formatText = (text: string) => {
     return text
@@ -66,9 +76,61 @@ export const renderMarkdown = (raw: string, theme: Theme) => {
      }
    };
 
+  const closeCodeBlock = () => {
+    if (!inCodeBlock) return;
+    const body = codeBlockLines.join('\n');
+    html += `<pre class="overflow-x-auto mb-4 border rounded-lg ${themes[theme].border} bg-gray-50 dark:bg-gray-900 p-3"><code class="block whitespace-pre font-mono text-xs ${themes[theme].text}">${escapeHtml(body)}</code></pre>`;
+    inCodeBlock = false;
+    codeBlockLines = [];
+  };
+
+  const isAsciiTableBorder = (line: string) => /^\+[+-]+(\+[+-]+)+\+$/.test(line.trim());
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmed = line.trim();
+
+    if (trimmed.startsWith('```')) {
+      flushParagraph();
+      closeList();
+      closeTable();
+      if (inCodeBlock) {
+        closeCodeBlock();
+      } else {
+        inCodeBlock = true;
+        codeBlockLines = [];
+      }
+      continue;
+    }
+
+    if (inCodeBlock) {
+      codeBlockLines.push(line);
+      continue;
+    }
+
+    if (isAsciiTableBorder(trimmed) && lines[i + 1]?.trim().startsWith('|')) {
+      flushParagraph();
+      closeList();
+      closeTable();
+
+      const tableLines: string[] = [];
+      let j = i;
+      while (j < lines.length) {
+        const candidate = lines[j];
+        const candidateTrimmed = candidate.trim();
+        if (candidateTrimmed === '') break;
+        if (candidateTrimmed.startsWith('|') || isAsciiTableBorder(candidateTrimmed)) {
+          tableLines.push(candidate);
+          j += 1;
+          continue;
+        }
+        break;
+      }
+
+      html += `<pre class="overflow-x-auto mb-4 border rounded-lg ${themes[theme].border} bg-gray-50 dark:bg-gray-900 p-3"><code class="block whitespace-pre font-mono text-xs ${themes[theme].text}">${escapeHtml(tableLines.join('\n'))}</code></pre>`;
+      i = j - 1;
+      continue;
+    }
 
     // Table detection
     const isTableLine = trimmed.startsWith('|') || (trimmed.includes('|') && trimmed.length > 2);
@@ -194,5 +256,6 @@ export const renderMarkdown = (raw: string, theme: Theme) => {
   flushParagraph();
   closeList();
   closeTable();
+  closeCodeBlock();
   return html;
 };
