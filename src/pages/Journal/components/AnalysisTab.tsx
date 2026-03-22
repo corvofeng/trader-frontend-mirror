@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { themes, Theme } from '../../../lib/theme';
-import type { AccountPrompt } from '../../../lib/services/types';
+import type { Account, AccountPrompt } from '../../../lib/services/types';
 import { accountService, accountPromptService } from '../../../lib/services';
 import { RelatedLinks } from '../../../shared/components';
 import toast from 'react-hot-toast';
@@ -68,16 +68,17 @@ export function AnalysisTab({
       }
       try {
         setAccountsLoading(true);
-        const { data: accounts } = await accountService.getAccounts(userId);
-        if (!accounts) {
-          setAccountAlias('');
-          setAccountLabel(null);
-          setPrompts([]);
-          return;
+        const findAccount = (accounts: Account[] | null | undefined) =>
+          (accounts || []).find((acc) => acc.alias === selectedAccountId || acc.id === selectedAccountId) || null;
+
+        const stocksRes = await accountService.getAccounts(userId);
+        let currentAccount = findAccount(stocksRes.data as Account[] | null | undefined);
+
+        if (!currentAccount) {
+          const optionsRes = await accountService.getOptionsAccounts(userId);
+          currentAccount = findAccount(optionsRes.data as Account[] | null | undefined);
         }
-        const currentAccount = accounts.find(
-          (acc) => acc.alias === selectedAccountId || acc.id === selectedAccountId
-        ) || null;
+
         if (!currentAccount) {
           setAccountAlias('');
           setAccountLabel(null);
