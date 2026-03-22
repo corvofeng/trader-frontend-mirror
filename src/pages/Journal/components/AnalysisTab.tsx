@@ -3,6 +3,7 @@ import { themes, Theme } from '../../../lib/theme';
 import type { Account, AccountPrompt } from '../../../lib/services/types';
 import { accountService, accountPromptService } from '../../../lib/services';
 import { RelatedLinks } from '../../../shared/components';
+import { renderMarkdown } from '../../../shared/utils/markdown';
 import toast from 'react-hot-toast';
 
 interface AnalysisTabProps {
@@ -230,94 +231,7 @@ export function AnalysisTab({
   };
 
   const renderPreviewMarkdown = (raw: string) => {
-    const content = raw.trim().replace(/\n{3,}/g, '\n\n');
-    const lines = content.split(/\r?\n/);
-    let html = '';
-    let paragraph = '';
-    let inList = false;
-    let listTag: 'ul' | 'ol' | null = null;
-
-    const flushParagraph = () => {
-      const text = paragraph.trim();
-      if (text) {
-        const formatted = text
-          .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
-          .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>');
-        html += `<p class="mb-2 leading-relaxed text-sm ${themes[theme].text}">${formatted}</p>`;
-      }
-      paragraph = '';
-    };
-
-    const closeList = () => {
-      if (inList && listTag) {
-        html += `</${listTag}>`;
-        inList = false;
-        listTag = null;
-      }
-    };
-
-    for (const line of lines) {
-      if (/^(-{3,}|\*{3,})$/.test(line.trim())) {
-        flushParagraph();
-        closeList();
-        html += '<hr class="my-3 border-t border-gray-300 dark:border-gray-600" />';
-        continue;
-      }
-
-      const headingMatch = /^(#{1,4})\s+(.*)$/.exec(line);
-      if (headingMatch) {
-        flushParagraph();
-        closeList();
-        const level = headingMatch[1].length;
-        const text = headingMatch[2]
-          .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
-          .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>');
-        const common = `leading-tight whitespace-normal ${themes[theme].text}`;
-        if (level === 1) html += `<h1 class="text-lg font-semibold mt-3 mb-2 ${common}">${text}</h1>`;
-        else if (level === 2) html += `<h2 class="text-base font-semibold mt-3 mb-2 ${common}">${text}</h2>`;
-        else if (level === 3) html += `<h3 class="text-sm font-semibold mt-2 mb-1 ${common}">${text}</h3>`;
-        else html += `<h4 class="text-xs font-medium mt-2 mb-1 ${common}">${text}</h4>`;
-        continue;
-      }
-
-      const unorderedMatch = /^\s{0,4}[-*]\s+(.*)$/.exec(line);
-      const orderedMatch = /^\s{0,4}\d+\.\s+(.*)$/.exec(line);
-      if (unorderedMatch || orderedMatch) {
-        flushParagraph();
-
-        const isOrdered = !!orderedMatch;
-        const tag: 'ul' | 'ol' = isOrdered ? 'ol' : 'ul';
-        const rawItem = (unorderedMatch ? unorderedMatch[1] : orderedMatch![1]) || '';
-
-        if (!inList || listTag !== tag) {
-          closeList();
-          const listClass = isOrdered ? 'list-decimal' : 'list-disc';
-          html += `<${tag} class="ml-4 ${listClass} space-y-1">`;
-          inList = true;
-          listTag = tag;
-        }
-
-        const item = rawItem
-          .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
-          .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>');
-
-        const indentClass = /^\s{2,}/.test(line) ? 'ml-4' : '';
-        html += `<li class="text-sm ${themes[theme].text} ${indentClass}">${item}</li>`;
-        continue;
-      }
-
-      if (line.trim() === '') {
-        flushParagraph();
-        closeList();
-        continue;
-      }
-
-      paragraph += (paragraph ? ' ' : '') + line.trim();
-    }
-
-    flushParagraph();
-    closeList();
-    return html;
+    return renderMarkdown(raw, theme);
   };
 
   const handlePreviewPrompt = async () => {
