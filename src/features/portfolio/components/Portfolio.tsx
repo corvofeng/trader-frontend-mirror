@@ -6,7 +6,7 @@ import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
 import type { Holding, Trade, TrendData } from '../../../lib/services/types';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement } from 'chart.js';
-import type { TooltipItem } from 'chart.js';
+import type { LegendItem, TooltipItem } from 'chart.js';
 import { Pie } from 'react-chartjs-2';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { portfolioService } from '../../../lib/services';
@@ -276,7 +276,7 @@ export function Portfolio({
           boxWidth: 12,
           padding: 16,
           usePointStyle: false,
-          filter: (legendItem) => {
+          filter: (legendItem: LegendItem) => {
             // Only show legend for the top 5 holdings
             return (legendItem.index ?? 0) < 5;
           }
@@ -390,14 +390,6 @@ export function Portfolio({
     } catch (error) {
       console.error('Error downloading image:', error);
     }
-  };
-
-  const handlePrint = () => {
-    setShowPreview(false);
-    // 等待模态框关闭动画完成
-    setTimeout(() => {
-      window.print();
-    }, 300);
   };
 
   return (

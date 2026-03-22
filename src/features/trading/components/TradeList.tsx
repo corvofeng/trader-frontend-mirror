@@ -111,7 +111,8 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
 
   const fetchTrades = useCallback(async () => {
     try {
-      const { data: { user } } = await authService.getUser();
+      const authRes = await authService.getUser();
+      const user = authRes.data?.user;
       
       if (user) {
         const { data } = await tradeService.getTrades(
@@ -129,7 +130,7 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [showAllTrades, selectedStockCode, filter]);
+  }, [showAllTrades, selectedStockCode, filter, selectedAccountId]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -184,7 +185,8 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
   const handleStatusChange = async (tradeId: number, newStatus: Trade['status']) => {
     try {
       setIsUpdating(tradeId);
-      const { data: { user } } = await authService.getUser();
+      const authRes = await authService.getUser();
+      const user = authRes.data?.user;
       
       if (!user) {
         toast.error('Please sign in to update trades');
@@ -222,7 +224,8 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
 
   const handleSaveNote = async (tradeId: number) => {
     try {
-      const { data: { user } } = await authService.getUser();
+      const authRes = await authService.getUser();
+      const user = authRes.data?.user;
       
       if (!user) {
         toast.error('Please sign in to update notes');

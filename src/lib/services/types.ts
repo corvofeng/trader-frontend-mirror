@@ -246,7 +246,7 @@ export interface AuthService {
 }
 
 export interface TradeService {
-  getTrades: (userId: string, stockCode?: string, status?: string) => Promise<ServiceResponse<Trade[]>>;
+  getTrades: (userId: string, stockCode?: string, status?: string, accountAlias?: string) => Promise<ServiceResponse<Trade[]>>;
   createTrade: (trade: Omit<Trade, 'id' | 'created_at' | 'updated_at'>) => Promise<ServiceResponse<Trade>>;
   updateTrade: (trade: Trade) => Promise<ServiceResponse<Trade>>;
 }
@@ -765,8 +765,9 @@ export interface OptionsService {
     accountId?: string | null,
     userId?: string | null
   ) => Promise<ServiceResponse<{ closedIds: string[] }>>;
-  updatePositions: (payload: { updates: Array<{ id?: string; type: 'call' | 'put'; position_type: 'buy' | 'sell'; strike: number; expiry: string; quantity: number; original_quantity?: number; change_quantity?: number; is_covered?: boolean; symbol?: string; option_type?: string; strike_price?: string | number }>, positions?: OptionsPosition[], accountId?: string | null, userId?: string | null }) => Promise<ServiceResponse<{ updated: number }>>;
+  updatePositions: (payload: { updates: Array<{ id?: string; type: 'call' | 'put'; position_type: 'buy' | 'sell'; strike: number; expiry: string; quantity: number; original_quantity?: number; change_quantity?: number; is_covered?: boolean; symbol?: string; option_type?: string; strike_price?: string | number; price?: number }>, positions?: OptionsPosition[], accountId?: string | null, userId?: string | null }) => Promise<ServiceResponse<{ updated: number }>>;
   executeCombination: (combo: AdvisedCombination & { quantity: number }, accountId?: string | null, userId?: string | null) => Promise<ServiceResponse<{ executed: boolean; combinationId?: string }>>;
+  createOptionCombination: (combo: AdvisedCombination & { quantity: number }, accountId?: string | null, userId?: string | null) => Promise<ServiceResponse<{ created: boolean; combinationId?: string }>>;
   closeCombination: (
     payload: {
       positions: OptionsPosition[];

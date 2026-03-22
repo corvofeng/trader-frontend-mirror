@@ -1,6 +1,6 @@
 import React from 'react';
 import { Theme, themes } from '../../../lib/theme';
-import { X, ArrowRight, Activity, TrendingUp, TrendingDown, Trash2 } from 'lucide-react';
+import { X, ArrowRight, Activity, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 
 export interface ActivityLogEntry {

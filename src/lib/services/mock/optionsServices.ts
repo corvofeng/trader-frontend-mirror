@@ -716,7 +716,7 @@ export const optionsService: OptionsService = {
     
     // Generate strikes based on the symbol's typical price range
     const strikeRange = targetSymbol === 'NVDA' ? 50 : targetSymbol === 'SPY' || targetSymbol === 'QQQ' || targetSymbol === 'MSFT' ? 25 : 10;
-    const strikes = [];
+    const strikes: number[] = [];
     for (let i = -4; i <= 4; i++) {
       strikes.push(Math.round((basePrice + i * strikeRange) / 5) * 5); // Round to nearest 5
     }
@@ -817,14 +817,15 @@ export const optionsService: OptionsService = {
     // Filter by symbol if provided
     if (options?.symbol) {
       const symbol = options.symbol;
-      const filterBySymbol = (pos: any) => pos.symbol === symbol || pos.opt_undl_code_full === symbol || pos.opt_undl_code_full === `US.${symbol}`;
+      const filterBySymbol = (pos: { symbol?: string; opt_undl_code_full?: string }) =>
+        pos.symbol === symbol || pos.opt_undl_code_full === symbol || pos.opt_undl_code_full === `US.${symbol}`;
 
-      portfolioData.singleLegPositions = portfolioData.singleLegPositions.filter(filterBySymbol);
+      const singleLegPositions = portfolioData.singleLegPositions || [];
+      portfolioData.singleLegPositions = singleLegPositions.filter(filterBySymbol);
 
       // Filter complex strategies
-      portfolioData.complexStrategies = portfolioData.complexStrategies.filter(strategy =>
-        strategy.positions.some(filterBySymbol)
-      );
+      const complexStrategies = portfolioData.complexStrategies || [];
+      portfolioData.complexStrategies = complexStrategies.filter(strategy => strategy.positions.some(filterBySymbol));
 
       // Filter expiry buckets
       if (portfolioData.expiryBuckets) {
@@ -932,6 +933,10 @@ export const optionsService: OptionsService = {
   executeCombination: async (combo: any, accountId?: string | null, userId?: string | null) => {
     await new Promise(resolve => setTimeout(resolve, 300));
     return { data: { executed: true, combinationId: `combo-${Date.now()}` }, error: null };
+  },
+  createOptionCombination: async (combo: any, accountId?: string | null, userId?: string | null) => {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    return { data: { created: true, combinationId: `combo-${Date.now()}` }, error: null };
   },
   closeCombination: async (payload: any, accountId?: string | null, userId?: string | null) => {
     await new Promise(resolve => setTimeout(resolve, 300));

@@ -1,49 +1,101 @@
-import type { OptionsService, OptionsPosition, OptionsPortfolioData, OptionsStrategy, OptionWhitelist, OptionContractDetail } from '../types';
+import type {
+  OptionsData,
+  OptionOrder,
+  OptionsService,
+  OptionsPosition,
+  OptionsPortfolioData,
+  OptionsStrategy,
+  OptionWhitelist,
+  SequentialTradeTask,
+  ServiceResponse
+} from '../types';
 import type { CustomOptionsStrategy } from '../types';
 
-// Helper to adapt backend response to OptionsPortfolioData
-const adaptToPortfolioData = (data: any): OptionsPortfolioData => {
-  // Case 1: Data has expiryGroups (Legacy or already adapted)
-  if (data.expiryGroups && Array.isArray(data.expiryGroups)) {
-    return data as OptionsPortfolioData;
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
+
+const toNumber = (value: unknown, fallback = 0): number => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : fallback;
+  if (typeof value === 'string') {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+  }
+  return fallback;
+};
+
+const safeParseJson = async (response: Response): Promise<unknown> => {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+};
+
+const adaptToPortfolioData = (data: unknown): OptionsPortfolioData => {
+  const record = asRecord(data);
+  if (!record) {
+    return {
+      strategies: [],
+      singleLegPositions: [],
+      complexStrategies: [],
+      expiryBuckets: [],
+      totalValue: 0,
+      totalCost: 0,
+      totalProfitLoss: 0,
+      totalProfitLossPercentage: 0,
+      expiryGroups: [],
+    };
+  }
+
+  const expiryGroupsRaw = record.expiryGroups;
+  if (Array.isArray(expiryGroupsRaw)) {
+    return record as unknown as OptionsPortfolioData;
   }
 
   // Case 2: Data has expiryBuckets (New backend format)
-  if (data.expiryBuckets && Array.isArray(data.expiryBuckets)) {
-    let totalValue = Number(data.totalValue || 0);
-    let totalCost = Number(data.totalCost || 0);
-    let totalProfitLoss = Number(data.totalProfitLoss || 0);
+  const expiryBucketsRaw = record.expiryBuckets;
+  if (Array.isArray(expiryBucketsRaw)) {
+    let totalValue = toNumber(record.totalValue, 0);
+    let totalCost = toNumber(record.totalCost, 0);
+    let totalProfitLoss = toNumber(record.totalProfitLoss, 0);
     const singleLegPositions: OptionsPosition[] = [];
     const complexStrategies: OptionsStrategy[] = [];
 
     // If totals are missing from root, calculate them from buckets
-    const shouldCalcTotals = data.totalValue === undefined || data.totalCost === undefined || data.totalProfitLoss === undefined;
+    const shouldCalcTotals =
+      record.totalValue === undefined || record.totalCost === undefined || record.totalProfitLoss === undefined;
 
-    data.expiryBuckets.forEach((bucket: any) => {
-        const singles = (bucket.single || []) as OptionsPosition[];
-        const complexes = (bucket.complex || []) as OptionsStrategy[];
-        
-        singleLegPositions.push(...singles);
-        complexStrategies.push(...complexes);
-        
-        if (shouldCalcTotals) {
-             singles.forEach((p: any) => {
-                 // Try multiple field names
-                 const val = Number(p.currentValue ?? (p as any).current_value ?? 0);
-                 const pl = Number(p.profitLoss ?? (p as any).profit_loss ?? 0);
-                 // Cost calculation might vary, default to premium * quantity * 100 if not provided
-                 const cost = (p.premium ?? (p as any).cost_price ?? 0) * Math.abs(p.quantity || 0) * 100;
+    expiryBucketsRaw.forEach((bucketValue) => {
+      const bucket = asRecord(bucketValue);
+      const singlesRaw = bucket && Array.isArray(bucket.single) ? (bucket.single as unknown[]) : [];
+      const complexesRaw = bucket && Array.isArray(bucket.complex) ? (bucket.complex as unknown[]) : [];
 
-                 totalValue += val;
-                 totalProfitLoss += pl;
-                 totalCost += cost;
-             });
-             complexes.forEach((c: any) => {
-                 totalValue += Number(c.currentValue || 0);
-                 totalCost += Number(c.totalCost || 0); // Strategy usually has totalCost
-                 totalProfitLoss += Number(c.profitLoss || 0);
-             });
-        }
+      singleLegPositions.push(...(singlesRaw as OptionsPosition[]));
+      complexStrategies.push(...(complexesRaw as OptionsStrategy[]));
+
+      if (shouldCalcTotals) {
+        singlesRaw.forEach((pValue) => {
+          const p = asRecord(pValue);
+          if (!p) return;
+          const val = toNumber(p.currentValue ?? p['current_value'], 0);
+          const pl = toNumber(p.profitLoss ?? p['profit_loss'], 0);
+          const premium = toNumber(p.premium ?? p['cost_price'], 0);
+          const qty = toNumber(p.quantity, 0);
+          const cost = premium * Math.abs(qty) * 100;
+
+          totalValue += val;
+          totalProfitLoss += pl;
+          totalCost += cost;
+        });
+
+        complexesRaw.forEach((cValue) => {
+          const c = asRecord(cValue);
+          if (!c) return;
+          totalValue += toNumber(c.currentValue, 0);
+          totalCost += toNumber(c.totalCost, 0);
+          totalProfitLoss += toNumber(c.profitLoss, 0);
+        });
+      }
     });
 
     const totalProfitLossPercentage = totalCost !== 0 ? (totalProfitLoss / totalCost) * 100 : 0;
@@ -52,26 +104,26 @@ const adaptToPortfolioData = (data: any): OptionsPortfolioData => {
         strategies: [], 
         singleLegPositions,
         complexStrategies,
-        expiryBuckets: data.expiryBuckets,
+        expiryBuckets: expiryBucketsRaw as unknown as OptionsPortfolioData['expiryBuckets'],
         totalValue,
         totalCost,
         totalProfitLoss,
         totalProfitLossPercentage,
         expiryGroups: [], // Component can fallback to buckets if this is empty
-        is_snapshot: data.is_snapshot,
-        balance: data.balance,
-        real_used_margin: data.real_used_margin,
-        available: data.available,
-        position_profit: data.position_profit ?? totalProfitLoss,
-        customStrategies: data.customStrategies || [],
-        advised_combinations: data.advised_combinations || [],
-        subject_positions: data.subject_positions || [],
-        expiry_analysis: data.expiry_analysis
+        is_snapshot: record.is_snapshot as OptionsPortfolioData['is_snapshot'],
+        balance: record.balance as OptionsPortfolioData['balance'],
+        real_used_margin: record.real_used_margin as OptionsPortfolioData['real_used_margin'],
+        available: record.available as OptionsPortfolioData['available'],
+        position_profit: (record.position_profit as OptionsPortfolioData['position_profit']) ?? totalProfitLoss,
+        customStrategies: (record.customStrategies as CustomOptionsStrategy[]) || [],
+        advised_combinations: (record.advised_combinations as OptionsPortfolioData['advised_combinations']) || [],
+        subject_positions: (record.subject_positions as OptionsPortfolioData['subject_positions']) || [],
+        expiry_analysis: record.expiry_analysis as OptionsPortfolioData['expiry_analysis']
     };
   }
 
   // Case 3: Flat positions list (Legacy or simplified format)
-  const positions: OptionsPosition[] = Array.isArray(data.positions) ? data.positions : [];
+  const positions: OptionsPosition[] = Array.isArray(record.positions) ? (record.positions as OptionsPosition[]) : [];
   
   let totalValue = 0;
   let totalCost = 0;
@@ -88,21 +140,29 @@ const adaptToPortfolioData = (data: any): OptionsPortfolioData => {
   }>();
 
   positions.forEach(p => {
+    const pRecord = p as unknown as Record<string, unknown> & Partial<OptionsPosition>;
     // Handle potential snake_case from backend if necessary
-    const val = Number(p.currentValue ?? (p as any).current_value ?? 0);
-    const pl = Number(p.profitLoss ?? (p as any).profit_loss ?? 0);
-    const cost = Number(p.premium ?? (p as any).cost_price ?? 0) * Math.abs(p.quantity || 0) * 100;
+    const val = toNumber(pRecord.currentValue ?? pRecord['current_value'], 0);
+    const pl = toNumber(pRecord.profitLoss ?? pRecord['profit_loss'], 0);
+    const premium = toNumber(pRecord.premium ?? pRecord['cost_price'], 0);
+    const qty = toNumber(pRecord.quantity, 0);
+    const cost = premium * Math.abs(qty) * 100;
     
     // Normalize fields on the object if needed (casting to any to avoid strict type checks on readonly)
-    if (p.currentValue === undefined) (p as any).currentValue = val;
-    if (p.profitLoss === undefined) (p as any).profitLoss = pl;
+    if (pRecord.currentValue === undefined) pRecord.currentValue = val;
+    if (pRecord.profitLoss === undefined) pRecord.profitLoss = pl;
 
     totalValue += val;
     totalProfitLoss += pl;
     totalCost += cost;
 
     // Try to find expiry from various possible field names
-    let expiry = p.expiry || (p as any).expiration || (p as any).expiry_date || (p as any).expire_date || (p as any).expiryDate;
+    let expiry =
+      pRecord.expiry ||
+      (pRecord['expiration'] as string | undefined) ||
+      (pRecord['expiry_date'] as string | undefined) ||
+      (pRecord['expire_date'] as string | undefined) ||
+      (pRecord['expiryDate'] as string | undefined);
     
     // If expiry is missing, group under "Unknown"
     if (!expiry) {
@@ -115,8 +175,8 @@ const adaptToPortfolioData = (data: any): OptionsPortfolioData => {
           if (expiry !== 'Unknown') {
               try {
                   days = Math.ceil((new Date(expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-              } catch (e) {
-                  console.warn('Invalid expiry date:', expiry);
+              } catch (error) {
+                  console.warn('Invalid expiry date:', expiry, error);
               }
           }
           expiryGroupsMap.set(expiry, {
@@ -130,7 +190,7 @@ const adaptToPortfolioData = (data: any): OptionsPortfolioData => {
       }
       const group = expiryGroupsMap.get(expiry)!;
       // Ensure position has the normalized expiry
-      if (!p.expiry) (p as any).expiry = expiry;
+      if (!pRecord.expiry) pRecord.expiry = expiry;
       
       group.positions.push(p);
       group.totalValue += val;
@@ -165,13 +225,13 @@ const adaptToPortfolioData = (data: any): OptionsPortfolioData => {
     totalProfitLoss,
     totalProfitLossPercentage,
     expiryGroups,
-    is_snapshot: data.is_snapshot,
-    balance: data.balance,
-    real_used_margin: data.real_used_margin,
-    available: data.available,
-    customStrategies: data.customStrategies || [],
-    advised_combinations: data.advised_combinations || [],
-    subject_positions: data.subject_positions || []
+    is_snapshot: record.is_snapshot as OptionsPortfolioData['is_snapshot'],
+    balance: record.balance as OptionsPortfolioData['balance'],
+    real_used_margin: record.real_used_margin as OptionsPortfolioData['real_used_margin'],
+    available: record.available as OptionsPortfolioData['available'],
+    customStrategies: (record.customStrategies as CustomOptionsStrategy[]) || [],
+    advised_combinations: (record.advised_combinations as OptionsPortfolioData['advised_combinations']) || [],
+    subject_positions: (record.subject_positions as OptionsPortfolioData['subject_positions']) || []
   };
 };
 
@@ -215,7 +275,7 @@ const collectBatchErrors = (data: unknown): string[] => {
 };
 
 // Cache for options data to prevent redundant requests
-const optionsDataCache: Record<string, Promise<{ data: unknown; error: Error | null }>> = {};
+const optionsDataCache: Partial<Record<string, Promise<ServiceResponse<OptionsData>>>> = {};
 
 export const optionsService: OptionsService = {
   getOptionContractDetail: async (contractCode: string) => {
@@ -241,19 +301,31 @@ export const optionsService: OptionsService = {
       return optionsDataCache[cacheKey];
     }
 
-    const fetchPromise = (async () => {
+    const fetchPromise: Promise<ServiceResponse<OptionsData>> = (async () => {
       try {
         if (symbol) {
           const externalUrl = `https://stock.in.corvo.fun/api/options?symbol=${encodeURIComponent(symbol)}`;
           const externalResp = await fetch(externalUrl);
           if (externalResp.ok) {
-            const externalData = await externalResp.json();
-            // Allow data if quotes are present, populate surface if missing
-            if (externalData && Array.isArray(externalData.quotes)) {
-              if (!Array.isArray(externalData.surface)) {
-                externalData.surface = [];
-              }
-              return { data: externalData, error: null };
+            const externalData = await safeParseJson(externalResp);
+            const externalRecord = asRecord(externalData);
+            const quotesRaw = externalRecord && Array.isArray(externalRecord.quotes) ? externalRecord.quotes : null;
+            if (quotesRaw) {
+              const surface = Array.isArray(externalRecord?.surface) ? (externalRecord.surface as OptionsData['surface']) : [];
+              const opt_undl_code_full =
+                typeof externalRecord?.opt_undl_code_full === 'string' ? externalRecord.opt_undl_code_full : undefined;
+              const vertical_spread_monthly_prices = Array.isArray(externalRecord?.vertical_spread_monthly_prices)
+                ? (externalRecord.vertical_spread_monthly_prices as OptionsData['vertical_spread_monthly_prices'])
+                : undefined;
+              return {
+                data: {
+                  quotes: quotesRaw as OptionsData['quotes'],
+                  surface,
+                  opt_undl_code_full,
+                  vertical_spread_monthly_prices,
+                },
+                error: null
+              };
             }
           }
         }
@@ -262,8 +334,22 @@ export const optionsService: OptionsService = {
         if (!fallbackResp.ok) {
           throw new Error('Failed to fetch options data');
         }
-        const data = await fallbackResp.json();
-        return { data, error: null };
+        const raw = await safeParseJson(fallbackResp);
+        const rec = asRecord(raw);
+        if (!rec || !Array.isArray(rec.quotes)) {
+          return { data: null, error: new Error('Invalid options data response') };
+        }
+        return {
+          data: {
+            quotes: rec.quotes as OptionsData['quotes'],
+            surface: Array.isArray(rec.surface) ? (rec.surface as OptionsData['surface']) : [],
+            opt_undl_code_full: typeof rec.opt_undl_code_full === 'string' ? rec.opt_undl_code_full : undefined,
+            vertical_spread_monthly_prices: Array.isArray(rec.vertical_spread_monthly_prices)
+              ? (rec.vertical_spread_monthly_prices as OptionsData['vertical_spread_monthly_prices'])
+              : undefined,
+          },
+          error: null
+        };
       } catch (error) {
         console.error('Error fetching options data:', error);
         // Remove from cache on error to allow retries
@@ -282,14 +368,14 @@ export const optionsService: OptionsService = {
       if (!response.ok) {
         throw new Error('Failed to fetch available symbols');
       }
-      const data = await response.json();
-
-      if (data && Array.isArray(data.failed) && data.failed.length > 0) {
-        const errorMsg = data.failed.map((f: any) => f.error || JSON.stringify(f)).join('; ');
-        return { data, error: new Error(errorMsg) };
-      }
-
-      return { data, error: null };
+      const data = await safeParseJson(response);
+      const batchErrors = collectBatchErrors(data);
+      if (batchErrors.length > 0) return { data: null, error: new Error(batchErrors.join('; ')) };
+      const record = asRecord(data);
+      const list = Array.isArray(data) ? data : record && Array.isArray(record.data) ? record.data : null;
+      if (!list) return { data: null, error: new Error('Invalid symbols response') };
+      const symbols = list.filter((s): s is string => typeof s === 'string');
+      return { data: symbols, error: null };
     } catch (error) {
       console.error('Error fetching available symbols:', error);
       return { data: null, error: error as Error };
@@ -482,27 +568,22 @@ export const optionsService: OptionsService = {
         body: JSON.stringify(payload)
       });
 
-      let data;
-      try {
-        data = await response.json();
-      } catch (e) {
-        // ignore
-      }
+      const data = await safeParseJson(response);
 
       if (!response.ok) {
-        if (data && Array.isArray(data.failed) && data.failed.length > 0) {
-           const errorMsg = data.failed.map((f: any) => f.error || JSON.stringify(f)).join('; ');
-           throw new Error(errorMsg);
-        }
-        throw new Error((data && data.error) || 'Failed to sync positions');
+        const batchErrors = collectBatchErrors(data);
+        if (batchErrors.length > 0) throw new Error(batchErrors.join('; '));
+        const record = asRecord(data);
+        throw new Error(String(record?.error || record?.error_msg || record?.message || 'Failed to sync positions'));
       }
 
-      if (data && Array.isArray(data.failed) && data.failed.length > 0) {
-        const errorMsg = data.failed.map((f: any) => f.error || JSON.stringify(f)).join('; ');
-        return { data, error: new Error(errorMsg) };
-      }
+      const batchErrors = collectBatchErrors(data);
+      if (batchErrors.length > 0) return { data: null, error: new Error(batchErrors.join('; ')) };
 
-      return { data, error: null };
+      const record = asRecord(data);
+      const inner = asRecord(record?.data);
+      const updated = toNumber(record?.updated ?? inner?.updated, 0);
+      return { data: { updated }, error: null };
     } catch (error) {
       console.error('Error syncing positions:', error);
       return { data: null, error: error as Error };
@@ -518,29 +599,73 @@ export const optionsService: OptionsService = {
         body: JSON.stringify(combo)
       });
 
-      let data;
-      try {
-        data = await response.json();
-      } catch (e) {
-        // ignore
-      }
+      const data = await safeParseJson(response);
 
       if (!response.ok) {
-        if (data && Array.isArray(data.failed) && data.failed.length > 0) {
-           const errorMsg = data.failed.map((f: any) => f.error || JSON.stringify(f)).join('; ');
-           throw new Error(errorMsg);
-        }
-        throw new Error((data && data.error) || 'Failed to execute combination');
+        const batchErrors = collectBatchErrors(data);
+        if (batchErrors.length > 0) throw new Error(batchErrors.join('; '));
+        const record = asRecord(data);
+        throw new Error(String(record?.error || record?.error_msg || record?.message || 'Failed to execute combination'));
       }
 
-      if (data && Array.isArray(data.failed) && data.failed.length > 0) {
-        const errorMsg = data.failed.map((f: any) => f.error || JSON.stringify(f)).join('; ');
-        return { data, error: new Error(errorMsg) };
-      }
+      const batchErrors = collectBatchErrors(data);
+      if (batchErrors.length > 0) return { data: null, error: new Error(batchErrors.join('; ')) };
 
-      return { data, error: null };
+      const record = asRecord(data);
+      const inner = asRecord(record?.data);
+      const combinationIdRaw =
+        inner?.combinationId ??
+        inner?.combination_id ??
+        record?.combinationId ??
+        record?.combination_id;
+      const combinationId = typeof combinationIdRaw === 'string' ? combinationIdRaw : undefined;
+
+      const executedRaw = inner?.executed ?? record?.executed;
+      const executed = typeof executedRaw === 'boolean' ? executedRaw : true;
+
+      return { data: { executed, combinationId }, error: null };
     } catch (error) {
       console.error('Error executing combination:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+  createOptionCombination: async (combo, accountId?: string | null, userId?: string | null) => {
+    try {
+      const base = `/api/options/combinations/create${accountId ? `/accounts/${encodeURIComponent(accountId)}` : ''}`;
+      const url = userId ? `${base}?userId=${encodeURIComponent(userId)}` : base;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(combo)
+      });
+
+      const data = await safeParseJson(response);
+
+      if (!response.ok) {
+        const batchErrors = collectBatchErrors(data);
+        if (batchErrors.length > 0) throw new Error(batchErrors.join('; '));
+        const record = asRecord(data);
+        throw new Error(String(record?.error || record?.error_msg || record?.message || 'Failed to create option combination'));
+      }
+
+      const batchErrors = collectBatchErrors(data);
+      if (batchErrors.length > 0) return { data: null, error: new Error(batchErrors.join('; ')) };
+
+      const record = asRecord(data);
+      const inner = asRecord(record?.data);
+      const combinationIdRaw =
+        inner?.combinationId ??
+        inner?.combination_id ??
+        record?.combinationId ??
+        record?.combination_id;
+      const combinationId = typeof combinationIdRaw === 'string' ? combinationIdRaw : undefined;
+
+      const createdRaw = inner?.created ?? record?.created;
+      const created = typeof createdRaw === 'boolean' ? createdRaw : true;
+
+      return { data: { created, combinationId }, error: null };
+    } catch (error) {
+      console.error('Error creating option combination:', error);
       return { data: null, error: error as Error };
     }
   },
@@ -554,23 +679,26 @@ export const optionsService: OptionsService = {
         body: JSON.stringify(payload)
       });
 
-      let data;
-      try {
-        data = await response.json();
-      } catch (e) {
-        // ignore
-      }
+      const data = await safeParseJson(response);
 
       if (!response.ok) {
         const batchErrors = collectBatchErrors(data);
         if (batchErrors.length > 0) throw new Error(batchErrors.join('; '));
-        throw new Error((data && (data.error || data.error_msg || data.message)) || 'Failed to close combination');
+        const record = asRecord(data);
+        throw new Error(String(record?.error || record?.error_msg || record?.message || 'Failed to close combination'));
       }
 
       const batchErrors = collectBatchErrors(data);
-      if (batchErrors.length > 0) return { data, error: new Error(batchErrors.join('; ')) };
+      if (batchErrors.length > 0) return { data: null, error: new Error(batchErrors.join('; ')) };
 
-      return { data, error: null };
+      const record = asRecord(data);
+      const inner = asRecord(record?.data);
+      const closedIdsRaw = inner?.closedIds ?? inner?.closed_ids ?? record?.closedIds ?? record?.closed_ids;
+      const closedIds = Array.isArray(closedIdsRaw)
+        ? closedIdsRaw.filter((x): x is string => typeof x === 'string')
+        : [];
+
+      return { data: { closedIds }, error: null };
     } catch (error) {
       console.error('Error closing combination:', error);
       return { data: null, error: error as Error };
@@ -817,46 +945,68 @@ export const optionsService: OptionsService = {
                 ? ((payload as { data: unknown[] }).data as unknown[])
                 : []));
 
-      const toNumber = (v: unknown) => {
-        const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v) : NaN;
-        return Number.isFinite(n) ? n : 0;
-      };
+      const normalize = (item: unknown): OptionOrder => {
+        const obj = asRecord(item) || {};
 
-      const normalize = (item: unknown) => {
-        if (!item || typeof item !== 'object') return item;
-        const obj = item as Record<string, unknown>;
-        if (typeof obj.instrument_name === 'string' && typeof obj.order_time === 'string') return item;
+        const stockName =
+          typeof obj.stock_name === 'string'
+            ? obj.stock_name
+            : (typeof obj.stockName === 'string' ? obj.stockName : undefined);
+        const stockCode =
+          typeof obj.stock_code === 'string'
+            ? obj.stock_code
+            : (typeof obj.stockCode === 'string' ? obj.stockCode : undefined);
+        const direction =
+          typeof obj.direction === 'string'
+            ? obj.direction
+            : (typeof obj.op_type_name === 'string' ? obj.op_type_name : '');
+        const status =
+          typeof obj.order_status === 'string'
+            ? obj.order_status
+            : (typeof obj.order_status_name === 'string' ? obj.order_status_name : '');
 
-        const stockName = typeof obj.stock_name === 'string' ? obj.stock_name : (typeof obj.stockName === 'string' ? obj.stockName : undefined);
-        const stockCode = typeof obj.stock_code === 'string' ? obj.stock_code : (typeof obj.stockCode === 'string' ? obj.stockCode : undefined);
-        const direction = typeof obj.direction === 'string' ? obj.direction : (typeof obj.op_type_name === 'string' ? obj.op_type_name : undefined);
-        const status = typeof obj.order_status === 'string' ? obj.order_status : (typeof obj.order_status_name === 'string' ? obj.order_status_name : undefined);
+        const instrument_name =
+          typeof obj.instrument_name === 'string'
+            ? obj.instrument_name
+            : stockName && stockCode
+              ? `${stockName} (${stockCode})`
+              : (stockName || stockCode || '-');
 
-        if (!stockName && !stockCode && !direction && !status) return item;
+        const op_type_name = typeof obj.op_type_name === 'string' ? obj.op_type_name : direction;
+        const op_type_name_zh =
+          typeof obj.op_type_name_zh === 'string'
+            ? obj.op_type_name_zh
+            : direction.includes('BUY')
+              ? '买入'
+              : direction.includes('SELL')
+                ? '卖出'
+                : direction;
 
-        const opZh =
-          direction && direction.includes('BUY') ? '买入' : direction && direction.includes('SELL') ? '卖出' : (direction || '');
+        const order_status_name = typeof obj.order_status_name === 'string' ? obj.order_status_name : status;
+        const order_time = typeof obj.order_time === 'string' ? obj.order_time : '';
 
         return {
-          instrument_name: stockName && stockCode ? `${stockName} (${stockCode})` : (stockName || stockCode || '-'),
-          op_type_name: direction || '',
-          op_type_name_zh: opZh,
-          order_status_name: status || '',
-          limit_price: toNumber(obj.price ?? obj.limit_price),
-          traded_price: toNumber(obj.traded_price ?? obj.price),
-          volume_total_original: toNumber(obj.volume ?? obj.volume_total_original),
-          volume_traded: toNumber(obj.traded_volume ?? obj.volume_traded),
-          remark: typeof obj.order_id === 'string' ? obj.order_id : (typeof obj.remark === 'string' ? obj.remark : ''),
-          order_time: typeof obj.order_time === 'string' ? obj.order_time : '',
+          instrument_name,
+          op_type_name,
+          op_type_name_zh,
+          order_status_name,
+          limit_price: toNumber(obj.price ?? obj.limit_price, 0),
+          traded_price: toNumber(obj.traded_price ?? obj.price, 0),
+          volume_total_original: toNumber(obj.volume ?? obj.volume_total_original, 0),
+          volume_traded: toNumber(obj.traded_volume ?? obj.volume_traded, 0),
+          remark: typeof obj.remark === 'string' ? obj.remark : (typeof obj.order_id === 'string' ? obj.order_id : ''),
+          order_time,
           is_combination: Boolean(obj.is_combination),
-          instrument_id: stockCode || (typeof obj.instrument_id === 'string' ? obj.instrument_id : undefined),
-          contract_code_full: stockCode || (typeof obj.contract_code_full === 'string' ? obj.contract_code_full : undefined),
+          compact_no: typeof obj.compact_no === 'string' ? obj.compact_no : undefined,
+          contract_ids: Array.isArray(obj.contract_ids) ? (obj.contract_ids.filter((x): x is string => typeof x === 'string')) : undefined,
+          instrument_id: typeof obj.instrument_id === 'string' ? obj.instrument_id : stockCode,
+          contract_code_full: typeof obj.contract_code_full === 'string' ? obj.contract_code_full : stockCode,
           cancel_info: typeof obj.cancel_info === 'string' ? obj.cancel_info : undefined
         };
       };
 
       const normalized = orders.map(normalize);
-      return { data: normalized as any, error: null };
+      return { data: normalized, error: null };
     } catch (error) {
       console.error('Error fetching admin orders:', error);
       return { data: null, error: error as Error };

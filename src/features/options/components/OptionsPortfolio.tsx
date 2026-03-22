@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { format } from 'date-fns';
-import { Calendar, TrendingUp, TrendingDown, Activity, Shield, Target, Layers, ChevronDown, ChevronUp, RefreshCw, List, Play, BarChart2 } from 'lucide-react';
+import { Calendar, TrendingUp, TrendingDown, Activity, Shield, Target, Layers, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 import { PortfolioActivityLog, ActivityLogEntry } from './PortfolioActivityLog';
 import { Hash } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
@@ -10,7 +10,7 @@ import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { optionsService, authService, stockService } from '../../../lib/services';
 import { emitAddLegToStrategy } from '../events/strategySelection';
 import { logger } from '../../../shared/utils/logger';
-import type { OptionsPortfolioData, CustomOptionsStrategy, OptionsPosition, OptionsStrategy, AdvisedCombination, OptionsData, OptionWhitelist, OptionOrder } from '../../../lib/services/types';
+import type { OptionsPortfolioData, CustomOptionsStrategy, OptionsPosition, OptionsStrategy, AdvisedCombination, OptionsData, OptionWhitelist } from '../../../lib/services/types';
 import { computeCombosForPositions as computeCombosForStrategy } from '../utils/strategyCombos';
 import toast from 'react-hot-toast';
 import { ExpiryGroupCard } from './ExpiryGroupCard';
@@ -103,8 +103,11 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   const [sortBy, setSortBy] = useState<'expiry' | 'profitLoss' | 'symbol'>('expiry');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [expandedStrategies, setExpandedStrategies] = useState<string[]>([]);
-  const [underlyingCache, setUnderlyingCache] = useState<Record<string, number>>({});
+  const [underlyingCache, setUnderlyingCache] = useState<Record<string, number | null>>({});
   const [internalOptionsDataMap, setInternalOptionsDataMap] = useState<Record<string, OptionsData>>({});
+  void setStatusFilter;
+  void setSortBy;
+  void setSortDirection;
   // 到期分组选择模式（每个到期日单独开启多选）
   const [expirySelectionMode, setExpirySelectionMode] = useState<Record<string, boolean>>({});
   // 选中的腿及数量（positionId -> quantity）
@@ -170,7 +173,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     };
 
     // Debounce scroll handler
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: ReturnType<typeof setTimeout>;
     const debouncedScrollHandler = () => {
       clearTimeout(timeoutId);
       timeoutId = setTimeout(handleScroll, 100);
@@ -452,7 +455,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     } finally {
       setIsLoading(false);
     }
-  }, [selectedAccountIdProp, activeSymbol]);
+  }, [selectedAccountIdProp, activeSymbol, processDiff]);
 
   useEffect(() => {
     fetchPortfolio();

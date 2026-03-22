@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Download, Share2, AlertCircle, FileText, Image as ImageIcon } from 'lucide-react';
+import { X, Download, Share2, AlertCircle, FileText } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { Theme, themes } from '../../../lib/theme';
 
@@ -115,6 +115,7 @@ export function ScreenshotPreview({ imageUrl, theme, onClose, onSave, contentRef
   };
 
   const canShare = typeof navigator !== 'undefined' && !!navigator.share;
+  void contentRef;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">

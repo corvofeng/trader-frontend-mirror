@@ -64,6 +64,28 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
   const [showScreenshotPreview, setShowScreenshotPreview] = useState(false);
   const [screenshotDataUrl, setScreenshotDataUrl] = useState<string>('');
 
+  const calculateTotalProfit = useCallback((stockPrice: number): number => {
+    if (!stockPrice || isNaN(stockPrice) || stockPrice <= 0) {
+      return 0;
+    }
+
+    let total = 0;
+
+    optionPositions.forEach(pos => {
+      total += calculateOptionProfit(pos, stockPrice);
+    });
+
+    stockPositions.forEach(pos => {
+      total += calculateStockProfit(pos, stockPrice);
+    });
+
+    cashPositions.forEach(pos => {
+      total += calculateCashProfit(pos);
+    });
+
+    return total;
+  }, [optionPositions, stockPositions, cashPositions]);
+
   // 生成盈亏数据
   const generateProfitLossData = useCallback(() => {
     if (!currentStockPrice || isNaN(currentStockPrice) || currentStockPrice <= 0) {
@@ -131,7 +153,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
     });
     
     return { data, markers, breakEvenPoints, extremePoints };
-  }, [currentStockPrice, optionPositions, stockPositions, cashPositions]);
+  }, [currentStockPrice, calculateTotalProfit]);
 
   // 截图功能
   const captureChart = () => {
@@ -550,30 +572,6 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
     return position.amount * (position.interestRate / 100) * (30 / 365); // 假设30天
   };
 
-  // 计算总盈亏
-  const calculateTotalProfit = useCallback((stockPrice: number): number => {
-    // 验证股价输入
-    if (!stockPrice || isNaN(stockPrice) || stockPrice <= 0) {
-      return 0;
-    }
-    
-    let total = 0;
-    
-    optionPositions.forEach(pos => {
-      total += calculateOptionProfit(pos, stockPrice);
-    });
-    
-    stockPositions.forEach(pos => {
-      total += calculateStockProfit(pos, stockPrice);
-    });
-    
-    cashPositions.forEach(pos => {
-      total += calculateCashProfit(pos);
-    });
-    
-    return total;
-  }, [optionPositions, stockPositions, cashPositions]);
-
   // 更新盈亏图表
   useEffect(() => {
   if (!profitChartRef.current) {
@@ -606,7 +604,7 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
 
     let centerPriceForZoom = currentStockPrice;
 
-    let focusPrices: number[] = [
+    const focusPrices: number[] = [
       currentStockPrice,
       ...calculatedBreakEvenPoints.map(point => point.price),
       ...extremePoints.map(point => point.price),

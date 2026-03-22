@@ -34,7 +34,6 @@ interface UnderlyingPriceMonitorProps {
 export function UnderlyingPriceMonitor({ symbol, theme }: UnderlyingPriceMonitorProps) {
   const { prices, isConnected, queryPrice } = useOptionPriceWebSocket();
   const [history, setHistory] = useState<{ time: string; price: number }[]>([]);
-  const lastPriceRef = useRef<number | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [dragging, setDragging] = useState(false);
   const dragOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -64,7 +63,9 @@ export function UnderlyingPriceMonitor({ symbol, theme }: UnderlyingPriceMonitor
           return { top: obj.top, left: obj.left };
         }
       }
-    } catch {}
+    } catch {
+      void 0;
+    }
     return { top: 96, left: window.innerWidth - 16 - 256 }; // approx: top-24, right-4 for 16rem width
   });
 
@@ -189,14 +190,16 @@ export function UnderlyingPriceMonitor({ symbol, theme }: UnderlyingPriceMonitor
     window.addEventListener('mouseup', endDrag);
   };
   const onDrag = (e: MouseEvent) => {
-    setCustomPos(prev => {
+    setCustomPos(() => {
       const top = e.clientY - dragOffsetRef.current.y;
       const left = e.clientX - dragOffsetRef.current.x;
       const clampedTop = Math.max(8, Math.min(top, window.innerHeight - 160));
       const clampedLeft = Math.max(8, Math.min(left, window.innerWidth - 280));
       try {
         localStorage.setItem('underlying_price_monitor_custom', JSON.stringify({ top: clampedTop, left: clampedLeft }));
-      } catch {}
+      } catch {
+        void 0;
+      }
       return { top: clampedTop, left: clampedLeft };
     });
   };
@@ -212,13 +215,17 @@ export function UnderlyingPriceMonitor({ symbol, theme }: UnderlyingPriceMonitor
     try {
       localStorage.setItem('underlying_price_monitor_pos_mode', 'corner');
       localStorage.setItem('underlying_price_monitor_corner', c);
-    } catch {}
+    } catch {
+      void 0;
+    }
   };
   const setCustomMode = () => {
     setPositionMode('custom');
     try {
       localStorage.setItem('underlying_price_monitor_pos_mode', 'custom');
-    } catch {}
+    } catch {
+      void 0;
+    }
   };
 
   return (

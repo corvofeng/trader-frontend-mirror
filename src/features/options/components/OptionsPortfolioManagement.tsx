@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Calculator, Settings, Briefcase, Plus, Activity } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { optionsService } from '../../../lib/services';
@@ -28,11 +28,7 @@ export function OptionsPortfolioManagement({ theme, selectedSymbol: propSelected
     }
   }, [propSelectedSymbol]);
 
-  useEffect(() => {
-    fetchPortfolioData();
-  }, [selectedSymbol]);
-
-  const fetchPortfolioData = async () => {
+  const fetchPortfolioData = useCallback(async () => {
     try {
       setIsLoading(true);
       const { data, error } = await optionsService.getOptionsPortfolio(DEMO_USER_ID, null, selectedSymbol ? { symbol: selectedSymbol } : undefined);
@@ -45,7 +41,11 @@ export function OptionsPortfolioManagement({ theme, selectedSymbol: propSelected
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedSymbol]);
+
+  useEffect(() => {
+    fetchPortfolioData();
+  }, [fetchPortfolioData]);
 
   const handleStrategyCreated = () => {
     setActiveTab('saved'); // 切换到已保存策略页面

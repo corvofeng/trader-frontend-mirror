@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { Trash2, Plus, RefreshCw, Shield, AlertCircle, CheckCircle, Edit2, X, Save } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Trash2, Plus, RefreshCw, Shield, AlertCircle, Edit2, X, Save } from 'lucide-react';
 import { optionsService } from '../../../lib/services';
 import type { OptionWhitelist } from '../../../lib/services/types';
-import { Theme, themes } from '../../../lib/theme';
 
 interface OptionWhitelistManagerProps {
   theme: string; // Changed to string to match parent component
@@ -63,7 +62,7 @@ export function OptionWhitelistManager({ theme, userId, accountId }: OptionWhite
     is_active: true
   });
 
-  const fetchWhitelists = async () => {
+  const fetchWhitelists = useCallback(async () => {
     if (!userId) return;
     setIsLoading(true);
     setError(null);
@@ -77,11 +76,11 @@ export function OptionWhitelistManager({ theme, userId, accountId }: OptionWhite
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [effectiveAccountId, userId]);
 
   useEffect(() => {
     fetchWhitelists();
-  }, [userId, effectiveAccountId]);
+  }, [fetchWhitelists]);
 
   const [isFetchingDetail, setIsFetchingDetail] = useState(false);
 
@@ -152,7 +151,23 @@ export function OptionWhitelistManager({ theme, userId, accountId }: OptionWhite
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const { error } = await optionsService.addWhitelist(newItem as any, userId, effectiveAccountId);
+      if (!effectiveAccountId) {
+        throw new Error('Missing account id');
+      }
+      const payload: Omit<OptionWhitelist, 'id' | 'created_at'> = {
+        account_id: effectiveAccountId,
+        contract_code: newItem.contract_code || '',
+        contract_code_full: newItem.contract_code_full || '',
+        expiry_month: newItem.expiry_month || new Date().toISOString().slice(0, 7).replace('-', ''),
+        option_type: newItem.option_type || 'call',
+        strike_price: typeof newItem.strike_price === 'number' ? newItem.strike_price : Number(newItem.strike_price || 0),
+        hold_type: newItem.hold_type || 'obligation',
+        quantity: typeof newItem.quantity === 'number' ? newItem.quantity : Number(newItem.quantity || 1),
+        reason: newItem.reason || 'exercise',
+        notes: newItem.notes || '',
+        is_active: typeof newItem.is_active === 'boolean' ? newItem.is_active : true
+      };
+      const { error } = await optionsService.addWhitelist(payload, userId, effectiveAccountId);
       if (error) throw error;
       setShowAddForm(false);
       setNewItem({
@@ -208,17 +223,19 @@ export function OptionWhitelistManager({ theme, userId, accountId }: OptionWhite
           <div className="flex gap-2">
             <button
               onClick={() => fetchWhitelists()}
-              className={`p-2 rounded-md hover:bg-opacity-80 transition-colors ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+              disabled={isLoading}
+              className={`p-2 rounded-md hover:bg-opacity-80 transition-colors ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} disabled:opacity-50`}
               title="Refresh"
             >
               <RefreshCw className={`w-5 h-5 ${subTextClass}`} />
             </button>
             <button
               onClick={() => setShowAddForm(!showAddForm)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              disabled={isLoading}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
             >
               <Plus className="w-4 h-4" />
-              Add Item
+              {isLoading ? 'Loading...' : 'Add Item'}
             </button>
           </div>
         </div>

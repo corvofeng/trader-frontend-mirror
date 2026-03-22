@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { format } from 'date-fns';
-import { ChevronDown, ChevronUp, PanelRightClose, PanelRightOpen, X } from 'lucide-react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
-import type { OptionsPosition, OptionsStrategy, AdvisedCombination, OptionsData, OptionQuote, CurrencyConfig, OptionWhitelist } from '../../../lib/services/types';
+import type { OptionsPosition, OptionsStrategy, AdvisedCombination, OptionsData, OptionQuote, OptionWhitelist } from '../../../lib/services/types';
+import type { CurrencyConfig } from '../../../shared/types';
 import { optionsService } from '../../../lib/services';
 import { logger } from '../../../shared/utils/logger';
 import toast from 'react-hot-toast';
@@ -104,7 +105,13 @@ export function ExpiryGroupCard({
   const [localState, setLocalState] = useState<{ data: OptionsData | null; symbol: string | null }>({ data: null, symbol: null });
   const { data: localOptionsData, symbol: localDataSymbol } = localState;
 
-  const [advisedModal, setAdvisedModal] = useState<{ combo: AdvisedCombination; quantity: number } | null>(null);
+  const getQuoteStrike = (q: OptionQuote): number => {
+    const record = q as unknown as { strike_price?: unknown };
+    const value = record.strike_price ?? q.strike;
+    return typeof value === 'number' ? value : Number(value);
+  };
+
+  const [advisedModal, setAdvisedModal] = useState<{ combo: AdvisedCombination; quantity: number; mode: 'advised' | 't_board_create' } | null>(null);
   const [confirmData, setConfirmData] = useState<{ ids: string[]; meta?: { action?: string; comboType?: 'call' | 'put'; strike?: number; expiry?: string; strategyIds?: string[]; category?: string; defaultComboCount?: number; perLegMaxQty?: Record<string, number>; quote?: OptionQuote; contract_code?: string; contract_code_full?: string; strategies?: Array<{ strategy: OptionsStrategy; qty: number }> }; title: string; description: string } | null>(null);
   const [qtyOverrides, setQtyOverrides] = useState<Record<string, number>>({});
   const [syncPrice, setSyncPrice] = useState<number | null>(null);
@@ -173,22 +180,18 @@ export function ExpiryGroupCard({
   }, [filteredPositions, optionsData, localOptionsData, optionsDataMap, group.expiry, selectedSymbol]);
 
   useEffect(() => {
-    // Use stringified codes to prevent unnecessary effect triggers when array reference changes but content is same
-    const codesStr = codes.join(',');
     if (isConnected && codes.length > 0) {
       const runQuery = () => {
         queryPrice(codes);
       };
 
-      // Initial query to ensure data is displayed
       runQuery();
 
-      // Poll frequently (1s) when active/expanded, less frequently (5s) otherwise
       const intervalMs = (isExpanded || confirmData) ? 1000 : 5000;
       const interval = setInterval(runQuery, intervalMs);
       return () => clearInterval(interval);
     }
-  }, [isConnected, codes.join(','), queryPrice, isExpanded, confirmData]);
+  }, [isConnected, codes, queryPrice, isExpanded, confirmData]);
 
   useEffect(() => {
     if (!isPageLocked) return;
@@ -451,7 +454,7 @@ export function ExpiryGroupCard({
                           if (!selectedSymbol || activeData.opt_undl_code_full === selectedSymbol) {
                             activeData.quotes.forEach(q => {
                               if (q.expiry === group.expiry) {
-                                dataStrikes.add(Number(q.strike_price));
+                                dataStrikes.add(getQuoteStrike(q));
                               }
                             });
                           }
@@ -467,7 +470,7 @@ export function ExpiryGroupCard({
                              if (data.quotes) {
                                data.quotes.forEach(q => {
                                  if (q.expiry === group.expiry) {
-                                   dataStrikes.add(Number(q.strike_price));
+                                   dataStrikes.add(getQuoteStrike(q));
                                  }
                                });
                              }
@@ -512,9 +515,9 @@ export function ExpiryGroupCard({
                           const syntheticId = `sync-${c}-${s}`;
 
                           // Find quote logic
-                          const findQuote = (data: OptionsData) => {
-                            return data.quotes?.find(q => q.expiry === group.expiry && Number(q.strike_price) === s);
-                          };
+                        const findQuote = (data: OptionsData) => {
+                          return data.quotes?.find(q => q.expiry === group.expiry && getQuoteStrike(q) === s);
+                        };
                           let quote: OptionQuote | undefined;
                           if (optionsData) quote = findQuote(optionsData);
                           if (!quote && optionsDataMap) {
@@ -742,10 +745,10 @@ export function ExpiryGroupCard({
                                     
                                     // Helper to find quote
                                     const findQuote = (data: OptionsData) => {
-                                      return data.quotes?.find(q => q.expiry === group.expiry && Number(q.strike_price) === m.s);
+                                      return data.quotes?.find(q => q.expiry === group.expiry && getQuoteStrike(q) === m.s);
                                     };
 
-                                    let quote;
+                                    let quote: OptionQuote | undefined;
                                     if (activeData) {
                                       quote = findQuote(activeData);
                                     }
@@ -758,15 +761,15 @@ export function ExpiryGroupCard({
                                     }
 
                                     if (quote) {
-                                      callCode = quote.call_contract_code;
-                                      callFullCode = quote.call_contract_code_full;
-                                      putCode = quote.put_contract_code;
-                                      putFullCode = quote.put_contract_code_full;
+                                      callCode = quote.call_contract_code || '';
+                                      callFullCode = quote.call_contract_code_full || '';
+                                      putCode = quote.put_contract_code || '';
+                                      putFullCode = quote.put_contract_code_full || '';
                                       
-                                      const getPrice = (code: string, fullCode: string, last: number) => {
+                                      const getPrice = (code: string, fullCode: string, last?: number) => {
                                         const p = (code && prices[code]) || (fullCode && prices[fullCode]);
                                         if (p) return p.price.toFixed(4);
-                                        return last ? last.toFixed(4) : '-';
+                                        return typeof last === 'number' && last ? last.toFixed(4) : '-';
                                       };
                                       
                                       callPrice = getPrice(callCode, callFullCode, quote.call_last_price);
@@ -801,6 +804,149 @@ export function ExpiryGroupCard({
                                       }
                                     }
 
+                                    const openComboAdjustModal = (comboType: 'call' | 'put') => {
+                                      const pickStrategy = comboType === 'call' ? m.comboCallStrategies?.[0]?.strategy : m.comboPutStrategies?.[0]?.strategy;
+                                      const buyStrike = Number(m.s);
+
+                                      let sellStrike: number | null = null;
+                                      if (pickStrategy) {
+                                        const sellLeg = pickStrategy.positions.find(p => {
+                                          const t = String(p.type || p.contract_type_zh);
+                                          return t === comboType && p.position_type === 'sell';
+                                        });
+                                        if (sellLeg) sellStrike = Number(sellLeg.contract_strike_price ?? sellLeg.strike);
+                                      }
+
+                                      if (sellStrike == null) {
+                                        if (comboType === 'call') {
+                                          const higher = strikes.find(s => s > buyStrike);
+                                          if (higher != null) sellStrike = higher;
+                                        } else {
+                                          const lower = [...strikes].reverse().find(s => s < buyStrike);
+                                          if (lower != null) sellStrike = lower;
+                                        }
+                                      }
+
+                                      if (sellStrike == null) {
+                                        toast.error('找不到可用的另一腿行权价，无法生成组合');
+                                        return;
+                                      }
+
+                                      const findQuote = (data: OptionsData, strike: number) => {
+                                        return data.quotes?.find(q => q.expiry === group.expiry && getQuoteStrike(q) === strike);
+                                      };
+
+                                      const getQuoteByStrike = (strike: number) => {
+                                        if (optionsData) {
+                                          const q = findQuote(optionsData, strike);
+                                          if (q) return q;
+                                        }
+                                        if (optionsDataMap) {
+                                          for (const data of Object.values(optionsDataMap)) {
+                                            const q = findQuote(data, strike);
+                                            if (q) return q;
+                                          }
+                                        }
+                                        if (localOptionsData) {
+                                          const q = findQuote(localOptionsData, strike);
+                                          if (q) return q;
+                                        }
+                                        return undefined;
+                                      };
+
+                                      const buyQuote = getQuoteByStrike(buyStrike);
+                                      const sellQuote = getQuoteByStrike(sellStrike);
+                                      if (!buyQuote || !sellQuote) {
+                                        toast.error('缺少期权链数据，无法生成组合');
+                                        return;
+                                      }
+
+                                      const buyFullCode = comboType === 'call' ? buyQuote.call_contract_code_full : buyQuote.put_contract_code_full;
+                                      const buyCode = comboType === 'call' ? buyQuote.call_contract_code : buyQuote.put_contract_code;
+                                      const sellFullCode = comboType === 'call' ? sellQuote.call_contract_code_full : sellQuote.put_contract_code_full;
+                                      const sellCode = comboType === 'call' ? sellQuote.call_contract_code : sellQuote.put_contract_code;
+
+                                      if ((!buyFullCode && !buyCode) || (!sellFullCode && !sellCode)) {
+                                        toast.error('缺少合约代码，无法生成组合');
+                                        return;
+                                      }
+
+                                      const now = new Date().toISOString();
+                                      const undl = selectedSymbol || optionsData?.opt_undl_code_full || localOptionsData?.opt_undl_code_full || '';
+
+                                      const makeLegPosition = (positionType: 'buy' | 'sell', strike: number, code: string, fullCode: string | undefined) => {
+                                        const pos: OptionsPosition = {
+                                          id: `combo-manual-${comboType}-${positionType}-${group.expiry}-${strike}`,
+                                          symbol: fullCode || code,
+                                          opt_undl_code_full: undl || undefined,
+                                          strategy: '组合购买',
+                                          type: comboType,
+                                          option_type: comboType,
+                                          position_type: positionType,
+                                          strike,
+                                          strike_price: String(strike),
+                                          expiry: group.expiry,
+                                          quantity: 1,
+                                          premium: 0,
+                                          currentValue: 0,
+                                          profitLoss: 0,
+                                          profitLossPercentage: 0,
+                                          impliedVolatility: 0,
+                                          delta: 0,
+                                          gamma: 0,
+                                          theta: 0,
+                                          vega: 0,
+                                          status: 'open',
+                                          openDate: now,
+                                          contract_code: code || undefined,
+                                          contract_code_full: fullCode || undefined,
+                                          contract_strike_price: strike,
+                                          contract_type_zh: comboType,
+                                          position_type_zh: positionType === 'buy' ? '权利' : '义务',
+                                          leg_quantity: 1,
+                                        };
+                                        return pos;
+                                      };
+
+                                      const buyLeg = makeLegPosition('buy', buyStrike, buyCode || buyFullCode || '', buyFullCode);
+                                      const sellLeg = makeLegPosition('sell', sellStrike, sellCode || sellFullCode || '', sellFullCode);
+
+                                      const isBullish = comboType === 'call' ? sellStrike > buyStrike : sellStrike < buyStrike;
+                                      const description = comboType === 'call'
+                                        ? `${isBullish ? '认购牛市价差' : '认购熊市价差'} ${buyStrike}-${sellStrike}`
+                                        : `${isBullish ? '认沽熊市价差' : '认沽牛市价差'} ${buyStrike}-${sellStrike}`;
+
+                                      const volume = comboType === 'call' ? buyQuote.callVolume : buyQuote.putVolume;
+                                      const sellVolume = comboType === 'call' ? sellQuote.callVolume : sellQuote.putVolume;
+
+                                      const combo: AdvisedCombination = {
+                                        type: comboType === 'call'
+                                          ? (isBullish ? 'bull_call_spread' : 'bear_call_spread')
+                                          : (isBullish ? 'bear_put_spread' : 'bull_put_spread'),
+                                        description,
+                                        expiry: group.expiry,
+                                        quantity: 1,
+                                        buy_position: {
+                                          code: buyFullCode || buyCode || '',
+                                          name: buyFullCode || buyCode || '',
+                                          position: buyLeg,
+                                          strike: buyStrike,
+                                          volume: Number(volume || 0),
+                                        },
+                                        sell_position: {
+                                          code: sellFullCode || sellCode || '',
+                                          name: sellFullCode || sellCode || '',
+                                          position: sellLeg,
+                                          strike: sellStrike,
+                                          volume: Number(sellVolume || 0),
+                                        },
+                                        buy_strike: buyStrike,
+                                        sell_strike: sellStrike,
+                                      };
+
+                                      setAdvisedModal({ combo, quantity: 1, mode: 't_board_create' });
+                                    };
+
                                   return (
                                       <tr key={`trow-top-${group.expiry}-${m.s}`} className={themes[theme].cardHover} style={{ backgroundImage: bg, backgroundColor: timeValueColor }}>
                                         <td className={`text-center py-2 ${themes[theme].text}`}>
@@ -810,6 +956,10 @@ export function ExpiryGroupCard({
                                                  <span className={`${themes[theme].text} cursor-help`} title={m.comboCallStrategies.map(s => `${s.strategy.name} (${s.qty})`).join('\n')}>
                                                    {m.comboCallStrategies.reduce((sum, s) => sum + s.qty, 0)}
                                                  </span>
+                                                 <button
+                                                  className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
+                                                  onClick={() => openComboAdjustModal('call')}
+                                                >调整</button>
                                                  <button
                                                   className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
                                                   onClick={() => {
@@ -833,7 +983,13 @@ export function ExpiryGroupCard({
                                                 >解除</button>
                                               </div>
                                             ) : (
-                                              <span className={`${themes[theme].text}`}>0</span>
+                                              <div className="flex items-center gap-1">
+                                                <span className={`${themes[theme].text}`}>0</span>
+                                                <button
+                                                  className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
+                                                  onClick={() => openComboAdjustModal('call')}
+                                                >调整</button>
+                                              </div>
                                             )}
                                           </div>
                                         </td>
@@ -947,6 +1103,10 @@ export function ExpiryGroupCard({
                                                  </span>
                                                  <button
                                                   className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
+                                                  onClick={() => openComboAdjustModal('put')}
+                                                >调整</button>
+                                                 <button
+                                                  className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
                                                   onClick={() => {
                                                     setConfirmData({
                                                       ids: m.comboPutStrategies.flatMap(s => s.strategy.positions.map(p => p.id)),
@@ -968,7 +1128,13 @@ export function ExpiryGroupCard({
                                                 >解除</button>
                                               </div>
                                             ) : (
-                                              <span className={`${themes[theme].text}`}>0</span>
+                                              <div className="flex items-center gap-1">
+                                                <span className={`${themes[theme].text}`}>0</span>
+                                                <button
+                                                  className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
+                                                  onClick={() => openComboAdjustModal('put')}
+                                                >调整</button>
+                                              </div>
                                             )}
                                           </div>
                                         </td>
@@ -1004,7 +1170,7 @@ export function ExpiryGroupCard({
                             )}
                             <button
                               className={`px-2 py-1 rounded text-xs bg-purple-600 text-white`}
-                              onClick={() => setAdvisedModal({ combo: c, quantity: Math.max(1, c.quantity || 1) })}
+                                onClick={() => setAdvisedModal({ combo: c, quantity: Math.max(1, c.quantity || 1), mode: 'advised' })}
                             >查看详情</button>
                           </div>
                         </div>
@@ -1502,14 +1668,14 @@ export function ExpiryGroupCard({
                         const activeData = optionsData || localOptionsData;
                         
                         if (activeData && activeData.quotes) {
-                           const quote = activeData.quotes.find(q => q.expiry === group.expiry && Number(q.strike_price) === s);
+                           const quote = activeData.quotes.find(q => q.expiry === group.expiry && getQuoteStrike(q) === s);
                            if (quote) {
                               fullCode = type === 'call' ? quote.call_contract_code_full : quote.put_contract_code_full;
                               code = type === 'call' ? quote.call_contract_code : quote.put_contract_code;
                            }
                         } else if (optionsDataMap) {
                            for (const data of Object.values(optionsDataMap)) {
-                              const quote = data.quotes?.find(q => q.expiry === group.expiry && Number(q.strike_price) === s);
+                              const quote = data.quotes?.find(q => q.expiry === group.expiry && getQuoteStrike(q) === s);
                               if (quote) {
                                  fullCode = type === 'call' ? quote.call_contract_code_full : quote.put_contract_code_full;
                                  code = type === 'call' ? quote.call_contract_code : quote.put_contract_code;
@@ -1658,7 +1824,13 @@ export function ExpiryGroupCard({
               })()}
               {(() => {
                   const s = Number(confirmData.meta?.strike || 0);
-                  const c = String(confirmData.meta?.category || '');
+                  const c = String(confirmData.meta?.category || '') as
+                    | 'call_right'
+                    | 'call_obligation'
+                    | 'put_right'
+                    | 'put_obligation'
+                    | 'call_covered'
+                    | 'put_covered';
                   const ids = collectIdsForCategory(c, s);
                   const pos = filteredPositions.find(p => p.id === ids[0]);
                   if (pos?.contract_code || pos?.contract_code_full) {
@@ -1733,14 +1905,14 @@ export function ExpiryGroupCard({
                                     const type = c.startsWith('call') ? 'call' : 'put';
                                     const activeData = optionsData || localOptionsData;
                                     if (activeData && activeData.quotes) {
-                                       const quote = activeData.quotes.find(q => q.expiry === group.expiry && Number(q.strike_price) === s);
+                                       const quote = activeData.quotes.find(q => q.expiry === group.expiry && getQuoteStrike(q) === s);
                                        if (quote) {
                                           fullCode = type === 'call' ? quote.call_contract_code_full : quote.put_contract_code_full;
                                           code = type === 'call' ? quote.call_contract_code : quote.put_contract_code;
                                        }
                                     } else if (optionsDataMap) {
                                        for (const data of Object.values(optionsDataMap)) {
-                                          const quote = data.quotes?.find(q => q.expiry === group.expiry && Number(q.strike_price) === s);
+                                          const quote = data.quotes?.find(q => q.expiry === group.expiry && getQuoteStrike(q) === s);
                                           if (quote) {
                                              fullCode = type === 'call' ? quote.call_contract_code_full : quote.put_contract_code_full;
                                              code = type === 'call' ? quote.call_contract_code : quote.put_contract_code;
@@ -1754,12 +1926,17 @@ export function ExpiryGroupCard({
                              if (code) {
                                 try {
                                     await optionsService.addWhitelist({
+                                        account_id: selectedAccountId || '',
                                         contract_code: code,
                                         contract_code_full: fullCode,
                                         reason: 'Manual adjustment',
                                         quantity: targetQty,
                                         expiry_month: group.expiry.slice(0, 7).replace('-', ''),
+                                        option_type: c.startsWith('call') ? 'call' : 'put',
+                                        strike_price: s,
                                         hold_type: holdType
+                                        ,
+                                        is_active: true
                                     }, userId || '', selectedAccountId);
                                     toast.success(`已添加到白名单: ${fullCode || code}`);
                                 } catch (err) {
@@ -2225,9 +2402,25 @@ export function ExpiryGroupCard({
           >加载到构建器</button>
           <button
             className={`px-3 py-1 rounded text-sm bg-purple-600 text-white`}
-            onClick={() => {
-              if (onExecuteAdvised) onExecuteAdvised({ ...advisedModal.combo, quantity: advisedModal.quantity });
-              setAdvisedModal(null);
+            onClick={async () => {
+              if (advisedModal.mode === 't_board_create') {
+                try {
+                  const { error } = await optionsService.createOptionCombination(
+                    { ...advisedModal.combo, quantity: advisedModal.quantity },
+                    selectedAccountId || null,
+                    userId || null
+                  );
+                  if (error) throw error;
+                  toast.success('已创建组合');
+                  onRefresh?.();
+                  setAdvisedModal(null);
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : '创建失败');
+                }
+              } else {
+                if (onExecuteAdvised) onExecuteAdvised({ ...advisedModal.combo, quantity: advisedModal.quantity });
+                setAdvisedModal(null);
+              }
             }}
           >执行组合</button>
         </div>

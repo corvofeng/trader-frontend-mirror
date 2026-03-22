@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { optionsService } from '../optionsServices';
 
 describe('optionsService.getOptionsData', () => {
@@ -27,7 +27,7 @@ describe('optionsService.getOptionsData', () => {
       // surface is missing
     };
 
-    const mockFetch = vi.fn().mockImplementation((url) => {
+    const mockFetch = vi.fn().mockImplementation((url: string) => {
       if (url.includes('stock.in.corvo.fun')) {
         return Promise.resolve({
           ok: true,

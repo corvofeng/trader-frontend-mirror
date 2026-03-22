@@ -4,7 +4,7 @@ import 'echarts-gl';
 import { optionsService } from '../../../lib/services';
 import { PayoffSurfaceData, MarginStressData } from '../../../lib/services/types';
 import { Theme, themes } from '../../../lib/theme';
-import { Loader, AlertTriangle, ShieldCheck, TrendingUp, TrendingDown, Info } from 'lucide-react';
+import { Loader, AlertTriangle, ShieldCheck, TrendingUp, Info } from 'lucide-react';
 import {
   Chart as ChartJS,
   CategoryScale,
