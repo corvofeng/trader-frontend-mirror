@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Activity, Calendar, RefreshCw, BookOpen, History as HistoryIcon, ListChecks } from 'lucide-react';
+import { Activity, Calendar, RefreshCw, BookOpen, History as HistoryIcon, ListChecks, HeartPulse } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, addMonths, isSameMonth, isSameDay } from 'date-fns';
 import { logger } from '../shared/utils/logger';
 import { Theme, themes } from '../lib/theme';
@@ -18,7 +18,16 @@ interface AdminProps {
   theme: Theme;
 }
 
-type AdminTab = 'operations' | 'calendar' | 'analysis' | 'history' | 'tasks';
+type AdminTab = 'operations' | 'calendar' | 'analysis' | 'history' | 'tasks' | 'accounts';
+
+type AdminAccountStatusItem = {
+  account_id_alias: string;
+  account_type: string;
+  alias: string;
+  last_check: string;
+  message: string;
+  status: string;
+};
 
 export function Admin({ theme }: AdminProps) {
   const location = useLocation();
@@ -26,7 +35,7 @@ export function Admin({ theme }: AdminProps) {
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab') as AdminTab;
-    return tab && ['operations', 'calendar', 'analysis', 'history', 'tasks'].includes(tab) ? tab : 'operations';
+    return tab && ['operations', 'calendar', 'analysis', 'history', 'tasks', 'accounts'].includes(tab) ? tab : 'operations';
   });
 
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() => {
@@ -65,6 +74,14 @@ export function Admin({ theme }: AdminProps) {
   const [selectedDate, setSelectedDate] = useState<string>(() => format(new Date(), 'yyyy-MM-dd'));
   const [currentMonth, setCurrentMonth] = useState<Date>(() => new Date());
 
+  const heartbeatIntervalMs = 5000;
+  const [accountsStatus, setAccountsStatus] = useState<AdminAccountStatusItem[]>([]);
+  const [accountsHeartbeatError, setAccountsHeartbeatError] = useState<string | null>(null);
+  const [accountsHeartbeatLastOkAt, setAccountsHeartbeatLastOkAt] = useState<number | null>(null);
+  const [accountsHeartbeatLatencyMs, setAccountsHeartbeatLatencyMs] = useState<number | null>(null);
+  const [accountsHeartbeatInFlight, setAccountsHeartbeatInFlight] = useState(false);
+  const accountsHeartbeatAbortRef = React.useRef<AbortController | null>(null);
+
   const handleTabChange = (newTab: AdminTab) => {
     setActiveTab(newTab);
     const params = new URLSearchParams(location.search);
@@ -85,6 +102,79 @@ export function Admin({ theme }: AdminProps) {
       setOrdersStatsByMonth({});
     }
   }, [refreshKey, activeTab]);
+
+  React.useEffect(() => {
+    if (activeTab !== 'accounts') return;
+
+    let cancelled = false;
+    let intervalId: number | null = null;
+
+    const tick = async () => {
+      if (cancelled) return;
+
+      if (accountsHeartbeatAbortRef.current) {
+        accountsHeartbeatAbortRef.current.abort();
+      }
+      const controller = new AbortController();
+      accountsHeartbeatAbortRef.current = controller;
+
+      const startedAt = performance.now();
+      setAccountsHeartbeatInFlight(true);
+      try {
+        const response = await fetch('/api/admin/accounts/status', { signal: controller.signal });
+        const contentType = response.headers.get('content-type') || '';
+        const body = contentType.includes('application/json')
+          ? await response.json().catch(() => null)
+          : await response.text().catch(() => null);
+
+        if (!response.ok) {
+          const messageFromJson =
+            body && typeof body === 'object'
+              ? String((body as Record<string, unknown>).message || (body as Record<string, unknown>).error || response.statusText)
+              : '';
+          const message = typeof body === 'string' ? body : messageFromJson;
+          throw new Error(message || `HTTP ${response.status}`);
+        }
+
+        const record = body && typeof body === 'object' ? (body as Record<string, unknown>) : null;
+        const rawList = Array.isArray(record?.data) ? record?.data : [];
+        const normalized = rawList
+          .filter((v): v is Record<string, unknown> => !!v && typeof v === 'object')
+          .map((v) => ({
+            account_id_alias: String(v.account_id_alias ?? ''),
+            account_type: String(v.account_type ?? ''),
+            alias: String(v.alias ?? ''),
+            last_check: String(v.last_check ?? ''),
+            message: String(v.message ?? ''),
+            status: String(v.status ?? ''),
+          }))
+          .filter(v => v.account_id_alias || v.alias);
+
+        if (!cancelled) {
+          setAccountsStatus(normalized);
+          setAccountsHeartbeatError(null);
+          setAccountsHeartbeatLastOkAt(Date.now());
+          setAccountsHeartbeatLatencyMs(Math.max(0, Math.round(performance.now() - startedAt)));
+        }
+      } catch (err) {
+        if (cancelled) return;
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        const message = err instanceof Error ? err.message : '请求失败';
+        setAccountsHeartbeatError(message);
+      } finally {
+        if (!cancelled) setAccountsHeartbeatInFlight(false);
+      }
+    };
+
+    tick();
+    intervalId = window.setInterval(tick, heartbeatIntervalMs);
+
+    return () => {
+      cancelled = true;
+      if (intervalId !== null) window.clearInterval(intervalId);
+      if (accountsHeartbeatAbortRef.current) accountsHeartbeatAbortRef.current.abort();
+    };
+  }, [activeTab, refreshKey]);
 
   const loadOrdersForDate = React.useCallback(async (dateStr: string) => {
     if (!selectedAccountId) return;
@@ -220,6 +310,7 @@ export function Admin({ theme }: AdminProps) {
     { id: 'analysis' as AdminTab, name: 'Analysis', icon: BookOpen },
     { id: 'history' as AdminTab, name: 'History', icon: HistoryIcon },
     { id: 'tasks' as AdminTab, name: 'Tasks', icon: ListChecks },
+    { id: 'accounts' as AdminTab, name: 'Accounts', icon: HeartPulse },
   ];
 
   return (
@@ -311,6 +402,113 @@ export function Admin({ theme }: AdminProps) {
 
       {activeTab === 'tasks' && (
         <SequentialTradeTasks theme={theme} selectedAccountId={selectedAccountId} />
+      )}
+
+      {activeTab === 'accounts' && (
+        <div className="space-y-6">
+          <div className={`${themes[theme].card} rounded-lg p-4`}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className={`text-xl font-bold ${themes[theme].text}`}>账户状态</h2>
+                <p className={`text-sm ${themes[theme].text} opacity-75`}>
+                  每 {Math.round(heartbeatIntervalMs / 1000)} 秒请求一次 /api/admin/accounts/status（heartbeat）
+                </p>
+              </div>
+              <div className="flex flex-col items-end gap-1">
+                {(() => {
+                  const alive =
+                    accountsHeartbeatLastOkAt !== null &&
+                    Date.now() - accountsHeartbeatLastOkAt < heartbeatIntervalMs * 2;
+                  return (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <span className={`inline-block w-2 h-2 rounded-full ${alive ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                        <span className={`text-sm font-medium ${themes[theme].text}`}>
+                          {alive ? '服务器在线' : '服务器离线'}
+                        </span>
+                        {accountsHeartbeatInFlight && (
+                          <span className={`text-xs ${themes[theme].text} opacity-60`}>
+                            拉取中...
+                          </span>
+                        )}
+                      </div>
+                      <div className={`text-xs ${themes[theme].text} opacity-70`}>
+                        {accountsHeartbeatLastOkAt
+                          ? `上次成功 ${new Date(accountsHeartbeatLastOkAt).toLocaleTimeString()}`
+                          : '尚未成功拉取'}
+                        {accountsHeartbeatLatencyMs !== null ? ` · ${accountsHeartbeatLatencyMs}ms` : ''}
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+            {accountsHeartbeatError && (
+              <div className="mt-3 text-xs text-red-500 whitespace-pre-wrap break-all">
+                {accountsHeartbeatError}
+              </div>
+            )}
+          </div>
+
+          <div className={`${themes[theme].card} rounded-lg p-4`}>
+            {accountsStatus.length === 0 && !accountsHeartbeatInFlight && !accountsHeartbeatError && (
+              <div className={`text-sm ${themes[theme].text} opacity-75`}>
+                暂无数据（等待后端返回）。
+              </div>
+            )}
+            {accountsStatus.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead className="bg-gray-50 dark:bg-gray-900/50">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">账户</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account ID</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">类型</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">后端时间</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">消息</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                    {accountsStatus.map((item) => {
+                      const ok = ['connected', 'ok', 'healthy', 'alive'].includes(item.status.toLowerCase());
+                      return (
+                        <tr key={item.account_id_alias || item.alias}>
+                          <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
+                            <div className="font-medium">{item.alias || '-'}</div>
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
+                            {item.account_id_alias || '-'}
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
+                            {item.account_type || '-'}
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap text-xs">
+                            <span
+                              className={`inline-flex items-center rounded-full px-2 py-1 text-[10px] font-medium ${
+                                ok
+                                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-100'
+                                  : 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-100'
+                              }`}
+                            >
+                              {item.status || '-'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
+                            {item.last_check || '-'}
+                          </td>
+                          <td className="px-4 py-2 text-xs text-gray-700 dark:text-gray-200 max-w-[520px] whitespace-normal break-words">
+                            {item.message || '-'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {activeTab === 'calendar' && (
