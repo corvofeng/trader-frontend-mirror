@@ -23,10 +23,27 @@ export const renderMarkdown = (raw: string, theme: Theme) => {
       .replace(/'/g, '&#039;');
 
   const formatText = (text: string) => {
+    const buttonClass = `inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium ${themes[theme].primary}`;
+    const linkClass = 'underline text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300';
     return text
       .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
       .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
-      .replace(/`(.*?)`/g, '<code class="bg-gray-100 dark:bg-gray-800 px-1 rounded text-xs font-mono">$1</code>');
+      .replace(/`(.*?)`/g, '<code class="bg-gray-100 dark:bg-gray-800 px-1 rounded text-xs font-mono">$1</code>')
+      .replace(/\[\[button:([^\]|]+)\|notice:([0-9a-fA-F-]{36})\]\]/g, (_match, label: string, uuid: string) => {
+        return `<button type="button" data-notice-uuid="${escapeHtml(uuid)}" class="${buttonClass}">${escapeHtml(label)}</button>`;
+      })
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_match, label: string, href: string) => {
+        const safeLabel = escapeHtml(label);
+        const rawHref = href.trim();
+        const noticeHref = rawHref.replace(/^notice:\/\//, 'notice:');
+        if (noticeHref.startsWith('notice:')) {
+          const uuid = noticeHref.replace(/^notice:/, '').trim();
+          if (/^[0-9a-fA-F-]{36}$/.test(uuid)) {
+            return `<button type="button" data-notice-uuid="${escapeHtml(uuid)}" class="${buttonClass}">${safeLabel}</button>`;
+          }
+        }
+        return `<a href="${escapeHtml(rawHref)}" target="_blank" rel="noreferrer" class="${linkClass}">${safeLabel}</a>`;
+      });
   };
 
   const flushParagraph = () => {

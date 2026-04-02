@@ -19,5 +19,6 @@ export const {
   uploadService,
   optionsService,
   accountService,
-  accountPromptService
+  accountPromptService,
+  noticeService
 } = services;

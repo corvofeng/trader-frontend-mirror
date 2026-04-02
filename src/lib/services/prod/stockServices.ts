@@ -14,7 +14,10 @@ import type {
   ServiceResponse,
   User,
   AccountPromptService,
-  AccountPrompt
+  AccountPrompt,
+  Notice,
+  NoticeListResponse,
+  NoticeService
 } from '../types';
 import type { Trade } from '../types';
 
@@ -49,12 +52,14 @@ export const authService: AuthService = {
 
   signIn: async () => {
     window.location.href = '/api/user';
+    return { data: { user: cachedUser as User }, error: null };
   },
 
   signOut: async () => {
     cachedUser = null;
     pendingUserPromise = null;
     window.location.href = '/api/logout';
+    return { data: null, error: null };
   }
 };
 
@@ -85,11 +90,11 @@ export const tradeService: TradeService = {
     console.log(userId, stock_code, status, filteredTrades);
 
     if (stock_code) {
-      filteredTrades = filteredTrades.filter(trade => trade.stock_code === stock_code);
+      filteredTrades = filteredTrades.filter((trade: Trade) => trade.stock_code === stock_code);
     }
 
     if (status && status !== 'all') {
-      filteredTrades = filteredTrades.filter(trade => trade.status === status);
+      filteredTrades = filteredTrades.filter((trade: Trade) => trade.status === status);
     }
 
     return { data: filteredTrades, error: null };
@@ -111,7 +116,7 @@ export const tradeService: TradeService = {
     });
 
     if (!response.ok) {
-      return { data: null, error: 'Failed to create trade' };
+      return { data: null, error: new Error('Failed to create trade') };
     }
 
     const newTrade = await response.json();
@@ -134,7 +139,7 @@ export const tradeService: TradeService = {
     });
 
     if (!response.ok) {
-      return { data: null, error: 'Failed to update trade' };
+      return { data: null, error: new Error('Failed to update trade') };
     }
 
     return { data: trade, error: null };
@@ -259,10 +264,10 @@ export const stockConfigService: StockConfigService = {
         throw new Error('Failed to delete stock config');
       }
       
-      return { error: null };
+      return { data: null, error: null };
     } catch (error) {
       console.error('Error deleting stock config:', error);
-      return { error: error as Error };
+      return { data: null, error: error as Error };
     }
   }
 };
@@ -311,7 +316,7 @@ export const portfolioService: PortfolioService = {
     }
   },
 
-  getTrendData: async (userId: string, startDate: string, endDate: string, accountId: string) => {
+  getTrendData: async (userId: string, startDate: string, endDate: string, accountId?: string) => {
     try {
       // 使用默认账户ID或用户ID作为路径参数
       if (!accountId) return { data: null, error: new Error('Account ID is required') };
@@ -427,17 +432,20 @@ export const currencyService: CurrencyService = {
       if (!response.ok) {
         throw new Error('Failed to update currency');
       }
-      return { error: null };
+      return { data: null, error: null };
     } catch (error) {
       console.error('Error updating currency:', error);
-      return { error: error as Error };
+      return { data: null, error: error as Error };
     }
   }
 };
 
 export const operationService: OperationService = {
-  getOperations: async (startDate: string, endDate: string, accountAlias: string) => {
+  getOperations: async (startDate: string, endDate: string) => {
     try {
+      const accountAlias = getCurrentAccountAlias();
+      if (!accountAlias) return { data: [], error: null };
+
       const url = `/api/portfolio/${encodeURIComponent(accountAlias)}/operations?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`;
       
       const response = await fetch(url);
@@ -452,6 +460,36 @@ export const operationService: OperationService = {
       console.error('Error fetching operations:', error);
       return { data: null, error: error as Error };
     }
+  }
+};
+
+const listNotices = async (): Promise<ServiceResponse<Notice[]>> => {
+  try {
+    const response = await fetch('/api/notices');
+    if (!response.ok) {
+      throw new Error('Failed to fetch notices');
+    }
+    const json = await response.json() as NoticeListResponse;
+    if (!json?.success) {
+      throw new Error('Notices response not successful');
+    }
+    return { data: json.data || [], error: null };
+  } catch (error) {
+    console.error('Error fetching notices:', error);
+    return { data: null, error: error as Error };
+  }
+};
+
+export const noticeService: NoticeService = {
+  listNotices,
+  getNotice: async (noticeUuid: string) => {
+    const { data, error } = await listNotices();
+    if (error) return { data: null, error };
+    const notice = (data || []).find(n => n.notice_uuid === noticeUuid) || null;
+    if (!notice) {
+      return { data: null, error: new Error('Notice not found') };
+    }
+    return { data: notice, error: null };
   }
 };
 

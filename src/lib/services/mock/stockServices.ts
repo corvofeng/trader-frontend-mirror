@@ -2,6 +2,7 @@ import { mockUser, mockHoldings, tradeIdCounter, MOCK_STOCKS, MOCK_STOCK_CONFIGS
 import type {
   AuthService,
   TradeService,
+  Trade,
   StockService,
   PortfolioService,
   CurrencyService,
@@ -20,11 +21,14 @@ import type {
   Account,
   AccountService,
   AccountPromptService,
-  AccountPrompt
+  AccountPrompt,
+  User,
+  Notice,
+  NoticeService
 } from '../types';
 import { format, subDays, addMinutes, startOfDay, endOfDay, parseISO } from 'date-fns';
 
-export const mockTrades = generateMockTrades(DEMO_STOCK_DATA);
+export const mockTrades: Trade[] = generateMockTrades(DEMO_STOCK_DATA);
 
 // Store for uploaded portfolio data
 const uploadedPortfolios = new Map<string, {
@@ -70,7 +74,7 @@ export const authService: AuthService = {
   getUser: async () => {
     await new Promise(resolve => setTimeout(resolve, 500));
     const user = localStorage.getItem('user');
-    return { data: { user: user ? JSON.parse(user) : null }, error: null };
+    return { data: { user: user ? (JSON.parse(user) as User) : null }, error: null };
   },
   signIn: async () => {
     await new Promise(resolve => setTimeout(resolve, 800));
@@ -80,7 +84,7 @@ export const authService: AuthService = {
   signOut: async () => {
     await new Promise(resolve => setTimeout(resolve, 300));
     localStorage.removeItem('user');
-    return { error: null };
+    return { data: null, error: null };
   }
 };
 
@@ -107,10 +111,10 @@ export const tradeService: TradeService = {
     return { data: filteredTrades, error: null };
   },
   
-  createTrade: async (trade) => {
+  createTrade: async (trade: Omit<Trade, 'id' | 'created_at' | 'updated_at'>) => {
     await new Promise(resolve => setTimeout(resolve, 800));
     
-    const newTrade = {
+    const newTrade: Trade = {
       ...trade,
       id: tradeIdCounter.getNextId(),
       created_at: new Date().toISOString(),
@@ -120,7 +124,7 @@ export const tradeService: TradeService = {
     return { data: newTrade, error: null };
   },
   
-  updateTrade: async (trade) => {
+  updateTrade: async (trade: Trade) => {
     await new Promise(resolve => setTimeout(resolve, 1000));
     const tradeIndex = mockTrades.findIndex(t => t.id === trade.id);
     
@@ -165,7 +169,7 @@ export const stockService: StockService = {
 
   getCurrentPrice: async (symbol: string) => {
     await new Promise(resolve => setTimeout(resolve, 300));
-    const lastPrice = DEMO_STOCK_DATA[DEMO_STOCK_DATA.length - 1].close;
+    const lastPrice = DEMO_STOCK_DATA[DEMO_STOCK_DATA.length - 1].current_price;
     const randomChange = (Math.random() - 0.5) * 2;
     const newPrice = lastPrice * (1 + randomChange * 0.01);
 
@@ -212,7 +216,7 @@ export const stockConfigService: StockConfigService = {
       MOCK_STOCK_CONFIGS.splice(index, 1);
     }
     
-    return { error: null };
+    return { data: null, error: null };
   }
 };
 
@@ -502,14 +506,15 @@ export const currencyService: CurrencyService = {
   },
   setCurrency: async (currency: string) => {
     await new Promise(resolve => setTimeout(resolve, 300));
-    return { error: null };
+    void currency;
+    return { data: null, error: null };
   }
 };
 
 export const operationService: OperationService = {
-  getOperations: async (startDate: string, endDate: string, accountAlias: string) => {
+  getOperations: async (startDate: string, endDate: string) => {
     await new Promise(resolve => setTimeout(resolve, 800));
-    console.log(`Fetching operations for ${accountAlias} from ${startDate} to ${endDate}`);
+    console.log(`Fetching operations from ${startDate} to ${endDate}`);
     const operations = generateMockOperations(startDate, endDate);
     return { data: operations, error: null };
   }
@@ -1036,5 +1041,35 @@ export const accountPromptService: AccountPromptService = {
       },
       error: null
     };
+  }
+};
+
+export const noticeService: NoticeService = {
+  listNotices: async () => {
+    await new Promise(resolve => setTimeout(resolve, 150));
+    const now = new Date().toISOString();
+    const notices: Notice[] = [
+      {
+        notice_uuid: '263c5158-4223-43e6-b5e9-4b30a02aa9ff',
+        title: '示例通知',
+        content: '这是一条示例通知。\n\n[打开示例](notice://263c5158-4223-43e6-b5e9-4b30a02aa9ff)\n\n[[button:打开示例|notice:263c5158-4223-43e6-b5e9-4b30a02aa9ff]]',
+        account_id: 'test',
+        is_resolved: false,
+        created_at: now,
+        updated_at: now,
+        resolved_at: null,
+        resolver: null
+      }
+    ];
+    return { data: notices, error: null };
+  },
+  getNotice: async (noticeUuid: string) => {
+    const { data, error } = await noticeService.listNotices();
+    if (error) return { data: null, error };
+    const notice = (data || []).find(n => n.notice_uuid === noticeUuid) || null;
+    if (!notice) {
+      return { data: null, error: new Error('Notice not found') };
+    }
+    return { data: notice, error: null };
   }
 };

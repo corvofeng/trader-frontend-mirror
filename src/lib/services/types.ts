@@ -84,6 +84,28 @@ export interface ServiceResponse<T> {
   isSnapshot?: boolean;
 }
 
+export interface Notice {
+  notice_uuid: string;
+  title: string;
+  content: string;
+  account_id: string;
+  is_resolved: boolean;
+  created_at: string;
+  updated_at: string;
+  resolved_at: string | null;
+  resolver: string | null;
+}
+
+export interface NoticeListResponse {
+  data: Notice[];
+  success: boolean;
+}
+
+export interface NoticeService {
+  listNotices: () => Promise<ServiceResponse<Notice[]>>;
+  getNotice: (noticeUuid: string) => Promise<ServiceResponse<Notice>>;
+}
+
 export interface StockPrice {
   stock_code: string;
   stock_name: string;
@@ -363,6 +385,7 @@ export interface Services {
   optionsService: OptionsService;
   accountService: AccountService;
   accountPromptService: AccountPromptService;
+  noticeService: NoticeService;
 }
 
 // Options Service Types

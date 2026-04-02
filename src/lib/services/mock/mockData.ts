@@ -1,11 +1,11 @@
 import { format, subDays, addHours, addMinutes } from 'date-fns';
-import type { Operation, StockConfig } from '../types';
+import type { Operation, StockConfig, Trade, User } from '../types';
 
-export const mockUser = {
+export const mockUser: User = {
   id: '123e4567-e89b-12d3-a456-426614174000',
   email: 'demo@example.com',
+  avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=demo',
   name: 'Demo User',
-  created_at: '2023-01-01T00:00:00Z'
 };
 
 // Stock categories/sectors
@@ -262,7 +262,7 @@ export function generateMockStockData(symbol: string, days: number = 252): any[]
 export const tradeIdCounter = {
   currentId: 1000,
   getNextId: function() {
-    return (this.currentId++).toString();
+    return this.currentId++;
   }
 };
 
@@ -297,8 +297,8 @@ export function generateMockOperations(startDate: string, endDate: string): Oper
   );
 }
 
-export function generateMockTrades(stockData: any[]) {
-  const trades = [];
+export function generateMockTrades(stockData: any[]): Trade[] {
+  const trades: Trade[] = [];
   const numTrades = 20;
   const startDate = new Date();
   startDate.setFullYear(startDate.getFullYear() - 1);
