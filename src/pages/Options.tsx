@@ -25,7 +25,7 @@ interface OptionsProps {
   theme: Theme;
 }
 
-type OptionsTab = 'data' | 'portfolio' | 'trading' | 'management' | 'whitelist' | 'risk' | 'analysis';
+type OptionsTab = 'data' | 'portfolio' | 'analysis' | 'trading' | 'management' | 'whitelist' | 'risk';
 
 export function Options({ theme }: OptionsProps) {
   const location = useLocation();
@@ -48,7 +48,7 @@ export function Options({ theme }: OptionsProps) {
   const [activeTab, setActiveTab] = useState<OptionsTab>(() => {
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab') as OptionsTab;
-    return tab && ['data', 'portfolio', 'trading', 'management', 'whitelist', 'risk', 'analysis'].includes(tab) ? tab : 'data';
+    return tab && ['data', 'portfolio', 'analysis', 'trading', 'management', 'whitelist', 'risk'].includes(tab) ? tab : 'data';
   });
 
   const [availableSymbols, setAvailableSymbols] = useState<string[]>([]);
@@ -81,10 +81,11 @@ export function Options({ theme }: OptionsProps) {
   const [userId, setUserId] = useState<string | null>(null);
   const effectiveUserId = userId ?? 'demo';
 
-  const handleTabChange = (newTab: OptionsTab) => {
-    setActiveTab(newTab);
+  const handleTabChange = (newTab: string) => {
+    const nextTab = newTab as OptionsTab;
+    setActiveTab(nextTab);
     const params = new URLSearchParams(location.search);
-    params.set('tab', newTab);
+    params.set('tab', nextTab);
     navigate(`/options?${params.toString()}`, { replace: true });
   };
 

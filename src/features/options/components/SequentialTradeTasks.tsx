@@ -48,11 +48,10 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
         if (serviceError) {
           throw serviceError;
         }
-        const list = data || [];
-        setTasks(list);
+        setTasks(data || []);
         setSelectedTaskId(prev => {
-          if (prev != null && list.some(t => t.id === prev)) return prev;
-          return list.length > 0 ? list[0].id : null;
+          if (prev != null && (data || []).some(t => t.id === prev)) return prev;
+          return (data || []).length > 0 ? (data || [])[0].id : null;
         });
       } catch (error) {
         if (cancelled) return;
@@ -70,6 +69,11 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
       cancelled = true;
     };
   }, [selectedAccountId, statusFilter, reloadKey, offset]);
+
+  useEffect(() => {
+    if (!selectedAccountId) return;
+    setOffset(0);
+  }, [selectedAccountId, statusFilter]);
 
   useEffect(() => {
     if (!selectedAccountId) return;
@@ -223,6 +227,7 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
     selectedTaskId != null
       ? detailById[selectedTaskId] || tasks.find(t => t.id === selectedTaskId) || null
       : null;
+  const selectedSteps = selectedTask?.steps ?? [];
   const selectedStatus = selectedTask?.status ? selectedTask.status.toLowerCase() : '';
   const canPause = selectedStatus === 'pending' || selectedStatus === 'executing';
   const canResume = selectedStatus === 'paused';
@@ -640,9 +645,9 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
                       <div className={`text-xs font-medium mb-2 ${themes[theme].text}`}>
                         任务阶段
                       </div>
-                      {selectedTask.steps && selectedTask.steps.length > 0 ? (
+                      {selectedSteps.length > 0 ? (
                         <div className="space-y-2">
-                          {selectedTask.steps.map((step: SequentialTradeStep, index: number) => {
+                          {selectedSteps.map((step: SequentialTradeStep, index: number) => {
                             const status = getStatusConfig(step.status);
                             const isCurrent =
                               selectedTask.current_step_index != null
@@ -654,7 +659,7 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
                                   <div
                                     className={`w-3 h-3 rounded-full border-2 ${isCurrent ? 'border-blue-500' : 'border-slate-300 dark:border-slate-600'} bg-white dark:bg-slate-900`}
                                   />
-                                  {index < selectedTask.steps.length - 1 && (
+                                  {index < selectedSteps.length - 1 && (
                                     <div className="flex-1 w-px bg-slate-200 dark:bg-slate-700 mt-1 mb-1" />
                                   )}
                                 </div>

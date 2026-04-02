@@ -1165,7 +1165,7 @@ export const optionsService: OptionsService = {
     return this.getOptionOrdersStats(accountId, month);
   },
 
-  getSequentialTrades: async (accountId: string, options?: { status?: string; limit?: number; offset?: number }) => {
+  getSequentialTrades: async (accountId: string, options?: { status?: string; limit?: number; offset?: number; today_only?: boolean }) => {
     const now = new Date();
     const toIso = (d: Date) => d.toISOString();
     const limit = Math.max(1, Math.min(Number(options?.limit ?? 50) || 50, 200));
@@ -1287,6 +1287,15 @@ export const optionsService: OptionsService = {
     if (options?.status && options.status !== 'all') {
       const s = options.status.toLowerCase();
       filtered = base.filter(t => t.status.toLowerCase() === s);
+    }
+    if (options?.today_only) {
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const end = new Date(start);
+      end.setDate(start.getDate() + 1);
+      filtered = filtered.filter(t => {
+        const d = new Date(t.created_at);
+        return !Number.isNaN(d.getTime()) && d >= start && d < end;
+      });
     }
 
     const paged = filtered.slice(offset, offset + limit);

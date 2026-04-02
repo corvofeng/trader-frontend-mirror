@@ -10,7 +10,7 @@ import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { optionsService, authService, stockService } from '../../../lib/services';
 import { emitAddLegToStrategy } from '../events/strategySelection';
 import { logger } from '../../../shared/utils/logger';
-import type { OptionsPortfolioData, CustomOptionsStrategy, OptionsPosition, OptionsStrategy, AdvisedCombination, OptionsData, OptionWhitelist } from '../../../lib/services/types';
+import type { OptionsPortfolioData, CustomOptionsStrategy, OptionsPosition, OptionsStrategy, AdvisedCombination, OptionsData, OptionWhitelist, SequentialTradeTask } from '../../../lib/services/types';
 import { computeCombosForPositions as computeCombosForStrategy } from '../utils/strategyCombos';
 import toast from 'react-hot-toast';
 import { ExpiryGroupCard } from './ExpiryGroupCard';
@@ -94,7 +94,9 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   const [portfolioData, setPortfolioData] = useState<OptionsPortfolioData | null>(null);
   const [whitelists, setWhitelists] = useState<OptionWhitelist[]>([]);
   const [customStrategies, setCustomStrategies] = useState<CustomOptionsStrategy[]>([]);
-  // const [todayOrders, setTodayOrders] = useState<OptionOrder[]>([]);
+  const [todayComboTasks, setTodayComboTasks] = useState<SequentialTradeTask[]>([]);
+  const [todayComboTasksLoading, setTodayComboTasksLoading] = useState(false);
+  const [todayComboTasksError, setTodayComboTasksError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   // Use prop directly to avoid stale state during refresh
   // 已不在界面使用策略加载状态，避免未使用变量
@@ -122,6 +124,51 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   const { currencyConfig } = useCurrency();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [activeSymbol, setActiveSymbol] = useState<string>(selectedSymbol || '');
+  const [isTodayComboDialogOpen, setIsTodayComboDialogOpen] = useState(() => {
+    try {
+      return localStorage.getItem('options_portfolio_today_combo_open') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const todayComboPanelRef = useRef<HTMLDivElement | null>(null);
+  const [todayComboDragging, setTodayComboDragging] = useState(false);
+  const todayComboDragOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [todayComboPanelPos, setTodayComboPanelPos] = useState<{ top: number; left: number }>(() => {
+    try {
+      const saved = localStorage.getItem('options_portfolio_today_combo_pos');
+      if (saved) {
+        const obj = JSON.parse(saved);
+        if (typeof obj?.top === 'number' && typeof obj?.left === 'number') {
+          return { top: obj.top, left: obj.left };
+        }
+      }
+    } catch {
+      void 0;
+    }
+    return { top: 120, left: window.innerWidth - 16 - 520 };
+  });
+  const [todayComboPanelSize, setTodayComboPanelSize] = useState<{ width: number; height: number }>(() => {
+    try {
+      const saved = localStorage.getItem('options_portfolio_today_combo_size');
+      if (saved) {
+        const obj = JSON.parse(saved);
+        if (typeof obj?.width === 'number' && typeof obj?.height === 'number') {
+          return { width: obj.width, height: obj.height };
+        }
+      }
+    } catch {
+      void 0;
+    }
+    return { width: 520, height: 320 };
+  });
+  const [todayComboResizing, setTodayComboResizing] = useState(false);
+  const todayComboResizeStartRef = useRef<{ x: number; y: number; width: number; height: number }>({
+    x: 0,
+    y: 0,
+    width: 520,
+    height: 320
+  });
   
   // Activity Log State
   const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>([]);
@@ -408,6 +455,142 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       previousPositionsRef.current = currentPositions;
   }, []);
 
+  const fetchTodayComboTrades = useCallback(async () => {
+    if (!selectedAccountIdProp) {
+      setTodayComboTasks([]);
+      setTodayComboTasksLoading(false);
+      setTodayComboTasksError(null);
+      return;
+    }
+    try {
+      setTodayComboTasksLoading(true);
+      setTodayComboTasksError(null);
+      const { data, error } = await optionsService.getSequentialTrades(selectedAccountIdProp, { today_only: true, limit: 200, offset: 0 });
+      if (error) throw error;
+      const list = data || [];
+      list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      setTodayComboTasks(list);
+    } catch (error) {
+      setTodayComboTasks([]);
+      setTodayComboTasksError(error instanceof Error ? error.message : '加载今日组合交易任务失败');
+    } finally {
+      setTodayComboTasksLoading(false);
+    }
+  }, [selectedAccountIdProp]);
+
+  const toggleTodayComboPanel = useCallback(() => {
+    setIsTodayComboDialogOpen(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('options_portfolio_today_combo_open', next ? '1' : '0');
+      } catch {
+        logger.debug('[OptionsPortfolio] Failed to persist options_portfolio_today_combo_open');
+      }
+      return next;
+    });
+  }, []);
+
+  const getTodayComboPanelDims = useCallback(() => {
+    const headerHeight = 52;
+    const width = Math.max(360, Math.min(todayComboPanelSize.width, window.innerWidth - 16));
+    const height = isTodayComboDialogOpen
+      ? Math.max(180, Math.min(todayComboPanelSize.height, window.innerHeight - 16))
+      : headerHeight;
+    return { width, height, headerHeight };
+  }, [isTodayComboDialogOpen, todayComboPanelSize.height, todayComboPanelSize.width]);
+
+  const clampTodayComboPanelPos = useCallback(
+    (pos: { top: number; left: number }, dims: { width: number; height: number }) => {
+      const top = Math.max(8, Math.min(pos.top, window.innerHeight - dims.height - 8));
+      const left = Math.max(8, Math.min(pos.left, window.innerWidth - dims.width - 8));
+      return { top, left };
+    },
+    []
+  );
+
+  const startTodayComboDrag = useCallback(
+    (e: React.MouseEvent) => {
+      if ((e.target as HTMLElement | null)?.closest('button')) return;
+      setTodayComboDragging(true);
+      const rect = todayComboPanelRef.current?.getBoundingClientRect();
+      const offsetX = e.clientX - (rect?.left ?? 0);
+      const offsetY = e.clientY - (rect?.top ?? 0);
+      todayComboDragOffsetRef.current = { x: offsetX, y: offsetY };
+
+      const onDrag = (ev: MouseEvent) => {
+        const dims = getTodayComboPanelDims();
+        const top = ev.clientY - todayComboDragOffsetRef.current.y;
+        const left = ev.clientX - todayComboDragOffsetRef.current.x;
+        const clamped = clampTodayComboPanelPos({ top, left }, { width: dims.width, height: dims.height });
+        setTodayComboPanelPos(clamped);
+        try {
+          localStorage.setItem('options_portfolio_today_combo_pos', JSON.stringify(clamped));
+        } catch {
+          void 0;
+        }
+      };
+      const endDrag = () => {
+        setTodayComboDragging(false);
+        window.removeEventListener('mousemove', onDrag);
+        window.removeEventListener('mouseup', endDrag);
+      };
+      window.addEventListener('mousemove', onDrag);
+      window.addEventListener('mouseup', endDrag);
+    },
+    [clampTodayComboPanelPos, getTodayComboPanelDims]
+  );
+
+  const startTodayComboResize = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (!isTodayComboDialogOpen) return;
+      setTodayComboResizing(true);
+      todayComboResizeStartRef.current = {
+        x: e.clientX,
+        y: e.clientY,
+        width: todayComboPanelSize.width,
+        height: todayComboPanelSize.height
+      };
+
+      const onResize = (ev: MouseEvent) => {
+        const dx = ev.clientX - todayComboResizeStartRef.current.x;
+        const dy = ev.clientY - todayComboResizeStartRef.current.y;
+        const nextWidth = todayComboResizeStartRef.current.width + dx;
+        const nextHeight = todayComboResizeStartRef.current.height + dy;
+        const width = Math.max(360, Math.min(nextWidth, window.innerWidth - 16));
+        const height = Math.max(180, Math.min(nextHeight, window.innerHeight - 16));
+        setTodayComboPanelSize({ width, height });
+        try {
+          localStorage.setItem('options_portfolio_today_combo_size', JSON.stringify({ width, height }));
+        } catch {
+          void 0;
+        }
+        const clampedPos = clampTodayComboPanelPos(todayComboPanelPos, { width, height });
+        setTodayComboPanelPos(clampedPos);
+      };
+      const endResize = () => {
+        setTodayComboResizing(false);
+        window.removeEventListener('mousemove', onResize);
+        window.removeEventListener('mouseup', endResize);
+      };
+      window.addEventListener('mousemove', onResize);
+      window.addEventListener('mouseup', endResize);
+    },
+    [clampTodayComboPanelPos, isTodayComboDialogOpen, todayComboPanelPos, todayComboPanelSize.height, todayComboPanelSize.width]
+  );
+
+  useEffect(() => {
+    const onResize = () => {
+      const dims = getTodayComboPanelDims();
+      const clampedPos = clampTodayComboPanelPos(todayComboPanelPos, { width: dims.width, height: dims.height });
+      setTodayComboPanelPos(clampedPos);
+    };
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+    };
+  }, [clampTodayComboPanelPos, getTodayComboPanelDims, todayComboPanelPos]);
+
   const fetchPortfolio = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -460,6 +643,12 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   useEffect(() => {
     fetchPortfolio();
   }, [fetchPortfolio, refreshKey]);
+
+  useEffect(() => {
+    if (viewMode !== 'expiry') return;
+    if (!isTodayComboDialogOpen) return;
+    fetchTodayComboTrades();
+  }, [fetchTodayComboTrades, isTodayComboDialogOpen, refreshKey, viewMode]);
 
   useEffect(() => {
     if (!portfolioData) return;
@@ -2398,6 +2587,144 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
             </div>
           </div>
         </div>
+      )}
+
+      {viewMode === 'expiry' && (
+        (() => {
+          const dims = getTodayComboPanelDims();
+          const clampedPos = clampTodayComboPanelPos(todayComboPanelPos, { width: dims.width, height: dims.height });
+          const style: React.CSSProperties = {
+            position: 'fixed',
+            zIndex: 49,
+            top: clampedPos.top,
+            left: clampedPos.left,
+            width: dims.width,
+            height: dims.height
+          };
+          return (
+            <div
+              ref={todayComboPanelRef}
+              className={`${themes[theme].card} shadow-lg rounded-lg border ${themes[theme].border} overflow-hidden opacity-95 hover:opacity-100 transition-opacity relative ${todayComboResizing ? 'ring-2 ring-blue-500' : ''}`}
+              style={style}
+            >
+              <div
+                className={`px-3 py-2 border-b ${themes[theme].border} flex items-center justify-between select-none ${
+                  todayComboDragging ? 'cursor-grabbing' : todayComboResizing ? 'cursor-se-resize' : 'cursor-grab'
+                }`}
+                onMouseDown={startTodayComboDrag}
+                title="拖动移动位置"
+              >
+                <div className="flex items-center gap-2">
+                  <div className={`font-bold text-sm ${themes[theme].text}`}>今日组合交易任务</div>
+                  <div className={`text-xs ${themes[theme].text} opacity-60`}>({todayComboTasks.length})</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className={`p-1 rounded ${themes[theme].secondary}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      fetchTodayComboTrades();
+                    }}
+                    title="刷新"
+                    disabled={!selectedAccountIdProp || todayComboTasksLoading}
+                  >
+                    <RefreshCw className={`w-4 h-4 ${themes[theme].text}`} />
+                  </button>
+                  <button
+                    type="button"
+                    className={`p-1 rounded ${themes[theme].secondary}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleTodayComboPanel();
+                    }}
+                    title={isTodayComboDialogOpen ? '折叠' : '展开'}
+                  >
+                    {isTodayComboDialogOpen ? (
+                      <ChevronUp className={`w-4 h-4 ${themes[theme].text}`} />
+                    ) : (
+                      <ChevronDown className={`w-4 h-4 ${themes[theme].text}`} />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {isTodayComboDialogOpen && (
+                <>
+                  <div
+                    className="px-3 py-3 bg-white dark:bg-gray-900"
+                    style={{ height: dims.height - dims.headerHeight, overflow: 'auto' }}
+                  >
+                    {!selectedAccountIdProp && (
+                      <div className={`text-sm ${themes[theme].text} opacity-75`}>请选择账户后再查看今日组合交易任务。</div>
+                    )}
+                    {selectedAccountIdProp && (
+                      <>
+                        {todayComboTasksLoading && (
+                          <div className="py-6 text-center text-sm text-gray-500">正在加载今日组合交易任务...</div>
+                        )}
+                        {!todayComboTasksLoading && !!todayComboTasksError && (
+                          <div className="py-6 text-center text-sm text-red-500">{todayComboTasksError}</div>
+                        )}
+                        {!todayComboTasksLoading && !todayComboTasksError && todayComboTasks.length === 0 && (
+                          <div className="py-6 text-center text-sm text-gray-500">今日暂无组合交易任务。</div>
+                        )}
+                        {!todayComboTasksLoading && !todayComboTasksError && todayComboTasks.length > 0 && (
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                              <thead className="bg-gray-50 dark:bg-gray-900/50">
+                                <tr>
+                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">时间</th>
+                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">任务</th>
+                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">动作</th>
+                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
+                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">组合</th>
+                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">到期</th>
+                                </tr>
+                              </thead>
+                              <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                                {todayComboTasks.map((task) => (
+                                  <tr key={`today-combo-task-${task.id}`}>
+                                    <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
+                                      {task.created_at?.includes('T')
+                                        ? task.created_at.split('T')[1]?.slice(0, 8)
+                                        : (task.created_at?.split(' ')[1] || task.created_at || '-')}
+                                    </td>
+                                    <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">
+                                      {task.id}
+                                    </td>
+                                    <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
+                                      {task.action_type}
+                                    </td>
+                                    <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
+                                      {task.status}
+                                    </td>
+                                    <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">
+                                      {task.combo_id ?? '-'}
+                                    </td>
+                                    <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
+                                      {task.expiry_date ? format(new Date(task.expiry_date), 'yyyy-MM-dd') : '-'}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+
+                  <div
+                    className="absolute right-1 bottom-1 w-3 h-3 cursor-se-resize bg-gray-400/40 hover:bg-gray-400/70 rounded-sm"
+                    onMouseDown={startTodayComboResize}
+                    title="拖动调整大小"
+                  />
+                </>
+              )}
+            </div>
+          );
+        })()
       )}
 
       {/* Underlying Price Monitor */}

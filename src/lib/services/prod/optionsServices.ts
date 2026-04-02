@@ -1047,12 +1047,13 @@ export const optionsService: OptionsService = {
     }
   },
 
-  getSequentialTrades: async (accountId: string, options?: { status?: string; limit?: number; offset?: number }) => {
+  getSequentialTrades: async (accountId: string, options?: { status?: string; limit?: number; offset?: number; today_only?: boolean }) => {
     try {
       const params = new URLSearchParams();
       if (options?.status) params.set('status', options.status);
       if (options?.limit != null) params.set('limit', String(options.limit));
       if (options?.offset != null) params.set('offset', String(options.offset));
+      if (options?.today_only) params.set('today_only', 'true');
       const queryString = params.toString() ? `?${params.toString()}` : '';
       const response = await fetch(`/api/sequential-trade/${encodeURIComponent(accountId)}/list${queryString}`);
       if (!response.ok) {

@@ -809,7 +809,7 @@ export interface OptionsService {
   getOptionOrdersStats: (accountId: string, month: string) => Promise<ServiceResponse<Record<string, { completed_count: number; pending_count: number; junk_count: number; total_count: number }>>>;
   getAdminOrders: (accountId: string, options?: { date?: string; only_today?: boolean }) => Promise<ServiceResponse<OptionOrder[]>>;
   getAdminOrdersStats: (accountId: string, month: string) => Promise<ServiceResponse<Record<string, { completed_count: number; pending_count: number; junk_count: number; total_count: number }>>>;
-  getSequentialTrades: (accountId: string, options?: { status?: string; limit?: number; offset?: number }) => Promise<ServiceResponse<SequentialTradeTask[]>>;
+  getSequentialTrades: (accountId: string, options?: { status?: string; limit?: number; offset?: number; today_only?: boolean }) => Promise<ServiceResponse<SequentialTradeTask[]>>;
   getSequentialTradeDetail: (accountAlias: string, tradeId: number | string) => Promise<ServiceResponse<SequentialTradeTask>>;
   pauseSequentialTrade: (accountAlias: string, tradeId: number | string) => Promise<ServiceResponse<void>>;
   resumeSequentialTrade: (accountAlias: string, tradeId: number | string) => Promise<ServiceResponse<void>>;
