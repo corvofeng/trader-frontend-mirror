@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Bell, LogIn, LogOut, Menu, X, Sun, Moon, Palette } from 'lucide-react';
 import { Theme, themes } from '../../lib/theme';
@@ -24,6 +24,9 @@ const themeIcons = {
   blue: <Palette className="w-5 h-5" />
 };
 
+const NOTICES_POLL_INTERVAL_MS = 5000;
+const NOTICES_BADGE_POLL_INTERVAL_MS = 15000;
+
 export function Navigation({
   user,
   theme,
@@ -43,52 +46,94 @@ export function Navigation({
   const [selectedNoticeUuid, setSelectedNoticeUuid] = useState<string | null>(null);
   const [selectedNotice, setSelectedNotice] = useState<Notice | null>(null);
   const [noticeLoading, setNoticeLoading] = useState(false);
+  const noticesLoadingRef = useRef(false);
+  const noticeLoadingRef = useRef(false);
 
   const unresolvedCount = useMemo(() => {
     return notices.filter(n => !n.is_resolved).length;
   }, [notices]);
 
-  const loadNotices = async () => {
-    setNoticesLoading(true);
-    setNoticesError(null);
-    const { data, error } = await noticeService.listNotices();
-    if (error) {
-      setNoticesError(error.message || 'Failed to load notices');
-      setNotices([]);
-      setNoticesLoading(false);
-      return;
+  const loadNotices = useCallback(async (options?: { silent?: boolean }) => {
+    if (noticesLoadingRef.current) return;
+    noticesLoadingRef.current = true;
+    if (!options?.silent) {
+      setNoticesLoading(true);
+      setNoticesError(null);
     }
-    setNotices(data || []);
-    setNoticesLoading(false);
-  };
+    try {
+      const { data, error } = await noticeService.listNotices();
+      if (error) {
+        if (!options?.silent) {
+          setNoticesError(error.message || 'Failed to load notices');
+          setNotices([]);
+        }
+        return;
+      }
+      setNotices(data || []);
+    } finally {
+      noticesLoadingRef.current = false;
+      if (!options?.silent) {
+        setNoticesLoading(false);
+      }
+    }
+  }, []);
 
-  const openNotice = async (noticeUuid: string) => {
+  const openNotice = useCallback(async (noticeUuid: string) => {
+    if (noticeLoadingRef.current) return;
+    noticeLoadingRef.current = true;
     setSelectedNoticeUuid(noticeUuid);
     setSelectedNotice(null);
     setNoticesError(null);
     setNoticeLoading(true);
-    const { data, error } = await noticeService.getNotice(noticeUuid);
-    if (error) {
-      setNoticesError(error.message || 'Failed to load notice');
+    try {
+      const { data, error } = await noticeService.getNotice(noticeUuid);
+      if (error) {
+        setNoticesError(error.message || 'Failed to load notice');
+        return;
+      }
+      setSelectedNotice(data);
+    } finally {
+      noticeLoadingRef.current = false;
       setNoticeLoading(false);
-      return;
     }
-    setSelectedNotice(data);
-    setNoticeLoading(false);
-  };
+  }, []);
 
   const closeNotices = () => {
     setNoticesOpen(false);
     setSelectedNoticeUuid(null);
     setSelectedNotice(null);
+    noticeLoadingRef.current = false;
     setNoticeLoading(false);
     setNoticesError(null);
   };
 
   useEffect(() => {
     if (!noticesOpen) return;
+    if (selectedNoticeUuid) return;
     void loadNotices();
-  }, [noticesOpen]);
+  }, [loadNotices, noticesOpen, selectedNoticeUuid]);
+
+  useEffect(() => {
+    if (!noticesOpen) return;
+    if (selectedNoticeUuid) return;
+    const id = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      void loadNotices();
+    }, NOTICES_POLL_INTERVAL_MS);
+
+    return () => window.clearInterval(id);
+  }, [loadNotices, noticesOpen, selectedNoticeUuid]);
+
+  useEffect(() => {
+    if (noticesOpen && !selectedNoticeUuid) return;
+    const refresh = () => {
+      if (document.visibilityState !== 'visible') return;
+      void loadNotices({ silent: true });
+    };
+    refresh();
+    const id = window.setInterval(refresh, NOTICES_BADGE_POLL_INTERVAL_MS);
+    return () => window.clearInterval(id);
+  }, [loadNotices, noticesOpen, selectedNoticeUuid]);
 
   const handleNoticeContentClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement | null;
