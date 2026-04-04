@@ -582,6 +582,10 @@ export interface SequentialTradeStep {
   status: SequentialTradeStatus;
   description?: string | null;
   params?: Record<string, unknown> | null;
+  method_name?: string | null;
+  symbol?: string | null;
+  user_order_id?: string | null;
+  general?: Record<string, unknown> | null;
   start_time?: string | null;
   end_time?: string | null;
 }
@@ -592,7 +596,7 @@ export interface SequentialTradeTask {
   account_alias?: string;
   env?: string | null;
   combo_id?: string | number;
-  expiry_date?: string;
+  expiry_date?: string | null;
   action_type: string;
   status: SequentialTradeStatus;
   current_step?: number | null;
@@ -604,6 +608,7 @@ export interface SequentialTradeTask {
   completed_at?: string | null;
   error_msg?: string | null;
   timeout_seconds?: number | null;
+  trade_uuid?: string | null;
 }
 
 export interface OptionsPortfolioData {
