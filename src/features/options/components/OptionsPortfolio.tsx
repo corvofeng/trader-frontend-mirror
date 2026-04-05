@@ -21,7 +21,7 @@ import { ViewModeTabs, type OptionsViewMode } from './ViewModeTabs';
 import { ExpiryFastNav } from './ExpiryFastNav';
 import { GroupedPositionsView } from './GroupedPositionsView';
 import { SaveStrategyModal } from './SaveStrategyModal';
-import { TodayComboPanel } from './TodayComboPanel';
+import { TodayOrderFlowPanel } from './TodayComboPanel';
 import { CustomStrategiesPanel } from './CustomStrategiesPanel';
 import { OptionsPortfolioStrategyView } from './OptionsPortfolioStrategyView';
 import { getDaysToExpiryColor, getMoneynessTagForPrice, getPositionTypeInfo2, getRowHighlightClassForTag, getStatusColorClass, getTypeIcon, inferStrategyFromLegsWithSelection, type InferredStrategyResult } from '../utils/portfolioUi';
@@ -1000,10 +1000,11 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         onConfirm={confirmSaveModal}
       />
 
-      <TodayComboPanel
+      <TodayOrderFlowPanel
         theme={theme}
         viewMode={viewMode}
         selectedAccountId={selectedAccountIdProp || null}
+        userId={currentUserId || null}
         refreshKey={refreshKey}
       />
 

@@ -880,9 +880,19 @@ export const optionsService: OptionsService = {
       if (!response.ok) {
         throw new Error('Failed to fetch option orders');
       }
-      const data = await response.json();
-      // Ensure data is an array or extracted from 'orders' field
-      const orders = Array.isArray(data) ? data : (Array.isArray(data.orders) ? data.orders : (Array.isArray(data.data) ? data.data : []));
+      const raw = await response.json();
+
+      const extractOrders = (value: unknown): unknown[] => {
+        if (Array.isArray(value)) return value;
+        if (!value || typeof value !== 'object') return [];
+
+        const obj = value as Record<string, unknown>;
+        if (Array.isArray(obj.orders)) return obj.orders;
+        if ('data' in obj) return extractOrders(obj.data);
+        return [];
+      };
+
+      const orders = extractOrders(raw) as OptionOrder[];
       return { data: orders, error: null };
     } catch (error) {
       console.error('Error fetching option orders:', error);
