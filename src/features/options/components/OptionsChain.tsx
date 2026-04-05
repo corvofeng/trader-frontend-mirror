@@ -36,6 +36,29 @@ export function OptionsChain({
 
   const editableQuotes = quotesByExpiry;
 
+  const isCnSymbol = React.useMemo(() => {
+    const s = selectedSymbol || '';
+    return /(\.SH|\.SZ)$/i.test(s) || /^\d{6}(\.(SH|SZ))?$/i.test(s);
+  }, [selectedSymbol]);
+
+  const looksLikeValuesScaledBy10k = React.useMemo(() => {
+    if (!isCnSymbol) return false;
+    const sample = editableQuotes.find(q => Number.isFinite(q.callPrice) || Number.isFinite(q.putPrice));
+    if (!sample) return false;
+    const call = Number(sample.callPrice || 0);
+    const put = Number(sample.putPrice || 0);
+    const max = Math.max(call, put);
+    return max >= 50;
+  }, [editableQuotes, isCnSymbol]);
+
+  const formatCount = (raw: number) => {
+    const n = Number(raw || 0);
+    const normalized = looksLikeValuesScaledBy10k ? n / 10000 : n;
+    const text = Math.round(normalized).toLocaleString('en-US');
+    const title = looksLikeValuesScaledBy10k ? `原始值: ${Math.round(n).toLocaleString('en-US')}` : undefined;
+    return { text, title };
+  };
+
   // 找到时间价值最大的期权合约作为平值合约
   const getAtTheMoneyStrike = (quotes: OptionQuote[]): number => {
     if (quotes.length === 0) return 0;
@@ -95,16 +118,28 @@ export function OptionsChain({
     {
       id: 'volume',
       label: '成交量',
-      renderCall: (quote) => <span className="text-gray-600 dark:text-gray-400">{quote.callVolume}</span>,
-      renderPut: (quote) => <span className="text-gray-600 dark:text-gray-400">{quote.putVolume}</span>,
+      renderCall: (quote) => {
+        const { text, title } = formatCount(quote.callVolume);
+        return <span className="text-gray-600 dark:text-gray-400" title={title}>{text}</span>;
+      },
+      renderPut: (quote) => {
+        const { text, title } = formatCount(quote.putVolume);
+        return <span className="text-gray-600 dark:text-gray-400" title={title}>{text}</span>;
+      },
       callAlign: 'right',
       putAlign: 'left',
     },
     {
       id: 'openInterest',
       label: '持仓量',
-      renderCall: (quote) => <span className="text-gray-600 dark:text-gray-400">{quote.callOpenInterest}</span>,
-      renderPut: (quote) => <span className="text-gray-600 dark:text-gray-400">{quote.putOpenInterest}</span>,
+      renderCall: (quote) => {
+        const { text, title } = formatCount(quote.callOpenInterest);
+        return <span className="text-gray-600 dark:text-gray-400" title={title}>{text}</span>;
+      },
+      renderPut: (quote) => {
+        const { text, title } = formatCount(quote.putOpenInterest);
+        return <span className="text-gray-600 dark:text-gray-400" title={title}>{text}</span>;
+      },
       callAlign: 'right',
       putAlign: 'left',
     },
@@ -365,17 +400,35 @@ export function OptionsChain({
           <h2 className={`text-xl font-bold ${themes[theme].text}`}>
             Option Chain - {selectedSymbol}
           </h2>
-          <select
-            value={selectedExpiry}
-            onChange={(e) => onExpiryChange(e.target.value)}
-            className={`px-3 py-2 rounded-md text-sm ${themes[theme].input} ${themes[theme].text}`}
-          >
-            {uniqueExpiryDates.map(date => (
-              <option key={date} value={date}>
-                {format(new Date(date), 'MMM d, yyyy')}
-              </option>
-            ))}
-          </select>
+          <div className="w-full sm:w-auto">
+            <div
+              className="flex gap-2 overflow-x-auto overscroll-x-contain touch-pan-x pb-1 sm:flex-wrap sm:overflow-visible"
+              role="tablist"
+              aria-label="到期日"
+            >
+              {uniqueExpiryDates.map(date => {
+                const isActive = date === selectedExpiry;
+                return (
+                  <button
+                    key={date}
+                    type="button"
+                    onClick={() => onExpiryChange(date)}
+                    className={[
+                      'shrink-0 px-3 py-2 rounded-md text-sm border',
+                      isActive
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : `${themes[theme].secondary} ${themes[theme].text} ${themes[theme].border}`
+                    ].join(' ')}
+                    role="tab"
+                    aria-selected={isActive}
+                    aria-pressed={isActive}
+                  >
+                    {format(new Date(date), 'yyyy-MM-dd')}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
         {/* 三段式布局 + 可配置字段，对齐与对称滚动联动 */}
