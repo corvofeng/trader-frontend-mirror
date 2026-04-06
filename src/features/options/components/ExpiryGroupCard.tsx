@@ -952,44 +952,59 @@ export function ExpiryGroupCard({
                                         <td className={`text-center py-2 ${themes[theme].text}`}>
                                           <div className="flex flex-col items-center gap-1">
                                             {m.comboCallStrategies.length > 0 ? (
-                                              <div className="flex items-center gap-1">
-                                                 <span className={`${themes[theme].text} cursor-help`} title={m.comboCallStrategies.map(s => `${s.strategy.name} (${s.qty})`).join('\n')}>
-                                                   {m.comboCallStrategies.reduce((sum, s) => sum + s.qty, 0)}
-                                                 </span>
-                                                 <button
-                                                  className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
-                                                  onClick={() => openComboAdjustModal('call')}
-                                                >调整</button>
-                                                 <button
-                                                  className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
-                                                  onClick={() => {
-                                                    setConfirmData({
-                                                      ids: m.comboCallStrategies.flatMap(s => s.strategy.positions.map(p => p.id)),
-                                                      meta: { 
-                                                        action: 'unwind_combo_selection', 
-                                                        comboType: 'call', 
-                                                        strike: m.s, 
-                                                        expiry: group.expiry, 
-                                                        strategies: m.comboCallStrategies,
-                                                        strategyIds: m.comboCallStrategies.map(s => s.strategy.id),
-                                                        quote, 
-                                                        contract_code: quote?.call_contract_code, 
-                                                        contract_code_full: quote?.call_contract_code_full 
-                                                      },
-                                                      title: '组合操作',
-                                                      description: `管理 ${m.s} ${group.expiry} 的 Call 组合`
-                                                    });
-                                                  }}
-                                                >解除</button>
-                                              </div>
+                                              <>
+                                                <span
+                                                  className={`inline-flex items-center justify-center min-w-[2rem] px-1.5 py-0.5 rounded bg-gray-100/80 dark:bg-gray-800/60 text-xs font-semibold ${themes[theme].text} cursor-help`}
+                                                  title={m.comboCallStrategies.map(s => `${s.strategy.name} (${s.qty})`).join('\n')}
+                                                >
+                                                  {m.comboCallStrategies.reduce((sum, s) => sum + s.qty, 0)}
+                                                </span>
+                                                <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                                                  <button
+                                                    className={`px-2 py-0.5 rounded text-xs whitespace-nowrap shrink-0 ${themes[theme].secondary}`}
+                                                    onClick={() => openComboAdjustModal('call')}
+                                                  >
+                                                    调整
+                                                  </button>
+                                                  <button
+                                                    className={`px-2 py-0.5 rounded text-xs whitespace-nowrap shrink-0 ${themes[theme].secondary}`}
+                                                    onClick={() => {
+                                                      setConfirmData({
+                                                        ids: m.comboCallStrategies.flatMap(s => s.strategy.positions.map(p => p.id)),
+                                                        meta: { 
+                                                          action: 'unwind_combo_selection', 
+                                                          comboType: 'call', 
+                                                          strike: m.s, 
+                                                          expiry: group.expiry, 
+                                                          strategies: m.comboCallStrategies,
+                                                          strategyIds: m.comboCallStrategies.map(s => s.strategy.id),
+                                                          quote, 
+                                                          contract_code: quote?.call_contract_code, 
+                                                          contract_code_full: quote?.call_contract_code_full 
+                                                        },
+                                                        title: '组合操作',
+                                                        description: `管理 ${m.s} ${group.expiry} 的 Call 组合`
+                                                      });
+                                                    }}
+                                                  >
+                                                    解除
+                                                  </button>
+                                                </div>
+                                              </>
                                             ) : (
-                                              <div className="flex items-center gap-1">
-                                                <span className={`${themes[theme].text}`}>0</span>
-                                                <button
-                                                  className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
-                                                  onClick={() => openComboAdjustModal('call')}
-                                                >调整</button>
-                                              </div>
+                                              <>
+                                                <span className={`inline-flex items-center justify-center min-w-[2rem] px-1.5 py-0.5 rounded bg-gray-100/80 dark:bg-gray-800/60 text-xs font-semibold ${themes[theme].text}`}>
+                                                  0
+                                                </span>
+                                                <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                                                  <button
+                                                    className={`px-2 py-0.5 rounded text-xs whitespace-nowrap shrink-0 ${themes[theme].secondary}`}
+                                                    onClick={() => openComboAdjustModal('call')}
+                                                  >
+                                                    调整
+                                                  </button>
+                                                </div>
+                                              </>
                                             )}
                                           </div>
                                         </td>
@@ -1097,44 +1112,59 @@ export function ExpiryGroupCard({
                                         <td className={`text-center py-2 ${themes[theme].text}`}>
                                           <div className="flex flex-col items-center gap-1">
                                             {m.comboPutStrategies.length > 0 ? (
-                                              <div className="flex items-center gap-1">
-                                                 <span className={`${themes[theme].text} cursor-help`} title={m.comboPutStrategies.map(s => `${s.strategy.name} (${s.qty})`).join('\n')}>
-                                                   {m.comboPutStrategies.reduce((sum, s) => sum + s.qty, 0)}
-                                                 </span>
-                                                 <button
-                                                  className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
-                                                  onClick={() => openComboAdjustModal('put')}
-                                                >调整</button>
-                                                 <button
-                                                  className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
-                                                  onClick={() => {
-                                                    setConfirmData({
-                                                      ids: m.comboPutStrategies.flatMap(s => s.strategy.positions.map(p => p.id)),
-                                                      meta: { 
-                                                        action: 'unwind_combo_selection', 
-                                                        comboType: 'put', 
-                                                        strike: m.s, 
-                                                        expiry: group.expiry, 
-                                                        strategies: m.comboPutStrategies,
-                                                        strategyIds: m.comboPutStrategies.map(s => s.strategy.id),
-                                                        quote, 
-                                                        contract_code: quote?.put_contract_code, 
-                                                        contract_code_full: quote?.put_contract_code_full 
-                                                      },
-                                                      title: '组合操作',
-                                                      description: `管理 ${m.s} ${group.expiry} 的 Put 组合`
-                                                    });
-                                                  }}
-                                                >解除</button>
-                                              </div>
+                                              <>
+                                                <span
+                                                  className={`inline-flex items-center justify-center min-w-[2rem] px-1.5 py-0.5 rounded bg-gray-100/80 dark:bg-gray-800/60 text-xs font-semibold ${themes[theme].text} cursor-help`}
+                                                  title={m.comboPutStrategies.map(s => `${s.strategy.name} (${s.qty})`).join('\n')}
+                                                >
+                                                  {m.comboPutStrategies.reduce((sum, s) => sum + s.qty, 0)}
+                                                </span>
+                                                <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                                                  <button
+                                                    className={`px-2 py-0.5 rounded text-xs whitespace-nowrap shrink-0 ${themes[theme].secondary}`}
+                                                    onClick={() => openComboAdjustModal('put')}
+                                                  >
+                                                    调整
+                                                  </button>
+                                                  <button
+                                                    className={`px-2 py-0.5 rounded text-xs whitespace-nowrap shrink-0 ${themes[theme].secondary}`}
+                                                    onClick={() => {
+                                                      setConfirmData({
+                                                        ids: m.comboPutStrategies.flatMap(s => s.strategy.positions.map(p => p.id)),
+                                                        meta: { 
+                                                          action: 'unwind_combo_selection', 
+                                                          comboType: 'put', 
+                                                          strike: m.s, 
+                                                          expiry: group.expiry, 
+                                                          strategies: m.comboPutStrategies,
+                                                          strategyIds: m.comboPutStrategies.map(s => s.strategy.id),
+                                                          quote, 
+                                                          contract_code: quote?.put_contract_code, 
+                                                          contract_code_full: quote?.put_contract_code_full 
+                                                        },
+                                                        title: '组合操作',
+                                                        description: `管理 ${m.s} ${group.expiry} 的 Put 组合`
+                                                      });
+                                                    }}
+                                                  >
+                                                    解除
+                                                  </button>
+                                                </div>
+                                              </>
                                             ) : (
-                                              <div className="flex items-center gap-1">
-                                                <span className={`${themes[theme].text}`}>0</span>
-                                                <button
-                                                  className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
-                                                  onClick={() => openComboAdjustModal('put')}
-                                                >调整</button>
-                                              </div>
+                                              <>
+                                                <span className={`inline-flex items-center justify-center min-w-[2rem] px-1.5 py-0.5 rounded bg-gray-100/80 dark:bg-gray-800/60 text-xs font-semibold ${themes[theme].text}`}>
+                                                  0
+                                                </span>
+                                                <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                                                  <button
+                                                    className={`px-2 py-0.5 rounded text-xs whitespace-nowrap shrink-0 ${themes[theme].secondary}`}
+                                                    onClick={() => openComboAdjustModal('put')}
+                                                  >
+                                                    调整
+                                                  </button>
+                                                </div>
+                                              </>
                                             )}
                                           </div>
                                         </td>
