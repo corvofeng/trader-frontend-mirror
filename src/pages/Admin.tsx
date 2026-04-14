@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Activity, Calendar, RefreshCw, BookOpen, History as HistoryIcon, ListChecks, HeartPulse } from 'lucide-react';
+import { Activity, Calendar, RefreshCw, BookOpen, History as HistoryIcon, ListChecks, HeartPulse, Bell } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, addMonths, isSameMonth, isSameDay } from 'date-fns';
 import { logger } from '../shared/utils/logger';
 import { Theme, themes } from '../lib/theme';
@@ -18,7 +18,7 @@ interface AdminProps {
   theme: Theme;
 }
 
-type AdminTab = 'operations' | 'calendar' | 'analysis' | 'history' | 'tasks' | 'accounts';
+type AdminTab = 'operations' | 'calendar' | 'analysis' | 'history' | 'tasks' | 'notices' | 'accounts';
 
 type AdminAccountStatusItem = {
   account_id_alias: string;
@@ -35,7 +35,7 @@ export function Admin({ theme }: AdminProps) {
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab') as AdminTab;
-    return tab && ['operations', 'calendar', 'analysis', 'history', 'tasks', 'accounts'].includes(tab) ? tab : 'operations';
+    return tab && ['operations', 'calendar', 'analysis', 'history', 'tasks', 'notices', 'accounts'].includes(tab) ? tab : 'operations';
   });
 
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() => {
@@ -82,6 +82,41 @@ export function Admin({ theme }: AdminProps) {
   const [accountsHeartbeatInFlight, setAccountsHeartbeatInFlight] = useState(false);
   const accountsHeartbeatAbortRef = React.useRef<AbortController | null>(null);
 
+  type NoticeUserScope = 'current' | 'all' | 'custom';
+  type NoticeResolvedFilter = 'all' | 'resolved' | 'unresolved';
+  type NoticeExecStatusFilter = 'all' | 'success' | 'failed' | 'pending';
+
+  const [noticeUserScope, setNoticeUserScope] = useState<NoticeUserScope>(() => {
+    const params = new URLSearchParams(location.search);
+    const rawScope = params.get('noticeUserScope') || localStorage.getItem('adminNoticeUserScope') || '';
+    if (rawScope === 'current' || rawScope === 'all' || rawScope === 'custom') return rawScope;
+    const savedUserId = params.get('noticeUserId') || localStorage.getItem('adminNoticeUserId') || '';
+    return savedUserId ? 'custom' : 'current';
+  });
+  const [noticeQueryUserId, setNoticeQueryUserId] = useState<string>(() => {
+    const params = new URLSearchParams(location.search);
+    return (
+      params.get('noticeUserId') ||
+      localStorage.getItem('adminNoticeUserId') ||
+      ''
+    );
+  });
+  const [noticeLookbackDays, setNoticeLookbackDays] = useState<number>(() => {
+    const params = new URLSearchParams(location.search);
+    const raw = params.get('noticeDays') || localStorage.getItem('adminNoticeDays') || '7';
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? Math.min(365, Math.max(1, Math.floor(parsed))) : 7;
+  });
+  const [noticeResolvedFilter, setNoticeResolvedFilter] = useState<NoticeResolvedFilter>('all');
+  const [noticeExecStatusFilter, setNoticeExecStatusFilter] = useState<NoticeExecStatusFilter>('all');
+  const [adminNotices, setAdminNotices] = useState<Array<Record<string, unknown>>>([]);
+  const [adminNoticesLoading, setAdminNoticesLoading] = useState(false);
+  const [adminNoticesError, setAdminNoticesError] = useState<string | null>(null);
+  const [adminNoticesLastOkAt, setAdminNoticesLastOkAt] = useState<number | null>(null);
+  const [adminNoticesLatencyMs, setAdminNoticesLatencyMs] = useState<number | null>(null);
+  const [expandedAdminNoticeKey, setExpandedAdminNoticeKey] = useState<string | null>(null);
+  const adminNoticesAbortRef = React.useRef<AbortController | null>(null);
+
   const handleTabChange = (newTab: AdminTab) => {
     setActiveTab(newTab);
     const params = new URLSearchParams(location.search);
@@ -95,6 +130,12 @@ export function Admin({ theme }: AdminProps) {
       setUserId(u?.id || null);
     }).catch(() => setUserId(null));
   }, []);
+
+  React.useEffect(() => {
+    if (noticeUserScope !== 'current') return;
+    if (!userId) return;
+    setNoticeQueryUserId(userId);
+  }, [noticeUserScope, userId]);
 
   React.useEffect(() => {
     if (activeTab === 'calendar') {
@@ -175,6 +216,213 @@ export function Admin({ theme }: AdminProps) {
       if (accountsHeartbeatAbortRef.current) accountsHeartbeatAbortRef.current.abort();
     };
   }, [activeTab, refreshKey]);
+
+  const normalizeAdminNoticeList = React.useCallback((payload: unknown): Array<Record<string, unknown>> => {
+    const unwrap = (v: unknown): unknown => {
+      if (!v || typeof v !== 'object') return v;
+      const r = v as Record<string, unknown>;
+      if (Array.isArray(r.data)) return r.data;
+      if (Array.isArray(r.notices)) return r.notices;
+      if (r.data && typeof r.data === 'object') {
+        const nested = r.data as Record<string, unknown>;
+        if (Array.isArray(nested.data)) return nested.data;
+        if (Array.isArray(nested.notices)) return nested.notices;
+        if (Array.isArray(nested.items)) return nested.items;
+        if (Array.isArray(nested.list)) return nested.list;
+      }
+      if (Array.isArray(r.items)) return r.items;
+      if (Array.isArray(r.list)) return r.list;
+      return v;
+    };
+
+    const unwrapped = unwrap(payload);
+    if (Array.isArray(unwrapped)) {
+      return unwrapped
+        .filter((v): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v))
+        .map(v => ({ ...v }));
+    }
+    return [];
+  }, []);
+
+  const fetchAdminNotices = React.useCallback(async () => {
+    if (!selectedAccountId) {
+      setAdminNotices([]);
+      setAdminNoticesError('请选择账户后再查询提醒');
+      setAdminNoticesLoading(false);
+      return;
+    }
+
+    if (adminNoticesAbortRef.current) adminNoticesAbortRef.current.abort();
+    const controller = new AbortController();
+    adminNoticesAbortRef.current = controller;
+
+    const startedAt = performance.now();
+    setAdminNoticesLoading(true);
+    setAdminNoticesError(null);
+    try {
+      const params = new URLSearchParams();
+      if (noticeUserScope === 'custom') {
+        if (noticeQueryUserId.trim()) params.set('userId', noticeQueryUserId.trim());
+      } else if (noticeUserScope === 'current') {
+        if (effectiveUserId.trim()) params.set('userId', effectiveUserId.trim());
+      }
+      params.set('days', String(noticeLookbackDays));
+
+      const url = `/api/admin/${encodeURIComponent(selectedAccountId)}/notices${params.toString() ? `?${params.toString()}` : ''}`;
+      const response = await fetch(url, { signal: controller.signal });
+      const contentType = response.headers.get('content-type') || '';
+      const body = contentType.includes('application/json')
+        ? await response.json().catch(() => null)
+        : await response.text().catch(() => null);
+
+      if (!response.ok) {
+        const messageFromJson =
+          body && typeof body === 'object'
+            ? String((body as Record<string, unknown>).message || (body as Record<string, unknown>).error || response.statusText)
+            : '';
+        const message = typeof body === 'string' ? body : messageFromJson;
+        throw new Error(message || `HTTP ${response.status}`);
+      }
+
+      const list = normalizeAdminNoticeList(body);
+      setAdminNotices(list);
+      setAdminNoticesLastOkAt(Date.now());
+      setAdminNoticesLatencyMs(Math.max(0, Math.round(performance.now() - startedAt)));
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      const message = err instanceof Error ? err.message : '请求失败';
+      setAdminNoticesError(message);
+    } finally {
+      setAdminNoticesLoading(false);
+    }
+  }, [effectiveUserId, normalizeAdminNoticeList, noticeLookbackDays, noticeQueryUserId, noticeUserScope, selectedAccountId]);
+
+  React.useEffect(() => {
+    if (activeTab !== 'notices') return;
+    if (selectedAccountId) {
+      fetchAdminNotices();
+    } else {
+      setAdminNotices([]);
+      setAdminNoticesError('请选择账户后再查询提醒');
+    }
+    return () => {
+      if (adminNoticesAbortRef.current) adminNoticesAbortRef.current.abort();
+    };
+  }, [activeTab, fetchAdminNotices, refreshKey, selectedAccountId]);
+
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('adminNoticeUserScope', noticeUserScope);
+      if (noticeUserScope === 'custom') {
+        localStorage.setItem('adminNoticeUserId', noticeQueryUserId);
+      } else {
+        localStorage.removeItem('adminNoticeUserId');
+      }
+      localStorage.setItem('adminNoticeDays', String(noticeLookbackDays));
+    } catch {
+      logger.debug('[Pages/Admin] Failed to persist notice query to localStorage');
+    }
+  }, [noticeQueryUserId, noticeLookbackDays, noticeUserScope]);
+
+  const filteredAdminNotices = useMemo(() => {
+    const normResolved = (v: unknown): boolean | null => {
+      if (typeof v === 'boolean') return v;
+      if (typeof v === 'number') return v !== 0;
+      if (typeof v === 'string') {
+        const s = v.trim().toLowerCase();
+        if (['true', '1', 'yes', 'y'].includes(s)) return true;
+        if (['false', '0', 'no', 'n'].includes(s)) return false;
+      }
+      return null;
+    };
+    const normExecStatus = (v: unknown): 'success' | 'failed' | 'pending' | null => {
+      if (typeof v !== 'string') return null;
+      const s = v.trim().toLowerCase();
+      if (['ok', 'success', 'succeeded', 'done', 'completed', 'complete'].includes(s)) return 'success';
+      if (['fail', 'failed', 'error', 'errored', 'exception', 'timeout'].includes(s)) return 'failed';
+      if (['pending', 'running', 'queued', 'in_progress', 'processing', 'started'].includes(s)) return 'pending';
+      return null;
+    };
+
+    return adminNotices.filter((item) => {
+      const resolved =
+        normResolved(item.is_resolved) ??
+        normResolved(item.resolved) ??
+        normResolved(item.isResolved) ??
+        normResolved(item.is_executed) ??
+        normResolved(item.isExecuted) ??
+        normResolved(item.is_resolved_at ? true : null);
+
+      if (noticeResolvedFilter === 'resolved' && resolved !== true) return false;
+      if (noticeResolvedFilter === 'unresolved' && resolved !== false) return false;
+
+      const execStatusRaw =
+        item.execution_status ??
+        item.executionStatus ??
+        item.job_status ??
+        item.jobStatus ??
+        item.run_status ??
+        item.runStatus ??
+        item.status ??
+        (typeof item.is_executed === 'boolean' ? (item.is_executed ? 'success' : 'pending') : null) ??
+        null;
+
+      const execStatus = normExecStatus(execStatusRaw);
+      if (noticeExecStatusFilter === 'success' && execStatus !== 'success') return false;
+      if (noticeExecStatusFilter === 'failed' && execStatus !== 'failed') return false;
+      if (noticeExecStatusFilter === 'pending' && execStatus !== 'pending') return false;
+
+      return true;
+    });
+  }, [adminNotices, noticeExecStatusFilter, noticeResolvedFilter]);
+
+  const parseAdminNoticeText = React.useCallback((raw: string) => {
+    const text = String(raw || '');
+    const firstLine = text.split('\n')[0] || '';
+    const m = firstLine.match(/^准备(买入|卖出):\s*\[([^\]]+)\]\s*(.+?)\s*$/);
+    const sideZh = m?.[1] || null;
+    const account = m?.[2] || null;
+    const stockName = m?.[3] || null;
+
+    const pm = text.match(/价格:\s*([0-9.]+)\s*,\s*数量:\s*([0-9.]+)\s*,\s*预计花费:\s*([0-9.]+)\s*/);
+    const price = pm?.[1] || null;
+    const quantity = pm?.[2] || null;
+    const estCost = pm?.[3] || null;
+
+    const gridLines = text.split('\n');
+    const gridIdx = gridLines.findIndex(l => l.trim() === '触发自动操作网格:');
+    const gridHint = gridIdx >= 0 ? (gridLines[gridIdx + 1] ? gridLines[gridIdx + 1].trim() : null) : null;
+
+    const originalOrderLine = (text.match(/原订单:\s*(.+)\s*$/m) || [])[1] || null;
+    const actionLine = (text.match(/action:\s*([^\n]+)\s*$/m) || [])[1] || null;
+
+    let actionParsed: null | { actionId: string; symbol: string; side: string; price: string; quantity: string } = null;
+    if (actionLine) {
+      const parts = actionLine.split(',').map(s => s.trim()).filter(Boolean);
+      if (parts.length >= 5) {
+        actionParsed = {
+          actionId: parts[0],
+          symbol: parts[1],
+          side: parts[2],
+          price: parts[3],
+          quantity: parts[4],
+        };
+      }
+    }
+
+    return {
+      sideZh,
+      account,
+      stockName,
+      price,
+      quantity,
+      estCost,
+      gridHint,
+      originalOrderLine,
+      actionLine,
+      actionParsed,
+    };
+  }, []);
 
   const loadOrdersForDate = React.useCallback(async (dateStr: string) => {
     if (!selectedAccountId) return;
@@ -310,6 +558,7 @@ export function Admin({ theme }: AdminProps) {
     { id: 'analysis' as AdminTab, name: 'Analysis', icon: BookOpen },
     { id: 'history' as AdminTab, name: 'History', icon: HistoryIcon },
     { id: 'tasks' as AdminTab, name: 'Tasks', icon: ListChecks },
+    { id: 'notices' as AdminTab, name: 'Notices', icon: Bell },
     { id: 'accounts' as AdminTab, name: 'Accounts', icon: HeartPulse },
   ];
 
@@ -402,6 +651,251 @@ export function Admin({ theme }: AdminProps) {
 
       {activeTab === 'tasks' && (
         <SequentialTradeTasks theme={theme} selectedAccountId={selectedAccountId} />
+      )}
+
+      {activeTab === 'notices' && (
+        <div className="space-y-6">
+          <div className={`${themes[theme].card} rounded-lg p-4`}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className={`text-xl font-bold ${themes[theme].text}`}>提醒（Notices）</h2>
+                <p className={`text-sm ${themes[theme].text} opacity-75`}>
+                  接口：/api/admin/&lt;account_alias&gt;/notices（按用户拉取最近 N 天提醒，并展示执行状态）
+                </p>
+              </div>
+              <button
+                onClick={fetchAdminNotices}
+                disabled={!selectedAccountId || adminNoticesLoading}
+                className={`inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm ${themes[theme].secondary}`}
+              >
+                <RefreshCw className="w-4 h-4" />
+                刷新
+              </button>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div>
+                <label className={`block text-xs font-medium ${themes[theme].text} opacity-70 mb-1`}>用户</label>
+                <div className="space-y-2">
+                  <select
+                    value={noticeUserScope}
+                    onChange={(e) => setNoticeUserScope(e.target.value as NoticeUserScope)}
+                    className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-gray-100"
+                  >
+                    <option value="current">当前用户（{effectiveUserId}）</option>
+                    <option value="all">全部用户</option>
+                    <option value="custom">自定义 user_id</option>
+                  </select>
+                  {noticeUserScope === 'custom' && (
+                    <input
+                      value={noticeQueryUserId}
+                      onChange={(e) => setNoticeQueryUserId(e.target.value)}
+                      placeholder="例如: user_123"
+                      className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-gray-100"
+                    />
+                  )}
+                </div>
+              </div>
+              <div>
+                <label className={`block text-xs font-medium ${themes[theme].text} opacity-70 mb-1`}>最近天数</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={365}
+                  value={noticeLookbackDays}
+                  onChange={(e) => {
+                    const parsed = Number(e.target.value);
+                    setNoticeLookbackDays(Number.isFinite(parsed) && parsed > 0 ? Math.min(365, Math.max(1, Math.floor(parsed))) : 7);
+                  }}
+                  className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-gray-100"
+                />
+              </div>
+              <div>
+                <label className={`block text-xs font-medium ${themes[theme].text} opacity-70 mb-1`}>解决状态</label>
+                <select
+                  value={noticeResolvedFilter}
+                  onChange={(e) => setNoticeResolvedFilter(e.target.value as NoticeResolvedFilter)}
+                  className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-gray-100"
+                >
+                  <option value="all">全部</option>
+                  <option value="unresolved">未解决</option>
+                  <option value="resolved">已解决</option>
+                </select>
+              </div>
+              <div>
+                <label className={`block text-xs font-medium ${themes[theme].text} opacity-70 mb-1`}>执行状态</label>
+                <select
+                  value={noticeExecStatusFilter}
+                  onChange={(e) => setNoticeExecStatusFilter(e.target.value as NoticeExecStatusFilter)}
+                  className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-gray-100"
+                >
+                  <option value="all">全部</option>
+                  <option value="pending">进行中/待处理</option>
+                  <option value="success">成功</option>
+                  <option value="failed">失败</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <div className={`text-xs ${themes[theme].text} opacity-70`}>
+                {adminNoticesLastOkAt ? `上次成功 ${new Date(adminNoticesLastOkAt).toLocaleTimeString()}` : '尚未成功拉取'}
+                {adminNoticesLatencyMs !== null ? ` · ${adminNoticesLatencyMs}ms` : ''}
+                {selectedAccountId ? ` · account_alias=${selectedAccountId}` : ' · 请先选择账户'}
+              </div>
+              {adminNoticesLoading && (
+                <div className={`text-xs ${themes[theme].text} opacity-60`}>拉取中...</div>
+              )}
+              {!adminNoticesLoading && adminNoticesError && (
+                <div className="text-xs text-red-500 whitespace-pre-wrap break-all">{adminNoticesError}</div>
+              )}
+            </div>
+          </div>
+
+          <div className={`${themes[theme].card} rounded-lg p-4`}>
+            {filteredAdminNotices.length === 0 && !adminNoticesLoading && !adminNoticesError && (
+              <div className={`text-sm ${themes[theme].text} opacity-75`}>
+                暂无数据（接口未返回或筛选条件无匹配）。
+              </div>
+            )}
+            {filteredAdminNotices.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead className="bg-gray-50 dark:bg-gray-900/50">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">时间</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">类型</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">动作</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">账户</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">标的</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">价格</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">数量</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">网格</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">可执行</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">已执行</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                    {filteredAdminNotices.map((item, idx) => {
+                      const noticeUuid = typeof item.notice_uuid === 'string' ? item.notice_uuid : '';
+                      const idRaw = item.id ?? item.notice_id ?? noticeUuid;
+                      const id = String(idRaw ?? '');
+                      const key = id || `${idx}`;
+                      const text = String(item.text ?? item.content ?? item.body ?? '');
+                      const parsed = parseAdminNoticeText(text);
+
+                      const createdAt = String(item.created_at ?? item.createdAt ?? item.time ?? item.created ?? '-');
+                      const actionType = String(item.action_type ?? item.actionType ?? '-');
+                      const sideLabel =
+                        parsed.sideZh ||
+                        (parsed.actionParsed?.side ? (parsed.actionParsed.side === 'BUY' ? '买入' : parsed.actionParsed.side === 'SELL' ? '卖出' : parsed.actionParsed.side) : '-') ||
+                        '-';
+
+                      const account =
+                        String(item.account_alias ?? item.accountAlias ?? '') ||
+                        String(item.account_id ?? item.accountId ?? item.account ?? '') ||
+                        String(parsed.account ?? '') ||
+                        '-';
+
+                      const symbol = parsed.actionParsed?.symbol || String(item.symbol ?? item.stock_code ?? item.stockCode ?? '-');
+                      const stockName = parsed.stockName || String(item.stock_name ?? item.stockName ?? '');
+                      const stockDisplay = stockName ? `${stockName}${symbol && symbol !== '-' ? ` (${symbol})` : ''}` : symbol;
+
+                      const price = parsed.price || parsed.actionParsed?.price || (item.price !== undefined ? String(item.price) : '-');
+                      const quantity = parsed.quantity || parsed.actionParsed?.quantity || (item.quantity !== undefined ? String(item.quantity) : '-');
+                      const gridHint = parsed.gridHint || String(item.grid ?? item.gridHint ?? '-');
+
+                      const isActionableRaw = item.is_actionable ?? item.isActionable ?? null;
+                      const isActionable =
+                        typeof isActionableRaw === 'boolean'
+                          ? isActionableRaw
+                          : typeof isActionableRaw === 'number'
+                            ? isActionableRaw !== 0
+                            : typeof isActionableRaw === 'string'
+                              ? ['true', '1', 'yes', 'y'].includes(isActionableRaw.trim().toLowerCase())
+                              : false;
+
+                      const isExecutedRaw = item.is_executed ?? item.isExecuted ?? null;
+                      const isExecuted =
+                        typeof isExecutedRaw === 'boolean'
+                          ? isExecutedRaw
+                          : typeof isExecutedRaw === 'number'
+                            ? isExecutedRaw !== 0
+                            : typeof isExecutedRaw === 'string'
+                              ? ['true', '1', 'yes', 'y'].includes(isExecutedRaw.trim().toLowerCase())
+                              : false;
+
+                      const actionableBadgeClass = isActionable
+                        ? 'bg-sky-100 text-sky-900 dark:bg-sky-900/40 dark:text-sky-100 ring-1 ring-inset ring-sky-200 dark:ring-sky-800'
+                        : 'bg-gray-100 text-gray-700 dark:bg-gray-800/60 dark:text-gray-200 ring-1 ring-inset ring-gray-200 dark:ring-gray-700';
+                      const executedBadgeClass = isExecuted
+                        ? 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100 ring-1 ring-inset ring-emerald-200 dark:ring-emerald-800'
+                        : 'bg-gray-100 text-gray-700 dark:bg-gray-800/60 dark:text-gray-200 ring-1 ring-inset ring-gray-200 dark:ring-gray-700';
+
+                      const expanded = expandedAdminNoticeKey === key;
+
+                      return (
+                        <React.Fragment key={key}>
+                          <tr
+                            className="hover:bg-gray-50 dark:hover:bg-gray-800/40 cursor-pointer"
+                            onClick={() => setExpandedAdminNoticeKey(expanded ? null : key)}
+                          >
+                            <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">{createdAt && createdAt !== '-' ? createdAt : '-'}</td>
+                            <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">{actionType}</td>
+                            <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">{sideLabel}</td>
+                            <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">{account}</td>
+                            <td className="px-4 py-2 text-xs text-gray-700 dark:text-gray-200 max-w-[420px] whitespace-normal break-words">{stockDisplay || '-'}</td>
+                            <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">{price}</td>
+                            <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">{quantity}</td>
+                            <td className="px-4 py-2 text-xs text-gray-700 dark:text-gray-200 max-w-[240px] whitespace-normal break-words">{gridHint}</td>
+                            <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
+                              <span className={`inline-flex items-center rounded-full px-2 py-1 text-[10px] font-semibold ${actionableBadgeClass}`}>
+                                {isActionable ? '可执行' : '不可'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
+                              <span className={`inline-flex items-center rounded-full px-2 py-1 text-[10px] font-semibold ${executedBadgeClass}`}>
+                                {isExecuted ? '已执行' : '未执行'}
+                              </span>
+                            </td>
+                          </tr>
+                          {expanded && (
+                            <tr className="bg-gray-50 dark:bg-gray-900/40">
+                              <td className="px-4 py-3 text-xs text-gray-700 dark:text-gray-200" colSpan={10}>
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                                  <div>
+                                    <div className="text-xs font-medium text-gray-500 mb-2">核心信息</div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                      <div><span className="text-gray-500">ID：</span>{id || '-'}</div>
+                                      <div><span className="text-gray-500">Message：</span>{String(item.message_id ?? item.messageId ?? '-') || '-'}</div>
+                                      <div><span className="text-gray-500">预计花费：</span>{parsed.estCost ?? '-'}</div>
+                                      <div><span className="text-gray-500">原订单：</span>{parsed.originalOrderLine ?? '-'}</div>
+                                      <div className="sm:col-span-2"><span className="text-gray-500">Action：</span>{parsed.actionLine ?? '-'}</div>
+                                    </div>
+                                    <div className="mt-3">
+                                      <div className="text-xs font-medium text-gray-500 mb-1">原文</div>
+                                      <div className="whitespace-pre-wrap break-words">{text || '-'}</div>
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <div className="text-xs font-medium text-gray-500 mb-1">原始数据</div>
+                                    <pre className="text-[11px] leading-4 whitespace-pre-wrap break-words bg-white/60 dark:bg-black/20 border border-gray-200 dark:border-gray-700 rounded-md p-2">
+                                      {JSON.stringify(item, null, 2)}
+                                    </pre>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {activeTab === 'accounts' && (

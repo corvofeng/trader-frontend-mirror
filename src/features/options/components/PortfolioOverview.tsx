@@ -24,8 +24,8 @@ export function PortfolioOverview({
   return (
     <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
       <div className="p-6 border-b border-gray-200">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <h2 className={`text-xl font-bold ${themes[theme].text}`}>期权投资组合概览</h2>
             <button
               onClick={onOpenLog}
@@ -42,7 +42,7 @@ export function PortfolioOverview({
             </button>
           </div>
           {currentUnderlyingPrice != null && (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 sm:justify-end">
               <span className={`text-sm ${themes[theme].text}`}>当前价 {currentUnderlyingPrice.toFixed(4)}</span>
             </div>
           )}

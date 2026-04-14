@@ -564,8 +564,9 @@ export function ExpiryGroupCard({
                           });
                         };
                         return (
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
+                          <div className="space-y-3">
+                            <div className="overflow-x-auto hidden md:block">
+                            <table className="w-full text-sm min-w-[980px]">
                               <thead>
                                 <tr className={`${themes[theme].text} opacity-75`}>
                                   <th className="text-center py-2" colSpan={6}>Calls</th>
@@ -1174,6 +1175,310 @@ export function ExpiryGroupCard({
                                 })()}
                               </tbody>
                             </table>
+                          </div>
+                          <div className="md:hidden space-y-3">
+                            {(() => {
+                              const callStrategiesMap = new Map<number, { strategy: OptionsStrategy, qty: number }[]>();
+                              const putStrategiesMap = new Map<number, { strategy: OptionsStrategy, qty: number }[]>();
+
+                              (allExpiryBuckets || []).forEach(bucket => {
+                                bucket.complex.forEach(s => {
+                                  if (s.positions.some(p => p.expiry === group.expiry)) {
+                                    const c = computeCombosForPositions(s, 'call');
+                                    const p = computeCombosForPositions(s, 'put');
+
+                                    const relevantPositions = s.positions.filter(pos => pos.expiry === group.expiry);
+                                    const strategyQty = relevantPositions.find(pos => pos.position_type === 'buy')?.quantity || relevantPositions[0]?.quantity || 0;
+
+                                    c.forEach((_, k) => {
+                                      const list = callStrategiesMap.get(k) || [];
+                                      list.push({ strategy: s, qty: strategyQty });
+                                      callStrategiesMap.set(k, list);
+                                    });
+                                    p.forEach((_, k) => {
+                                      const list = putStrategiesMap.get(k) || [];
+                                      list.push({ strategy: s, qty: strategyQty });
+                                      putStrategiesMap.set(k, list);
+                                    });
+                                  }
+                                });
+                              });
+
+                              const metrics = rows.map(row => {
+                                const s = row.strike;
+                                const getM = () => {
+                                  if (underlyingPrice == null) return '';
+                                  const thr = 0.005;
+                                  const diffRatio = Math.abs(underlyingPrice - s) / Math.max(s, 1);
+                                  if (diffRatio <= thr) return 'ATM';
+                                  const isCallITM = underlyingPrice > s;
+                                  const isPutITM = underlyingPrice < s;
+                                  return `${isCallITM ? 'Call:ITM' : 'Call:OTM'} | ${isPutITM ? 'Put:ITM' : 'Put:OTM'}`;
+                                };
+
+                                const callRight = filteredPositions
+                                  .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'buy')
+                                  .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
+                                const callRightAvail = filteredPositions
+                                  .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'buy')
+                                  .reduce((sum, p) => {
+                                    const base = p.selectedQuantity ?? p.quantity;
+                                    const avail = Number(p.available ?? base) || 0;
+                                    return sum + avail;
+                                  }, 0);
+                                const callCovered = filteredPositions
+                                  .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh === '备兑')
+                                  .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
+                                const callCoveredAvail = filteredPositions
+                                  .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh === '备兑')
+                                  .reduce((sum, p) => {
+                                    const base = p.selectedQuantity ?? p.quantity;
+                                    const avail = Number(p.available ?? base) || 0;
+                                    return sum + avail;
+                                  }, 0);
+                                const callObligation = filteredPositions
+                                  .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh !== '备兑')
+                                  .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
+                                const callObligationAvail = filteredPositions
+                                  .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh !== '备兑')
+                                  .reduce((sum, p) => {
+                                    const base = p.selectedQuantity ?? p.quantity;
+                                    const avail = Number(p.available ?? base) || 0;
+                                    return sum + avail;
+                                  }, 0);
+
+                                const putRight = filteredPositions
+                                  .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'buy')
+                                  .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
+                                const putRightAvail = filteredPositions
+                                  .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'buy')
+                                  .reduce((sum, p) => {
+                                    const base = p.selectedQuantity ?? p.quantity;
+                                    const avail = Number(p.available ?? base) || 0;
+                                    return sum + avail;
+                                  }, 0);
+                                const putCovered = filteredPositions
+                                  .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'sell' && p.position_type_zh === '备兑')
+                                  .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
+                                const putCoveredAvail = filteredPositions
+                                  .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'sell' && p.position_type_zh === '备兑')
+                                  .reduce((sum, p) => {
+                                    const base = p.selectedQuantity ?? p.quantity;
+                                    const avail = Number(p.available ?? base) || 0;
+                                    return sum + avail;
+                                  }, 0);
+                                const putObligation = filteredPositions
+                                  .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'sell' && p.position_type_zh !== '备兑')
+                                  .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
+                                const putObligationAvail = filteredPositions
+                                  .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'sell' && p.position_type_zh !== '备兑')
+                                  .reduce((sum, p) => {
+                                    const base = p.selectedQuantity ?? p.quantity;
+                                    const avail = Number(p.available ?? base) || 0;
+                                    return sum + avail;
+                                  }, 0);
+
+                                const comboCallStrategies = callStrategiesMap.get(s) || [];
+                                const comboPutStrategies = putStrategiesMap.get(s) || [];
+                                const comboCallQty = comboCallStrategies.reduce((acc, item) => acc + item.qty, 0);
+                                const comboPutQty = comboPutStrategies.reduce((acc, item) => acc + item.qty, 0);
+
+                                let risk = 0;
+                                if (underlyingPrice != null) {
+                                  const up = underlyingPrice;
+                                  const cr = Math.max(0, (up - s) / Math.max(s, 1));
+                                  const pr = Math.max(0, (s - up) / Math.max(s, 1));
+                                  const wCovered = 0.3;
+                                  const wCombo = 0.2;
+                                  const shortCall = callObligation + callCovered * wCovered + comboCallQty * wCombo;
+                                  const shortPut = putObligation + putCovered * wCovered + comboPutQty * wCombo;
+                                  risk = shortCall * cr + shortPut * pr;
+                                  const near = Math.max(0, 0.02 - Math.abs(up - s) / Math.max(s, 1)) / 0.02;
+                                  risk += near * (callObligation + putObligation) * 0.5;
+                                }
+
+                                return {
+                                  s,
+                                  getM,
+                                  callRight,
+                                  callRightAvail,
+                                  callCovered,
+                                  callCoveredAvail,
+                                  callObligation,
+                                  callObligationAvail,
+                                  putRight,
+                                  putRightAvail,
+                                  putCovered,
+                                  putCoveredAvail,
+                                  putObligation,
+                                  putObligationAvail,
+                                  comboCallQty,
+                                  comboPutQty,
+                                  risk
+                                };
+                              });
+
+                              const maxRisk = Math.max(1, ...metrics.map(m => m.risk));
+
+                              return metrics.map(m => {
+                                const intensity = Math.min(1, m.risk / maxRisk);
+                                const h = Math.round(0 + 120 * (1 - intensity));
+                                const c = theme === 'dark' ? `hsla(${h},70%,30%,0.35)` : `hsla(${h},85%,85%,0.65)`;
+                                const bg = `linear-gradient(to right, ${c} 0%, transparent 100%)`;
+
+                                const activeData = optionsData || localOptionsData;
+                                let callPrice = '';
+                                let putPrice = '';
+                                let quote: OptionQuote | undefined;
+
+                                const findQuote = (data: OptionsData) => {
+                                  return data.quotes?.find(q => q.expiry === group.expiry && getQuoteStrike(q) === m.s);
+                                };
+
+                                if (activeData) {
+                                  quote = findQuote(activeData);
+                                }
+
+                                if (!quote && optionsDataMap) {
+                                  for (const data of Object.values(optionsDataMap)) {
+                                    quote = findQuote(data);
+                                    if (quote) break;
+                                  }
+                                }
+
+                                if (quote) {
+                                  const callCode = quote.call_contract_code || '';
+                                  const callFullCode = quote.call_contract_code_full || '';
+                                  const putCode = quote.put_contract_code || '';
+                                  const putFullCode = quote.put_contract_code_full || '';
+
+                                  const getPrice = (code: string, fullCode: string, last?: number) => {
+                                    const p = (code && prices[code]) || (fullCode && prices[fullCode]);
+                                    if (p) return p.price.toFixed(4);
+                                    return typeof last === 'number' && last ? last.toFixed(4) : '-';
+                                  };
+
+                                  callPrice = getPrice(callCode, callFullCode, quote.call_last_price);
+                                  putPrice = getPrice(putCode, putFullCode, quote.put_last_price);
+                                }
+
+                                let timeValueColor = 'transparent';
+                                let displayCallTV = '-';
+                                let displayPutTV = '-';
+
+                                if (underlyingPrice != null) {
+                                  const cp = parseFloat(callPrice);
+                                  const pp = parseFloat(putPrice);
+
+                                  const callTV = !isNaN(cp) ? Math.max(0, cp - Math.max(0, underlyingPrice - m.s)) : null;
+                                  const putTV = !isNaN(pp) ? Math.max(0, pp - Math.max(0, m.s - underlyingPrice)) : null;
+
+                                  if (callTV !== null) displayCallTV = callTV.toFixed(4);
+                                  if (putTV !== null) displayPutTV = putTV.toFixed(4);
+
+                                  if (callTV !== null || putTV !== null) {
+                                    const maxTV = Math.max(callTV || 0, putTV || 0);
+                                    const tvRatio = maxTV / underlyingPrice;
+                                    const intensity = Math.min(1, tvRatio * 25);
+                                    if (intensity > 0.01) {
+                                      const alpha = theme === 'dark' ? 0.3 : 0.5;
+                                      timeValueColor = `rgba(255, 170, 0, ${intensity * alpha})`;
+                                    }
+                                  }
+                                }
+
+                                return (
+                                  <div
+                                    key={`tcard-${group.expiry}-${m.s}`}
+                                    className={`${themes[theme].background} rounded-lg p-3 border ${themes[theme].border}`}
+                                    style={{ backgroundImage: bg, backgroundColor: timeValueColor }}
+                                  >
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <div className={`text-base font-semibold ${themes[theme].text}`}>行权价 {m.s}</div>
+                                        {underlyingPrice != null && (
+                                          <div className={`text-xs ${themes[theme].text} opacity-70 mt-0.5`}>{m.getM()}</div>
+                                        )}
+                                      </div>
+                                      <div className="text-right shrink-0">
+                                        <div className={`text-xs ${themes[theme].text} opacity-70`}>Call / Put</div>
+                                        <div className={`text-xs ${themes[theme].text} font-mono`}>
+                                          <AnimatedFlash value={callPrice || '-'} type="price" /> / <AnimatedFlash value={putPrice || '-'} type="price" />
+                                        </div>
+                                        <div className={`text-[11px] ${themes[theme].text} opacity-70 font-mono`}>
+                                          TV <AnimatedFlash value={displayCallTV} /> / <AnimatedFlash value={displayPutTV} />
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                                      <div className={`${themes[theme].card} rounded-lg p-2`}>
+                                        <div className={`text-xs font-semibold ${themes[theme].text} opacity-80 mb-2`}>Calls</div>
+                                        <div className="space-y-2">
+                                          <div className="flex items-center justify-between gap-2">
+                                            <span className={`text-xs ${themes[theme].text} opacity-75`}>组合</span>
+                                            <span className={`text-xs ${themes[theme].text}`}>{m.comboCallQty}</span>
+                                          </div>
+                                          <div className="flex items-center justify-between gap-2">
+                                            <span className={`text-xs ${themes[theme].text} opacity-75`}>备兑</span>
+                                            <div className="flex items-center gap-2">
+                                              <span className={`text-xs ${themes[theme].text}`}>{m.callCovered}{m.callCoveredAvail !== m.callCovered ? `（${m.callCoveredAvail}）` : ''}</span>
+                                              <button className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`} onClick={() => openAdjustConfirm('call_covered', m.s)}>调整</button>
+                                            </div>
+                                          </div>
+                                          <div className="flex items-center justify-between gap-2">
+                                            <span className={`text-xs ${themes[theme].text} opacity-75`}>义务</span>
+                                            <div className="flex items-center gap-2">
+                                              <span className={`text-xs ${themes[theme].text}`}>{m.callObligation}{m.callObligationAvail !== m.callObligation ? `（${m.callObligationAvail}）` : ''}</span>
+                                              <button className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`} onClick={() => openAdjustConfirm('call_obligation', m.s)}>调整</button>
+                                            </div>
+                                          </div>
+                                          <div className="flex items-center justify-between gap-2">
+                                            <span className={`text-xs ${themes[theme].text} opacity-75`}>权利</span>
+                                            <div className="flex items-center gap-2">
+                                              <span className={`text-xs ${themes[theme].text}`}>{m.callRight}{m.callRightAvail !== m.callRight ? `（${m.callRightAvail}）` : ''}</span>
+                                              <button className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`} onClick={() => openAdjustConfirm('call_right', m.s)}>调整</button>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      <div className={`${themes[theme].card} rounded-lg p-2`}>
+                                        <div className={`text-xs font-semibold ${themes[theme].text} opacity-80 mb-2`}>Puts</div>
+                                        <div className="space-y-2">
+                                          <div className="flex items-center justify-between gap-2">
+                                            <span className={`text-xs ${themes[theme].text} opacity-75`}>权利</span>
+                                            <div className="flex items-center gap-2">
+                                              <span className={`text-xs ${themes[theme].text}`}>{m.putRight}{m.putRightAvail !== m.putRight ? `（${m.putRightAvail}）` : ''}</span>
+                                              <button className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`} onClick={() => openAdjustConfirm('put_right', m.s)}>调整</button>
+                                            </div>
+                                          </div>
+                                          <div className="flex items-center justify-between gap-2">
+                                            <span className={`text-xs ${themes[theme].text} opacity-75`}>义务</span>
+                                            <div className="flex items-center gap-2">
+                                              <span className={`text-xs ${themes[theme].text}`}>{m.putObligation}{m.putObligationAvail !== m.putObligation ? `（${m.putObligationAvail}）` : ''}</span>
+                                              <button className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`} onClick={() => openAdjustConfirm('put_obligation', m.s)}>调整</button>
+                                            </div>
+                                          </div>
+                                          <div className="flex items-center justify-between gap-2">
+                                            <span className={`text-xs ${themes[theme].text} opacity-75`}>备兑</span>
+                                            <div className="flex items-center gap-2">
+                                              <span className={`text-xs ${themes[theme].text}`}>{m.putCovered}{m.putCoveredAvail !== m.putCovered ? `（${m.putCoveredAvail}）` : ''}</span>
+                                              <button className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`} onClick={() => openAdjustConfirm('put_covered', m.s)}>调整</button>
+                                            </div>
+                                          </div>
+                                          <div className="flex items-center justify-between gap-2">
+                                            <span className={`text-xs ${themes[theme].text} opacity-75`}>组合</span>
+                                            <span className={`text-xs ${themes[theme].text}`}>{m.comboPutQty}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              });
+                            })()}
+                          </div>
                           </div>
                         );
                       })()}
