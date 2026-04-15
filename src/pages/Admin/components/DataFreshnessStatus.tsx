@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Theme, themes } from '../../../lib/theme';
 import { differenceInCalendarDays, parseISO } from 'date-fns';
-import { Database, RefreshCw, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { RefreshCw, AlertCircle, CheckCircle2, ChevronDown } from 'lucide-react';
 
 interface DataFreshnessStatusProps {
   theme: Theme;
@@ -9,6 +9,7 @@ interface DataFreshnessStatusProps {
 
 const DATA_FRESHNESS_CHECK_STOCK = '588000.SH';
 const HISTORY_DATA_API = `/api/stocks/${encodeURIComponent(DATA_FRESHNESS_CHECK_STOCK)}/history`;
+const TICKS_DATA_API = `/api/stocks/${encodeURIComponent(DATA_FRESHNESS_CHECK_STOCK)}/ticks`;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
@@ -32,6 +33,21 @@ const formatValue = (value: unknown): string => {
   }
 };
 
+const toNumberOrNull = (value: unknown): number | null => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+};
+
+const formatPrice = (value: unknown): string => {
+  const n = toNumberOrNull(value);
+  if (n === null) return '-';
+  return n.toLocaleString('en-US', { maximumFractionDigits: 4 });
+};
+
 type DataCheckResult = {
   loading: boolean;
   error: string | null;
@@ -42,6 +58,7 @@ type DataCheckResult = {
 
 export function DataFreshnessStatus({ theme }: DataFreshnessStatusProps) {
   const [historyStatus, setHistoryStatus] = useState<DataCheckResult>({ loading: true, error: null, lastDate: null, diffDays: null, details: null });
+  const [ticksStatus, setTicksStatus] = useState<DataCheckResult>({ loading: true, error: null, lastDate: null, diffDays: null, details: null });
 
   const fetchHistoryData = async () => {
     setHistoryStatus(prev => ({ ...prev, loading: true, error: null }));
@@ -95,106 +112,238 @@ export function DataFreshnessStatus({ theme }: DataFreshnessStatusProps) {
 
   useEffect(() => {
     fetchHistoryData();
+    fetchTicksData();
   }, []);
 
-  const renderStatusCard = (title: string, apiPath: string, status: DataCheckResult, onRefresh: () => void) => {
-    return (
-      <div className={`${themes[theme].card} rounded-lg p-4 border border-gray-200 dark:border-gray-800`}>
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Database className={`w-5 h-5 ${themes[theme].text}`} />
-            <h3 className={`font-semibold ${themes[theme].text}`}>{title}</h3>
-          </div>
-          <button 
-            onClick={onRefresh}
-            disabled={status.loading}
-            className={`p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 ${themes[theme].text} transition-colors disabled:opacity-50`}
-            title="刷新"
-          >
-            <RefreshCw className={`w-4 h-4 ${status.loading ? 'animate-spin' : ''}`} />
-          </button>
-        </div>
-        
-        <div className="text-xs text-gray-500 mb-3 truncate" title={apiPath}>
-          接口: {apiPath}
-        </div>
+  const fetchTicksData = async () => {
+    setTicksStatus(prev => ({ ...prev, loading: true, error: null }));
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      const response = await fetch(TICKS_DATA_API, { signal: controller.signal, cache: 'no-store' });
+      clearTimeout(timeout);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
 
-        {status.loading && !status.lastDate && !status.error ? (
-          <div className="flex items-center justify-center py-4">
-            <RefreshCw className="w-5 h-5 animate-spin text-gray-400" />
-          </div>
-        ) : status.error ? (
-          <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-3 rounded text-sm flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-            <span className="break-all">{status.error}</span>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className={`text-sm ${themes[theme].text} opacity-70`}>最新数据日期</span>
-              <span className={`text-sm font-medium ${themes[theme].text}`}>{status.lastDate}</span>
-            </div>
-            
-            <div className="flex items-center justify-between">
-              <span className={`text-sm ${themes[theme].text} opacity-70`}>距今日相差</span>
-              <div className="flex items-center gap-1.5">
-                {status.diffDays === 0 ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                ) : status.diffDays && status.diffDays <= 3 ? (
-                  <AlertCircle className="w-4 h-4 text-yellow-500" />
-                ) : (
-                  <AlertCircle className="w-4 h-4 text-red-500" />
-                )}
-                <span className={`text-sm font-bold ${
-                  status.diffDays === 0 
-                    ? 'text-emerald-500' 
-                    : status.diffDays && status.diffDays <= 3 
-                      ? 'text-yellow-500' 
-                      : 'text-red-500'
-                }`}>
-                  {status.diffDays} 天
-                </span>
+      const list = extractListFromResponse(data as unknown);
+      if (list.length === 0) {
+        throw new Error('未获取到数据或数据为空');
+      }
+
+      const lastItem = list[list.length - 1];
+      const timetag = typeof lastItem.timetag === 'string' ? lastItem.timetag : '';
+      const timeMs =
+        typeof lastItem.time === 'number' && Number.isFinite(lastItem.time)
+          ? lastItem.time
+          : null;
+      const lastDateStr = timetag || (timeMs !== null ? new Date(timeMs).toISOString() : '');
+      if (!lastDateStr) {
+        throw new Error('数据中未找到日期字段 (timetag/time)');
+      }
+
+      const d = timeMs !== null ? new Date(timeMs) : new Date(lastDateStr.replace(' ', 'T'));
+      if (!Number.isFinite(d.getTime())) {
+        throw new Error('日期解析失败');
+      }
+
+      const diff = differenceInCalendarDays(new Date(), d);
+      setTicksStatus({
+        loading: false,
+        error: null,
+        lastDate: lastDateStr,
+        diffDays: diff,
+        details: lastItem
+      });
+    } catch (err) {
+      if (err && typeof err === 'object' && 'name' in err && err.name === 'AbortError') {
+        setTicksStatus(prev => ({
+          ...prev,
+          loading: false,
+          error: '请求超时'
+        }));
+        return;
+      }
+      setTicksStatus(prev => ({
+        ...prev,
+        loading: false,
+        error: err instanceof Error ? err.message : '请求失败'
+      }));
+    }
+  };
+
+  const refreshAll = () => {
+    fetchHistoryData();
+    fetchTicksData();
+  };
+
+  const anyLoading = historyStatus.loading || ticksStatus.loading;
+
+  const getStatusLevel = (status: DataCheckResult): 'ok' | 'warn' | 'bad' => {
+    if (status.error) return 'bad';
+    if (status.diffDays === null) return 'warn';
+    if (status.diffDays === 0) return 'ok';
+    if (status.diffDays <= 3) return 'warn';
+    return 'bad';
+  };
+
+  const StatusIcon = ({ status }: { status: DataCheckResult }) => {
+    const level = getStatusLevel(status);
+    if (level === 'ok') return <CheckCircle2 className="w-4 h-4 text-emerald-500" />;
+    if (level === 'warn') return <AlertCircle className="w-4 h-4 text-yellow-500" />;
+    return <AlertCircle className="w-4 h-4 text-red-500" />;
+  };
+
+  type CheckConfig = {
+    key: string;
+    title: string;
+    apiPath: string;
+    status: DataCheckResult;
+    refresh: () => void;
+    lastLabel: string;
+    primary: Array<{ label: string; value: unknown }>;
+    excludeDetailKeys: string[];
+  };
+
+  const checks: CheckConfig[] = [
+    {
+      key: 'history',
+      title: '历史行情',
+      apiPath: HISTORY_DATA_API,
+      status: historyStatus,
+      refresh: fetchHistoryData,
+      lastLabel: '最新日期',
+      primary: [
+        { label: '收盘', value: historyStatus.details?.close },
+        { label: '开盘', value: historyStatus.details?.open },
+      ],
+      excludeDetailKeys: ['date'],
+    },
+    {
+      key: 'ticks',
+      title: 'Tick',
+      apiPath: TICKS_DATA_API,
+      status: ticksStatus,
+      refresh: fetchTicksData,
+      lastLabel: '最新时间',
+      primary: [
+        { label: '收盘', value: ticksStatus.details?.lastPrice },
+        { label: '开盘', value: ticksStatus.details?.open },
+      ],
+      excludeDetailKeys: ['timetag'],
+    },
+  ];
+
+  const renderStatusRow = (c: CheckConfig) => {
+    return (
+      <div key={c.key} className="py-2">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex items-start gap-2">
+            <StatusIcon status={c.status} />
+            <div className="min-w-0">
+              <div className={`text-sm font-semibold ${themes[theme].text} leading-5`}>{c.title}</div>
+              <div className="text-[11px] text-gray-500 truncate" title={c.apiPath}>
+                {c.apiPath}
               </div>
             </div>
+          </div>
 
-            {status.details && (
-              <div className="pt-3 border-t border-gray-200 dark:border-gray-800">
-                <div className={`text-xs font-medium mb-2 ${themes[theme].text} opacity-70`}>最后一条数据详情:</div>
-                <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-                  {Object.entries(status.details)
-                    .filter(([k]) => !['date', 'time'].includes(k))
-                    .slice(0, 6) // 最多展示6个字段避免过长
+          <div className="shrink-0 flex items-center gap-2">
+            <button
+              onClick={c.refresh}
+              disabled={c.status.loading}
+              className={`p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 ${themes[theme].text} transition-colors disabled:opacity-50`}
+              title="刷新"
+            >
+              <RefreshCw className={`w-4 h-4 ${c.status.loading ? 'animate-spin' : ''}`} />
+            </button>
+            {c.status.details && (
+              <details className="group">
+                <summary
+                  className={`list-none cursor-pointer select-none inline-flex items-center gap-1 text-xs ${themes[theme].text} opacity-75 hover:opacity-100`}
+                >
+                  详情
+                  <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180" />
+                </summary>
+                <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] font-mono">
+                  {Object.entries(c.status.details)
+                    .filter(([k]) => !c.excludeDetailKeys.includes(k))
                     .map(([k, v]) => (
-                      <div key={k} className="flex justify-between items-center bg-gray-50 dark:bg-gray-800/50 p-1.5 rounded">
+                      <div key={k} className="flex justify-between items-center bg-gray-50 dark:bg-gray-800/50 px-2 py-1 rounded">
                         <span className="text-gray-500 dark:text-gray-400 truncate mr-2" title={k}>{k}</span>
                         <span className={`${themes[theme].text} truncate`} title={formatValue(v)}>
                           {formatValue(v)}
                         </span>
                       </div>
-                  ))}
+                    ))}
                 </div>
-              </div>
+              </details>
             )}
           </div>
-        )}
+        </div>
+
+        <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-1 text-xs">
+          {c.status.error ? (
+            <div className="col-span-2 md:col-span-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 px-2 py-1 rounded flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span className="break-all">{c.status.error}</span>
+            </div>
+          ) : c.status.loading && !c.status.lastDate ? (
+            <div className="col-span-2 md:col-span-4 flex items-center gap-2 text-gray-500">
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              <span>加载中...</span>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between gap-2">
+                <span className={`${themes[theme].text} opacity-70`}>{c.lastLabel}</span>
+                <span className={`${themes[theme].text} font-medium truncate`} title={c.status.lastDate ?? ''}>
+                  {c.status.lastDate ?? '-'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className={`${themes[theme].text} opacity-70`}>距今日</span>
+                <span className={`${themes[theme].text} font-medium`}>
+                  {c.status.diffDays ?? '-'} 天
+                </span>
+              </div>
+              {c.primary.map((p) => (
+                <div key={p.label} className="flex items-center justify-between gap-2">
+                  <span className={`${themes[theme].text} opacity-70`}>{p.label}</span>
+                  <span className={`${themes[theme].text} font-semibold`}>{formatPrice(p.value)}</span>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
       </div>
     );
   };
 
   return (
     <div className={`${themes[theme].card} rounded-lg p-4 mt-6`}>
-      <div className="mb-4">
-        <h2 className={`text-xl font-bold ${themes[theme].text}`}>数据同步状态</h2>
-        <p className={`text-sm ${themes[theme].text} opacity-75 mt-1`}>
+      <div className="mb-3 flex items-start justify-between gap-4">
+        <div>
+          <h2 className={`text-xl font-bold ${themes[theme].text}`}>数据同步状态</h2>
+          <p className={`text-sm ${themes[theme].text} opacity-75 mt-1`}>
           检查底层行情数据是否已更新到最新交易日（取任意一只股票作为探针）
-        </p>
-        <div className="text-xs text-gray-500 mt-2">
-          探针股票: {DATA_FRESHNESS_CHECK_STOCK}
+          </p>
+          <div className="text-xs text-gray-500 mt-2">
+            探针股票: {DATA_FRESHNESS_CHECK_STOCK}
+          </div>
         </div>
+        <button
+          onClick={refreshAll}
+          disabled={anyLoading}
+          className={`inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm ${themes[theme].secondary} disabled:opacity-50`}
+          title="刷新"
+        >
+          <RefreshCw className={`w-4 h-4 ${anyLoading ? 'animate-spin' : ''}`} />
+          刷新
+        </button>
       </div>
       
-      <div className="grid grid-cols-1 gap-4">
-        {renderStatusCard('历史行情数据', HISTORY_DATA_API, historyStatus, fetchHistoryData)}
+      <div className="divide-y divide-gray-200 dark:divide-gray-800">
+        {checks.map(renderStatusRow)}
       </div>
     </div>
   );
