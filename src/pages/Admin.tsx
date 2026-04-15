@@ -13,6 +13,7 @@ import { AnalysisTab } from './Journal/components/AnalysisTab';
 import { HistoryTradesChart } from '../features/trading/components/HistoryTradesChart';
 import { DailyTradeHistory } from '../features/trading/components/DailyTradeHistory';
 import { SequentialTradeTasks } from '../features/options/components/SequentialTradeTasks';
+import { DataFreshnessStatus } from './Admin/components/DataFreshnessStatus';
 
 interface AdminProps {
   theme: Theme;
@@ -1002,6 +1003,7 @@ export function Admin({ theme }: AdminProps) {
               </div>
             )}
           </div>
+          <DataFreshnessStatus theme={theme} />
         </div>
       )}
 
