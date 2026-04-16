@@ -6,9 +6,9 @@ import { TradeForm, TradeList, StockSearch } from '../features/trading';
 import { Portfolio } from '../features/portfolio';
 import { OperationsView, UploadPage } from './Journal/features';
 import { Theme, themes } from '../lib/theme';
-import { portfolioService, accountService } from '../lib/services';
+import { portfolioService, accountService, stockService } from '../lib/services';
 import { AccountSelector } from '../shared/components/AccountSelector';
-import type { Stock, Holding, Trade } from '../lib/services/types';
+import type { Stock, Holding, Trade, StockOrder } from '../lib/services/types';
 import { TabNavigation } from './Journal/components/TabNavigation';
 
 interface JournalProps {
@@ -21,35 +21,6 @@ type Tab = 'portfolio' | 'trades' | 'settings' | 'operations' | 'upload';
 
 const DEMO_USER_ID = 'mock-user-id';
 
-type StockTodayOrder = {
-  contract_code_full?: string;
-  instrument_id?: string;
-  instrument_name?: string;
-  limit_price?: number;
-  traded_price?: number;
-  op_type?: number;
-  op_type_name?: string;
-  op_type_name_zh?: string;
-  order_status?: number;
-  order_status_name?: string;
-  order_time?: string;
-  order_sys_id?: string;
-  remark?: string;
-  error_msg?: string;
-  volume_total_original?: number;
-  volume_traded?: number;
-};
-
-const extractOrders = (value: unknown): StockTodayOrder[] => {
-  if (Array.isArray(value)) return value as StockTodayOrder[];
-  if (!value || typeof value !== 'object') return [];
-
-  const obj = value as Record<string, unknown>;
-  if (Array.isArray(obj.orders)) return obj.orders as StockTodayOrder[];
-  if ('data' in obj) return extractOrders(obj.data);
-  return [];
-};
-
 const getOrderStatusBadge = (raw?: string | null) => {
   const s = (raw || '').trim().toUpperCase();
   if (s.includes('FILLED') || s === 'ALLTRADED') return { label: raw || 'FILLED', className: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' };
@@ -60,47 +31,6 @@ const getOrderStatusBadge = (raw?: string | null) => {
   if (!raw) return { label: '-', className: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200' };
   return { label: raw, className: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200' };
 };
-
-const SHOULD_MOCK_TODAY_ORDERS = import.meta.env.MODE === 'test' || import.meta.env.DEV;
-
-const MOCK_TODAY_ORDERS: StockTodayOrder[] = [
-  {
-    contract_code_full: '603043.SH',
-    error_msg: '',
-    instrument_id: '603043',
-    instrument_name: '广州酒家',
-    limit_price: 15.1,
-    op_type: 23,
-    op_type_name: 'STOCK_BUY',
-    op_type_name_zh: '限价买入',
-    order_status: 50,
-    order_status_name: 'REPORTED',
-    order_sys_id: '1043303684',
-    order_time: '2026-04-14 11:14:08',
-    remark: '',
-    traded_price: 0.0,
-    volume_total_original: 300,
-    volume_traded: 0
-  },
-  {
-    contract_code_full: '600900.SH',
-    error_msg: '',
-    instrument_id: '600900',
-    instrument_name: '长江电力',
-    limit_price: 26.2,
-    op_type: 23,
-    op_type_name: 'STOCK_BUY',
-    op_type_name_zh: '限价买入',
-    order_status: 50,
-    order_status_name: 'REPORTED',
-    order_sys_id: '1270204215',
-    order_time: '2026-04-14 14:21:49',
-    remark: '',
-    traded_price: 0.0,
-    volume_total_original: 200,
-    volume_traded: 0
-  }
-];
 
 export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
   const location = useLocation();
@@ -154,7 +84,7 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
     navigate(`/journal?${params.toString()}`, { replace: true });
   };
 
-  const [todayOrders, setTodayOrders] = useState<StockTodayOrder[]>([]);
+  const [todayOrders, setTodayOrders] = useState<StockOrder[]>([]);
   const [todayOrdersLoading, setTodayOrdersLoading] = useState(false);
   const [todayOrdersError, setTodayOrdersError] = useState<string | null>(null);
   const [todayOrdersLastUpdatedAt, setTodayOrdersLastUpdatedAt] = useState<number | null>(null);
@@ -174,14 +104,6 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
 
   const fetchTodayOrders = useCallback(async () => {
     const accountAlias = selectedAccountId || undefined;
-    if (SHOULD_MOCK_TODAY_ORDERS) {
-      setTodayOrdersLoading(true);
-      setTodayOrdersError(null);
-      setTodayOrders(MOCK_TODAY_ORDERS);
-      setTodayOrdersLastUpdatedAt(Date.now());
-      setTodayOrdersLoading(false);
-      return;
-    }
     if (!accountAlias) {
       setTodayOrders([]);
       setTodayOrdersError('请选择账户后再查看当日订单。');
@@ -190,13 +112,9 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
     setTodayOrdersLoading(true);
     setTodayOrdersError(null);
     try {
-      const response = await fetch(`/api/stocks/orders/${encodeURIComponent(accountAlias)}?only_today=true`);
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || `请求失败 (${response.status})`);
-      }
-      const raw = await response.json();
-      setTodayOrders(extractOrders(raw));
+      const { data, error } = await stockService.getTodayOrders(accountAlias);
+      if (error) throw error;
+      setTodayOrders(data || []);
       setTodayOrdersLastUpdatedAt(Date.now());
     } catch (e) {
       setTodayOrders([]);

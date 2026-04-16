@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Theme, themes } from '../../../lib/theme';
 import { differenceInCalendarDays, parseISO } from 'date-fns';
 import { RefreshCw, AlertCircle, CheckCircle2, ChevronDown } from 'lucide-react';
+import { stockService } from '../../../lib/services';
 
 interface DataFreshnessStatusProps {
   theme: Theme;
@@ -13,12 +14,6 @@ const TICKS_DATA_API = `/api/stocks/${encodeURIComponent(DATA_FRESHNESS_CHECK_ST
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
-
-const extractListFromResponse = (data: unknown): Record<string, unknown>[] => {
-  if (Array.isArray(data)) return data.filter(isRecord);
-  if (isRecord(data) && Array.isArray(data.data)) return (data.data as unknown[]).filter(isRecord);
-  return [];
-};
 
 const formatValue = (value: unknown): string => {
   if (typeof value === 'string') return value;
@@ -65,13 +60,10 @@ export function DataFreshnessStatus({ theme }: DataFreshnessStatusProps) {
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10000);
-      const response = await fetch(HISTORY_DATA_API, { signal: controller.signal, cache: 'no-store' });
+      const { data, error } = await stockService.getStockHistoryRaw(DATA_FRESHNESS_CHECK_STOCK, { signal: controller.signal });
       clearTimeout(timeout);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-      
-      // 兼容直接返回数组，或者 { data: [...] } 格式
-      const list = extractListFromResponse(data as unknown);
+      if (error) throw error;
+      const list = (data || []).filter(isRecord);
       if (list.length === 0) {
         throw new Error('未获取到数据或数据为空');
       }
@@ -120,12 +112,10 @@ export function DataFreshnessStatus({ theme }: DataFreshnessStatusProps) {
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10000);
-      const response = await fetch(TICKS_DATA_API, { signal: controller.signal, cache: 'no-store' });
+      const { data, error } = await stockService.getStockTicksRaw(DATA_FRESHNESS_CHECK_STOCK, { signal: controller.signal });
       clearTimeout(timeout);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-
-      const list = extractListFromResponse(data as unknown);
+      if (error) throw error;
+      const list = (data || []).filter(isRecord);
       if (list.length === 0) {
         throw new Error('未获取到数据或数据为空');
       }

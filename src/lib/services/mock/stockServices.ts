@@ -8,6 +8,7 @@ import type {
   CurrencyService,
   StockData,
   StockPrice,
+  StockOrder,
   Operation,
   OperationService,
   TrendData,
@@ -24,7 +25,8 @@ import type {
   AccountPrompt,
   User,
   Notice,
-  NoticeService
+  NoticeService,
+  AdminAccountStatusItem
 } from '../types';
 import { format, subDays, addMinutes, startOfDay, endOfDay, parseISO } from 'date-fns';
 
@@ -167,6 +169,45 @@ export const stockService: StockService = {
     return { data: stockData, error: null };
   },
 
+  getStockHistoryRaw: async (symbol: string, _options?: { signal?: AbortSignal }) => {
+    await new Promise(resolve => setTimeout(resolve, 600));
+    const stockData = generateMockStockData(symbol, 60);
+    const records: Record<string, unknown>[] = stockData.map((d: StockData) => ({
+      date: d.date,
+      open: d.open,
+      high: d.high,
+      low: d.low,
+      close: d.close,
+      volume: d.volume
+    }));
+    return { data: records, error: null };
+  },
+
+  getStockTicksRaw: async (symbol: string, _options?: { signal?: AbortSignal }) => {
+    await new Promise(resolve => setTimeout(resolve, 600));
+    const now = new Date();
+    const start = addMinutes(now, -30);
+    const base = 100 + Math.random() * 50;
+    const ticks: Array<Record<string, unknown>> = [];
+
+    let last = base;
+    for (let i = 0; i < 120; i++) {
+      const t = addMinutes(start, i * 0.25);
+      const delta = (Math.random() - 0.5) * 0.8;
+      last = Math.max(0.01, last + delta);
+      ticks.push({
+        symbol,
+        timetag: format(t, 'yyyy-MM-dd HH:mm:ss'),
+        time: t.getTime(),
+        open: base,
+        lastPrice: last,
+        volume: Math.floor(Math.random() * 2000)
+      });
+    }
+
+    return { data: ticks, error: null };
+  },
+
   getCurrentPrice: async (symbol: string) => {
     await new Promise(resolve => setTimeout(resolve, 300));
     const lastPrice = DEMO_STOCK_DATA[DEMO_STOCK_DATA.length - 1].current_price;
@@ -186,6 +227,68 @@ export const stockService: StockService = {
       }, 
       error: null 
     };
+  },
+
+  getTodayOrders: async (accountAlias: string) => {
+    await new Promise(resolve => setTimeout(resolve, 400));
+    const now = new Date();
+    const datePrefix = format(now, 'yyyy-MM-dd');
+
+    const orders: StockOrder[] = [
+      {
+        contract_code_full: '603043.SH',
+        error_msg: '',
+        instrument_id: '603043',
+        instrument_name: '广州酒家',
+        limit_price: 15.1,
+        op_type: 23,
+        op_type_name: 'STOCK_BUY',
+        op_type_name_zh: '限价买入',
+        order_status: 50,
+        order_status_name: 'REPORTED',
+        order_sys_id: '1043303684',
+        order_time: `${datePrefix} 11:14:08`,
+        remark: '',
+        traded_price: 0.0,
+        volume_total_original: 300,
+        volume_traded: 0
+      },
+      {
+        contract_code_full: '600900.SH',
+        error_msg: '',
+        instrument_id: '600900',
+        instrument_name: '长江电力',
+        limit_price: 26.2,
+        op_type: 23,
+        op_type_name: 'STOCK_BUY',
+        op_type_name_zh: '限价买入',
+        order_status: 50,
+        order_status_name: 'REPORTED',
+        order_sys_id: '1270204215',
+        order_time: `${datePrefix} 14:21:49`,
+        remark: '',
+        traded_price: 0.0,
+        volume_total_original: 200,
+        volume_traded: 0
+      }
+    ];
+
+    return { data: orders, error: null };
+  },
+  getTradingCalendar: async (year: number) => {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    const start = new Date(year, 0, 1);
+    const end = new Date(year, 11, 31);
+    const days: string[] = [];
+    const d = new Date(start);
+    while (d <= end) {
+      const day = d.getDay();
+      if (day !== 0 && day !== 6) {
+        days.push(format(d, 'yyyy-MM-dd'));
+      }
+      d.setDate(d.getDate() + 1);
+    }
+    return { data: days, error: null };
   }
 };
 
@@ -911,6 +1014,19 @@ export const accountService: AccountService = {
     }));
 
     return { data: null, error: null };
+  },
+  getAdminAccountsStatus: async (_options?: { signal?: AbortSignal }) => {
+    await new Promise(resolve => setTimeout(resolve, 250));
+    const now = new Date().toISOString();
+    const items: AdminAccountStatusItem[] = mockAccounts.map((acc, idx) => ({
+      account_id_alias: acc.alias || acc.id,
+      account_type: idx % 2 === 0 ? 'stock' : 'option',
+      alias: acc.alias || acc.id,
+      last_check: now,
+      message: 'OK',
+      status: 'ok',
+    }));
+    return { data: items, error: null };
   }
 };
 

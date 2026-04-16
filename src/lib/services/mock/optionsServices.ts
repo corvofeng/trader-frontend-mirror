@@ -1,4 +1,4 @@
-import type { OptionsService, OptionsPortfolioData, OptionsPosition, OptionsStrategy, RatioSpreadPlanResult, OptionWhitelist, ServiceResponse, AdvisedCombination, OptionOrder, SequentialTradeTask, SequentialTradeStatus } from '../types';
+import type { OptionsService, OptionsPortfolioData, OptionsPosition, OptionsStrategy, RatioSpreadPlanResult, OptionWhitelist, ServiceResponse, AdvisedCombination, OptionOrder, SequentialTradeTask, SequentialTradeStatus, OptionPriceWebSocketClient, OptionPriceWebSocketHandlers } from '../types';
 import type { CustomOptionsStrategy } from '../types';
 
 // 支持的期权标的列表
@@ -671,6 +671,86 @@ function calculateMaxReward(strategy: string, positions: OptionsPosition[]): num
 }
 
 export const optionsService: OptionsService = {
+  createOptionPriceWebSocketClient: (handlers?: OptionPriceWebSocketHandlers): OptionPriceWebSocketClient => {
+    let readyState = 3;
+    let subscribedCodes: string[] = [];
+    let intervalId: number | null = null;
+
+    const close = () => {
+      if (intervalId !== null) {
+        window.clearInterval(intervalId);
+        intervalId = null;
+      }
+      subscribedCodes = [];
+      readyState = 3;
+      handlers?.onClose?.();
+    };
+
+    const connect = () => {
+      if (typeof window === 'undefined') {
+        readyState = 3;
+        return;
+      }
+      if (intervalId !== null) {
+        window.clearInterval(intervalId);
+        intervalId = null;
+      }
+      readyState = 1;
+      handlers?.onOpen?.();
+
+      intervalId = window.setInterval(() => {
+        if (readyState !== 1) return;
+        if (subscribedCodes.length === 0) return;
+        const updates = subscribedCodes.map((code) => {
+          const base = 1 + Math.random() * 5;
+          const last_price = Math.max(0.01, base + (Math.random() - 0.5) * 0.2);
+          const bid_prices = [Math.max(0.01, last_price - 0.01), Math.max(0.01, last_price - 0.02)];
+          const ask_prices = [last_price + 0.01, last_price + 0.02];
+          return {
+            contract_code: code,
+            price: last_price,
+            last_price,
+            bid_prices,
+            ask_prices,
+            bid_vol: [Math.floor(Math.random() * 200), Math.floor(Math.random() * 200)],
+            ask_vol: [Math.floor(Math.random() * 200), Math.floor(Math.random() * 200)],
+            timestamp: Date.now()
+          };
+        });
+        handlers?.onMessage?.(updates);
+      }, 1500);
+    };
+
+    const send = (_payload: unknown) => {};
+
+    return {
+      connect,
+      close,
+      send,
+      subscribe: (contractCodes: string[]) => {
+        subscribedCodes = Array.from(new Set(contractCodes.filter(Boolean)));
+      },
+      queryOrders: (_accountId: string) => {
+        const orders: OptionOrder[] = [
+          {
+            instrument_name: 'Mock Option',
+            op_type_name: 'BUY',
+            op_type_name_zh: '买入',
+            order_status_name: 'FILLED',
+            limit_price: 1.23,
+            traded_price: 1.22,
+            volume_total_original: 1,
+            volume_traded: 1,
+            remark: 'mock',
+            order_time: new Date().toISOString(),
+            is_combination: false,
+          }
+        ];
+        handlers?.onMessage?.({ action: 'option_orders', orders });
+      },
+      getReadyState: () => readyState
+    };
+  },
   getOptionContractDetail: async (contractCode: string) => {
     await new Promise(resolve => setTimeout(resolve, 500));
     return {

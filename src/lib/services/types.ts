@@ -112,6 +112,25 @@ export interface StockPrice {
   price: number;
 }
 
+export interface StockOrder {
+  contract_code_full?: string;
+  instrument_id?: string;
+  instrument_name?: string;
+  limit_price?: number;
+  traded_price?: number;
+  op_type?: number;
+  op_type_name?: string;
+  op_type_name_zh?: string;
+  order_status?: number;
+  order_status_name?: string;
+  order_time?: string;
+  order_sys_id?: string;
+  remark?: string;
+  error_msg?: string;
+  volume_total_original?: number;
+  volume_traded?: number;
+}
+
 export interface UploadResponse {
   uuid: string;
   filename: string;
@@ -252,7 +271,11 @@ export interface StockService {
   getStocks: () => Promise<ServiceResponse<Stock[]>>;
   searchStocks: (query: string) => Promise<ServiceResponse<Stock[]>>;
   getStockData: (symbol: string) => Promise<ServiceResponse<StockData[]>>;
+  getStockHistoryRaw: (symbol: string, options?: { signal?: AbortSignal }) => Promise<ServiceResponse<Record<string, unknown>[]>>;
+  getStockTicksRaw: (symbol: string, options?: { signal?: AbortSignal }) => Promise<ServiceResponse<Record<string, unknown>[]>>;
   getCurrentPrice: (symbol: string) => Promise<ServiceResponse<StockPrice>>;
+  getTodayOrders: (accountAlias: string) => Promise<ServiceResponse<StockOrder[]>>;
+  getTradingCalendar: (year: number) => Promise<ServiceResponse<string[]>>;
 }
 
 export interface StockConfigService {
@@ -287,6 +310,15 @@ export interface Account {
   updated_at?: string;
 }
 
+export interface AdminAccountStatusItem {
+  account_id_alias: string;
+  account_type: string;
+  alias: string;
+  last_check: string;
+  message: string;
+  status: string;
+}
+
 export interface AccountService {
   getAccounts: (userId: string) => Promise<ServiceResponse<Account[]>>;
   getOptionsAccounts: (userId: string) => Promise<ServiceResponse<Account[]>>;
@@ -294,6 +326,7 @@ export interface AccountService {
   updateAccount: (account: Account) => Promise<ServiceResponse<Account>>;
   deleteAccount: (accountId: string) => Promise<ServiceResponse<void>>;
   setDefaultAccount: (userId: string, accountId: string) => Promise<ServiceResponse<void>>;
+  getAdminAccountsStatus: (options?: { signal?: AbortSignal }) => Promise<ServiceResponse<AdminAccountStatusItem[]>>;
 }
 
 export interface PortfolioService {
@@ -776,6 +809,7 @@ export interface OptionsService {
   getPayoffSurface: (accountId: string, symbol?: string) => Promise<ServiceResponse<PayoffSurfaceData>>;
   getMarginStress: (accountId: string, symbol?: string) => Promise<ServiceResponse<MarginStressData>>;
   getAvailableStrategies: () => Promise<ServiceResponse<string[]>>;
+  createOptionPriceWebSocketClient: (handlers?: OptionPriceWebSocketHandlers) => OptionPriceWebSocketClient;
   saveCustomStrategy: (
     strategy: CustomOptionsStrategy | Omit<CustomOptionsStrategy, 'id' | 'createdAt' | 'updatedAt'>
   ) => Promise<ServiceResponse<CustomOptionsStrategy>>;
@@ -820,6 +854,22 @@ export interface OptionsService {
   resumeSequentialTrade: (accountAlias: string, tradeId: number | string) => Promise<ServiceResponse<void>>;
   terminateSequentialTrade: (accountAlias: string, tradeId: number | string) => Promise<ServiceResponse<void>>;
   restartSequentialTrade: (accountAlias: string, tradeId: number | string, stepIndex?: number) => Promise<ServiceResponse<void>>;
+}
+
+export type OptionPriceWebSocketHandlers = {
+  onOpen?: () => void;
+  onClose?: () => void;
+  onError?: (event: unknown) => void;
+  onMessage?: (data: unknown) => void;
+};
+
+export interface OptionPriceWebSocketClient {
+  connect: () => void;
+  close: () => void;
+  send: (payload: unknown) => void;
+  subscribe: (contractCodes: string[]) => void;
+  queryOrders: (accountId: string) => void;
+  getReadyState: () => number;
 }
 
 export interface CustomOptionsStrategy {

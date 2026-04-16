@@ -1,6 +1,8 @@
 import type {
   OptionsData,
   OptionOrder,
+  OptionPriceWebSocketClient,
+  OptionPriceWebSocketHandlers,
   OptionsService,
   OptionsPosition,
   OptionsPortfolioData,
@@ -278,6 +280,69 @@ const collectBatchErrors = (data: unknown): string[] => {
 const optionsDataCache: Partial<Record<string, Promise<ServiceResponse<OptionsData>>>> = {};
 
 export const optionsService: OptionsService = {
+  createOptionPriceWebSocketClient: (handlers?: OptionPriceWebSocketHandlers): OptionPriceWebSocketClient => {
+    const getWebSocketUrl = () => {
+      const meta = import.meta as unknown as { env?: { VITE_WS_URL?: string } };
+      if (meta.env?.VITE_WS_URL) {
+        return meta.env.VITE_WS_URL;
+      }
+      if (typeof window !== 'undefined') {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        return `${protocol}//${window.location.host}/api/ws/option`;
+      }
+      return 'ws://localhost:8000/api/ws/option';
+    };
+
+    let ws: WebSocket | null = null;
+
+    const send = (payload: unknown) => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      if (typeof payload === 'string') {
+        ws.send(payload);
+      } else {
+        ws.send(JSON.stringify(payload));
+      }
+    };
+
+    const client: OptionPriceWebSocketClient = {
+      connect: () => {
+        if (ws) {
+          ws.close();
+          ws = null;
+        }
+        ws = new WebSocket(getWebSocketUrl());
+        ws.onopen = () => handlers?.onOpen?.();
+        ws.onclose = () => handlers?.onClose?.();
+        ws.onerror = (event) => handlers?.onError?.(event);
+        ws.onmessage = (event) => {
+          const raw = event.data;
+          if (typeof raw === 'string') {
+            try {
+              handlers?.onMessage?.(JSON.parse(raw));
+            } catch {
+              handlers?.onMessage?.(raw);
+            }
+            return;
+          }
+          handlers?.onMessage?.(raw);
+        };
+      },
+      close: () => {
+        if (ws) ws.close();
+        ws = null;
+      },
+      send,
+      subscribe: (contractCodes: string[]) => {
+        send({ action: 'subscribe', contract_codes: contractCodes });
+      },
+      queryOrders: (accountId: string) => {
+        send({ action: 'query_option_orders', account_id: accountId, only_today: true });
+      },
+      getReadyState: () => ws?.readyState ?? WebSocket.CLOSED,
+    };
+
+    return client;
+  },
   getOptionContractDetail: async (contractCode: string) => {
     try {
       const response = await fetch(`https://stock.in.corvo.fun/api/option-contract/detail/${contractCode}`);

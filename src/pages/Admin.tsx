@@ -7,8 +7,8 @@ import { Theme, themes } from '../lib/theme';
 import { AccountSelector } from '../shared/components/AccountSelector';
 import { TabNavigation } from './Journal/components/TabNavigation';
 import { OperationsView } from './Journal/features';
-import { authService, optionsService } from '../lib/services';
-import type { OptionOrder } from '../lib/services/types';
+import { accountService, authService, optionsService, stockService } from '../lib/services';
+import type { AdminAccountStatusItem, OptionOrder } from '../lib/services/types';
 import { AnalysisTab } from './Journal/components/AnalysisTab';
 import { HistoryTradesChart } from '../features/trading/components/HistoryTradesChart';
 import { DailyTradeHistory } from '../features/trading/components/DailyTradeHistory';
@@ -20,15 +20,6 @@ interface AdminProps {
 }
 
 type AdminTab = 'operations' | 'calendar' | 'analysis' | 'history' | 'tasks' | 'notices' | 'accounts';
-
-type AdminAccountStatusItem = {
-  account_id_alias: string;
-  account_type: string;
-  alias: string;
-  last_check: string;
-  message: string;
-  status: string;
-};
 
 export function Admin({ theme }: AdminProps) {
   const location = useLocation();
@@ -163,34 +154,9 @@ export function Admin({ theme }: AdminProps) {
       const startedAt = performance.now();
       setAccountsHeartbeatInFlight(true);
       try {
-        const response = await fetch('/api/admin/accounts/status', { signal: controller.signal });
-        const contentType = response.headers.get('content-type') || '';
-        const body = contentType.includes('application/json')
-          ? await response.json().catch(() => null)
-          : await response.text().catch(() => null);
-
-        if (!response.ok) {
-          const messageFromJson =
-            body && typeof body === 'object'
-              ? String((body as Record<string, unknown>).message || (body as Record<string, unknown>).error || response.statusText)
-              : '';
-          const message = typeof body === 'string' ? body : messageFromJson;
-          throw new Error(message || `HTTP ${response.status}`);
-        }
-
-        const record = body && typeof body === 'object' ? (body as Record<string, unknown>) : null;
-        const rawList = Array.isArray(record?.data) ? record?.data : [];
-        const normalized = rawList
-          .filter((v): v is Record<string, unknown> => !!v && typeof v === 'object')
-          .map((v) => ({
-            account_id_alias: String(v.account_id_alias ?? ''),
-            account_type: String(v.account_type ?? ''),
-            alias: String(v.alias ?? ''),
-            last_check: String(v.last_check ?? ''),
-            message: String(v.message ?? ''),
-            status: String(v.status ?? ''),
-          }))
-          .filter(v => v.account_id_alias || v.alias);
+        const { data, error } = await accountService.getAdminAccountsStatus({ signal: controller.signal });
+        if (error) throw error;
+        const normalized = data || [];
 
         if (!cancelled) {
           setAccountsStatus(normalized);
@@ -491,48 +457,9 @@ export function Admin({ theme }: AdminProps) {
     let cancelled = false;
     const fetchTradingCalendar = async () => {
       try {
-        const response = await fetch(`/api/trading-calendar?year=${year}`);
-        if (!response.ok) {
-          throw new Error('Failed to load trading calendar');
-        }
-        const raw = await response.json();
-        let tradingDates: string[] = [];
-        if (Array.isArray(raw)) {
-          const stringDates = raw.filter((v): v is string => typeof v === 'string');
-          if (stringDates.length > 0) {
-            tradingDates = stringDates;
-          } else {
-            const objects = raw.filter((v): v is Record<string, unknown> => !!v && typeof v === 'object');
-            tradingDates = objects
-              .filter(d => {
-                const type = d.type;
-                const isTrading = d.is_trading_day ?? d.trading ?? d.is_open;
-                return isTrading === true || type === 'TRADING';
-              })
-              .map(d => (d.date ?? d.day ?? d.trading_date))
-              .filter((v): v is string => typeof v === 'string');
-          }
-        } else if (raw && typeof raw === 'object') {
-          const obj = raw as Record<string, unknown>;
-          if (Array.isArray(obj.trading_days)) {
-            tradingDates = obj.trading_days.filter((v): v is string => typeof v === 'string');
-          } else {
-            const list = Array.isArray(obj.data)
-              ? obj.data
-              : Array.isArray(obj.days)
-                ? obj.days
-                : [];
-            const objects = list.filter((v): v is Record<string, unknown> => !!v && typeof v === 'object');
-            tradingDates = objects
-              .filter(d => {
-                const type = d.type;
-                const isTrading = d.is_trading_day ?? d.trading ?? d.is_open;
-                return isTrading === true || type === 'TRADING';
-              })
-              .map(d => (d.date ?? d.day ?? d.trading_date))
-              .filter((v): v is string => typeof v === 'string');
-          }
-        }
+        const { data, error } = await stockService.getTradingCalendar(year);
+        if (error) throw error;
+        const tradingDates = data || [];
         if (!cancelled && tradingDates.length > 0) {
           setTradingDaysByYear(prev => ({
             ...prev,

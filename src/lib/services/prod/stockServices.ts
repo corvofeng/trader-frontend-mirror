@@ -17,7 +17,9 @@ import type {
   AccountPrompt,
   Notice,
   NoticeListResponse,
-  NoticeService
+  NoticeService,
+  StockOrder,
+  AdminAccountStatusItem
 } from '../types';
 import type { Trade } from '../types';
 
@@ -190,6 +192,60 @@ export const stockService: StockService = {
     }
   },
 
+  getStockHistoryRaw: async (symbol: string, options?: { signal?: AbortSignal }) => {
+    const extractList = (value: unknown): Record<string, unknown>[] => {
+      if (Array.isArray(value)) {
+        return value.filter((v): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v));
+      }
+      if (!value || typeof value !== 'object') return [];
+      const obj = value as Record<string, unknown>;
+      if (Array.isArray(obj.data)) return extractList(obj.data);
+      return [];
+    };
+
+    try {
+      const response = await fetch(`/api/stocks/${encodeURIComponent(symbol)}/history`, {
+        signal: options?.signal,
+        cache: 'no-store'
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const data = await response.json();
+      return { data: extractList(data), error: null };
+    } catch (error) {
+      console.error('Error fetching stock history:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  getStockTicksRaw: async (symbol: string, options?: { signal?: AbortSignal }) => {
+    const extractList = (value: unknown): Record<string, unknown>[] => {
+      if (Array.isArray(value)) {
+        return value.filter((v): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v));
+      }
+      if (!value || typeof value !== 'object') return [];
+      const obj = value as Record<string, unknown>;
+      if (Array.isArray(obj.data)) return extractList(obj.data);
+      return [];
+    };
+
+    try {
+      const response = await fetch(`/api/stocks/${encodeURIComponent(symbol)}/ticks`, {
+        signal: options?.signal,
+        cache: 'no-store'
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const data = await response.json();
+      return { data: extractList(data), error: null };
+    } catch (error) {
+      console.error('Error fetching stock ticks:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
   getCurrentPrice: async (symbol: string) => {
     try {
       const response = await fetch(`/api/stocks/${symbol}/price`);
@@ -212,6 +268,83 @@ export const stockService: StockService = {
       };
     } catch (error) {
       console.error('Error fetching current price:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  getTodayOrders: async (accountAlias: string) => {
+    const extractOrders = (value: unknown): StockOrder[] => {
+      if (Array.isArray(value)) return value as StockOrder[];
+      if (!value || typeof value !== 'object') return [];
+      const obj = value as Record<string, unknown>;
+      if (Array.isArray(obj.orders)) return obj.orders as StockOrder[];
+      if ('data' in obj) return extractOrders(obj.data);
+      return [];
+    };
+
+    try {
+      const response = await fetch(
+        `/api/stocks/orders/${encodeURIComponent(accountAlias)}?only_today=true&_=${Date.now()}`,
+        { cache: 'no-store' }
+      );
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || `请求失败 (${response.status})`);
+      }
+      const raw = await response.json();
+      return { data: extractOrders(raw), error: null };
+    } catch (error) {
+      console.error('Error fetching today orders:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+  getTradingCalendar: async (year: number) => {
+    try {
+      const response = await fetch(`/api/trading-calendar?year=${encodeURIComponent(String(year))}`);
+      if (!response.ok) {
+        throw new Error('Failed to load trading calendar');
+      }
+      const raw = await response.json();
+      let tradingDates: string[] = [];
+      if (Array.isArray(raw)) {
+        const stringDates = raw.filter((v): v is string => typeof v === 'string');
+        if (stringDates.length > 0) {
+          tradingDates = stringDates;
+        } else {
+          const objects = raw.filter((v): v is Record<string, unknown> => !!v && typeof v === 'object');
+          tradingDates = objects
+            .filter(d => {
+              const type = d.type;
+              const isTrading = d.is_trading_day ?? d.trading ?? d.is_open;
+              return isTrading === true || type === 'TRADING';
+            })
+            .map(d => (d.date ?? d.day ?? d.trading_date))
+            .filter((v): v is string => typeof v === 'string');
+        }
+      } else if (raw && typeof raw === 'object') {
+        const obj = raw as Record<string, unknown>;
+        if (Array.isArray(obj.trading_days)) {
+          tradingDates = obj.trading_days.filter((v): v is string => typeof v === 'string');
+        } else {
+          const list = Array.isArray(obj.data)
+            ? obj.data
+            : Array.isArray(obj.days)
+              ? obj.days
+              : [];
+          const objects = list.filter((v): v is Record<string, unknown> => !!v && typeof v === 'object');
+          tradingDates = objects
+            .filter(d => {
+              const type = d.type;
+              const isTrading = d.is_trading_day ?? d.trading ?? d.is_open;
+              return isTrading === true || type === 'TRADING';
+            })
+            .map(d => (d.date ?? d.day ?? d.trading_date))
+            .filter((v): v is string => typeof v === 'string');
+        }
+      }
+      return { data: tradingDates, error: null };
+    } catch (error) {
+      console.error('Error fetching trading calendar:', error);
       return { data: null, error: error as Error };
     }
   }
@@ -705,6 +838,43 @@ export const accountService: AccountService = {
       return { data: null, error: null };
     } catch (error) {
       console.error('Error setting default account:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+  getAdminAccountsStatus: async (options?: { signal?: AbortSignal }) => {
+    try {
+      const response = await fetch('/api/admin/accounts/status', { signal: options?.signal });
+      const contentType = response.headers.get('content-type') || '';
+      const body = contentType.includes('application/json')
+        ? await response.json().catch(() => null)
+        : await response.text().catch(() => null);
+
+      if (!response.ok) {
+        const messageFromJson =
+          body && typeof body === 'object'
+            ? String((body as Record<string, unknown>).message || (body as Record<string, unknown>).error || response.statusText)
+            : '';
+        const message = typeof body === 'string' ? body : messageFromJson;
+        throw new Error(message || `HTTP ${response.status}`);
+      }
+
+      const record = body && typeof body === 'object' ? (body as Record<string, unknown>) : null;
+      const rawList = Array.isArray(record?.data) ? record?.data : [];
+      const normalized: AdminAccountStatusItem[] = rawList
+        .filter((v): v is Record<string, unknown> => !!v && typeof v === 'object')
+        .map((v) => ({
+          account_id_alias: String(v.account_id_alias ?? ''),
+          account_type: String(v.account_type ?? ''),
+          alias: String(v.alias ?? ''),
+          last_check: String(v.last_check ?? ''),
+          message: String(v.message ?? ''),
+          status: String(v.status ?? ''),
+        }))
+        .filter(v => v.account_id_alias || v.alias);
+
+      return { data: normalized, error: null };
+    } catch (error) {
+      console.error('Error fetching admin accounts status:', error);
       return { data: null, error: error as Error };
     }
   }
