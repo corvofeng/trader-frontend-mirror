@@ -183,17 +183,9 @@ export function Portfolio({
       const multiplier = tradesSort.direction === 'asc' ? 1 : -1;
       switch (tradesSort.field) {
         case 'created_at':
-          return multiplier * (new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        case 'stock_code':
-          return multiplier * a.stock_code.localeCompare(b.stock_code);
-        case 'operation':
-          return multiplier * a.operation.localeCompare(b.operation);
-        case 'target_price':
-          return multiplier * (a.target_price - b.target_price);
-        case 'quantity':
-          return multiplier * (a.quantity - b.quantity);
+          return multiplier * (new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
         default:
-          return 0;
+          return multiplier * (new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
       }
     });
   };
@@ -305,6 +297,7 @@ export function Portfolio({
   };
 
   const handleTradesSort = (field: string) => {
+    if (field !== 'created_at') return;
     setTradesSort(prev => ({
       field,
       direction: prev.field === field && prev.direction === 'asc' ? 'desc' : 'asc'
@@ -478,7 +471,7 @@ export function Portfolio({
           </FadeIn>
         )}
 
-        <div className="hidden md:block">
+        <div className="mt-4 md:mt-6">
           <FadeIn delay={300}>
             <PortfolioHeatmap 
               holdings={holdings}
@@ -515,15 +508,15 @@ export function Portfolio({
       </div>
 
       {recentTrades.length > 0 && (
-        <div className={`${themes[theme].card} rounded-lg shadow-md`}>
-          <div className="p-6 border-b border-gray-200">
+        <div className={`${themes[theme].card} rounded-lg shadow-sm sm:shadow-md overflow-hidden transition-colors duration-200`}>
+          <div className={`p-3 sm:p-6 border-b ${themes[theme].border}`}>
             <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
               <h2 className={`text-lg font-semibold ${themes[theme].text} whitespace-nowrap`}>成交记录</h2>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
                 <select
                   value={tradesPerPage}
                   onChange={(e) => setTradesPerPage(Number(e.target.value))}
-                  className={`px-2 py-1 rounded-md text-sm ${themes[theme].input} ${themes[theme].text}`}
+                  className={`flex-1 sm:flex-none px-2 py-1 rounded-md text-sm ${themes[theme].input} ${themes[theme].text}`}
                 >
                   <option value={5}>每页 5 条</option>
                   <option value={10}>每页 10 条</option>
@@ -540,7 +533,7 @@ export function Portfolio({
           </div>
           
           {showRecentTrades && (
-            <div className="p-4">
+            <div className="p-3 sm:p-4">
               <TradesTable
                 theme={theme}
                 trades={recentTrades}
