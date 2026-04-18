@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { logger } from '../shared/utils/logger';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Briefcase, LayoutGrid, Upload, Activity, Settings, RefreshCw } from 'lucide-react';
+import { Briefcase, LayoutGrid, Settings, RefreshCw } from 'lucide-react';
 import { TradeForm, TradeList, StockSearch } from '../features/trading';
 import { Portfolio } from '../features/portfolio';
-import { OperationsView, UploadPage } from './Journal/features';
+
 import { Theme, themes } from '../lib/theme';
 import { portfolioService, accountService, stockService } from '../lib/services';
 import { AccountSelector } from '../shared/components/AccountSelector';
@@ -17,7 +17,7 @@ interface JournalProps {
   onStockSelect: (stock: Stock) => void;
 }
 
-type Tab = 'portfolio' | 'trades' | 'settings' | 'operations' | 'upload';
+type Tab = 'portfolio' | 'trades' | 'settings';
 
 const DEMO_USER_ID = 'mock-user-id';
 
@@ -39,7 +39,7 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab');
-    if (tab === 'analysis' || tab === 'history') {
+    if (tab === 'analysis' || tab === 'history' || tab === 'operations' || tab === 'upload') {
       params.set('tab', tab);
       navigate(`/admin?${params.toString()}`, { replace: true });
     }
@@ -48,7 +48,7 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab') as Tab;
-    return tab && ['portfolio', 'trades', 'settings', 'operations', 'upload'].includes(tab)
+    return tab && ['portfolio', 'trades', 'settings'].includes(tab)
       ? tab
       : 'portfolio';
   });
@@ -75,7 +75,7 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
   const portfolioUuid = new URLSearchParams(location.search).get('uuid');
 
   const handleTabChange = (tabId: string) => {
-    const newTab = (['portfolio', 'trades', 'settings', 'operations', 'upload'] as const).includes(tabId as Tab)
+    const newTab = (['portfolio', 'trades', 'settings'] as const).includes(tabId as Tab)
       ? (tabId as Tab)
       : 'portfolio';
     setActiveTab(newTab);
@@ -197,8 +197,6 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
   const tabs = [
     { id: 'portfolio' as Tab, name: 'Portfolio', icon: Briefcase },
     { id: 'trades' as Tab, name: 'Trade Plans', icon: LayoutGrid },
-    { id: 'upload' as Tab, name: 'Upload', icon: Upload },
-    { id: 'operations' as Tab, name: 'Operations', icon: Activity },
     { id: 'settings' as Tab, name: 'Settings', icon: Settings },
   ];
 
@@ -385,13 +383,7 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
         </div>
       )}
 
-      {activeTab === 'upload' && !portfolioUuid && (
-        <UploadPage theme={theme} />
-      )}
 
-      {activeTab === 'operations' && !portfolioUuid && (
-        <OperationsView theme={theme} accountAlias={selectedAccountId} />
-      )}
 
       {activeTab === 'settings' && !portfolioUuid && (
         <div className={`${themes[theme].card} rounded-lg p-3 sm:p-4 lg:p-6`}>

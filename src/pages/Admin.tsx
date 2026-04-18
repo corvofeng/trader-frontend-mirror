@@ -1,12 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Activity, Calendar, RefreshCw, BookOpen, History as HistoryIcon, ListChecks, HeartPulse, Bell } from 'lucide-react';
+import { Activity, Calendar, RefreshCw, BookOpen, History as HistoryIcon, ListChecks, HeartPulse, Bell, Upload } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, addMonths, isSameMonth, isSameDay } from 'date-fns';
 import { logger } from '../shared/utils/logger';
 import { Theme, themes } from '../lib/theme';
 import { AccountSelector } from '../shared/components/AccountSelector';
 import { TabNavigation } from './Journal/components/TabNavigation';
-import { OperationsView } from './Journal/features';
+import { OperationsView, UploadPage } from './Journal/features';
 import { accountService, authService, optionsService, stockService } from '../lib/services';
 import type { AdminAccountStatusItem, OptionOrder } from '../lib/services/types';
 import { AnalysisTab } from './Journal/components/AnalysisTab';
@@ -19,7 +19,7 @@ interface AdminProps {
   theme: Theme;
 }
 
-type AdminTab = 'operations' | 'calendar' | 'analysis' | 'history' | 'tasks' | 'notices' | 'accounts';
+type AdminTab = 'operations' | 'calendar' | 'analysis' | 'history' | 'tasks' | 'notices' | 'accounts' | 'upload';
 
 export function Admin({ theme }: AdminProps) {
   const location = useLocation();
@@ -488,6 +488,7 @@ export function Admin({ theme }: AdminProps) {
     { id: 'tasks' as AdminTab, name: 'Tasks', icon: ListChecks },
     { id: 'notices' as AdminTab, name: 'Notices', icon: Bell },
     { id: 'accounts' as AdminTab, name: 'Accounts', icon: HeartPulse },
+    { id: 'upload' as AdminTab, name: 'Upload', icon: Upload },
   ];
 
   return (
@@ -579,6 +580,10 @@ export function Admin({ theme }: AdminProps) {
 
       {activeTab === 'tasks' && (
         <SequentialTradeTasks theme={theme} selectedAccountId={selectedAccountId} />
+      )}
+
+      {activeTab === 'upload' && (
+        <UploadPage theme={theme} />
       )}
 
       {activeTab === 'notices' && (
