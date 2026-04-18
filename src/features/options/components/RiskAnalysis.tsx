@@ -100,14 +100,46 @@ export function RiskAnalysis({ theme, selectedAccountId, selectedSymbol }: RiskA
       chartInstance.current = echarts.init(surfaceChartRef.current);
     }
 
+    const focusShockMinPct = -20;
+    const focusShockMaxPct = 20;
+
+    const focusSIndices = surfaceData.S_axis.reduce<number[]>((acc, s, idx) => {
+      if (typeof s !== 'number' || Number.isNaN(s) || surfaceData.underlying_price === 0) return acc;
+      const shockPct = ((s / surfaceData.underlying_price) - 1) * 100;
+      if (shockPct >= focusShockMinPct && shockPct <= focusShockMaxPct) acc.push(idx);
+      return acc;
+    }, []);
+
+    const useFocusedRange = focusSIndices.length >= 2;
+    const sIndices = useFocusedRange ? focusSIndices : surfaceData.S_axis.map((_, idx) => idx);
+
+    const seriesData = sIndices.flatMap((i) => {
+      const s = surfaceData.S_axis[i];
+      const shockPct = surfaceData.underlying_price === 0 ? 0 : ((s / surfaceData.underlying_price) - 1) * 100;
+      return surfaceData.T_axis.map((_, j) => [j, shockPct, surfaceData.payoff_matrix[i][j]]);
+    });
+
+    let vmMin = Number.POSITIVE_INFINITY;
+    let vmMax = Number.NEGATIVE_INFINITY;
+    for (const point of seriesData) {
+      const z = point[2];
+      if (typeof z !== 'number' || Number.isNaN(z)) continue;
+      if (z < vmMin) vmMin = z;
+      if (z > vmMax) vmMax = z;
+    }
+    if (!Number.isFinite(vmMin) || !Number.isFinite(vmMax) || vmMin === vmMax) {
+      vmMin = surfaceData.max_loss;
+      vmMax = surfaceData.max_profit;
+    }
+
     const option = {
       tooltip: {},
       backgroundColor: 'transparent',
       visualMap: {
         show: true,
         dimension: 2,
-        min: surfaceData.max_loss,
-        max: surfaceData.max_profit,
+        min: vmMin,
+        max: vmMax,
         inRange: {
           color: [
             '#ef4444', // red-500
@@ -128,9 +160,16 @@ export function RiskAnalysis({ theme, selectedAccountId, selectedSymbol }: RiskA
       },
       yAxis3D: {
         type: 'value',
-        name: 'Price',
-        data: surfaceData.S_axis,
+        name: 'Shock (%)',
+        ...(useFocusedRange ? { min: focusShockMinPct, max: focusShockMaxPct } : {}),
         axisLabel: {
+          formatter: (value: number) => {
+            const shockPct = typeof value === 'number' ? value : 0;
+            const price = surfaceData.underlying_price * (1 + shockPct / 100);
+            const pctLabel = `${shockPct > 0 ? '+' : ''}${shockPct.toFixed(0)}%`;
+            const priceLabel = Number.isFinite(price) ? price.toFixed(3) : '-';
+            return `${pctLabel} (${priceLabel})`;
+          },
           textStyle: { color: themes[theme].text === 'text-gray-900' ? '#374151' : '#d1d5db' }
         }
       },
@@ -164,9 +203,7 @@ export function RiskAnalysis({ theme, selectedAccountId, selectedSymbol }: RiskA
         itemStyle: {
           opacity: 0.8
         },
-        data: surfaceData.S_axis.flatMap((s, i) => 
-          surfaceData.T_axis.map((_, j) => [j, s, surfaceData.payoff_matrix[i][j]])
-        )
+        data: seriesData
       }]
     };
 
