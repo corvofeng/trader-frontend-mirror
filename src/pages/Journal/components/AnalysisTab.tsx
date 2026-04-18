@@ -556,41 +556,23 @@ export function AnalysisTab({
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto">
-                <div
-                  className={`grid ${
-                    previewHasCustom === false ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'
-                  } divide-y md:divide-y-0 ${
-                    previewHasCustom === false ? 'md:divide-x' : ''
-                  } divide-gray-200 dark:divide-gray-700`}
-                >
-                  {previewHasCustom === false && (
-                    <div className="p-4">
-                      <div className="mb-2 flex items-center justify-between">
-                        <span className={`text-xs font-semibold ${themes[theme].text}`}>
-                          系统默认模板
-                        </span>
-                      </div>
-                      <div
-                        className={`${themes[theme].text} text-xs sm:text-sm leading-relaxed space-y-2 break-words`}
-                        dangerouslySetInnerHTML={{
-                          __html: renderPreviewMarkdown(previewContent || '')
-                        }}
-                      />
-                    </div>
-                  )}
-                  <div className="p-4">
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className={`text-xs font-semibold ${themes[theme].text}`}>
-                        合成后的最终 Prompt
+                <div className="p-4">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className={`text-xs font-semibold ${themes[theme].text}`}>
+                      合成后的最终 Prompt
+                    </span>
+                    {previewHasCustom === false && (
+                      <span className={`text-[11px] ${themes[theme].text} opacity-70`}>
+                        当前无自定义内容，显示系统默认模板
                       </span>
-                    </div>
-                    <div
-                      className={`${themes[theme].text} text-xs sm:text-sm leading-relaxed space-y-2 break-words`}
-                      dangerouslySetInnerHTML={{
-                        __html: renderPreviewMarkdown(previewContent || '')
-                      }}
-                    />
+                    )}
                   </div>
+                  <div
+                    className={`${themes[theme].text} text-xs sm:text-sm leading-relaxed space-y-2 break-words`}
+                    dangerouslySetInnerHTML={{
+                      __html: renderPreviewMarkdown(previewContent || '')
+                    }}
+                  />
                 </div>
               </div>
             </div>
