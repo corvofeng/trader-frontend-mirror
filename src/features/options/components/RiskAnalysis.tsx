@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as echarts from 'echarts';
 import 'echarts-gl';
 import { optionsService } from '../../../lib/services';
@@ -18,6 +18,7 @@ import {
   BarController,
   LineController
 } from 'chart.js';
+import type { TooltipItem } from 'chart.js';
 import { Chart } from 'react-chartjs-2';
 
 ChartJS.register(
@@ -164,7 +165,7 @@ export function RiskAnalysis({ theme, selectedAccountId, selectedSymbol }: RiskA
           opacity: 0.8
         },
         data: surfaceData.S_axis.flatMap((s, i) => 
-          surfaceData.T_axis.map((t, j) => [j, s, surfaceData.payoff_matrix[i][j]])
+          surfaceData.T_axis.map((_, j) => [j, s, surfaceData.payoff_matrix[i][j]])
         )
       }]
     };
@@ -208,8 +209,15 @@ export function RiskAnalysis({ theme, selectedAccountId, selectedSymbol }: RiskA
   }
 
   // Prepare Chart.js data for Margin Stress
+  const stressLabels = stressData
+    ? stressData.scenarios.map((s) => {
+        const priceLabel = typeof s.new_undl_price === 'number' ? s.new_undl_price.toFixed(3) : '-';
+        return [s.shock_label, priceLabel];
+      })
+    : [];
+
   const stressChartData = stressData ? {
-    labels: stressData.scenarios.map(s => s.shock_label),
+    labels: stressLabels,
     datasets: [
       {
         type: 'bar' as const,
@@ -299,6 +307,13 @@ export function RiskAnalysis({ theme, selectedAccountId, selectedSymbol }: RiskA
                 },
                 tooltip: {
                   callbacks: {
+                    title: (items: TooltipItem<'bar' | 'line'>[]) => {
+                      const idx = items?.[0]?.dataIndex;
+                      const scenario = typeof idx === 'number' ? stressData?.scenarios?.[idx] : undefined;
+                      if (!scenario) return '';
+                      const price = typeof scenario.new_undl_price === 'number' ? scenario.new_undl_price.toFixed(3) : '-';
+                      return `${scenario.shock_label}  |  标的价: ${price}`;
+                    },
                     label: (context) => {
                       const label = context.dataset.label || '';
                       const value = context.parsed.y;
@@ -309,7 +324,7 @@ export function RiskAnalysis({ theme, selectedAccountId, selectedSymbol }: RiskA
               },
               scales: {
                 x: {
-                  title: { display: true, text: 'Underlying Price Shock (%)', color: themes[theme].text === 'text-gray-900' ? '#374151' : '#d1d5db' },
+                  title: { display: true, text: 'Shock (%) / New Underlying Price', color: themes[theme].text === 'text-gray-900' ? '#374151' : '#d1d5db' },
                   ticks: { color: themes[theme].text === 'text-gray-900' ? '#374151' : '#d1d5db' },
                   grid: { color: themes[theme].text === 'text-gray-900' ? '#e5e7eb' : '#374151' }
                 },
