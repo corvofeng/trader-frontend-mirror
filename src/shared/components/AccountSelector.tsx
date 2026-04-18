@@ -162,10 +162,10 @@ export function AccountSelector({
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors duration-200 ${themes[theme].primary} ${themes[theme].text}`}
+        className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors duration-200 max-w-full min-w-0 ${themes[theme].primary} ${themes[theme].text}`}
       >
         <Briefcase className="w-4 h-4" />
-        <span className="font-medium">
+        <span className="font-medium truncate max-w-[12rem] sm:max-w-[16rem]">
           {selectedAccount ? selectedAccount.name : '选择账户'}
         </span>
       </button>

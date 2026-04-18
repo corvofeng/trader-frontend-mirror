@@ -161,16 +161,16 @@ export function TabContent({
             {!todayOrdersLoading && !todayOrdersError && sortedTodayOrders.length > 0 && (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead className="bg-gray-50 dark:bg-gray-900/50">
+                  <thead className="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
                     <tr>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">时间</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">标的</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">动作</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">价格(成/限)</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">数量(成/委)</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">系统号</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">备注/错误</th>
+                      <th className="px-3 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">时间</th>
+                      <th className="px-3 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">标的</th>
+                      <th className="px-3 py-3 text-center text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">动作</th>
+                      <th className="px-3 py-3 text-center text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">状态</th>
+                      <th className="px-3 py-3 text-right text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">价格(成/限)</th>
+                      <th className="px-3 py-3 text-right text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">数量(成/委)</th>
+                      <th className="px-3 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">系统号</th>
+                      <th className="px-3 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">备注/错误</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
@@ -187,23 +187,39 @@ export function TabContent({
                       const qtyText = `${order.volume_traded ?? 0}/${order.volume_total_original ?? 0}`;
                       const note = order.error_msg || order.remark || '-';
 
+                      const opName = order.op_type_name_zh || order.op_type_name || '-';
+                      const isBuy = opName.includes('买') || opName.toUpperCase().includes('BUY') || opName.includes('开仓') || opName.includes('B');
+                      const isSell = opName.includes('卖') || opName.toUpperCase().includes('SELL') || opName.includes('平仓') || opName.includes('S');
+
                       return (
                         <tr key={`${order.order_sys_id || symbol || order.order_time || 'na'}-${idx}`}>
-                          <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{timeText}</td>
-                          <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
+                          <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{timeText}</td>
+                          <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
                             <div className="font-mono">{symbol}</div>
                             {name ? <div className="opacity-75">{name}</div> : null}
                           </td>
-                          <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">{order.op_type_name_zh || order.op_type_name || '-'}</td>
-                          <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
+                          <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 text-center">
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                                isBuy
+                                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                                  : isSell
+                                  ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'
+                                  : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                              }`}
+                            >
+                              {opName}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 text-center">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${status.className}`} title={order.order_status_name || undefined}>
                               {status.label}
                             </span>
                           </td>
-                          <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{priceText}</td>
-                          <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{qtyText}</td>
-                          <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{order.order_sys_id || '-'}</td>
-                          <td className="px-3 py-2 text-xs text-gray-700 dark:text-gray-200 break-words">{note}</td>
+                          <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono text-right">{priceText}</td>
+                          <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono text-right">{qtyText}</td>
+                          <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{order.order_sys_id || '-'}</td>
+                          <td className="px-3 py-3 text-xs text-gray-700 dark:text-gray-200 break-words">{note}</td>
                         </tr>
                       );
                     })}

@@ -82,40 +82,42 @@ export function TradesTable({
 
       <div className="overflow-x-auto">
         <table className="w-full table-auto">
-          <thead className={`${themes[theme].background}`}>
+          <thead className={`${themes[theme].background} border-b-2 ${themes[theme].border}`}>
             <tr>
               <th 
-                className={`hidden sm:table-cell w-[140px] lg:w-auto px-3 sm:px-6 py-2 sm:py-3 text-left text-xs sm:text-sm font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
+                className={`hidden sm:table-cell w-[140px] lg:w-auto px-3 sm:px-6 py-2 sm:py-4 text-left text-xs sm:text-sm font-bold ${themes[theme].text} uppercase tracking-wider cursor-pointer transition-colors duration-200 hover:opacity-80`}
                 onClick={() => onSort('created_at')}
               >
-                日期
-                {sort.field === 'created_at' && (
-                  <span className="ml-1">
-                    {sort.direction === 'asc' ? '↑' : '↓'}
-                  </span>
-                )}
+                <div className="flex items-center gap-1">
+                  日期
+                  {sort.field === 'created_at' && (
+                    <span className="text-blue-500">
+                      {sort.direction === 'asc' ? '↑' : '↓'}
+                    </span>
+                  )}
+                </div>
               </th>
               <th 
-                className={`px-3 sm:px-6 py-2 sm:py-3 text-left text-xs sm:text-sm font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}
+                className={`px-3 sm:px-6 py-2 sm:py-4 text-left text-xs sm:text-sm font-bold ${themes[theme].text} uppercase tracking-wider`}
               >
                 股票
               </th>
               <th 
-                className={`hidden sm:table-cell px-6 py-3 text-center text-sm font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}
+                className={`hidden sm:table-cell px-6 py-4 text-center text-sm font-bold ${themes[theme].text} uppercase tracking-wider`}
               >
                 方向
               </th>
               <th 
-                className={`hidden sm:table-cell px-6 py-3 text-right text-sm font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}
+                className={`hidden sm:table-cell px-6 py-4 text-right text-sm font-bold ${themes[theme].text} uppercase tracking-wider`}
               >
                 价格
               </th>
               <th 
-                className={`hidden sm:table-cell px-6 py-3 text-right text-sm font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}
+                className={`hidden sm:table-cell px-6 py-4 text-right text-sm font-bold ${themes[theme].text} uppercase tracking-wider`}
               >
                 数量
               </th>
-              <th className={`hidden sm:table-cell px-6 py-3 text-right text-sm font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
+              <th className={`hidden sm:table-cell px-6 py-4 text-right text-sm font-bold ${themes[theme].text} uppercase tracking-wider`}>
                 金额
               </th>
             </tr>
@@ -174,16 +176,24 @@ export function TradesTable({
                     </div>
                   </div>
                 </td>
-                <td className={`hidden sm:table-cell px-6 py-4 text-center text-base ${themes[theme].text}`}>
-                  {trade.operation === 'buy' ? '买入' : '卖出'}
+                <td className={`hidden sm:table-cell px-6 py-4 text-center align-middle`}>
+                  <span
+                    className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold shadow-sm transition-all duration-200 ${
+                      trade.operation === 'buy'
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 ring-1 ring-emerald-500/20'
+                        : 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300 ring-1 ring-rose-500/20'
+                    }`}
+                  >
+                    {trade.operation === 'buy' ? '买入' : '卖出'}
+                  </span>
                 </td>
-                <td className={`hidden sm:table-cell px-6 py-4 text-right text-base ${themes[theme].text}`}>
+                <td className={`hidden sm:table-cell px-6 py-4 text-right text-base font-mono ${themes[theme].text}`}>
                   {formatCurrency(trade.target_price, currencyConfig)}
                 </td>
-                <td className={`hidden sm:table-cell px-6 py-4 text-right text-base ${themes[theme].text}`}>
+                <td className={`hidden sm:table-cell px-6 py-4 text-right text-base font-mono ${themes[theme].text}`}>
                   {trade.quantity}
                 </td>
-                <td className={`hidden sm:table-cell px-6 py-4 text-right text-base ${themes[theme].text}`}>
+                <td className={`hidden sm:table-cell px-6 py-4 text-right text-base font-mono ${themes[theme].text}`}>
                   {formatCurrency(trade.target_price * trade.quantity, currencyConfig)}
                 </td>
               </tr>

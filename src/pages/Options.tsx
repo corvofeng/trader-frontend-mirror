@@ -178,8 +178,8 @@ export function Options({ theme }: OptionsProps) {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
         <div className="space-y-6">
         <div className={`${themes[theme].card} rounded-lg p-4`}>
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
               <h1 className={`text-2xl font-bold ${themes[theme].text}`}>
                 Options Trading Analysis
               </h1>
@@ -187,8 +187,8 @@ export function Options({ theme }: OptionsProps) {
                 Advanced options analysis and trading tools
               </p>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
+            <div className="w-full min-w-0 flex flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-4">
+              <div className="flex flex-wrap items-center gap-2 min-w-0">
                 <label className={`text-sm font-medium ${themes[theme].text}`}>
                   账户:
                 </label>
@@ -217,13 +217,13 @@ export function Options({ theme }: OptionsProps) {
                 />
                 <button
                   onClick={() => setRefreshKey((k) => k + 1)}
-                  className={`inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm ${themes[theme].secondary}`}
+                  className={`inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm whitespace-nowrap ${themes[theme].secondary}`}
                 >
                   <RefreshCw className="w-4 h-4" />
                   刷新
                 </button>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2 min-w-0">
                 <label className={`text-sm font-medium ${themes[theme].text}`}>
                   Symbol:
                 </label>
@@ -232,7 +232,7 @@ export function Options({ theme }: OptionsProps) {
                     value={selectedSymbol}
                     onChange={(e) => setSelectedSymbol(e.target.value)}
                     disabled={isLoading || isLoadingSymbols}
-                    className={`px-3 py-2 rounded-md text-sm ${themes[theme].input} ${themes[theme].text} ${
+                    className={`max-w-full px-3 py-2 rounded-md text-sm ${themes[theme].input} ${themes[theme].text} ${
                       isLoading || isLoadingSymbols ? 'opacity-50 cursor-not-allowed' : ''
                     }`}
                   >
