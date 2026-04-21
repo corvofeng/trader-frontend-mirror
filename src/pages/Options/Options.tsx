@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { logger } from '../../shared/utils/logger';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { BarChart2, TrendingUp, Briefcase, Calculator, BookOpen } from 'lucide-react';
@@ -11,6 +11,7 @@ import { optionsService } from '../../lib/services';
 import { Theme } from '../../lib/theme';
 import type { OptionsData } from '../../lib/services/types';
 import { OptionPriceWebSocketProvider } from '../../features/options/context/OptionPriceWebSocketContext';
+import { useAutoRefresh, useOptionPriceWebSocket } from '../../features/options/hooks/useOptionPriceWebSocket';
 
 interface OptionsProps {
   theme: Theme;
@@ -19,6 +20,14 @@ interface OptionsProps {
 type OptionsTab = 'data' | 'portfolio' | 'trading' | 'management' | 'analysis';
 
 export function Options({ theme }: OptionsProps) {
+  return (
+    <OptionPriceWebSocketProvider>
+      <OptionsInner theme={theme} />
+    </OptionPriceWebSocketProvider>
+  );
+}
+
+function OptionsInner({ theme }: OptionsProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<OptionsTab>(() => {
@@ -36,6 +45,8 @@ export function Options({ theme }: OptionsProps) {
   const [error, setError] = useState<string | null>(null);
   const [showCalculatorModal, setShowCalculatorModal] = useState(false);
 
+  const { isConnected, queryOptionsData, optionsDataSnapshots } = useOptionPriceWebSocket();
+
   const handleTabChange = (newTab: OptionsTab) => {
     setActiveTab(newTab);
     const params = new URLSearchParams(location.search);
@@ -43,20 +54,19 @@ export function Options({ theme }: OptionsProps) {
     navigate(`/options?${params.toString()}`, { replace: true });
   };
 
-  // Fetch available symbols on component mount
-  React.useEffect(() => {
+  useEffect(() => {
     const fetchAvailableSymbols = async () => {
       try {
         setIsLoadingSymbols(true);
         const { data, error } = await optionsService.getAvailableSymbols();
-        
+
         if (error) {
           throw error;
         }
-        
+
         if (data && data.length > 0) {
           setAvailableSymbols(data);
-          setSelectedSymbol(data[0]); // Set first symbol as default
+          setSelectedSymbol(data[0]);
         }
       } catch (err) {
         console.error('Error fetching available symbols:', err);
@@ -69,52 +79,95 @@ export function Options({ theme }: OptionsProps) {
     fetchAvailableSymbols();
   }, []);
 
-  // Fetch options data when selected symbol changes (only for data tab)
-  React.useEffect(() => {
-    const fetchOptionsData = async () => {
-      // Allow fetching for 'portfolio' tab as well to support contract code lookup
-      if (!selectedSymbol || (activeTab !== 'data' && activeTab !== 'portfolio')) {
-        logger.debug('[Pages/Options] Guard: selectedSymbol missing or tab not data/portfolio', {
-          selectedSymbol,
-          activeTab,
-        });
-        return;
-      }
-      
-      try {
-        setIsLoading(true);
-        setError(null);
-        const { data, error } = await optionsService.getOptionsData(selectedSymbol);
-        
-        if (error) {
-          throw error;
-        }
-        
-        if (data) {
-          setOptionsData(data);
-          
-          // Update selected symbol if backend returns a canonical one (e.g. 588000 -> 588000.SH)
-          if (data.opt_undl_code_full && data.opt_undl_code_full !== selectedSymbol) {
-            setSelectedSymbol(data.opt_undl_code_full);
-          }
+  const fetchOptionsData = useCallback(async () => {
+    if (!selectedSymbol || (activeTab !== 'data' && activeTab !== 'portfolio')) {
+      logger.debug('[Pages/Options] Guard: selectedSymbol missing or tab not data/portfolio', {
+        selectedSymbol,
+        activeTab,
+      });
+      return;
+    }
 
-          // Set the first expiry date as default
-          const uniqueExpiryDates = Array.from(new Set(data.quotes.map(q => q.expiry)))
-            .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
-          if (uniqueExpiryDates.length > 0) {
-            setSelectedExpiry(uniqueExpiryDates[0]);
-          }
-        }
-      } catch (err) {
-        console.error('Error fetching options data:', err);
-        setError(err instanceof Error ? err.message : `Failed to load options data for ${selectedSymbol}`);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    try {
+      setIsLoading(true);
+      setError(null);
+      const { data, error } = await optionsService.getOptionsData(selectedSymbol);
 
+      if (error) {
+        throw error;
+      }
+
+      if (data) {
+        setOptionsData(data);
+
+        if (data.opt_undl_code_full && data.opt_undl_code_full !== selectedSymbol) {
+          setSelectedSymbol(data.opt_undl_code_full);
+        }
+
+        const uniqueExpiryDates = Array.from(new Set(data.quotes.map(q => q.expiry)))
+          .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+        if (uniqueExpiryDates.length > 0) {
+          setSelectedExpiry(uniqueExpiryDates[0]);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching options data:', err);
+      setError(err instanceof Error ? err.message : `Failed to load options data for ${selectedSymbol}`);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [activeTab, selectedSymbol]);
+
+  useEffect(() => {
     fetchOptionsData();
-  }, [selectedSymbol, activeTab]);
+  }, [fetchOptionsData]);
+
+  const wsSnapshot = useMemo(() => {
+    if (!selectedSymbol) return null;
+    const direct = optionsDataSnapshots[selectedSymbol];
+    if (direct) return direct;
+    const byCanonical = Object.values(optionsDataSnapshots).find((d) => d?.opt_undl_code_full === selectedSymbol);
+    return byCanonical ?? null;
+  }, [optionsDataSnapshots, selectedSymbol]);
+
+  useEffect(() => {
+    if (!wsSnapshot) return;
+    setOptionsData(wsSnapshot);
+    if (wsSnapshot.opt_undl_code_full && wsSnapshot.opt_undl_code_full !== selectedSymbol) {
+      setSelectedSymbol(wsSnapshot.opt_undl_code_full);
+    }
+    if (!wsSnapshot.quotes || wsSnapshot.quotes.length === 0) return;
+    const uniqueExpiryDates = Array.from(new Set(wsSnapshot.quotes.map(q => q.expiry)))
+      .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+    if (uniqueExpiryDates.length === 0) return;
+    if (!selectedExpiry || !uniqueExpiryDates.includes(selectedExpiry)) {
+      setSelectedExpiry(uniqueExpiryDates[0]);
+    }
+  }, [selectedExpiry, selectedSymbol, wsSnapshot]);
+
+  const wsCountdownEnabled = isConnected && activeTab === 'data' && !!selectedSymbol;
+  const { remainingMs: wsRemainingMs, progress: wsProgress, triggerNow: triggerWsNow } = useAutoRefresh(
+    () => {
+      if (!selectedSymbol) return;
+      queryOptionsData(selectedSymbol);
+    },
+    {
+      enabled: wsCountdownEnabled,
+      intervalMs: 10000,
+      immediate: true,
+      tickMs: 500,
+    }
+  );
+
+  const canRefreshNow = activeTab === 'data' && !!selectedSymbol;
+  const refreshNow = useCallback(() => {
+    if (!selectedSymbol) return;
+    if (wsCountdownEnabled) {
+      triggerWsNow();
+      return;
+    }
+    fetchOptionsData();
+  }, [fetchOptionsData, selectedSymbol, triggerWsNow, wsCountdownEnabled]);
 
   const tabs = [
     { id: 'data' as OptionsTab, name: 'Options Data', icon: BarChart2 },
@@ -125,50 +178,54 @@ export function Options({ theme }: OptionsProps) {
   ];
 
   return (
-    <OptionPriceWebSocketProvider>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="space-y-6">
-          <OptionsHeader
-            theme={theme}
-            selectedSymbol={selectedSymbol}
-            availableSymbols={availableSymbols}
-            isLoading={isLoading || isLoadingSymbols}
-            onSymbolChange={setSelectedSymbol}
-            activeTab={activeTab}
-          />
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="space-y-6">
+        <OptionsHeader
+          theme={theme}
+          selectedSymbol={selectedSymbol}
+          availableSymbols={availableSymbols}
+          isLoading={isLoading || isLoadingSymbols}
+          onSymbolChange={setSelectedSymbol}
+          activeTab={activeTab}
+          wsRefresh={{
+            canRefreshNow,
+            countdownEnabled: wsCountdownEnabled,
+            remainingMs: wsRemainingMs,
+            progress: wsProgress,
+            onRefreshNow: refreshNow,
+          }}
+        />
 
-          <OptionsTabNavigation
-            tabs={tabs}
-            activeTab={activeTab}
-            theme={theme}
-            onTabChange={(tab) => handleTabChange(tab as OptionsTab)}
-          />
+        <OptionsTabNavigation
+          tabs={tabs}
+          activeTab={activeTab}
+          theme={theme}
+          onTabChange={(tab) => handleTabChange(tab as OptionsTab)}
+        />
 
-          <OptionsTabContent
-            activeTab={activeTab}
-            theme={theme}
-            selectedSymbol={selectedSymbol}
-            optionsData={optionsData}
-            selectedExpiry={selectedExpiry}
-            onExpiryChange={setSelectedExpiry}
-            isLoading={isLoading}
-            isLoadingSymbols={isLoadingSymbols}
-            error={error}
-            onOpenCalculator={() => setShowCalculatorModal(true)}
-            onRetry={() => setSelectedSymbol(selectedSymbol)}
-          />
-        </div>
-
-        {/* Options Calculator Modal */}
-        {showCalculatorModal && (
-          <OptionsCalculatorModal
-            theme={theme}
-            optionsData={optionsData}
-            selectedSymbol={selectedSymbol}
-            onClose={() => setShowCalculatorModal(false)}
-          />
-        )}
+        <OptionsTabContent
+          activeTab={activeTab}
+          theme={theme}
+          selectedSymbol={selectedSymbol}
+          optionsData={optionsData}
+          selectedExpiry={selectedExpiry}
+          onExpiryChange={setSelectedExpiry}
+          isLoading={isLoading}
+          isLoadingSymbols={isLoadingSymbols}
+          error={error}
+          onOpenCalculator={() => setShowCalculatorModal(true)}
+          onRetry={() => setSelectedSymbol(selectedSymbol)}
+        />
       </div>
-    </OptionPriceWebSocketProvider>
+
+      {showCalculatorModal && (
+        <OptionsCalculatorModal
+          theme={theme}
+          optionsData={optionsData}
+          selectedSymbol={selectedSymbol}
+          onClose={() => setShowCalculatorModal(false)}
+        />
+      )}
+    </div>
   );
 }

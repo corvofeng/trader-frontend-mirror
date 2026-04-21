@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { format } from 'date-fns';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, Hourglass, RefreshCw } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
 import type { OptionsPosition, OptionsStrategy, AdvisedCombination, OptionsData, OptionQuote, OptionWhitelist } from '../../../lib/services/types';
@@ -8,7 +8,7 @@ import type { CurrencyConfig } from '../../../shared/types';
 import { optionsService } from '../../../lib/services';
 import { logger } from '../../../shared/utils/logger';
 import toast from 'react-hot-toast';
-import { useOptionPriceWebSocket } from '../hooks/useOptionPriceWebSocket';
+import { useAutoRefresh, useOptionPriceWebSocket } from '../hooks/useOptionPriceWebSocket';
 import { AnimatedFlash } from './AnimatedFlash';
 
 
@@ -60,6 +60,7 @@ interface ExpiryGroupCardProps {
   whitelists?: OptionWhitelist[];
   isRefreshing?: boolean;
   onRefresh?: () => void;
+  wsRefreshNonce?: number;
 }
 
 
@@ -99,7 +100,8 @@ export function ExpiryGroupCard({
   analysis,
   whitelists = [],
   isRefreshing,
-  onRefresh
+  onRefresh,
+  wsRefreshNonce = 0
 }: ExpiryGroupCardProps) {
   const { queryPrice, prices, isConnected, connect } = useOptionPriceWebSocket();
   const [localState, setLocalState] = useState<{ data: OptionsData | null; symbol: string | null }>({ data: null, symbol: null });
@@ -179,19 +181,26 @@ export function ExpiryGroupCard({
     return Array.from(new Set([...positionCodes, ...allOptionCodes, ...underlyingCode])).sort();
   }, [filteredPositions, optionsData, localOptionsData, optionsDataMap, group.expiry, selectedSymbol]);
 
-  useEffect(() => {
-    if (isConnected && codes.length > 0) {
-      const runQuery = () => {
-        queryPrice(codes);
-      };
-
-      runQuery();
-
-      const intervalMs = (isExpanded || confirmData) ? 1000 : 5000;
-      const interval = setInterval(runQuery, intervalMs);
-      return () => clearInterval(interval);
+  const quoteIntervalMs = (isExpanded || confirmData) ? 5000 : 10000;
+  const { remainingMs: quoteRemainingMs, progress: quoteProgress, triggerNow: triggerQuoteNow } = useAutoRefresh(
+    () => {
+      if (codes.length === 0) return;
+      queryPrice(codes);
+    },
+    {
+      enabled: isConnected && codes.length > 0,
+      intervalMs: quoteIntervalMs,
+      immediate: true,
+      tickMs: 1000,
     }
-  }, [isConnected, codes, queryPrice, isExpanded, confirmData]);
+  );
+
+  const prevWsRefreshNonceRef = useRef<number>(wsRefreshNonce);
+  useEffect(() => {
+    if (prevWsRefreshNonceRef.current === wsRefreshNonce) return;
+    prevWsRefreshNonceRef.current = wsRefreshNonce;
+    triggerQuoteNow();
+  }, [wsRefreshNonce, triggerQuoteNow]);
 
   useEffect(() => {
     if (!isPageLocked) return;
@@ -379,6 +388,26 @@ export function ExpiryGroupCard({
               {selectedSymbol && underlyingPrice != null && (
                 <div className={`text-sm ${themes[theme].text}`}>标的价 {underlyingPrice.toFixed(4)}</div>
               )}
+
+              <div className="flex items-center gap-1">
+                <Hourglass className={`w-4 h-4 ${themes[theme].text} opacity-60`} />
+                <div className="w-16 h-1 rounded bg-gray-200 dark:bg-gray-700 overflow-hidden">
+                  <div className="h-1 bg-blue-500" style={{ width: `${Math.round(quoteProgress * 100)}%` }} />
+                </div>
+                <div className={`text-[10px] ${themes[theme].text} opacity-60 w-8 text-right`}>
+                  {isConnected && codes.length > 0 ? `${Math.ceil(quoteRemainingMs / 1000)}s` : '--'}
+                </div>
+                <button
+                  type="button"
+                  onClick={triggerQuoteNow}
+                  disabled={!isConnected || codes.length === 0}
+                  className={`${themes[theme].secondary} rounded-md p-1 disabled:opacity-50 disabled:cursor-not-allowed`}
+                  title="刷新行情"
+                  aria-label="刷新行情"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              </div>
 
               <button
                 onClick={onToggleExpand}

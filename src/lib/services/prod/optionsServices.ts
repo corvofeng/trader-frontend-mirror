@@ -335,6 +335,9 @@ export const optionsService: OptionsService = {
       subscribe: (contractCodes: string[]) => {
         send({ action: 'subscribe', contract_codes: contractCodes });
       },
+      queryOptionsData: (symbol: string) => {
+        send({ action: 'query_options_data', symbol });
+      },
       queryOrders: (accountId: string) => {
         send({ action: 'query_option_orders', account_id: accountId, only_today: true });
       },

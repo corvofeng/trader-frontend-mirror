@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useEffect, useRef, useState, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, useCallback, ReactNode } from 'react';
 import type { OptionsPortfolioData, OptionOrder } from '../../../lib/services/types';
+import type { OptionsData } from '../../../lib/services/types';
 import type { OptionPriceWebSocketClient } from '../../../lib/services/types';
 import { optionsService } from '../../../lib/services';
 
@@ -19,6 +20,9 @@ type ServerPriceMessage = {
   bid_vol?: number[];
   timestamp: number;
 };
+
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
 
 const parsePriceField = (
   val: PriceFieldSource
@@ -49,7 +53,9 @@ interface OptionPriceWebSocketContextType {
   isConnected: boolean;
   prices: Record<string, PriceUpdate>;
   orders: OptionOrder[];
+  optionsDataSnapshots: Record<string, OptionsData>;
   queryPrice: (contractCodes: string[]) => void;
+  queryOptionsData: (symbol: string) => void;
   queryOrders: (accountId: string) => void;
   connect: () => void;
   send: (payload: unknown) => void;
@@ -76,6 +82,7 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
   const [isConnected, setIsConnected] = useState(false);
   const [prices, setPrices] = useState<Record<string, PriceUpdate>>({});
   const [orders, setOrders] = useState<OptionOrder[]>([]);
+  const [optionsDataSnapshots, setOptionsDataSnapshots] = useState<Record<string, OptionsData>>({});
   const lastPongTime = useRef<number>(Date.now());
    const [portfolioSnapshot, setPortfolioSnapshot] = useState<OptionsPortfolioData | null>(null);
 
@@ -121,6 +128,37 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
                 const payload = (record.orders as unknown) ?? (record.data as unknown) ?? (record.payload as unknown);
                 if (Array.isArray(payload)) {
                   setOrders(payload as OptionOrder[]);
+                }
+                return;
+              }
+
+              if (
+                record.action === 'options_data' ||
+                record.action === 'options_data_snapshot' ||
+                record.action === 'option_chain' ||
+                record.action === 'option_chain_snapshot'
+              ) {
+                const payload = (record.data as unknown) ?? (record.payload as unknown) ?? (record.options as unknown);
+                const dataRecord = asRecord(payload);
+                const quotes = dataRecord?.quotes;
+                if (Array.isArray(quotes)) {
+                  const optionsData: OptionsData = {
+                    quotes: quotes as OptionsData['quotes'],
+                    surface: Array.isArray(dataRecord?.surface) ? (dataRecord.surface as OptionsData['surface']) : [],
+                    opt_undl_code_full:
+                      typeof dataRecord?.opt_undl_code_full === 'string' ? dataRecord.opt_undl_code_full : undefined,
+                    vertical_spread_monthly_prices: Array.isArray(dataRecord?.vertical_spread_monthly_prices)
+                      ? (dataRecord.vertical_spread_monthly_prices as OptionsData['vertical_spread_monthly_prices'])
+                      : undefined,
+                  };
+                  const symbol =
+                    (typeof record.symbol === 'string' && record.symbol) ||
+                    optionsData.opt_undl_code_full ||
+                    '__default__';
+                  setOptionsDataSnapshots((prev) => ({
+                    ...prev,
+                    [symbol]: optionsData,
+                  }));
                 }
                 return;
               }
@@ -223,6 +261,11 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
     clientRef.current?.subscribe(contractCodes);
   }, []);
 
+  const queryOptionsData = useCallback((symbol: string) => {
+    if (!symbol) return;
+    clientRef.current?.queryOptionsData(symbol);
+  }, []);
+
   const queryOrders = useCallback((accountId: string) => {
     clientRef.current?.queryOrders(accountId);
   }, []);
@@ -235,5 +278,5 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
     }
   }, []);
 
-  return <OptionPriceWebSocketContext.Provider value={{ isConnected, prices, orders, queryPrice, queryOrders, connect, send, portfolioSnapshot }}>{children}</OptionPriceWebSocketContext.Provider>;
+  return <OptionPriceWebSocketContext.Provider value={{ isConnected, prices, orders, optionsDataSnapshots, queryPrice, queryOptionsData, queryOrders, connect, send, portfolioSnapshot }}>{children}</OptionPriceWebSocketContext.Provider>;
 }

@@ -730,6 +730,16 @@ export const optionsService: OptionsService = {
       subscribe: (contractCodes: string[]) => {
         subscribedCodes = Array.from(new Set(contractCodes.filter(Boolean)));
       },
+      queryOptionsData: (symbol: string) => {
+        void optionsService.getOptionsData(symbol).then(({ data }) => {
+          if (!data) return;
+          handlers?.onMessage?.({
+            action: 'options_data',
+            symbol,
+            data
+          });
+        });
+      },
       queryOrders: (_accountId: string) => {
         const orders: OptionOrder[] = [
           {

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Theme, themes } from '../../../lib/theme';
 import { useOptionPriceWebSocketContext } from '../../../features/options/context/OptionPriceWebSocketContext';
+import { Hourglass, RefreshCw } from 'lucide-react';
 
 interface OptionsHeaderProps {
   theme: Theme;
@@ -9,6 +10,13 @@ interface OptionsHeaderProps {
   isLoading: boolean;
   onSymbolChange: (symbol: string) => void;
   activeTab: string;
+  wsRefresh?: {
+    canRefreshNow: boolean;
+    countdownEnabled: boolean;
+    remainingMs: number;
+    progress: number;
+    onRefreshNow: () => void;
+  };
 }
 
 export function OptionsHeader({ 
@@ -17,7 +25,8 @@ export function OptionsHeader({
   availableSymbols, 
   isLoading, 
   onSymbolChange,
-  activeTab
+  activeTab,
+  wsRefresh
 }: OptionsHeaderProps) {
   const { isConnected, connect } = useOptionPriceWebSocketContext();
   const [inputValue, setInputValue] = React.useState(selectedSymbol);
@@ -40,7 +49,7 @@ export function OptionsHeader({
 
   return (
     <div className={`${themes[theme].card} rounded-lg p-4`}>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <h1 className={`text-2xl font-bold ${themes[theme].text}`}>
             Options Trading Analysis
@@ -50,7 +59,7 @@ export function OptionsHeader({
           </p>
         </div>
         
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center justify-end gap-4">
           <div 
             onClick={connect}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-full cursor-pointer transition-colors border ${
@@ -67,7 +76,7 @@ export function OptionsHeader({
           </div>
 
           {(activeTab === 'data' || activeTab === 'portfolio') && (
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-4">
               <div className="flex items-center gap-2">
                 <label className={`text-sm font-medium ${themes[theme].text}`}>
                   Symbol:
@@ -93,6 +102,27 @@ export function OptionsHeader({
                   </datalist>
                 </div>
               </div>
+              {activeTab === 'data' && wsRefresh && (
+                <div className={`flex items-center gap-1 px-2 py-1 rounded border ${themes[theme].border} shrink-0`}>
+                  <Hourglass className={`w-4 h-4 ${themes[theme].text} opacity-60`} />
+                  <div className="w-16 h-1 rounded bg-gray-200 dark:bg-gray-700 overflow-hidden">
+                    <div className="h-1 bg-blue-500" style={{ width: `${Math.round(wsRefresh.progress * 100)}%` }} />
+                  </div>
+                  <div className={`text-[10px] ${themes[theme].text} opacity-60 w-8 text-right`}>
+                    {wsRefresh.countdownEnabled ? `${Math.ceil(wsRefresh.remainingMs / 1000)}s` : '--'}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={wsRefresh.onRefreshNow}
+                    disabled={!wsRefresh.canRefreshNow}
+                    className={`${themes[theme].secondary} rounded-md p-1 disabled:opacity-50 disabled:cursor-not-allowed`}
+                    title="刷新行情"
+                    aria-label="刷新行情"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
               {isLoading && (
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
               )}

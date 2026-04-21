@@ -127,6 +127,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   
   // State for scroll-following refresh button
   const [showRefreshButton, setShowRefreshButton] = useState(false);
+  const [wsRefreshNonce, setWsRefreshNonce] = useState(0);
 
   // Persist expanded groups to cookie whenever it changes
   useEffect(() => {
@@ -258,20 +259,6 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   const getSanitizedUnderlying = (code: string) => {
     return code?.startsWith('US.') ? code.replace('US.', '') : code;
   };
-
-  // Poll for underlying price via WebSocket
-  useEffect(() => {
-    if (!isConnected || !activeSymbol) return;
-
-    const runQuery = () => {
-      queryPrice([activeSymbol]);
-    };
-
-    runQuery();
-    // Poll every 5 seconds to keep price fresh
-    const interval = setInterval(runQuery, 5000);
-    return () => clearInterval(interval);
-  }, [isConnected, activeSymbol, queryPrice]);
 
   // Fetch data when active symbol changes
   useEffect(() => {
@@ -435,6 +422,14 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       setIsLoading(false);
     }
   }, [selectedAccountIdProp, activeSymbol, processDiff]);
+
+  const refreshPortfolioAndQuotes = useCallback(() => {
+    setWsRefreshNonce((prev) => prev + 1);
+    if (isConnected && activeSymbol) {
+      queryPrice([activeSymbol]);
+    }
+    fetchPortfolio();
+  }, [activeSymbol, fetchPortfolio, isConnected, queryPrice]);
 
   useEffect(() => {
     fetchPortfolio();
@@ -951,6 +946,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                       onToggleTBoard={() => toggleTBoardGroup(group.expiry)}
                       analysis={portfolioData.expiry_analysis?.[group.expiry]}
                       onRefresh={fetchPortfolio}
+                      wsRefreshNonce={wsRefreshNonce}
                     />
                   </div>
                 );
@@ -1009,11 +1005,11 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       />
 
       {/* Underlying Price Monitor */}
-      <UnderlyingPriceMonitor symbol={activeSymbol} theme={theme} />
+      <UnderlyingPriceMonitor symbol={activeSymbol} theme={theme} refreshNonce={wsRefreshNonce} />
 
       {/* Scroll-following Refresh Button */}
       <button
-        onClick={fetchPortfolio}
+        onClick={refreshPortfolioAndQuotes}
         className={`fixed bottom-8 right-8 p-3 rounded-full shadow-lg transition-all duration-300 z-40 ${
           showRefreshButton ? 'translate-y-0 opacity-100' : 'translate-y-16 opacity-0'
         } ${themes[theme].card} ${themes[theme].border} border hover:bg-gray-100 dark:hover:bg-gray-700`}

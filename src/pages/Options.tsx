@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { logger } from '../shared/utils/logger';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { BarChart2, TrendingUp, Briefcase, Calculator, RefreshCw, Shield, Activity, BookOpen } from 'lucide-react';
+import { BarChart2, TrendingUp, Briefcase, Calculator, RefreshCw, Shield, Activity, BookOpen, Hourglass } from 'lucide-react';
 import { Theme, themes } from '../lib/theme';
 import { OptionsChain } from '../features/options/components/OptionsChain';
 import { TimeValueChart } from '../features/options/components/TimeValueChart';
@@ -19,6 +19,7 @@ import { OptionWhitelistManager } from '../features/options/components/OptionWhi
 import { OptionsAnalysisTab } from './Options/components/OptionsAnalysisTab';
 import type { OptionsData } from '../lib/services/types';
 import { OptionPriceWebSocketProvider } from '../features/options/context/OptionPriceWebSocketContext';
+import { useAutoRefresh, useOptionPriceWebSocket } from '../features/options/hooks/useOptionPriceWebSocket';
 import { TabNavigation } from './Journal/components/TabNavigation';
 
 interface OptionsProps {
@@ -27,7 +28,7 @@ interface OptionsProps {
 
 type OptionsTab = 'data' | 'portfolio' | 'analysis' | 'trading' | 'management' | 'whitelist' | 'risk';
 
-export function Options({ theme }: OptionsProps) {
+function OptionsContent({ theme }: OptionsProps) {
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -80,6 +81,8 @@ export function Options({ theme }: OptionsProps) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
   const effectiveUserId = userId ?? 'demo';
+  const { isConnected, queryOptionsData, optionsDataSnapshots } = useOptionPriceWebSocket();
+  const pendingFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleTabChange = (newTab: string) => {
     const nextTab = newTab as OptionsTab;
@@ -123,9 +126,32 @@ export function Options({ theme }: OptionsProps) {
     }).catch(() => setUserId(null));
   }, []);
 
-  // Fetch options data when selected symbol changes (only for data tab)
+  const applyOptionsData = useCallback((data: OptionsData) => {
+    setOptionsData(data);
+    const uniqueExpiryDates = Array.from(new Set(data.quotes.map(q => q.expiry)))
+      .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+    if (uniqueExpiryDates.length === 0) return;
+    setSelectedExpiry((prev) => (prev && uniqueExpiryDates.includes(prev) ? prev : uniqueExpiryDates[0]));
+  }, []);
+
+  const fetchOptionsDataViaRest = useCallback(async (symbol: string) => {
+    try {
+      const { data, error } = await optionsService.getOptionsData(symbol);
+      if (error) throw error;
+      if (data) {
+        applyOptionsData(data);
+        setError(null);
+      }
+    } catch (err) {
+      console.error('Error fetching options data:', err);
+      setError(err instanceof Error ? err.message : `Failed to load options data for ${symbol}`);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [applyOptionsData]);
+
+  // Data tab manual/route-driven refresh: WS first, REST fallback.
   React.useEffect(() => {
-    const fetchOptionsData = async () => {
     if (!selectedSymbol || activeTab !== 'data') {
       logger.debug('[Pages/Options] Guard: selectedSymbol missing or tab not data', {
         selectedSymbol,
@@ -133,35 +159,58 @@ export function Options({ theme }: OptionsProps) {
       });
       return;
     }
-      
-      try {
-        setIsLoading(true);
-        setError(null);
-        const { data, error } = await optionsService.getOptionsData(selectedSymbol);
-        
-        if (error) {
-          throw error;
-        }
-        
-        if (data) {
-          setOptionsData(data);
-          // Set the first expiry date as default
-          const uniqueExpiryDates = Array.from(new Set(data.quotes.map(q => q.expiry)))
-            .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
-          if (uniqueExpiryDates.length > 0) {
-            setSelectedExpiry(uniqueExpiryDates[0]);
-          }
-        }
-      } catch (err) {
-        console.error('Error fetching options data:', err);
-        setError(err instanceof Error ? err.message : `Failed to load options data for ${selectedSymbol}`);
-      } finally {
-        setIsLoading(false);
-      }
-    };
 
-    fetchOptionsData();
-  }, [selectedSymbol, activeTab, refreshKey]);
+    setIsLoading(true);
+    setError(null);
+
+    if (pendingFallbackTimerRef.current) {
+      clearTimeout(pendingFallbackTimerRef.current);
+      pendingFallbackTimerRef.current = null;
+    }
+
+    if (isConnected) {
+      queryOptionsData(selectedSymbol);
+      pendingFallbackTimerRef.current = setTimeout(() => {
+        void fetchOptionsDataViaRest(selectedSymbol);
+      }, 1500);
+      return () => {
+        if (pendingFallbackTimerRef.current) {
+          clearTimeout(pendingFallbackTimerRef.current);
+          pendingFallbackTimerRef.current = null;
+        }
+      };
+    }
+
+    void fetchOptionsDataViaRest(selectedSymbol);
+  }, [selectedSymbol, activeTab, refreshKey, isConnected, queryOptionsData, fetchOptionsDataViaRest]);
+
+  // Consume WS snapshots pushed by backend.
+  React.useEffect(() => {
+    if (activeTab !== 'data' || !selectedSymbol) return;
+    const wsData = optionsDataSnapshots[selectedSymbol];
+    if (!wsData) return;
+    if (pendingFallbackTimerRef.current) {
+      clearTimeout(pendingFallbackTimerRef.current);
+      pendingFallbackTimerRef.current = null;
+    }
+    applyOptionsData(wsData);
+    setError(null);
+    setIsLoading(false);
+  }, [activeTab, selectedSymbol, optionsDataSnapshots, applyOptionsData]);
+
+  const wsCountdownEnabled = isConnected && activeTab === 'data' && !!selectedSymbol;
+  const { remainingMs: wsRemainingMs, progress: wsProgress, triggerNow: triggerWsNow } = useAutoRefresh(
+    () => {
+      if (!selectedSymbol) return;
+      queryOptionsData(selectedSymbol);
+    },
+    {
+      enabled: wsCountdownEnabled,
+      intervalMs: 10000,
+      immediate: true,
+      tickMs: 500,
+    }
+  );
 
   const tabs = [
     { id: 'data' as OptionsTab, name: 'Market', icon: BarChart2 },
@@ -174,8 +223,7 @@ export function Options({ theme }: OptionsProps) {
   ];
 
   return (
-    <OptionPriceWebSocketProvider>
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
+    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
         <div className="space-y-6">
         <div className={`${themes[theme].card} rounded-lg p-4`}>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -216,7 +264,16 @@ export function Options({ theme }: OptionsProps) {
                   refreshKey={refreshKey}
                 />
                 <button
-                  onClick={() => setRefreshKey((k) => k + 1)}
+                  onClick={() => {
+                    if (activeTab === 'data' && selectedSymbol) {
+                      if (wsCountdownEnabled) {
+                        triggerWsNow();
+                      } else if (isConnected) {
+                        queryOptionsData(selectedSymbol);
+                      }
+                    }
+                    setRefreshKey((k) => k + 1);
+                  }}
                   className={`inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm whitespace-nowrap ${themes[theme].secondary}`}
                 >
                   <RefreshCw className="w-4 h-4" />
@@ -246,6 +303,33 @@ export function Options({ theme }: OptionsProps) {
                   <span className={`text-sm ${themes[theme].text} opacity-70`}>
                     No symbols available
                   </span>
+                )}
+                {activeTab === 'data' && (
+                  <div className={`flex items-center gap-1 px-2 py-1 rounded border ${themes[theme].border} shrink-0`}>
+                    <Hourglass className={`w-4 h-4 ${themes[theme].text} opacity-60`} />
+                    <div className="w-16 h-1 rounded bg-gray-200 dark:bg-gray-700 overflow-hidden">
+                      <div className="h-1 bg-blue-500" style={{ width: `${Math.round(wsProgress * 100)}%` }} />
+                    </div>
+                    <div className={`text-[10px] ${themes[theme].text} opacity-60 w-8 text-right`}>
+                      {wsCountdownEnabled ? `${Math.ceil(wsRemainingMs / 1000)}s` : '--'}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (wsCountdownEnabled) {
+                          triggerWsNow();
+                          return;
+                        }
+                        setRefreshKey((k) => k + 1);
+                      }}
+                      disabled={!selectedSymbol}
+                      className={`${themes[theme].secondary} rounded-md p-1 disabled:opacity-50 disabled:cursor-not-allowed`}
+                      title="刷新行情"
+                      aria-label="刷新行情"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                    </button>
+                  </div>
                 )}
               </div>
               {(isLoading || isLoadingSymbols) && activeTab === 'data' && (
@@ -415,7 +499,14 @@ export function Options({ theme }: OptionsProps) {
           onClose={() => setShowCalculatorModal(false)}
         />
         )}
-      </main>
+    </main>
+  );
+}
+
+export function Options({ theme }: OptionsProps) {
+  return (
+    <OptionPriceWebSocketProvider>
+      <OptionsContent theme={theme} />
     </OptionPriceWebSocketProvider>
   );
 }

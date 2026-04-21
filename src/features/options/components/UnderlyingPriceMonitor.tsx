@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useOptionPriceWebSocket } from '../hooks/useOptionPriceWebSocket';
+import { useAutoRefresh, useOptionPriceWebSocket } from '../hooks/useOptionPriceWebSocket';
 import { AnimatedFlash } from './AnimatedFlash';
 import { Theme, themes } from '../../../lib/theme';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Hourglass, RefreshCw } from 'lucide-react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -30,9 +30,10 @@ ChartJS.register(
 interface UnderlyingPriceMonitorProps {
   symbol: string;
   theme: Theme;
+  refreshNonce?: number;
 }
 
-export function UnderlyingPriceMonitor({ symbol, theme }: UnderlyingPriceMonitorProps) {
+export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0 }: UnderlyingPriceMonitorProps) {
   const { prices, isConnected, queryPrice } = useOptionPriceWebSocket();
   const [history, setHistory] = useState<{ time: string; price: number }[]>([]);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -77,23 +78,26 @@ export function UnderlyingPriceMonitor({ symbol, theme }: UnderlyingPriceMonitor
     return { top: 96, left: window.innerWidth - 16 - 256 }; // approx: top-24, right-4 for 16rem width
   });
 
-  // Poll for price if not connected via other means or just to be sure
-  useEffect(() => {
-    if (!symbol) return;
-    
-    // Initial query
-    if (isConnected) {
+  const autoRefreshIntervalMs = 5000;
+  const { remainingMs, progress, triggerNow } = useAutoRefresh(
+    () => {
+      if (!symbol) return;
       queryPrice([symbol]);
+    },
+    {
+      enabled: isConnected && !!symbol,
+      intervalMs: autoRefreshIntervalMs,
+      immediate: true,
+      tickMs: 500,
     }
+  );
 
-    const interval = setInterval(() => {
-      if (isConnected) {
-        queryPrice([symbol]);
-      }
-    }, 1000); // Poll every second for high frequency updates
-
-    return () => clearInterval(interval);
-  }, [symbol, isConnected, queryPrice]);
+  const prevRefreshNonceRef = useRef<number>(refreshNonce);
+  useEffect(() => {
+    if (prevRefreshNonceRef.current === refreshNonce) return;
+    prevRefreshNonceRef.current = refreshNonce;
+    triggerNow();
+  }, [refreshNonce, triggerNow]);
 
   const priceData = prices[symbol];
   const currentPrice = priceData?.price;
@@ -435,6 +439,25 @@ export function UnderlyingPriceMonitor({ symbol, theme }: UnderlyingPriceMonitor
         <div className="flex items-center gap-2 shrink-0">
           <div className="font-mono text-lg font-bold">
             <AnimatedFlash value={currentPrice} type="price" />
+          </div>
+          <div className="flex items-center gap-1">
+            <Hourglass className={`w-4 h-4 ${themes[theme].text} opacity-60`} />
+            <div className="w-16 h-1 rounded bg-gray-200 dark:bg-gray-700 overflow-hidden">
+              <div className="h-1 bg-blue-500" style={{ width: `${Math.round(progress * 100)}%` }} />
+            </div>
+            <div className={`text-[10px] ${themes[theme].text} opacity-60 w-8 text-right`}>
+              {isConnected ? `${Math.ceil(remainingMs / 1000)}s` : '--'}
+            </div>
+            <button
+              type="button"
+              onClick={triggerNow}
+              disabled={!isConnected || !symbol}
+              className={`${themes[theme].secondary} rounded-md p-1 disabled:opacity-50 disabled:cursor-not-allowed`}
+              aria-label="刷新行情"
+              title="刷新行情"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
           </div>
           <button
             type="button"
