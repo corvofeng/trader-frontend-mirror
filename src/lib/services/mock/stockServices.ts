@@ -1160,24 +1160,65 @@ export const accountPromptService: AccountPromptService = {
   }
 };
 
+const createInitialNotices = (): Notice[] => {
+  const nowDate = new Date();
+  const now = nowDate.toISOString();
+  const twoDaysAgoDate = new Date(nowDate);
+  twoDaysAgoDate.setDate(nowDate.getDate() - 2);
+  const twoDaysAgo = twoDaysAgoDate.toISOString();
+  const fiveDaysAgoDate = new Date(nowDate);
+  fiveDaysAgoDate.setDate(nowDate.getDate() - 5);
+  const fiveDaysAgo = fiveDaysAgoDate.toISOString();
+  return [
+    {
+      notice_uuid: '263c5158-4223-43e6-b5e9-4b30a02aa9ff',
+      title: 'Alert: DatasourceNoData',
+      content:
+        '**Status**: `FIRING`\n\n`https://grafana.dev.corvo.fun/d/ff6og8p2asflsf?from=1776837050000&orgId=1&to=1776840685030&viewPanel=13`  | `https://grafana.dev.corvo.fun/alerting/silence/new?alertmanager=grafana&matcher=__alert_rule_uid__%3Dbfjkj8uo4a8zka&matcher=datasource_uid%3Da5f36994-f611-41db-8205-531099caccdf&matcher=ref_id%3DA&matcher=rulename%3DIV&orgId=1`\n\n[打开详情](notice://263c5158-4223-43e6-b5e9-4b30a02aa9ff)',
+      account_id: null,
+      is_resolved: false,
+      created_at: now,
+      updated_at: now,
+      resolved_at: null,
+      resolver: null
+    },
+    {
+      notice_uuid: '6c7db1a3-1973-4a9a-b1a9-9e1f25e8e2aa',
+      title: 'Alert: OrderSyncDelay',
+      content: '**Status**: `FIRING`\n\n订单同步延迟超过阈值，请检查队列与下游服务。',
+      account_id: 'test',
+      is_acked: true,
+      acked_at: twoDaysAgo,
+      acker: 'mock',
+      is_resolved: false,
+      created_at: twoDaysAgo,
+      updated_at: twoDaysAgo,
+      resolved_at: null,
+      resolver: null
+    },
+    {
+      notice_uuid: '9d8bcf1d-8d23-43f8-8b5f-8e1b5b0c36a7',
+      title: 'Alert: PortfolioSnapshotMissing',
+      content: '**Status**: `RESOLVED`\n\n已恢复快照生成任务。',
+      account_id: 'test',
+      is_acked: true,
+      acked_at: fiveDaysAgo,
+      acker: 'mock',
+      is_resolved: true,
+      created_at: fiveDaysAgo,
+      updated_at: fiveDaysAgo,
+      resolved_at: fiveDaysAgo,
+      resolver: 'mock'
+    }
+  ];
+};
+
+let mockNotices: Notice[] = createInitialNotices();
+
 export const noticeService: NoticeService = {
   listNotices: async () => {
     await new Promise(resolve => setTimeout(resolve, 150));
-    const now = new Date().toISOString();
-    const notices: Notice[] = [
-      {
-        notice_uuid: '263c5158-4223-43e6-b5e9-4b30a02aa9ff',
-        title: '示例通知',
-        content: '这是一条示例通知。\n\n[打开示例](notice://263c5158-4223-43e6-b5e9-4b30a02aa9ff)\n\n[[button:打开示例|notice:263c5158-4223-43e6-b5e9-4b30a02aa9ff]]',
-        account_id: 'test',
-        is_resolved: false,
-        created_at: now,
-        updated_at: now,
-        resolved_at: null,
-        resolver: null
-      }
-    ];
-    return { data: notices, error: null };
+    return { data: mockNotices.slice(), error: null };
   },
   getNotice: async (noticeUuid: string) => {
     const { data, error } = await noticeService.listNotices();
@@ -1185,6 +1226,34 @@ export const noticeService: NoticeService = {
     const notice = (data || []).find(n => n.notice_uuid === noticeUuid) || null;
     if (!notice) {
       return { data: null, error: new Error('Notice not found') };
+    }
+    return { data: notice, error: null };
+  },
+  ackNotice: async (noticeUuid: string, extraData?: Record<string, unknown>) => {
+    await new Promise(resolve => setTimeout(resolve, 200));
+    const notice = mockNotices.find(n => n.notice_uuid === noticeUuid) || null;
+    if (!notice) return { data: null, error: new Error('Notice not found') };
+    const now = new Date().toISOString();
+    notice.is_acked = true;
+    notice.acked_at = now;
+    notice.acker = 'mock';
+    notice.updated_at = now;
+    if (extraData && Object.keys(extraData).length > 0) {
+      notice.content = `${notice.content}\n\n---\nAck extra_data: ${JSON.stringify(extraData)}`;
+    }
+    return { data: notice, error: null };
+  },
+  resolveNotice: async (noticeUuid: string, extraData?: Record<string, unknown>) => {
+    await new Promise(resolve => setTimeout(resolve, 200));
+    const notice = mockNotices.find(n => n.notice_uuid === noticeUuid) || null;
+    if (!notice) return { data: null, error: new Error('Notice not found') };
+    const now = new Date().toISOString();
+    notice.is_resolved = true;
+    notice.updated_at = now;
+    notice.resolved_at = now;
+    notice.resolver = 'mock';
+    if (extraData && Object.keys(extraData).length > 0) {
+      notice.content = `${notice.content}\n\n---\nResolve extra_data: ${JSON.stringify(extraData)}`;
     }
     return { data: notice, error: null };
   }

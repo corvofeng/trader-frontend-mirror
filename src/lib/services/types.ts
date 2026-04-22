@@ -88,12 +88,16 @@ export interface Notice {
   notice_uuid: string;
   title: string;
   content: string;
-  account_id: string;
+  account_id: string | null;
+  is_acked?: boolean;
+  acked_at?: string | null;
+  acker?: string | null;
   is_resolved: boolean;
   created_at: string;
   updated_at: string;
   resolved_at: string | null;
   resolver: string | null;
+  extra_data?: Record<string, unknown>;
 }
 
 export interface NoticeListResponse {
@@ -101,9 +105,17 @@ export interface NoticeListResponse {
   success: boolean;
 }
 
+export interface NoticeActionResponse {
+  success: boolean;
+  data?: Notice;
+  message?: string;
+}
+
 export interface NoticeService {
   listNotices: () => Promise<ServiceResponse<Notice[]>>;
   getNotice: (noticeUuid: string) => Promise<ServiceResponse<Notice>>;
+  ackNotice: (noticeUuid: string, extraData?: Record<string, unknown>) => Promise<ServiceResponse<Notice | null>>;
+  resolveNotice: (noticeUuid: string, extraData?: Record<string, unknown>) => Promise<ServiceResponse<Notice | null>>;
 }
 
 export interface StockPrice {

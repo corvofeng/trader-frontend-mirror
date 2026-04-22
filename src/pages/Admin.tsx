@@ -21,6 +21,35 @@ interface AdminProps {
 
 type AdminTab = 'operations' | 'calendar' | 'analysis' | 'history' | 'tasks' | 'notices' | 'accounts' | 'upload';
 
+type AdminNoticeTimeBucket = 'today' | 'recent3days' | 'older' | 'unknown';
+
+const safeParseAdminNoticeDate = (raw: unknown): Date | null => {
+  if (typeof raw !== 'string') return null;
+  const s = raw.trim();
+  if (!s || s === '-') return null;
+  const d = new Date(s);
+  return Number.isFinite(d.getTime()) ? d : null;
+};
+
+const getAdminNoticeTimeBucket = (createdAt: unknown): AdminNoticeTimeBucket => {
+  const created = safeParseAdminNoticeDate(createdAt);
+  if (!created) return 'unknown';
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const recent3DaysStart = new Date(todayStart);
+  recent3DaysStart.setDate(todayStart.getDate() - 3);
+  if (created >= todayStart) return 'today';
+  if (created >= recent3DaysStart) return 'recent3days';
+  return 'older';
+};
+
+const adminNoticeBucketLabel: Record<AdminNoticeTimeBucket, string> = {
+  today: '今天',
+  recent3days: '最近 3 天',
+  older: '超过 3 天',
+  unknown: '未知时间'
+};
+
 export function Admin({ theme }: AdminProps) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -311,7 +340,7 @@ export function Admin({ theme }: AdminProps) {
       return null;
     };
 
-    return adminNotices.filter((item) => {
+    const filtered = adminNotices.filter((item) => {
       const resolved =
         normResolved(item.is_resolved) ??
         normResolved(item.resolved) ??
@@ -341,6 +370,11 @@ export function Admin({ theme }: AdminProps) {
 
       return true;
     });
+    const getTimeMs = (item: Record<string, unknown>): number => {
+      const raw = item.created_at ?? item.createdAt ?? item.time ?? item.created ?? null;
+      return safeParseAdminNoticeDate(raw)?.getTime() ?? -Infinity;
+    };
+    return filtered.slice().sort((a, b) => getTimeMs(b) - getTimeMs(a));
   }, [adminNotices, noticeExecStatusFilter, noticeResolvedFilter]);
 
   const parseAdminNoticeText = React.useCallback((raw: string) => {
@@ -697,6 +731,7 @@ export function Admin({ theme }: AdminProps) {
                   <thead className="bg-gray-50 dark:bg-gray-900/50">
                     <tr>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">时间</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">已知</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">类型</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">动作</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">账户</th>
@@ -709,7 +744,9 @@ export function Admin({ theme }: AdminProps) {
                     </tr>
                   </thead>
                   <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                    {filteredAdminNotices.map((item, idx) => {
+                    {(() => {
+                      let lastBucket: AdminNoticeTimeBucket | null = null;
+                      return filteredAdminNotices.flatMap((item, idx) => {
                       const noticeUuid = typeof item.notice_uuid === 'string' ? item.notice_uuid : '';
                       const idRaw = item.id ?? item.notice_id ?? noticeUuid;
                       const id = String(idRaw ?? '');
@@ -717,7 +754,23 @@ export function Admin({ theme }: AdminProps) {
                       const text = String(item.text ?? item.content ?? item.body ?? '');
                       const parsed = parseAdminNoticeText(text);
 
-                      const createdAt = String(item.created_at ?? item.createdAt ?? item.time ?? item.created ?? '-');
+                      const createdAtRaw = item.created_at ?? item.createdAt ?? item.time ?? item.created ?? '-';
+                      const createdAt = String(createdAtRaw);
+                      const bucket = getAdminNoticeTimeBucket(createdAtRaw);
+
+                      const isAckedRaw = item.is_acked ?? item.isAcked ?? item.acked ?? null;
+                      const isAcked =
+                        typeof isAckedRaw === 'boolean'
+                          ? isAckedRaw
+                          : typeof isAckedRaw === 'number'
+                            ? isAckedRaw !== 0
+                            : typeof isAckedRaw === 'string'
+                              ? ['true', '1', 'yes', 'y'].includes(isAckedRaw.trim().toLowerCase())
+                              : false;
+                      const ackedBadgeClass = isAcked
+                        ? 'bg-gray-100 text-gray-700 dark:bg-gray-800/60 dark:text-gray-200 ring-1 ring-inset ring-gray-200 dark:ring-gray-700'
+                        : 'bg-yellow-100 text-yellow-900 dark:bg-yellow-900/30 dark:text-yellow-100 ring-1 ring-inset ring-yellow-200 dark:ring-yellow-800';
+
                       const actionType = String(item.action_type ?? item.actionType ?? '-');
                       const sideLabel =
                         parsed.sideZh ||
@@ -767,13 +820,29 @@ export function Admin({ theme }: AdminProps) {
 
                       const expanded = expandedAdminNoticeKey === key;
 
-                      return (
+                      const rows: React.ReactNode[] = [];
+                      if (bucket !== lastBucket) {
+                        lastBucket = bucket;
+                        rows.push(
+                          <tr key={`group-${bucket}-${idx}`} className="bg-gray-50 dark:bg-gray-900/60">
+                            <td colSpan={11} className="px-4 py-2 text-xs font-semibold text-gray-600 dark:text-gray-300">
+                              {adminNoticeBucketLabel[bucket]}
+                            </td>
+                          </tr>
+                        );
+                      }
+                      rows.push(
                         <React.Fragment key={key}>
                           <tr
                             className="hover:bg-gray-50 dark:hover:bg-gray-800/40 cursor-pointer"
                             onClick={() => setExpandedAdminNoticeKey(expanded ? null : key)}
                           >
                             <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">{createdAt && createdAt !== '-' ? createdAt : '-'}</td>
+                            <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
+                              <span className={`inline-flex items-center rounded-full px-2 py-1 text-[10px] font-semibold ${ackedBadgeClass}`}>
+                                {isAcked ? '已知' : '未 Ack'}
+                              </span>
+                            </td>
                             <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">{actionType}</td>
                             <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">{sideLabel}</td>
                             <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">{account}</td>
@@ -794,7 +863,7 @@ export function Admin({ theme }: AdminProps) {
                           </tr>
                           {expanded && (
                             <tr className="bg-gray-50 dark:bg-gray-900/40">
-                              <td className="px-4 py-3 text-xs text-gray-700 dark:text-gray-200" colSpan={10}>
+                              <td className="px-4 py-3 text-xs text-gray-700 dark:text-gray-200" colSpan={11}>
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                                   <div>
                                     <div className="text-xs font-medium text-gray-500 mb-2">核心信息</div>
@@ -822,7 +891,9 @@ export function Admin({ theme }: AdminProps) {
                           )}
                         </React.Fragment>
                       );
-                    })}
+                      return rows;
+                    });
+                    })()}
                   </tbody>
                 </table>
               </div>

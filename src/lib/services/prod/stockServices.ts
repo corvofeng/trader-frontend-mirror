@@ -16,7 +16,7 @@ import type {
   AccountPromptService,
   AccountPrompt,
   Notice,
-  NoticeListResponse,
+  NoticeActionResponse,
   NoticeService,
   StockOrder,
   AdminAccountStatusItem
@@ -597,18 +597,172 @@ export const operationService: OperationService = {
 };
 
 const listNotices = async (): Promise<ServiceResponse<Notice[]>> => {
-  try {
-    const response = await fetch('/api/notices');
+  const normalizeNotice = (raw: unknown): Notice | null => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const r = raw as Record<string, unknown>;
+    const uuid =
+      (typeof r.notice_uuid === 'string' && r.notice_uuid) ||
+      (typeof r.trader_alert_uuid === 'string' && r.trader_alert_uuid) ||
+      '';
+    if (!uuid) return null;
+
+    const extraData =
+      r.extra_data && typeof r.extra_data === 'object' && !Array.isArray(r.extra_data)
+        ? (r.extra_data as Record<string, unknown>)
+        : undefined;
+
+    return {
+      notice_uuid: uuid,
+      title: typeof r.title === 'string' ? r.title : '',
+      content: typeof r.content === 'string' ? r.content : '',
+      account_id: typeof r.account_id === 'string' ? r.account_id : r.account_id === null ? null : null,
+      is_acked: typeof r.is_acked === 'boolean' ? r.is_acked : undefined,
+      acked_at: typeof r.acked_at === 'string' ? r.acked_at : r.acked_at === null ? null : null,
+      acker: typeof r.acker === 'string' ? r.acker : r.acker === null ? null : null,
+      is_resolved: typeof r.is_resolved === 'boolean' ? r.is_resolved : false,
+      created_at: typeof r.created_at === 'string' ? r.created_at : '',
+      updated_at: typeof r.updated_at === 'string' ? r.updated_at : '',
+      resolved_at: typeof r.resolved_at === 'string' ? r.resolved_at : r.resolved_at === null ? null : null,
+      resolver: typeof r.resolver === 'string' ? r.resolver : r.resolver === null ? null : null,
+      extra_data: extraData
+    };
+  };
+
+  const normalizeNoticeListResponse = (payload: unknown): Notice[] => {
+    const unwrap = (v: unknown): unknown => {
+      if (!v || typeof v !== 'object') return v;
+      const r = v as Record<string, unknown>;
+      if (Array.isArray(r.data)) return r.data;
+      if (r.data && typeof r.data === 'object') {
+        const nested = r.data as Record<string, unknown>;
+        if (Array.isArray(nested.data)) return nested.data;
+        if (Array.isArray(nested.items)) return nested.items;
+        if (Array.isArray(nested.list)) return nested.list;
+      }
+      if (Array.isArray(r.items)) return r.items;
+      if (Array.isArray(r.list)) return r.list;
+      return v;
+    };
+
+    const unwrapped = unwrap(payload);
+    if (!Array.isArray(unwrapped)) return [];
+    return unwrapped.map(normalizeNotice).filter((v): v is Notice => v !== null);
+  };
+
+  const fetchNotices = async (url: string): Promise<Notice[]> => {
+    const response = await fetch(url, { cache: 'no-store' });
     if (!response.ok) {
-      throw new Error('Failed to fetch notices');
+      throw new Error(`HTTP ${response.status}`);
     }
-    const json = await response.json() as NoticeListResponse;
-    if (!json?.success) {
-      throw new Error('Notices response not successful');
+    const json = (await response.json().catch(() => null)) as unknown;
+    if (json && typeof json === 'object' && !Array.isArray(json)) {
+      const r = json as Record<string, unknown>;
+      if (r.success === false) {
+        throw new Error('Notices response not successful');
+      }
     }
-    return { data: json.data || [], error: null };
+    return normalizeNoticeListResponse(json);
+  };
+
+  try {
+    const data = await fetchNotices('/api/trader-alerts');
+    return { data, error: null };
   } catch (error) {
-    console.error('Error fetching notices:', error);
+    try {
+      const data = await fetchNotices('/api/notices');
+      return { data, error: null };
+    } catch (fallbackError) {
+      console.error('Error fetching notices:', error);
+      return { data: null, error: fallbackError as Error };
+    }
+  }
+};
+
+const postNoticeAction = async (
+  noticeUuid: string,
+  action: 'ack' | 'resolve',
+  extraData?: Record<string, unknown>
+): Promise<ServiceResponse<Notice | null>> => {
+  const normalizeNotice = (raw: unknown): Notice | null => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const r = raw as Record<string, unknown>;
+    const uuid =
+      (typeof r.notice_uuid === 'string' && r.notice_uuid) ||
+      (typeof r.trader_alert_uuid === 'string' && r.trader_alert_uuid) ||
+      '';
+    if (!uuid) return null;
+
+    const extra =
+      r.extra_data && typeof r.extra_data === 'object' && !Array.isArray(r.extra_data)
+        ? (r.extra_data as Record<string, unknown>)
+        : undefined;
+
+    return {
+      notice_uuid: uuid,
+      title: typeof r.title === 'string' ? r.title : '',
+      content: typeof r.content === 'string' ? r.content : '',
+      account_id: typeof r.account_id === 'string' ? r.account_id : r.account_id === null ? null : null,
+      is_acked: typeof r.is_acked === 'boolean' ? r.is_acked : undefined,
+      acked_at: typeof r.acked_at === 'string' ? r.acked_at : r.acked_at === null ? null : null,
+      acker: typeof r.acker === 'string' ? r.acker : r.acker === null ? null : null,
+      is_resolved: typeof r.is_resolved === 'boolean' ? r.is_resolved : false,
+      created_at: typeof r.created_at === 'string' ? r.created_at : '',
+      updated_at: typeof r.updated_at === 'string' ? r.updated_at : '',
+      resolved_at: typeof r.resolved_at === 'string' ? r.resolved_at : r.resolved_at === null ? null : null,
+      resolver: typeof r.resolver === 'string' ? r.resolver : r.resolver === null ? null : null,
+      extra_data: extra
+    };
+  };
+
+  try {
+    const urls = [
+      `/api/trader-alerts/${encodeURIComponent(noticeUuid)}/${action}`,
+      `/api/notices/${encodeURIComponent(noticeUuid)}/${action}`
+    ];
+
+    let lastError: Error | null = null;
+
+    for (const url of urls) {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ extra_data: extraData ?? {} })
+      });
+
+      const contentType = response.headers.get('content-type') || '';
+      const body = contentType.includes('application/json')
+        ? await response.json().catch(() => null)
+        : await response.text().catch(() => null);
+
+      if (!response.ok) {
+        if (response.status === 404 || response.status === 405) {
+          lastError = new Error(response.statusText || `HTTP ${response.status}`);
+          continue;
+        }
+        const messageFromBody =
+          body && typeof body === 'object'
+            ? String((body as Record<string, unknown>).message || (body as Record<string, unknown>).error || response.statusText)
+            : '';
+        throw new Error(messageFromBody || response.statusText || `Failed to ${action} notice`);
+      }
+
+      if (body && typeof body === 'object') {
+        const json = body as NoticeActionResponse;
+        if (json?.success === false) {
+          throw new Error(json.message || `Notice ${action} not successful`);
+        }
+        const normalized = normalizeNotice(json.data) ?? null;
+        return { data: normalized, error: null };
+      }
+
+      return { data: null, error: null };
+    }
+
+    throw lastError ?? new Error(`Failed to ${action} notice`);
+  } catch (error) {
+    console.error(`Error ${action} notice:`, error);
     return { data: null, error: error as Error };
   }
 };
@@ -623,6 +777,12 @@ export const noticeService: NoticeService = {
       return { data: null, error: new Error('Notice not found') };
     }
     return { data: notice, error: null };
+  },
+  ackNotice: async (noticeUuid: string, extraData?: Record<string, unknown>) => {
+    return await postNoticeAction(noticeUuid, 'ack', extraData);
+  },
+  resolveNotice: async (noticeUuid: string, extraData?: Record<string, unknown>) => {
+    return await postNoticeAction(noticeUuid, 'resolve', extraData);
   }
 };
 
