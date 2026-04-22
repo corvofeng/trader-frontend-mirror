@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, useCallback, ReactNode } from 'react';
+import toast from 'react-hot-toast';
 import type { OptionsPortfolioData, OptionOrder } from '../../../lib/services/types';
 import type { OptionsData } from '../../../lib/services/types';
 import type { OptionPriceWebSocketClient } from '../../../lib/services/types';
@@ -84,24 +85,43 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
   const [orders, setOrders] = useState<OptionOrder[]>([]);
   const [optionsDataSnapshots, setOptionsDataSnapshots] = useState<Record<string, OptionsData>>({});
   const lastPongTime = useRef<number>(Date.now());
-   const [portfolioSnapshot, setPortfolioSnapshot] = useState<OptionsPortfolioData | null>(null);
+  const [portfolioSnapshot, setPortfolioSnapshot] = useState<OptionsPortfolioData | null>(null);
+  const autoCloseTimeoutId = useRef<number | null>(null);
+
+  const clearAutoCloseTimer = useCallback(() => {
+    if (autoCloseTimeoutId.current === null) return;
+    window.clearTimeout(autoCloseTimeoutId.current);
+    autoCloseTimeoutId.current = null;
+  }, []);
 
   const connect = useCallback(() => {
     try {
+      clearAutoCloseTimer();
       if (clientRef.current) {
         clientRef.current.close();
         clientRef.current = null;
       }
 
-      clientRef.current = optionsService.createOptionPriceWebSocketClient({
+      const MAX_WS_AGE_MS = 30 * 60 * 1000;
+
+      const nextClient = optionsService.createOptionPriceWebSocketClient({
         onOpen: () => {
           console.log('Option Price WebSocket Connected');
           setIsConnected(true);
           lastPongTime.current = Date.now();
+
+          clearAutoCloseTimer();
+          autoCloseTimeoutId.current = window.setTimeout(() => {
+            if (clientRef.current !== nextClient) return;
+            autoCloseTimeoutId.current = null;
+            toast('WebSocket 连接已超过 30 分钟，已自动断开。刷新页面或重建连接以继续。', { duration: 6000 });
+            nextClient.close();
+          }, MAX_WS_AGE_MS);
         },
         onClose: () => {
           console.log('Option Price WebSocket Disconnected');
           setIsConnected(false);
+          clearAutoCloseTimer();
         },
         onError: (error) => {
           console.error('Option Price WebSocket Error:', error);
@@ -220,19 +240,21 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
         }
       });
 
-      clientRef.current.connect();
+      clientRef.current = nextClient;
+      nextClient.connect();
     } catch (e) {
       console.error('Failed to initialize WebSocket:', e);
     }
-  }, []);
+  }, [clearAutoCloseTimer]);
 
   useEffect(() => {
     connect();
 
     return () => {
       if (clientRef.current) clientRef.current.close();
+      clearAutoCloseTimer();
     };
-  }, [connect]);
+  }, [connect, clearAutoCloseTimer]);
 
   useEffect(() => {
     const PING_INTERVAL = 10000;
