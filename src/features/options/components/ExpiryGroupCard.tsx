@@ -124,7 +124,6 @@ export function ExpiryGroupCard({
   const filteredPositions = useMemo(() => selectedSymbol
     ? basePositions.filter(p => p.opt_undl_code_full === selectedSymbol)
     : basePositions, [selectedSymbol, basePositions]);
-  const hasPositions = filteredPositions.length > 0;
 
   // Use worst-case exercise quantities from analysis report
   const totalShortCalls = analysis?.exercise_analysis?.call_obligation_count_worst ?? 0;
@@ -343,8 +342,6 @@ export function ExpiryGroupCard({
     }
   }, [confirmData, isConnected, collectIdsForCategory, filteredPositions, queryPrice]);
 
-  if (!hasPositions) return null;
-
   return (
     <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
       <div className="p-6 border-b border-gray-200">
@@ -444,14 +441,15 @@ export function ExpiryGroupCard({
 
             return (
               <div className="space-y-6">
-                {filteredPositions.length > 0 && (
-                  <div className="mt-0">
+                <div className="mt-0">
                     <div 
                       className="flex items-center gap-2 mb-3 cursor-pointer select-none hover:opacity-80 transition-opacity"
                       onClick={onToggleTBoard}
                     >
                       <div className="w-4 h-4 bg-gray-500 rounded"></div>
-                      <h4 className={`text-lg font-semibold ${themes[theme].text}`}>持仓T型数量看板</h4>
+                      <h4 className={`text-lg font-semibold ${themes[theme].text}`}>
+                        {filteredPositions.length > 0 ? '持仓T型数量看板' : 'T型报价'}
+                      </h4>
                       {isTBoardExpanded ? (
                         <ChevronUp className={`w-4 h-4 ${themes[theme].text} opacity-50`} />
                       ) : (
@@ -1514,7 +1512,6 @@ export function ExpiryGroupCard({
                     </div>
                     )}
                   </div>
-                )}
                 {advisedCombinations.length > 0 && (
                   <div className="mt-0">
                     <div className="flex items-center gap-2 mb-3">
