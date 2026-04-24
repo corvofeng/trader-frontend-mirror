@@ -25,9 +25,6 @@ const themeIcons = {
   blue: <Palette className="w-5 h-5" />
 };
 
-const NOTICES_POLL_INTERVAL_MS = 5000;
-const NOTICES_BADGE_POLL_INTERVAL_MS = 15000;
-
 type NoticeTimeBucket = 'today' | 'recent3days' | 'older' | 'unknown';
 
 const safeParseDate = (raw: string | null | undefined): Date | null => {
@@ -250,32 +247,12 @@ export function Navigation({
   }, [loadNotices, openNotice, selectedNoticeUuid]);
 
   useEffect(() => {
-    if (!noticesOpen) return;
-    if (selectedNoticeUuid) return;
-    void loadNotices();
-  }, [loadNotices, noticesOpen, selectedNoticeUuid]);
-
-  useEffect(() => {
-    if (!noticesOpen) return;
-    if (selectedNoticeUuid) return;
-    const id = window.setInterval(() => {
-      if (document.visibilityState !== 'visible') return;
-      void loadNotices();
-    }, NOTICES_POLL_INTERVAL_MS);
-
-    return () => window.clearInterval(id);
-  }, [loadNotices, noticesOpen, selectedNoticeUuid]);
-
-  useEffect(() => {
-    if (noticesOpen && !selectedNoticeUuid) return;
-    const refresh = () => {
-      if (document.visibilityState !== 'visible') return;
-      void loadNotices({ silent: true });
-    };
-    refresh();
-    const id = window.setInterval(refresh, NOTICES_BADGE_POLL_INTERVAL_MS);
-    return () => window.clearInterval(id);
-  }, [loadNotices, noticesOpen, selectedNoticeUuid]);
+    if (!user) {
+      setNotices([]);
+      return;
+    }
+    void loadNotices({ silent: true });
+  }, [loadNotices, user]);
 
   const handleNoticeContentClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement | null;
