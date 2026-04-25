@@ -1023,6 +1023,7 @@ export const accountService: AccountService = {
       account_type: idx % 2 === 0 ? 'stock' : 'option',
       alias: acc.alias || acc.id,
       last_check: now,
+      last_snapshot_at: new Date(Date.now() - idx * 24 * 60 * 60 * 1000).toISOString(),
       message: 'OK',
       status: 'ok',
     }));

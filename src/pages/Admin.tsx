@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Activity, Calendar, RefreshCw, BookOpen, History as HistoryIcon, ListChecks, HeartPulse, Bell, Upload } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, addMonths, isSameMonth, isSameDay } from 'date-fns';
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, addMonths, isSameMonth, isSameDay, differenceInCalendarDays } from 'date-fns';
 import { logger } from '../shared/utils/logger';
 import { Theme, themes } from '../lib/theme';
 import { AccountSelector } from '../shared/components/AccountSelector';
@@ -28,6 +28,14 @@ const safeParseAdminNoticeDate = (raw: unknown): Date | null => {
   const s = raw.trim();
   if (!s || s === '-') return null;
   const d = new Date(s);
+  return Number.isFinite(d.getTime()) ? d : null;
+};
+
+const safeParseBackendDateTime = (raw: unknown): Date | null => {
+  if (typeof raw !== 'string') return null;
+  const s = raw.trim();
+  if (!s || s === '-') return null;
+  const d = s.includes('T') ? new Date(s) : new Date(s.replace(' ', 'T'));
   return Number.isFinite(d.getTime()) ? d : null;
 };
 
@@ -102,6 +110,23 @@ export function Admin({ theme }: AdminProps) {
   const [accountsHeartbeatLatencyMs, setAccountsHeartbeatLatencyMs] = useState<number | null>(null);
   const [accountsHeartbeatInFlight, setAccountsHeartbeatInFlight] = useState(false);
   const accountsHeartbeatAbortRef = React.useRef<AbortController | null>(null);
+
+  const accountsSnapshotMeta = useMemo(() => {
+    const snapshotMsByKey = new Map<string, number | null>();
+    let maxSnapshotMs: number | null = null;
+
+    for (const item of accountsStatus) {
+      const key = item.account_id_alias || item.alias;
+      const d = safeParseBackendDateTime(item.last_snapshot_at);
+      const ms = d ? d.getTime() : null;
+      snapshotMsByKey.set(key, ms);
+      if (ms !== null) {
+        maxSnapshotMs = maxSnapshotMs === null ? ms : Math.max(maxSnapshotMs, ms);
+      }
+    }
+
+    return { snapshotMsByKey, maxSnapshotMs };
+  }, [accountsStatus]);
 
   type NoticeUserScope = 'current' | 'all' | 'custom';
   type NoticeResolvedFilter = 'all' | 'resolved' | 'unresolved';
@@ -964,14 +989,25 @@ export function Admin({ theme }: AdminProps) {
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">类型</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">后端时间</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">最后快照</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">消息</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
                     {accountsStatus.map((item) => {
                       const ok = ['connected', 'ok', 'healthy', 'alive'].includes(item.status.toLowerCase());
+                      const key = item.account_id_alias || item.alias;
+                      const snapshotMs = accountsSnapshotMeta.snapshotMsByKey.get(key) ?? null;
+                      const snapshotDate = snapshotMs !== null ? new Date(snapshotMs) : null;
+                      const snapshotDiffDays = snapshotDate ? differenceInCalendarDays(new Date(), snapshotDate) : null;
+                      const snapshotStale =
+                        accountsSnapshotMeta.maxSnapshotMs !== null &&
+                        (snapshotMs === null || snapshotMs < accountsSnapshotMeta.maxSnapshotMs);
                       return (
-                        <tr key={item.account_id_alias || item.alias}>
+                        <tr
+                          key={item.account_id_alias || item.alias}
+                          className={snapshotStale ? 'bg-amber-50/60 dark:bg-amber-900/15' : undefined}
+                        >
                           <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
                             <div className="font-medium">{item.alias || '-'}</div>
                           </td>
@@ -994,6 +1030,14 @@ export function Admin({ theme }: AdminProps) {
                           </td>
                           <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
                             {item.last_check || '-'}
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap text-xs">
+                            <div className={`flex flex-col ${snapshotStale ? 'text-amber-700 dark:text-amber-200 font-medium' : 'text-gray-700 dark:text-gray-200'}`}>
+                              <span>{item.last_snapshot_at || '-'}</span>
+                              <span className={`text-[10px] ${snapshotStale ? 'opacity-90' : 'opacity-70'}`}>
+                                {snapshotDiffDays === null ? '-' : `${snapshotDiffDays} 天`}
+                              </span>
+                            </div>
                           </td>
                           <td className="px-4 py-2 text-xs text-gray-700 dark:text-gray-200 max-w-[520px] whitespace-normal break-words">
                             {item.message || '-'}

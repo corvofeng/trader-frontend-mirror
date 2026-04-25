@@ -327,6 +327,7 @@ export interface AdminAccountStatusItem {
   account_type: string;
   alias: string;
   last_check: string;
+  last_snapshot_at?: string;
   message: string;
   status: string;
 }

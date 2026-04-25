@@ -1027,6 +1027,7 @@ export const accountService: AccountService = {
           account_type: String(v.account_type ?? ''),
           alias: String(v.alias ?? ''),
           last_check: String(v.last_check ?? ''),
+          last_snapshot_at: String(v.last_snapshot_at ?? ''),
           message: String(v.message ?? ''),
           status: String(v.status ?? ''),
         }))
