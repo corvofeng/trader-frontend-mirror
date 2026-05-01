@@ -457,13 +457,14 @@ export function ExpiryGroupCard({
   }, [advisedModal, getCounterpartyTopPrice, resolvePriceUpdate]);
 
   const estimateCloseForStrategy = useCallback(
-    (strategy: OptionsStrategy) => {
+    (strategy: OptionsStrategy, multiplier: number = 1) => {
       const legs = strategy?.positions || [];
       const legEstimates = legs.map((p) => {
         const closeSide: 'buy' | 'sell' = p.position_type === 'buy' ? 'sell' : 'buy';
         const update = resolvePriceUpdate([p.contract_code_full, p.contract_code, p.symbol]);
         const px = getCounterpartyTopPrice(update, closeSide);
-        const qty = Math.max(0, Number(p.available ?? p.quantity ?? 0) || 0);
+        const baseQty = Math.max(0, Number(p.available ?? p.quantity ?? 0) || 0);
+        const qty = baseQty * Math.max(1, Number(multiplier) || 1);
         const amt = px != null ? (closeSide === 'sell' ? px * qty : -px * qty) : null;
         return { pos: p, closeSide, px, qty, amt, ts: update?.timestamp || 0 };
       });
@@ -2010,7 +2011,7 @@ export function ExpiryGroupCard({
                       {item.strategy.positions.map(p => `${p.contract_code || p.symbol} x ${p.quantity}`).join(', ')}
                     </div>
                     {(() => {
-                      const est = estimateCloseForStrategy(item.strategy);
+                      const est = estimateCloseForStrategy(item.strategy, item.qty);
                       const net = est.net;
                       const label = net == null ? '对手方一档价未就绪' : (net >= 0 ? '预计收到' : '预计支付');
                       const amountText = net == null ? '--' : formatCurrency(Math.abs(net), currencyConfig, 4);
@@ -2023,16 +2024,25 @@ export function ExpiryGroupCard({
                             <span className="opacity-60">（WS {tsText}）</span>
                           </div>
                           <div className="mt-1 grid grid-cols-1 gap-1">
-                            {est.legs.slice(0, 2).map((l, i) => (
+                            {est.legs.map((l, i) => {
+                              const legAmtText =
+                                l.amt == null ? '--' : `${l.amt >= 0 ? '+' : '-'}${formatCurrency(Math.abs(l.amt), currencyConfig, 4)}`;
+                              const legAmtLabel = l.amt == null ? '' : (l.amt >= 0 ? '收到' : '支付');
+                              return (
                               <div key={`leg-est-${idx}-${i}`} className="flex items-center justify-between gap-3">
                                 <div className="truncate opacity-80">
                                   {l.pos.contract_code || l.pos.contract_code_full || l.pos.symbol} • {l.closeSide === 'buy' ? '买入' : '卖出'} • x{l.qty}
                                 </div>
-                                <div className="font-mono">
+                                <div className="flex items-center gap-3 font-mono">
                                   <AnimatedFlash value={l.px == null ? '--' : l.px.toFixed(4)} type="price" />
+                                  <div className="flex items-center gap-1">
+                                    <span className="opacity-70">{legAmtLabel}</span>
+                                    <AnimatedFlash value={legAmtText} type="price" />
+                                  </div>
                                 </div>
                               </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </div>
                       );
@@ -2885,14 +2895,32 @@ export function ExpiryGroupCard({
               <div className="mt-2 grid grid-cols-1 gap-1 text-xs">
                 <div className="flex items-center justify-between gap-3">
                   <div className={`${themes[theme].text} opacity-80`}>买入腿（ASK1）x{p.buy.qty}</div>
-                  <div className={`font-mono ${themes[theme].text}`}>
+                  <div className={`flex items-center gap-3 font-mono ${themes[theme].text}`}>
                     <AnimatedFlash value={p.buy.px == null ? '--' : p.buy.px.toFixed(4)} type="price" />
+                    <div className="flex items-center gap-1">
+                      <span className="opacity-70">{p.buy.amt == null ? '' : (p.buy.amt >= 0 ? '收到' : '支付')}</span>
+                      <AnimatedFlash
+                        value={
+                          p.buy.amt == null ? '--' : `${p.buy.amt >= 0 ? '+' : '-'}${formatCurrency(Math.abs(p.buy.amt), currencyConfig, 4)}`
+                        }
+                        type="price"
+                      />
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <div className={`${themes[theme].text} opacity-80`}>卖出腿（BID1）x{p.sell.qty}</div>
-                  <div className={`font-mono ${themes[theme].text}`}>
+                  <div className={`flex items-center gap-3 font-mono ${themes[theme].text}`}>
                     <AnimatedFlash value={p.sell.px == null ? '--' : p.sell.px.toFixed(4)} type="price" />
+                    <div className="flex items-center gap-1">
+                      <span className="opacity-70">{p.sell.amt == null ? '' : (p.sell.amt >= 0 ? '收到' : '支付')}</span>
+                      <AnimatedFlash
+                        value={
+                          p.sell.amt == null ? '--' : `${p.sell.amt >= 0 ? '+' : '-'}${formatCurrency(Math.abs(p.sell.amt), currencyConfig, 4)}`
+                        }
+                        type="price"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
