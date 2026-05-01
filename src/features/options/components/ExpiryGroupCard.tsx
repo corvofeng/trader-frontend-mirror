@@ -2041,10 +2041,20 @@ export function ExpiryGroupCard({
                           <div className="flex items-center justify-between gap-3">
                             <span className="font-semibold whitespace-nowrap">{label}</span>
                             <div className="flex items-baseline gap-2 min-w-0">
-                              <AnimatedFlash value={amountText} className="font-mono whitespace-nowrap font-bold text-base" type="price" />
-                              <span className="text-[11px] opacity-60 truncate">
-                                {est.perHedge == null || pairedQty <= 0 ? '' : `（${hedgeText} × ${pairedQty}）`}
-                                {` WS ${tsText}`}
+                              <AnimatedFlash value={amountText} className="font-mono whitespace-nowrap" type="price" />
+                              <span className="text-[11px] opacity-60 truncate flex items-baseline gap-1">
+                                {est.perHedge == null || pairedQty <= 0 ? null : (
+                                  <>
+                                    <span>（</span>
+                                    <AnimatedFlash
+                                      value={hedgeText}
+                                      className={`font-mono font-bold whitespace-nowrap ${est.perHedge != null && est.perHedge >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}
+                                      type="price"
+                                    />
+                                    <span className="whitespace-nowrap">× {pairedQty}）</span>
+                                  </>
+                                )}
+                                <span className="whitespace-nowrap">{`WS ${tsText}`}</span>
                               </span>
                             </div>
                           </div>
@@ -2917,10 +2927,20 @@ export function ExpiryGroupCard({
               <div className={`text-sm ${themes[theme].text} flex items-center justify-between gap-3`}>
                 <div className="font-semibold whitespace-nowrap">{label}</div>
                 <div className="flex items-baseline gap-2 min-w-0">
-                  <AnimatedFlash value={amountText} className="font-mono whitespace-nowrap font-bold text-base" type="price" />
-                  <span className="text-[11px] opacity-60 truncate">
-                    {p.perHedge == null || (p.pairedQty || 0) <= 0 ? '' : `（${hedgeText} × ${p.pairedQty || 0}）`}
-                    {` WS ${tsText}`}
+                  <AnimatedFlash value={amountText} className="font-mono whitespace-nowrap" type="price" />
+                  <span className="text-[11px] opacity-60 truncate flex items-baseline gap-1">
+                    {p.perHedge == null || (p.pairedQty || 0) <= 0 ? null : (
+                      <>
+                        <span>（</span>
+                        <AnimatedFlash
+                          value={hedgeText}
+                          className={`font-mono font-bold whitespace-nowrap ${p.perHedge != null && p.perHedge >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}
+                          type="price"
+                        />
+                        <span className="whitespace-nowrap">× {p.pairedQty || 0}）</span>
+                      </>
+                    )}
+                    <span className="whitespace-nowrap">{`WS ${tsText}`}</span>
                   </span>
                 </div>
               </div>
