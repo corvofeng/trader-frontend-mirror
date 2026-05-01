@@ -11,9 +11,25 @@ interface DataFreshnessStatusProps {
 const DATA_FRESHNESS_CHECK_STOCK = '588000.SH';
 const HISTORY_DATA_API = `/api/stocks/${encodeURIComponent(DATA_FRESHNESS_CHECK_STOCK)}/history`;
 const TICKS_DATA_API = `/api/stocks/${encodeURIComponent(DATA_FRESHNESS_CHECK_STOCK)}/ticks`;
+const AKSHARE_XQ_API = `/api/stocks/${encodeURIComponent(DATA_FRESHNESS_CHECK_STOCK)}/akshare/xq`;
+const AKSHARE_SINA_API = `/api/stocks/${encodeURIComponent(DATA_FRESHNESS_CHECK_STOCK)}/akshare/sina`;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
+
+const safeParseDateLike = (value: unknown): Date | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const ms = value < 1e12 ? value * 1000 : value;
+    const d = new Date(ms);
+    return Number.isFinite(d.getTime()) ? d : null;
+  }
+  if (typeof value !== 'string') return null;
+  const s = value.trim();
+  if (!s || s === '-') return null;
+  const iso = s.includes('T') ? s : s.replace(' ', 'T');
+  const d = iso.length === 10 ? parseISO(iso) : new Date(iso);
+  return Number.isFinite(d.getTime()) ? d : null;
+};
 
 const formatValue = (value: unknown): string => {
   if (typeof value === 'string') return value;
@@ -54,6 +70,8 @@ type DataCheckResult = {
 export function DataFreshnessStatus({ theme }: DataFreshnessStatusProps) {
   const [historyStatus, setHistoryStatus] = useState<DataCheckResult>({ loading: true, error: null, lastDate: null, diffDays: null, details: null });
   const [ticksStatus, setTicksStatus] = useState<DataCheckResult>({ loading: true, error: null, lastDate: null, diffDays: null, details: null });
+  const [akshareXqStatus, setAkshareXqStatus] = useState<DataCheckResult>({ loading: true, error: null, lastDate: null, diffDays: null, details: null });
+  const [akshareSinaStatus, setAkshareSinaStatus] = useState<DataCheckResult>({ loading: true, error: null, lastDate: null, diffDays: null, details: null });
 
   const fetchHistoryData = async () => {
     setHistoryStatus(prev => ({ ...prev, loading: true, error: null }));
@@ -105,6 +123,8 @@ export function DataFreshnessStatus({ theme }: DataFreshnessStatusProps) {
   useEffect(() => {
     fetchHistoryData();
     fetchTicksData();
+    fetchAkshareXqData();
+    fetchAkshareSinaData();
   }, []);
 
   const fetchTicksData = async () => {
@@ -161,12 +181,156 @@ export function DataFreshnessStatus({ theme }: DataFreshnessStatusProps) {
     }
   };
 
+  const fetchAkshareXqData = async () => {
+    setAkshareXqStatus(prev => ({ ...prev, loading: true, error: null }));
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      const response = await fetch(AKSHARE_XQ_API, { signal: controller.signal, cache: 'no-store' });
+      clearTimeout(timeout);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const contentType = response.headers.get('content-type') || '';
+      const payload = contentType.includes('application/json')
+        ? await response.json().catch(() => null)
+        : await response.text().catch(() => null);
+
+      const list = (() => {
+        if (Array.isArray(payload)) return payload.filter(isRecord);
+        if (!isRecord(payload)) return [];
+        const nested = payload.data;
+        if (Array.isArray(nested)) return nested.filter(isRecord);
+        if (isRecord(nested) && Array.isArray(nested.data)) return nested.data.filter(isRecord);
+        if (Array.isArray(payload.list)) return payload.list.filter(isRecord);
+        if (Array.isArray(payload.items)) return payload.items.filter(isRecord);
+        return [];
+      })();
+
+      if (list.length === 0) {
+        throw new Error('未获取到数据或数据为空');
+      }
+
+      const lastItem = list[list.length - 1];
+      const candidate =
+        (typeof lastItem.date === 'string' && lastItem.date) ||
+        (typeof lastItem.datetime === 'string' && lastItem.datetime) ||
+        (typeof lastItem.time === 'string' && lastItem.time) ||
+        (typeof lastItem.timetag === 'string' && lastItem.timetag) ||
+        (typeof lastItem.timestamp === 'number' && Number.isFinite(lastItem.timestamp) ? lastItem.timestamp : null) ||
+        (typeof lastItem.time === 'number' && Number.isFinite(lastItem.time) ? lastItem.time : null) ||
+        null;
+
+      const d = safeParseDateLike(candidate);
+      if (!d) {
+        throw new Error('日期解析失败');
+      }
+
+      const diff = differenceInCalendarDays(new Date(), d);
+      const lastDateStr = typeof candidate === 'string' ? candidate : d.toISOString();
+      setAkshareXqStatus({
+        loading: false,
+        error: null,
+        lastDate: lastDateStr,
+        diffDays: diff,
+        details: lastItem
+      });
+    } catch (err) {
+      if (err && typeof err === 'object' && 'name' in err && err.name === 'AbortError') {
+        setAkshareXqStatus(prev => ({
+          ...prev,
+          loading: false,
+          error: '请求超时'
+        }));
+        return;
+      }
+      setAkshareXqStatus(prev => ({
+        ...prev,
+        loading: false,
+        error: err instanceof Error ? err.message : '请求失败'
+      }));
+    }
+  };
+
+  const fetchAkshareSinaData = async () => {
+    setAkshareSinaStatus(prev => ({ ...prev, loading: true, error: null }));
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      const response = await fetch(AKSHARE_SINA_API, { signal: controller.signal, cache: 'no-store' });
+      clearTimeout(timeout);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const contentType = response.headers.get('content-type') || '';
+      const payload = contentType.includes('application/json')
+        ? await response.json().catch(() => null)
+        : await response.text().catch(() => null);
+
+      const list = (() => {
+        if (Array.isArray(payload)) return payload.filter(isRecord);
+        if (!isRecord(payload)) return [];
+        const nested = payload.data;
+        if (Array.isArray(nested)) return nested.filter(isRecord);
+        if (isRecord(nested) && Array.isArray(nested.data)) return nested.data.filter(isRecord);
+        if (Array.isArray(payload.list)) return payload.list.filter(isRecord);
+        if (Array.isArray(payload.items)) return payload.items.filter(isRecord);
+        return [];
+      })();
+
+      if (list.length === 0) {
+        throw new Error('未获取到数据或数据为空');
+      }
+
+      const lastItem = list[list.length - 1];
+      const candidate =
+        (typeof lastItem.date === 'string' && lastItem.date) ||
+        (typeof lastItem.datetime === 'string' && lastItem.datetime) ||
+        (typeof lastItem.time === 'string' && lastItem.time) ||
+        (typeof lastItem.timetag === 'string' && lastItem.timetag) ||
+        (typeof lastItem.timestamp === 'number' && Number.isFinite(lastItem.timestamp) ? lastItem.timestamp : null) ||
+        (typeof lastItem.time === 'number' && Number.isFinite(lastItem.time) ? lastItem.time : null) ||
+        null;
+
+      const d = safeParseDateLike(candidate);
+      if (!d) {
+        throw new Error('日期解析失败');
+      }
+
+      const diff = differenceInCalendarDays(new Date(), d);
+      const lastDateStr = typeof candidate === 'string' ? candidate : d.toISOString();
+      setAkshareSinaStatus({
+        loading: false,
+        error: null,
+        lastDate: lastDateStr,
+        diffDays: diff,
+        details: lastItem
+      });
+    } catch (err) {
+      if (err && typeof err === 'object' && 'name' in err && err.name === 'AbortError') {
+        setAkshareSinaStatus(prev => ({
+          ...prev,
+          loading: false,
+          error: '请求超时'
+        }));
+        return;
+      }
+      setAkshareSinaStatus(prev => ({
+        ...prev,
+        loading: false,
+        error: err instanceof Error ? err.message : '请求失败'
+      }));
+    }
+  };
+
   const refreshAll = () => {
     fetchHistoryData();
     fetchTicksData();
+    fetchAkshareXqData();
+    fetchAkshareSinaData();
   };
 
-  const anyLoading = historyStatus.loading || ticksStatus.loading;
+  const anyLoading = historyStatus.loading || ticksStatus.loading || akshareXqStatus.loading || akshareSinaStatus.loading;
 
   const getStatusLevel = (status: DataCheckResult): 'ok' | 'warn' | 'bad' => {
     if (status.error) return 'bad';
@@ -220,6 +384,32 @@ export function DataFreshnessStatus({ theme }: DataFreshnessStatusProps) {
         { label: '开盘', value: ticksStatus.details?.open },
       ],
       excludeDetailKeys: ['timetag'],
+    },
+    {
+      key: 'akshare_xq',
+      title: 'AkShare / 雪球',
+      apiPath: AKSHARE_XQ_API,
+      status: akshareXqStatus,
+      refresh: fetchAkshareXqData,
+      lastLabel: '最新时间',
+      primary: [
+        { label: '收盘', value: akshareXqStatus.details?.close ?? akshareXqStatus.details?.lastPrice },
+        { label: '开盘', value: akshareXqStatus.details?.open },
+      ],
+      excludeDetailKeys: ['date', 'datetime', 'timetag', 'time', 'timestamp'],
+    },
+    {
+      key: 'akshare_sina',
+      title: 'AkShare / 新浪',
+      apiPath: AKSHARE_SINA_API,
+      status: akshareSinaStatus,
+      refresh: fetchAkshareSinaData,
+      lastLabel: '最新时间',
+      primary: [
+        { label: '收盘', value: akshareSinaStatus.details?.close ?? akshareSinaStatus.details?.lastPrice },
+        { label: '开盘', value: akshareSinaStatus.details?.open },
+      ],
+      excludeDetailKeys: ['date', 'datetime', 'timetag', 'time', 'timestamp'],
     },
   ];
 
