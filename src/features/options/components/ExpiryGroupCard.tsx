@@ -2054,16 +2054,16 @@ export function ExpiryGroupCard({
                                 l.amt == null ? '--' : `${l.amt >= 0 ? '+' : '-'}${formatCurrency(Math.abs(l.amt), currencyConfig, 4)}`;
                               const legAmtLabel = l.amt == null ? '' : (l.amt >= 0 ? '收到' : '支付');
                               return (
-                              <div key={`leg-est-${idx}-${i}`} className="flex items-center justify-between gap-3">
+                              <div key={`leg-est-${idx}-${i}`} className="grid grid-cols-[minmax(0,1fr)_84px_minmax(0,140px)] items-center gap-3">
                                 <div className="truncate opacity-80">
                                   {l.pos.contract_code || l.pos.contract_code_full || l.pos.symbol} • {l.closeSide === 'buy' ? '买入' : '卖出'} • x{l.qty}
                                 </div>
-                                <div className="flex items-center gap-3 font-mono">
+                                <div className="text-right font-mono">
                                   <AnimatedFlash value={l.px == null ? '--' : l.px.toFixed(4)} type="price" />
-                                  <div className="flex items-center gap-1">
-                                    <span className="opacity-70">{legAmtLabel}</span>
-                                    <AnimatedFlash value={legAmtText} type="price" />
-                                  </div>
+                                </div>
+                                <div className="flex items-center justify-end gap-1 font-mono">
+                                  <span className="opacity-70">{legAmtLabel}</span>
+                                  <AnimatedFlash value={legAmtText} type="price" />
                                 </div>
                               </div>
                               );
@@ -2925,34 +2925,34 @@ export function ExpiryGroupCard({
                 </div>
               </div>
               <div className="mt-2 grid grid-cols-1 gap-1 text-xs">
-                <div className="flex items-center justify-between gap-3">
+                <div className="grid grid-cols-[minmax(0,1fr)_84px_minmax(0,140px)] items-center gap-3">
                   <div className={`${themes[theme].text} opacity-80`}>买入腿（ASK1）x{p.buy.qty}</div>
-                  <div className={`flex items-center gap-3 font-mono ${themes[theme].text}`}>
+                  <div className={`text-right font-mono ${themes[theme].text}`}>
                     <AnimatedFlash value={p.buy.px == null ? '--' : p.buy.px.toFixed(4)} type="price" />
-                    <div className="flex items-center gap-1">
-                      <span className="opacity-70">{p.buy.amt == null ? '' : (p.buy.amt >= 0 ? '收到' : '支付')}</span>
-                      <AnimatedFlash
-                        value={
-                          p.buy.amt == null ? '--' : `${p.buy.amt >= 0 ? '+' : '-'}${formatCurrency(Math.abs(p.buy.amt), currencyConfig, 4)}`
-                        }
-                        type="price"
-                      />
-                    </div>
+                  </div>
+                  <div className={`flex items-center justify-end gap-1 font-mono ${themes[theme].text}`}>
+                    <span className="opacity-70">{p.buy.amt == null ? '' : (p.buy.amt >= 0 ? '收到' : '支付')}</span>
+                    <AnimatedFlash
+                      value={
+                        p.buy.amt == null ? '--' : `${p.buy.amt >= 0 ? '+' : '-'}${formatCurrency(Math.abs(p.buy.amt), currencyConfig, 4)}`
+                      }
+                      type="price"
+                    />
                   </div>
                 </div>
-                <div className="flex items-center justify-between gap-3">
+                <div className="grid grid-cols-[minmax(0,1fr)_84px_minmax(0,140px)] items-center gap-3">
                   <div className={`${themes[theme].text} opacity-80`}>卖出腿（BID1）x{p.sell.qty}</div>
-                  <div className={`flex items-center gap-3 font-mono ${themes[theme].text}`}>
+                  <div className={`text-right font-mono ${themes[theme].text}`}>
                     <AnimatedFlash value={p.sell.px == null ? '--' : p.sell.px.toFixed(4)} type="price" />
-                    <div className="flex items-center gap-1">
-                      <span className="opacity-70">{p.sell.amt == null ? '' : (p.sell.amt >= 0 ? '收到' : '支付')}</span>
-                      <AnimatedFlash
-                        value={
-                          p.sell.amt == null ? '--' : `${p.sell.amt >= 0 ? '+' : '-'}${formatCurrency(Math.abs(p.sell.amt), currencyConfig, 4)}`
-                        }
-                        type="price"
-                      />
-                    </div>
+                  </div>
+                  <div className={`flex items-center justify-end gap-1 font-mono ${themes[theme].text}`}>
+                    <span className="opacity-70">{p.sell.amt == null ? '' : (p.sell.amt >= 0 ? '收到' : '支付')}</span>
+                    <AnimatedFlash
+                      value={
+                        p.sell.amt == null ? '--' : `${p.sell.amt >= 0 ? '+' : '-'}${formatCurrency(Math.abs(p.sell.amt), currencyConfig, 4)}`
+                      }
+                      type="price"
+                    />
                   </div>
                 </div>
               </div>
