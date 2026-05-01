@@ -134,16 +134,6 @@ export function ExpiryGroupCard({
     return typeof v === 'number' && Number.isFinite(v) ? v : null;
   }, []);
 
-  const getBestBidAsk = useCallback((p: ReturnType<typeof resolvePriceUpdate>) => {
-    if (!p) return null;
-    const ask = p.ask_price?.[0] ?? p.ask;
-    const bid = p.bid_price?.[0] ?? p.bid;
-    const bestAsk = typeof ask === 'number' && Number.isFinite(ask) ? ask : null;
-    const bestBid = typeof bid === 'number' && Number.isFinite(bid) ? bid : null;
-    const spread = bestAsk != null && bestBid != null ? bestAsk - bestBid : null;
-    return { ask: bestAsk, bid: bestBid, spread };
-  }, []);
-
   const getQuoteStrike = (q: OptionQuote): number => {
     const record = q as unknown as { strike_price?: unknown };
     const value = record.strike_price ?? q.strike;
@@ -452,12 +442,12 @@ export function ExpiryGroupCard({
 
     const buyLegQty = Math.max(1, Number(buyPos.quantity || 1));
     const sellLegQty = Math.max(1, Number(sellPos.quantity || 1));
-    const buyBA = getBestBidAsk(buyUpdate);
-    const sellBA = getBestBidAsk(sellUpdate);
 
     const buyAmt = buyPx != null ? -buyPx * buyLegQty : null;
     const sellAmt = sellPx != null ? sellPx * sellLegQty : null;
     const net = buyAmt != null && sellAmt != null ? buyAmt + sellAmt : null;
+    const pairedQty = Math.min(buyLegQty, sellLegQty);
+    const perHedge = net != null && pairedQty > 0 ? net / pairedQty : null;
 
     return {
       qty,
@@ -465,20 +455,18 @@ export function ExpiryGroupCard({
         px: buyPx,
         qty: buyLegQty,
         amt: buyAmt,
-        spread: buyBA?.spread ?? null,
-        spreadAmt: buyBA?.spread != null ? buyBA.spread * buyLegQty : null,
       },
       sell: {
         px: sellPx,
         qty: sellLegQty,
         amt: sellAmt,
-        spread: sellBA?.spread ?? null,
-        spreadAmt: sellBA?.spread != null ? sellBA.spread * sellLegQty : null,
       },
       net,
+      pairedQty,
+      perHedge,
       ts: Math.max(buyUpdate?.timestamp || 0, sellUpdate?.timestamp || 0),
     };
-  }, [advisedModal, getBestBidAsk, getCounterpartyTopPrice, resolvePriceUpdate]);
+  }, [advisedModal, getCounterpartyTopPrice, resolvePriceUpdate]);
 
   const estimateCloseForStrategy = useCallback(
     (strategy: OptionsStrategy) => {
@@ -488,17 +476,18 @@ export function ExpiryGroupCard({
         const update = resolvePriceUpdate([p.contract_code_full, p.contract_code, p.symbol]);
         const px = getCounterpartyTopPrice(update, closeSide);
         const qty = Math.max(0, Number(p.quantity ?? 0) || 0);
-        const ba = getBestBidAsk(update);
         const amt = px != null ? (closeSide === 'sell' ? px * qty : -px * qty) : null;
-        const spread = ba?.spread ?? null;
-        const spreadAmt = spread != null ? spread * qty : null;
-        return { pos: p, closeSide, px, qty, amt, spread, spreadAmt, ts: update?.timestamp || 0 };
+        return { pos: p, closeSide, px, qty, amt, ts: update?.timestamp || 0 };
       });
       const net = legEstimates.every((l) => l.amt != null) ? legEstimates.reduce((s, l) => s + (l.amt as number), 0) : null;
+      const buyQty = legEstimates.reduce((s, l) => s + (l.closeSide === 'buy' ? l.qty : 0), 0);
+      const sellQty = legEstimates.reduce((s, l) => s + (l.closeSide === 'sell' ? l.qty : 0), 0);
+      const pairedQty = Math.min(buyQty, sellQty);
+      const perHedge = net != null && pairedQty > 0 ? net / pairedQty : null;
       const ts = Math.max(0, ...legEstimates.map((l) => l.ts || 0));
-      return { legs: legEstimates, net, ts };
+      return { legs: legEstimates, net, perHedge, pairedQty, ts };
     },
-    [getBestBidAsk, getCounterpartyTopPrice, resolvePriceUpdate]
+    [getCounterpartyTopPrice, resolvePriceUpdate]
   );
 
   return (
@@ -2041,6 +2030,10 @@ export function ExpiryGroupCard({
                       const net = est.net;
                       const label = net == null ? '对手方一档价未就绪' : (net >= 0 ? '预计收到' : '预计支付');
                       const amountText = net == null ? '--' : formatCurrency(Math.abs(net), currencyConfig, 4);
+                      const hedgeText =
+                        est.perHedge == null
+                          ? '--'
+                          : `${est.perHedge >= 0 ? '+' : '-'}${formatCurrency(Math.abs(est.perHedge), currencyConfig, 4)}`;
                       const tsText = est.ts ? format(new Date(est.ts), 'HH:mm:ss') : '--';
                       return (
                         <div className={`mt-2 text-xs ${themes[theme].text} opacity-80`}>
@@ -2049,13 +2042,16 @@ export function ExpiryGroupCard({
                             <AnimatedFlash value={amountText} className="font-mono" type="price" />
                             <span className="opacity-60">（WS {tsText}）</span>
                           </div>
+                          <div className="mt-1 flex items-center gap-2">
+                            <span className="font-semibold">每张对冲</span>
+                            <AnimatedFlash value={hedgeText} className="font-mono" type="price" />
+                            <span className="opacity-60">（按 {est.pairedQty || 0} 张配对）</span>
+                          </div>
                           <div className="mt-1 grid grid-cols-1 gap-1">
                             {est.legs.map((l, i) => {
                               const legAmtText =
                                 l.amt == null ? '--' : `${l.amt >= 0 ? '+' : '-'}${formatCurrency(Math.abs(l.amt), currencyConfig, 4)}`;
                               const legAmtLabel = l.amt == null ? '' : (l.amt >= 0 ? '收到' : '支付');
-                              const spreadText = l.spread == null ? '--' : l.spread.toFixed(4);
-                              const spreadAmtText = l.spreadAmt == null ? '--' : formatCurrency(Math.abs(l.spreadAmt), currencyConfig, 4);
                               return (
                               <div key={`leg-est-${idx}-${i}`} className="flex items-center justify-between gap-3">
                                 <div className="truncate opacity-80">
@@ -2063,12 +2059,6 @@ export function ExpiryGroupCard({
                                 </div>
                                 <div className="flex items-center gap-3 font-mono">
                                   <AnimatedFlash value={l.px == null ? '--' : l.px.toFixed(4)} type="price" />
-                                  <div className="flex items-center gap-1">
-                                    <span className="opacity-70">价差</span>
-                                    <AnimatedFlash value={spreadText} type="price" />
-                                    <span className="opacity-60">≈</span>
-                                    <AnimatedFlash value={spreadAmtText} type="price" />
-                                  </div>
                                   <div className="flex items-center gap-1">
                                     <span className="opacity-70">{legAmtLabel}</span>
                                     <AnimatedFlash value={legAmtText} type="price" />
@@ -2918,6 +2908,8 @@ export function ExpiryGroupCard({
           const net = p.net;
           const label = net == null ? '对手方一档价未就绪' : (net >= 0 ? '预计收到' : '预计支付');
           const amountText = net == null ? '--' : formatCurrency(Math.abs(net), currencyConfig, 4);
+          const hedgeText =
+            p.perHedge == null ? '--' : `${p.perHedge >= 0 ? '+' : '-'}${formatCurrency(Math.abs(p.perHedge), currencyConfig, 4)}`;
           const tsText = p.ts ? format(new Date(p.ts), 'HH:mm:ss') : '--';
           return (
             <div className={`mt-3 rounded border p-3 ${themes[theme].border} ${themes[theme].background}`}>
@@ -2926,17 +2918,18 @@ export function ExpiryGroupCard({
                 <AnimatedFlash value={amountText} className="font-mono" type="price" />
               </div>
               <div className={`mt-1 text-[11px] ${themes[theme].text} opacity-60`}>按 WS 对手方一档价估算（{tsText}）</div>
+              <div className={`mt-1 text-xs ${themes[theme].text} opacity-80 flex items-center justify-between gap-3`}>
+                <div className="font-semibold">每张对冲</div>
+                <div className="flex items-center gap-2">
+                  <AnimatedFlash value={hedgeText} className="font-mono" type="price" />
+                  <span className="text-[11px] opacity-60">（按 {p.pairedQty || 0} 张配对）</span>
+                </div>
+              </div>
               <div className="mt-2 grid grid-cols-1 gap-1 text-xs">
                 <div className="flex items-center justify-between gap-3">
                   <div className={`${themes[theme].text} opacity-80`}>买入腿（ASK1）x{p.buy.qty}</div>
                   <div className={`flex items-center gap-3 font-mono ${themes[theme].text}`}>
                     <AnimatedFlash value={p.buy.px == null ? '--' : p.buy.px.toFixed(4)} type="price" />
-                    <div className="flex items-center gap-1">
-                      <span className="opacity-70">价差</span>
-                      <AnimatedFlash value={p.buy.spread == null ? '--' : p.buy.spread.toFixed(4)} type="price" />
-                      <span className="opacity-60">≈</span>
-                      <AnimatedFlash value={p.buy.spreadAmt == null ? '--' : formatCurrency(Math.abs(p.buy.spreadAmt), currencyConfig, 4)} type="price" />
-                    </div>
                     <div className="flex items-center gap-1">
                       <span className="opacity-70">{p.buy.amt == null ? '' : (p.buy.amt >= 0 ? '收到' : '支付')}</span>
                       <AnimatedFlash
@@ -2952,12 +2945,6 @@ export function ExpiryGroupCard({
                   <div className={`${themes[theme].text} opacity-80`}>卖出腿（BID1）x{p.sell.qty}</div>
                   <div className={`flex items-center gap-3 font-mono ${themes[theme].text}`}>
                     <AnimatedFlash value={p.sell.px == null ? '--' : p.sell.px.toFixed(4)} type="price" />
-                    <div className="flex items-center gap-1">
-                      <span className="opacity-70">价差</span>
-                      <AnimatedFlash value={p.sell.spread == null ? '--' : p.sell.spread.toFixed(4)} type="price" />
-                      <span className="opacity-60">≈</span>
-                      <AnimatedFlash value={p.sell.spreadAmt == null ? '--' : formatCurrency(Math.abs(p.sell.spreadAmt), currencyConfig, 4)} type="price" />
-                    </div>
                     <div className="flex items-center gap-1">
                       <span className="opacity-70">{p.sell.amt == null ? '' : (p.sell.amt >= 0 ? '收到' : '支付')}</span>
                       <AnimatedFlash
