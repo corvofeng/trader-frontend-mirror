@@ -2035,17 +2035,18 @@ export function ExpiryGroupCard({
                           ? '--'
                           : `${est.perHedge >= 0 ? '+' : '-'}${formatCurrency(Math.abs(est.perHedge), currencyConfig, 4)}`;
                       const tsText = est.ts ? format(new Date(est.ts), 'HH:mm:ss') : '--';
+                      const pairedQty = est.pairedQty || 0;
                       return (
                         <div className={`mt-2 text-xs ${themes[theme].text} opacity-80`}>
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold">{label}</span>
-                            <AnimatedFlash value={amountText} className="font-mono" type="price" />
-                            <span className="opacity-60">（WS {tsText}）</span>
-                          </div>
-                          <div className="mt-1 flex items-center gap-2">
-                            <span className="font-semibold">每张对冲</span>
-                            <AnimatedFlash value={hedgeText} className="font-mono" type="price" />
-                            <span className="opacity-60">（按 {est.pairedQty || 0} 张配对）</span>
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="font-semibold whitespace-nowrap">{label}</span>
+                            <div className="flex items-baseline gap-2 min-w-0">
+                              <AnimatedFlash value={amountText} className="font-mono whitespace-nowrap" type="price" />
+                              <span className="text-[11px] opacity-60 truncate">
+                                {est.perHedge == null || pairedQty <= 0 ? '' : `（${hedgeText} × ${pairedQty}）`}
+                                {` WS ${tsText}`}
+                              </span>
+                            </div>
                           </div>
                           <div className="mt-1 grid grid-cols-1 gap-1">
                             {est.legs.map((l, i) => {
@@ -2914,15 +2915,13 @@ export function ExpiryGroupCard({
           return (
             <div className={`mt-3 rounded border p-3 ${themes[theme].border} ${themes[theme].background}`}>
               <div className={`text-sm ${themes[theme].text} flex items-center justify-between gap-3`}>
-                <div className="font-semibold">{label}</div>
-                <AnimatedFlash value={amountText} className="font-mono" type="price" />
-              </div>
-              <div className={`mt-1 text-[11px] ${themes[theme].text} opacity-60`}>按 WS 对手方一档价估算（{tsText}）</div>
-              <div className={`mt-1 text-xs ${themes[theme].text} opacity-80 flex items-center justify-between gap-3`}>
-                <div className="font-semibold">每张对冲</div>
-                <div className="flex items-center gap-2">
-                  <AnimatedFlash value={hedgeText} className="font-mono" type="price" />
-                  <span className="text-[11px] opacity-60">（按 {p.pairedQty || 0} 张配对）</span>
+                <div className="font-semibold whitespace-nowrap">{label}</div>
+                <div className="flex items-baseline gap-2 min-w-0">
+                  <AnimatedFlash value={amountText} className="font-mono whitespace-nowrap" type="price" />
+                  <span className="text-[11px] opacity-60 truncate">
+                    {p.perHedge == null || (p.pairedQty || 0) <= 0 ? '' : `（${hedgeText} × ${p.pairedQty || 0}）`}
+                    {` WS ${tsText}`}
+                  </span>
                 </div>
               </div>
               <div className="mt-2 grid grid-cols-1 gap-1 text-xs">
