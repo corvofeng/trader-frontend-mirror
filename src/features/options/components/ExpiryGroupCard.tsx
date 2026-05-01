@@ -2036,6 +2036,10 @@ export function ExpiryGroupCard({
                           : `${est.perHedge >= 0 ? '+' : '-'}${formatCurrency(Math.abs(est.perHedge), currencyConfig, 4)}`;
                       const tsText = est.ts ? format(new Date(est.ts), 'HH:mm:ss') : '--';
                       const pairedQty = est.pairedQty || 0;
+                      const maxReward = Number(item.strategy.maxReward);
+                      const realRatio =
+                        net != null && Number.isFinite(maxReward) && maxReward > 0 ? Math.max(0, net) / maxReward : null;
+                      const realRatioText = realRatio == null ? '--' : `${(realRatio * 100).toFixed(1)}%`;
                       return (
                         <div className={`mt-2 text-xs ${themes[theme].text} opacity-80`}>
                           <div className="flex items-center justify-between gap-3">
@@ -2043,7 +2047,16 @@ export function ExpiryGroupCard({
                             <div className="flex items-baseline gap-2 min-w-0">
                               <AnimatedFlash value={amountText} className="font-mono whitespace-nowrap" type="price" />
                               <span className="text-[11px] opacity-60 truncate">
-                                {est.perHedge == null || pairedQty <= 0 ? '' : `（${hedgeText} × ${pairedQty}）`}
+                                {est.perHedge == null || pairedQty <= 0 ? (
+                                  ''
+                                ) : (
+                                  <>
+                                    （
+                                    <AnimatedFlash value={hedgeText} className="font-mono font-semibold" type="price" />
+                                    <span>{` × ${pairedQty}`}</span>
+                                    <span className="opacity-60">{` | real ${realRatioText}`}</span>）
+                                  </>
+                                )}
                                 {` WS ${tsText}`}
                               </span>
                             </div>
