@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useMemo, useRef } from 'react';
 import { format } from 'date-fns';
 import { ChevronDown, ChevronUp, Hourglass, RefreshCw } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
@@ -106,6 +106,33 @@ export function ExpiryGroupCard({
   const { queryPrice, prices, isConnected, connect } = useOptionPriceWebSocket();
   const [localState, setLocalState] = useState<{ data: OptionsData | null; symbol: string | null }>({ data: null, symbol: null });
   const { data: localOptionsData, symbol: localDataSymbol } = localState;
+
+  const normalizeCodeList = useCallback((codes: Array<string | undefined | null>) => {
+    const cleaned = codes.map((c) => (typeof c === 'string' ? c.trim() : '')).filter(Boolean);
+    return Array.from(new Set(cleaned));
+  }, []);
+
+  const resolvePriceUpdate = useCallback(
+    (codes: Array<string | undefined | null>) => {
+      const list = normalizeCodeList(codes);
+      for (const c of list) {
+        const p = prices[c];
+        if (p) return p;
+      }
+      return null;
+    },
+    [normalizeCodeList, prices]
+  );
+
+  const getCounterpartyTopPrice = useCallback((p: ReturnType<typeof resolvePriceUpdate>, side: 'buy' | 'sell') => {
+    if (!p) return null;
+    if (side === 'buy') {
+      const v = p.ask_price?.[0] ?? p.ask;
+      return typeof v === 'number' && Number.isFinite(v) ? v : null;
+    }
+    const v = p.bid_price?.[0] ?? p.bid;
+    return typeof v === 'number' && Number.isFinite(v) ? v : null;
+  }, []);
 
   const getQuoteStrike = (q: OptionQuote): number => {
     const record = q as unknown as { strike_price?: unknown };
@@ -273,6 +300,22 @@ export function ExpiryGroupCard({
   }, [filteredPositions, group.expiry]);
 
   const initializedConfirmRef = useRef<string | null>(null);
+  const lastWsQuoteRequestAtRef = useRef<Record<string, number>>({});
+
+  const throttledQueryPrice = useCallback(
+    (codesInput: Array<string | undefined | null>, minIntervalMs: number = 1500) => {
+      const list = normalizeCodeList(codesInput);
+      if (list.length === 0) return;
+      const now = Date.now();
+      const send = list.filter((c) => now - (lastWsQuoteRequestAtRef.current[c] ?? 0) > minIntervalMs);
+      if (send.length === 0) return;
+      send.forEach((c) => {
+        lastWsQuoteRequestAtRef.current[c] = now;
+      });
+      queryPrice(send);
+    },
+    [normalizeCodeList, queryPrice]
+  );
 
   useEffect(() => {
     if (!confirmData) {
@@ -341,6 +384,95 @@ export function ExpiryGroupCard({
       }
     }
   }, [confirmData, isConnected, collectIdsForCategory, filteredPositions, queryPrice]);
+
+  useEffect(() => {
+    if (!confirmData) return;
+    if (confirmData.meta?.action !== 'unwind_combo_selection') return;
+    const strategies = confirmData.meta?.strategies || [];
+    const codes = normalizeCodeList(
+      strategies.flatMap((s) => {
+        const legs = s.strategy?.positions || [];
+        return legs.flatMap((p) => [p.contract_code_full || p.contract_code]);
+      })
+    );
+    if (codes.length === 0) return;
+    if (!isConnected) {
+      connect();
+      return;
+    }
+    throttledQueryPrice(codes, 0);
+    const timer = window.setInterval(() => {
+      throttledQueryPrice(codes);
+    }, 1500);
+    return () => window.clearInterval(timer);
+  }, [confirmData, connect, isConnected, normalizeCodeList, throttledQueryPrice]);
+
+  useEffect(() => {
+    if (!advisedModal) return;
+    const buyPos = advisedModal.combo.buy_position?.position;
+    const sellPos = advisedModal.combo.sell_position?.position;
+    const codes = normalizeCodeList([
+      buyPos?.contract_code_full || buyPos?.contract_code,
+      sellPos?.contract_code_full || sellPos?.contract_code,
+    ]);
+    if (codes.length === 0) return;
+    if (!isConnected) {
+      connect();
+      return;
+    }
+    throttledQueryPrice(codes, 0);
+    const timer = window.setInterval(() => {
+      throttledQueryPrice(codes);
+    }, 1500);
+    return () => window.clearInterval(timer);
+  }, [advisedModal, connect, isConnected, normalizeCodeList, throttledQueryPrice]);
+
+  const advisedPricePreview = useMemo(() => {
+    if (!advisedModal) return null;
+    const qty = Math.max(1, Number(advisedModal.quantity) || 1);
+    const buyPos = advisedModal.combo.buy_position?.position;
+    const sellPos = advisedModal.combo.sell_position?.position;
+    if (!buyPos || !sellPos) return null;
+
+    const buyUpdate = resolvePriceUpdate([buyPos.contract_code_full, buyPos.contract_code, buyPos.symbol]);
+    const sellUpdate = resolvePriceUpdate([sellPos.contract_code_full, sellPos.contract_code, sellPos.symbol]);
+
+    const buyPx = getCounterpartyTopPrice(buyUpdate, 'buy');
+    const sellPx = getCounterpartyTopPrice(sellUpdate, 'sell');
+
+    const buyLegQty = Math.max(1, Number(buyPos.quantity || 1)) * qty;
+    const sellLegQty = Math.max(1, Number(sellPos.quantity || 1)) * qty;
+
+    const buyAmt = buyPx != null ? -buyPx * buyLegQty : null;
+    const sellAmt = sellPx != null ? sellPx * sellLegQty : null;
+    const net = buyAmt != null && sellAmt != null ? buyAmt + sellAmt : null;
+
+    return {
+      qty,
+      buy: { px: buyPx, qty: buyLegQty, amt: buyAmt },
+      sell: { px: sellPx, qty: sellLegQty, amt: sellAmt },
+      net,
+      ts: Math.max(buyUpdate?.timestamp || 0, sellUpdate?.timestamp || 0),
+    };
+  }, [advisedModal, getCounterpartyTopPrice, resolvePriceUpdate]);
+
+  const estimateCloseForStrategy = useCallback(
+    (strategy: OptionsStrategy) => {
+      const legs = strategy?.positions || [];
+      const legEstimates = legs.map((p) => {
+        const closeSide: 'buy' | 'sell' = p.position_type === 'buy' ? 'sell' : 'buy';
+        const update = resolvePriceUpdate([p.contract_code_full, p.contract_code, p.symbol]);
+        const px = getCounterpartyTopPrice(update, closeSide);
+        const qty = Math.max(0, Number(p.available ?? p.quantity ?? 0) || 0);
+        const amt = px != null ? (closeSide === 'sell' ? px * qty : -px * qty) : null;
+        return { pos: p, closeSide, px, qty, amt, ts: update?.timestamp || 0 };
+      });
+      const net = legEstimates.every((l) => l.amt != null) ? legEstimates.reduce((s, l) => s + (l.amt as number), 0) : null;
+      const ts = Math.max(0, ...legEstimates.map((l) => l.ts || 0));
+      return { legs: legEstimates, net, ts };
+    },
+    [getCounterpartyTopPrice, resolvePriceUpdate]
+  );
 
   return (
     <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
@@ -1877,6 +2009,34 @@ export function ExpiryGroupCard({
                     <div className={`text-xs opacity-50 ${themes[theme].text}`}>
                       {item.strategy.positions.map(p => `${p.contract_code || p.symbol} x ${p.quantity}`).join(', ')}
                     </div>
+                    {(() => {
+                      const est = estimateCloseForStrategy(item.strategy);
+                      const net = est.net;
+                      const label = net == null ? '对手方一档价未就绪' : (net >= 0 ? '预计收到' : '预计支付');
+                      const amountText = net == null ? '--' : formatCurrency(Math.abs(net), currencyConfig, 4);
+                      const tsText = est.ts ? format(new Date(est.ts), 'HH:mm:ss') : '--';
+                      return (
+                        <div className={`mt-2 text-xs ${themes[theme].text} opacity-80`}>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold">{label}</span>
+                            <AnimatedFlash value={amountText} className="font-mono" type="price" />
+                            <span className="opacity-60">（WS {tsText}）</span>
+                          </div>
+                          <div className="mt-1 grid grid-cols-1 gap-1">
+                            {est.legs.slice(0, 2).map((l, i) => (
+                              <div key={`leg-est-${idx}-${i}`} className="flex items-center justify-between gap-3">
+                                <div className="truncate opacity-80">
+                                  {l.pos.contract_code || l.pos.contract_code_full || l.pos.symbol} • {l.closeSide === 'buy' ? '买入' : '卖出'} • x{l.qty}
+                                </div>
+                                <div className="font-mono">
+                                  <AnimatedFlash value={l.px == null ? '--' : l.px.toFixed(4)} type="price" />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -2708,6 +2868,37 @@ export function ExpiryGroupCard({
       <div className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-md rounded-lg border ${themes[theme].card} ${themes[theme].border} p-6`}>
         <div className={`text-lg font-semibold ${themes[theme].text}`}>{advisedModal.combo.description}</div>
         <div className={`mt-1 text-xs ${themes[theme].text} opacity-75`}>到期 {format(new Date(advisedModal.combo.expiry), 'yyyy-MM-dd')}</div>
+        {(() => {
+          const p = advisedPricePreview;
+          if (!p) return null;
+          const net = p.net;
+          const label = net == null ? '对手方一档价未就绪' : (net >= 0 ? '预计收到' : '预计支付');
+          const amountText = net == null ? '--' : formatCurrency(Math.abs(net), currencyConfig, 4);
+          const tsText = p.ts ? format(new Date(p.ts), 'HH:mm:ss') : '--';
+          return (
+            <div className={`mt-3 rounded border p-3 ${themes[theme].border} ${themes[theme].background}`}>
+              <div className={`text-sm ${themes[theme].text} flex items-center justify-between gap-3`}>
+                <div className="font-semibold">{label}</div>
+                <AnimatedFlash value={amountText} className="font-mono" type="price" />
+              </div>
+              <div className={`mt-1 text-[11px] ${themes[theme].text} opacity-60`}>按 WS 对手方一档价估算（{tsText}）</div>
+              <div className="mt-2 grid grid-cols-1 gap-1 text-xs">
+                <div className="flex items-center justify-between gap-3">
+                  <div className={`${themes[theme].text} opacity-80`}>买入腿（ASK1）x{p.buy.qty}</div>
+                  <div className={`font-mono ${themes[theme].text}`}>
+                    <AnimatedFlash value={p.buy.px == null ? '--' : p.buy.px.toFixed(4)} type="price" />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <div className={`${themes[theme].text} opacity-80`}>卖出腿（BID1）x{p.sell.qty}</div>
+                  <div className={`font-mono ${themes[theme].text}`}>
+                    <AnimatedFlash value={p.sell.px == null ? '--' : p.sell.px.toFixed(4)} type="price" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
         <div className="mt-3 space-y-2">
           <div className="flex items-center justify-between">
             <div className={`text-sm ${themes[theme].text}`}>数量</div>

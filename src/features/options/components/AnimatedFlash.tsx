@@ -5,13 +5,23 @@ export const AnimatedFlash = ({ value, className, type = 'text' }: { value: stri
   const [highlight, setHighlight] = useState('');
   const [displayValue, setDisplayValue] = useState(value);
 
+  const toNumeric = (v: unknown) => {
+    if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+    if (typeof v !== 'string') return null;
+    const cleaned = v.replace(/[^0-9.+-]/g, '');
+    const n = Number(cleaned);
+    return Number.isFinite(n) ? n : null;
+  };
+
   useEffect(() => {
     if (value !== prev) {
-      const isUp = Number(value) > Number(prev);
-      const isDown = Number(value) < Number(prev);
+      const currNum = toNumeric(value);
+      const prevNum = toNumeric(prev);
+      const isUp = currNum != null && prevNum != null && currNum > prevNum;
+      const isDown = currNum != null && prevNum != null && currNum < prevNum;
       
       let colorClass = 'text-blue-600 dark:text-blue-400';
-      if (type === 'price' && !isNaN(Number(value)) && !isNaN(Number(prev))) {
+      if (type === 'price' && currNum != null && prevNum != null) {
          if (isUp) colorClass = 'text-green-600 dark:text-green-400';
          if (isDown) colorClass = 'text-red-600 dark:text-red-400';
       }
