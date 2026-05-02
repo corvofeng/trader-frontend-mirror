@@ -119,7 +119,8 @@ export function useClosePositions({
             is_covered: p.position_type_zh === '备兑' || !!p.is_covered,
             symbol: p.symbol,
             option_type: p.type,
-            strike_price: String(p.strike)
+            strike_price: String(p.strike),
+            last_price_refer: typeof p.last_price === 'number' && Number.isFinite(p.last_price) ? p.last_price : undefined
           };
         });
 
@@ -152,4 +153,3 @@ export function useClosePositions({
 
   return { handleClosePositions };
 }
-

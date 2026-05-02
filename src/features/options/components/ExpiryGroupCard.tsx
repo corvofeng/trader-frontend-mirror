@@ -2686,7 +2686,16 @@ export function ExpiryGroupCard({
                   put_covered: { type: 'put', position_type: 'sell' }
                 };
                 const p = map[category];
-                const resp = await optionsService.updatePositions({ updates: [{ type: p.type, position_type: p.position_type, strike, expiry: String(confirmData.meta?.expiry || group.expiry), quantity: sum, option_type: p.type, strike_price: String(strike), price: syncPrice != null ? syncPrice : undefined }], accountId: selectedAccountId || null, userId: userId || null });
+                const lastPriceRefer = (() => {
+                  const ref = resolvePriceUpdate([confirmData.meta?.contract_code_full, confirmData.meta?.contract_code]);
+                  const v = ref?.price;
+                  if (typeof v === 'number' && Number.isFinite(v)) return v;
+                  const q = confirmData.meta?.quote;
+                  const qv = p.type === 'call' ? q?.call_last_price : q?.put_last_price;
+                  if (typeof qv === 'number' && Number.isFinite(qv)) return qv;
+                  return undefined;
+                })();
+                const resp = await optionsService.updatePositions({ updates: [{ type: p.type, position_type: p.position_type, strike, expiry: String(confirmData.meta?.expiry || group.expiry), quantity: sum, option_type: p.type, strike_price: String(strike), price: syncPrice != null ? syncPrice : undefined, last_price_refer: lastPriceRefer }], accountId: selectedAccountId || null, userId: userId || null });
                 if (resp.error) {
                   toast.error('同步失败');
                 } else {
@@ -2816,6 +2825,23 @@ export function ExpiryGroupCard({
                     } as OptionsPosition;
                 }
 
+                const lastPriceRefer = (() => {
+                  const ref = resolvePriceUpdate([
+                    confirmData.meta?.contract_code_full,
+                    confirmData.meta?.contract_code,
+                    referencePos?.contract_code_full,
+                    referencePos?.contract_code,
+                  ]);
+                  const v = ref?.price;
+                  if (typeof v === 'number' && Number.isFinite(v)) return v;
+                  const q = confirmData.meta?.quote;
+                  const qv = p.type === 'call' ? q?.call_last_price : q?.put_last_price;
+                  if (typeof qv === 'number' && Number.isFinite(qv)) return qv;
+                  const pv = referencePos?.last_price;
+                  if (typeof pv === 'number' && Number.isFinite(pv)) return pv;
+                  return undefined;
+                })();
+
                 const positionsToSend = (matches.length > 0 ? matches.map(m => ({ ...m })) : (referencePos ? [{
                   ...referencePos,
                   id: '', // Clear ID to avoid updating the reference position
@@ -2841,7 +2867,7 @@ export function ExpiryGroupCard({
                   };
                 });
 
-                const resp = await optionsService.updatePositions({ updates: [{ type: p.type, position_type: p.position_type, strike, expiry: String(confirmData.meta?.expiry || group.expiry), quantity: q, original_quantity: origAvailSum, change_quantity: change, is_covered: category === 'call_covered' || category === 'put_covered', symbol: foundSymbol, option_type: p.type, strike_price: String(strike), price: syncPrice != null ? syncPrice : undefined }], positions: positionsToSend, accountId: selectedAccountId || null, userId: userId || null });
+                const resp = await optionsService.updatePositions({ updates: [{ type: p.type, position_type: p.position_type, strike, expiry: String(confirmData.meta?.expiry || group.expiry), quantity: q, original_quantity: origAvailSum, change_quantity: change, is_covered: category === 'call_covered' || category === 'put_covered', symbol: foundSymbol, option_type: p.type, strike_price: String(strike), price: syncPrice != null ? syncPrice : undefined, last_price_refer: lastPriceRefer }], positions: positionsToSend, accountId: selectedAccountId || null, userId: userId || null });
                 if (resp.error) {
                   toast.error(resp.error.message || '同步失败');
                 } else {
