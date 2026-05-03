@@ -647,18 +647,23 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
     { completed: 0, failed: 0, cancelled: 0, other: 0, unknown: 0 }
   );
 
+  const getOrderTimeRaw = (order: OptionOrder) => {
+    return (order.submitted_at || order.order_time || '').trim();
+  };
+
   const getOrderTimeText = (order: OptionOrder) => {
-    const raw = order.order_time || '';
+    const raw = getOrderTimeRaw(order);
+    if (!raw) return '-';
     if (raw.includes(' ')) return raw.split(' ')[1]?.slice(0, 8) || raw;
     if (raw.includes('T')) {
       const timePart = raw.split('T')[1] || '';
       return timePart.replace('Z', '').slice(0, 8) || raw;
     }
-    return raw || '-';
+    return raw;
   };
 
   const getOrderTimeMs = (order: OptionOrder) => {
-    const raw = (order.order_time || '').trim();
+    const raw = getOrderTimeRaw(order);
     if (!raw) return 0;
     const normalized = raw.includes(' ') && !raw.includes('T') ? raw.replace(' ', 'T') : raw;
     const dt = new Date(normalized);
@@ -697,7 +702,7 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
           <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
             {merged.map((order, idx) => (
               <tr
-                key={`today-orders-merged-${order.is_combination ? 'combo' : 'real'}-${order.compact_no || order.contract_code_full || order.instrument_id || order.order_time || 'na'}-${idx}`}
+                key={`today-orders-merged-${order.is_combination ? 'combo' : 'real'}-${order.compact_no || order.contract_code_full || order.instrument_id || order.submitted_at || order.order_time || 'na'}-${idx}`}
                 className={order.is_combination ? 'bg-gray-50 dark:bg-gray-900/30' : undefined}
               >
                 <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{getOrderTimeText(order)}</td>

@@ -605,6 +605,7 @@ export interface OptionOrder {
   volume_traded: number;
   remark: string;
   order_time: string;
+  submitted_at?: string;
   is_combination: boolean;
   compact_no?: string;
   contract_ids?: string[];
