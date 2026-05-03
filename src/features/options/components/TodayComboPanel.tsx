@@ -6,6 +6,55 @@ import { optionsService } from '../../../lib/services';
 import type { OptionOrder, SequentialTradeTask } from '../../../lib/services/types';
 import { logger } from '../../../shared/utils/logger';
 
+function normalizeToken(value: unknown): string {
+  if (value == null) return '';
+  return String(value).trim();
+}
+
+function filterOrdersForTask(allOrders: OptionOrder[], task: SequentialTradeTask | null): OptionOrder[] {
+  if (!task) return [];
+
+  const comboId = normalizeToken(task.combo_id);
+  const tradeUuid = normalizeToken(task.trade_uuid);
+  const taskId = normalizeToken(task.id);
+  const steps = Array.isArray(task.steps) ? task.steps : [];
+  const userOrderIds = steps.map(s => normalizeToken(s.user_order_id)).filter(Boolean);
+
+  const hasStrongKeys = Boolean(comboId || tradeUuid || userOrderIds.length > 0);
+  const tradeUuidLower = tradeUuid.toLowerCase();
+  const taskIdLower = taskId.toLowerCase();
+  const userOrderIdsLower = userOrderIds.map(v => v.toLowerCase());
+
+  const strongMatches = (order: OptionOrder) => {
+    const compactNo = normalizeToken(order.compact_no);
+    if (comboId && compactNo && compactNo === comboId) return true;
+
+    const remarkLower = normalizeToken(order.remark).toLowerCase();
+    if (tradeUuidLower && remarkLower.includes(tradeUuidLower)) return true;
+    if (
+      taskIdLower &&
+      (remarkLower.includes(`task_id=${taskIdLower}`) ||
+        remarkLower.includes(`taskid=${taskIdLower}`) ||
+        remarkLower.includes(`task:${taskIdLower}`) ||
+        remarkLower.includes(`task#${taskIdLower}`))
+    ) {
+      return true;
+    }
+    if (userOrderIdsLower.length > 0 && remarkLower) {
+      for (const id of userOrderIdsLower) {
+        if (id && remarkLower.includes(id)) return true;
+      }
+    }
+    return false;
+  };
+
+  if (hasStrongKeys) {
+    return allOrders.filter(strongMatches);
+  }
+
+  return [];
+}
+
 interface TodayOrderFlowPanelProps {
   theme: Theme;
   viewMode: 'expiry' | 'strategy' | 'grouped';
@@ -19,6 +68,8 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  type OrderActionKey = 'buy_open' | 'buy_close' | 'sell_open' | 'sell_close' | 'build_combo' | 'split_combo' | 'other';
+
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const [detailById, setDetailById] = useState<Record<number, SequentialTradeTask>>({});
   const [detailLoadingId, setDetailLoadingId] = useState<number | null>(null);
@@ -29,6 +80,34 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
   const [orders, setOrders] = useState<OptionOrder[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [ordersError, setOrdersError] = useState<string | null>(null);
+
+  const [ordersDisplayMode, setOrdersDisplayMode] = useState<'merged' | 'split'>(() => {
+    try {
+      const saved = localStorage.getItem('options_portfolio_today_orders_display_mode');
+      return saved === 'split' ? 'split' : 'merged';
+    } catch {
+      return 'merged';
+    }
+  });
+  const [ordersKind, setOrdersKind] = useState<'all' | 'combo' | 'real'>(() => {
+    try {
+      const saved = localStorage.getItem('options_portfolio_today_orders_kind');
+      if (saved === 'combo' || saved === 'real') return saved;
+      return 'all';
+    } catch {
+      return 'all';
+    }
+  });
+  const [orderActionFilters, setOrderActionFilters] = useState<OrderActionKey[]>([]);
+  const [orderStatusFilters, setOrderStatusFilters] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      localStorage.setItem('options_portfolio_today_orders_display_mode', ordersDisplayMode);
+      localStorage.setItem('options_portfolio_today_orders_kind', ordersKind);
+    } catch {
+      void 0;
+    }
+  }, [ordersDisplayMode, ordersKind]);
 
   const [isOpen, setIsOpen] = useState(() => {
     try {
@@ -464,52 +543,91 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
   const selectedDetail = selectedTaskId != null ? (detailById[selectedTaskId] || tasks.find(t => t.id === selectedTaskId) || null) : null;
   const selectedSteps = selectedDetail?.steps || [];
   const selectedIsLoading = selectedTaskId != null && detailLoadingId === selectedTaskId;
-  const comboOrders = orders.filter(o => o.is_combination);
-  const realOrders = orders.filter(o => !o.is_combination);
+  const displayOrders = ordersScope === 'task' ? filterOrdersForTask(orders, selectedDetail) : orders;
+  const comboOrders = displayOrders.filter(o => o.is_combination);
+  const realOrders = displayOrders.filter(o => !o.is_combination);
+  const getOrderActionText = (order: OptionOrder) => (order.op_type_name_zh || order.op_type_name || '').trim();
+  const getOrderActionKey = (actionText: string): OrderActionKey => {
+    const s = actionText.replace(/\s+/g, '');
+    if (s.includes('构建组合持仓') || s.includes('构建组合')) return 'build_combo';
+    if (s.includes('拆分组合持仓') || s.includes('拆分组合')) return 'split_combo';
+    const hasBuy = s.includes('买');
+    const hasSell = s.includes('卖');
+    const hasOpen = s.includes('开');
+    const hasClose = s.includes('平');
+    if (hasBuy && hasOpen) return 'buy_open';
+    if (hasBuy && hasClose) return 'buy_close';
+    if (hasSell && hasOpen) return 'sell_open';
+    if (hasSell && hasClose) return 'sell_close';
+    return 'other';
+  };
+  const getOrderActionConfig = (actionText: string) => {
+    const key = getOrderActionKey(actionText);
+    if (key === 'buy_open') {
+      return { key, label: '买入开仓', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-100' };
+    }
+    if (key === 'buy_close') {
+      return { key, label: '买入平仓', className: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-100' };
+    }
+    if (key === 'sell_open') {
+      return { key, label: '卖出开仓', className: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-100' };
+    }
+    if (key === 'sell_close') {
+      return { key, label: '卖出平仓', className: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-100' };
+    }
+    if (key === 'build_combo') {
+      return { key, label: '构建组合持仓', className: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-100' };
+    }
+    if (key === 'split_combo') {
+      return { key, label: '拆分组合持仓', className: 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-100' };
+    }
+    const label = actionText || '-';
+    return { key, label, className: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100' };
+  };
+
   const normalizeOrderStatus = (value?: string | null) => {
     const raw = (value || '').trim();
     if (!raw) return 'UNKNOWN';
     return raw.toUpperCase();
   };
-  const getOrderStatusBadgeConfig = (status?: string | null) => {
-    const raw = (status || '').trim();
-    const s = normalizeOrderStatus(raw);
-    if (s === 'SUCCEEDED' || s === 'FILLED' || s === 'DONE') {
-      return { label: raw || 'SUCCEEDED', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-100', raw: raw || s };
-    }
-    if (s === 'PART_SUCCEEDED' || s === 'PARTIAL' || s === 'PARTIALLY_FILLED') {
-      return { label: raw || 'PARTIAL', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-100', raw: raw || s };
-    }
-    if (s === 'FAILED' || s === 'REJECTED' || s === 'ERROR') {
-      return { label: raw || 'FAILED', className: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-100', raw: raw || s };
-    }
-    if (s === 'CANCELED' || s === 'CANCELLED' || s === 'CANCEL') {
-      return { label: raw || 'CANCELED', className: 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100', raw: raw || s };
-    }
-    if (s === 'JUNK') {
-      return { label: raw || 'JUNK', className: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-100', raw: raw || s };
-    }
-    if (s === 'PENDING' || s === 'SUBMITTED' || s === 'ACCEPTED' || s === 'QUEUED') {
-      return { label: raw || s, className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-100', raw: raw || s };
-    }
-    if (s === 'UNKNOWN') {
-      return { label: '-', className: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100', raw: '' };
-    }
-    return { label: raw || s, className: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100', raw: raw || s };
+  const getOrderStatusLabel = (value?: string | null) => {
+    const raw = (value || '').trim();
+    return raw || '-';
   };
-  const orderStatusSummary = orders.reduce(
+
+  const visibleOrdersByKind = ordersKind === 'combo' ? comboOrders : ordersKind === 'real' ? realOrders : displayOrders;
+  const actionCounts = visibleOrdersByKind.reduce(
     (acc, o) => {
-      const s = normalizeOrderStatus(o.order_status_name);
-      const entry = acc[s] || { status: s, raw: (o.order_status_name || '').trim(), count: 0, traded: 0, total: 0 };
-      entry.count += 1;
-      entry.traded += Number.isFinite(o.volume_traded) ? o.volume_traded : 0;
-      entry.total += Number.isFinite(o.volume_total_original) ? o.volume_total_original : 0;
-      acc[s] = entry;
+      const key = getOrderActionKey(getOrderActionText(o));
+      acc[key] += 1;
       return acc;
     },
-    {} as Record<string, { status: string; raw: string; count: number; traded: number; total: number }>
+    { buy_open: 0, buy_close: 0, sell_open: 0, sell_close: 0, build_combo: 0, split_combo: 0, other: 0 } as Record<OrderActionKey, number>
+  );
+  const availableActionKeys = (['buy_open', 'buy_close', 'sell_open', 'sell_close', 'build_combo', 'split_combo', 'other'] as OrderActionKey[]).filter(
+    k => actionCounts[k] > 0
+  );
+  const visibleOrdersByAction =
+    orderActionFilters.length === 0
+      ? visibleOrdersByKind
+      : visibleOrdersByKind.filter(o => orderActionFilters.includes(getOrderActionKey(getOrderActionText(o))));
+
+  const orderStatusSummary = visibleOrdersByAction.reduce(
+    (acc, o) => {
+      const key = normalizeOrderStatus(o.order_status_name);
+      const entry = acc[key] || { key, label: getOrderStatusLabel(o.order_status_name), count: 0 };
+      entry.count += 1;
+      acc[key] = entry;
+      return acc;
+    },
+    {} as Record<string, { key: string; label: string; count: number }>
   );
   const orderStatusSummaryList = Object.values(orderStatusSummary).sort((a, b) => b.count - a.count);
+
+  const visibleOrders =
+    orderStatusFilters.length === 0 ? visibleOrdersByAction : visibleOrdersByAction.filter(o => orderStatusFilters.includes(normalizeOrderStatus(o.order_status_name)));
+  const visibleComboOrders = visibleOrders.filter(o => o.is_combination);
+  const visibleRealOrders = visibleOrders.filter(o => !o.is_combination);
   const taskStatusCounts = tasks.reduce(
     (acc, t) => {
       const s = (t.status || '').trim().toLowerCase();
@@ -529,6 +647,122 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
     { completed: 0, failed: 0, cancelled: 0, other: 0, unknown: 0 }
   );
 
+  const getOrderTimeText = (order: OptionOrder) => {
+    const raw = order.order_time || '';
+    if (raw.includes(' ')) return raw.split(' ')[1]?.slice(0, 8) || raw;
+    if (raw.includes('T')) {
+      const timePart = raw.split('T')[1] || '';
+      return timePart.replace('Z', '').slice(0, 8) || raw;
+    }
+    return raw || '-';
+  };
+
+  const getOrderTimeMs = (order: OptionOrder) => {
+    const raw = (order.order_time || '').trim();
+    if (!raw) return 0;
+    const normalized = raw.includes(' ') && !raw.includes('T') ? raw.replace(' ', 'T') : raw;
+    const dt = new Date(normalized);
+    if (Number.isFinite(dt.getTime())) return dt.getTime();
+    const dtZ = new Date(`${normalized}Z`);
+    return Number.isFinite(dtZ.getTime()) ? dtZ.getTime() : 0;
+  };
+
+  const formatOrderPrice = (order: OptionOrder) => {
+    if (order.is_combination) return '-';
+    const traded = Number.isFinite(order.traded_price) ? order.traded_price : null;
+    const limit = Number.isFinite(order.limit_price) ? order.limit_price : null;
+    const t = traded != null ? traded.toFixed(6) : '-';
+    const l = limit != null ? limit.toFixed(6) : '-';
+    return `${t} / ${l}`;
+  };
+
+  const renderOrdersTable = (ordersToRender: OptionOrder[]) => {
+    const merged = [...ordersToRender].sort((a, b) => getOrderTimeMs(b) - getOrderTimeMs(a));
+    return (
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead className="bg-gray-50 dark:bg-gray-900/50">
+            <tr>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">时间</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">类型</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">标的/合约</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">动作</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">价格</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">数量</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">协议号</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">备注/原因</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+            {merged.map((order, idx) => (
+              <tr
+                key={`today-orders-merged-${order.is_combination ? 'combo' : 'real'}-${order.compact_no || order.contract_code_full || order.instrument_id || order.order_time || 'na'}-${idx}`}
+                className={order.is_combination ? 'bg-gray-50 dark:bg-gray-900/30' : undefined}
+              >
+                <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{getOrderTimeText(order)}</td>
+                <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
+                  <span
+                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                      order.is_combination
+                        ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-100'
+                        : 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-100'
+                    }`}
+                  >
+                    {order.is_combination ? '组合' : '实际'}
+                  </span>
+                </td>
+                <td className="px-3 py-2 text-xs text-gray-700 dark:text-gray-200">
+                  <div className="whitespace-nowrap">
+                    {order.is_combination ? (order.instrument_name || '-') : (order.contract_code_full || order.instrument_id || '-')}
+                  </div>
+                  {!order.is_combination && (
+                    <div className="text-[10px] opacity-70 whitespace-nowrap">{order.instrument_name || '-'}</div>
+                  )}
+                  {order.is_combination && Array.isArray(order.contract_ids) && order.contract_ids.length > 0 && (
+                    <div className="text-[10px] opacity-70 whitespace-nowrap">腿: {order.contract_ids.join(', ')}</div>
+                  )}
+                </td>
+                <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
+                  {(() => {
+                    const raw = getOrderActionText(order);
+                    const cfg = getOrderActionConfig(raw);
+                    return (
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${cfg.className}`} title={raw || undefined}>
+                        {cfg.label}
+                      </span>
+                    );
+                  })()}
+                </td>
+                <td className="px-3 py-2 text-xs text-gray-700 dark:text-gray-200 font-mono">
+                  {(() => {
+                    const raw = (order.order_status_name || '').trim();
+                    const label = raw || '-';
+                    const isJunk = normalizeOrderStatus(raw) === 'JUNK';
+                    const className = isJunk
+                      ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-100'
+                      : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100';
+                    return (
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${className}`} title={raw || undefined}>
+                        {label}
+                      </span>
+                    );
+                  })()}
+                </td>
+                <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{formatOrderPrice(order)}</td>
+                <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">
+                  {order.volume_traded}/{order.volume_total_original}
+                </td>
+                <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{order.compact_no || '-'}</td>
+                <td className="px-3 py-2 text-xs text-gray-700 dark:text-gray-200">{order.cancel_info || order.remark || '-'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
   return (
     <>
       <div
@@ -546,7 +780,7 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
               <div className="flex items-center gap-2 min-w-0">
                 <div className={`font-bold text-sm ${themes[theme].text} truncate`}>今日组合交易任务</div>
                 <div className={`text-xs ${themes[theme].text} opacity-60 shrink-0`}>
-                  ({tasks.length}{selectedAccountId ? ` • 订单 ${orders.length}` : ''})
+                  ({tasks.length}{selectedAccountId ? ` • 订单 ${displayOrders.length}` : ''})
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -735,11 +969,11 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 min-w-0">
                             <div className={`text-sm font-semibold ${themes[theme].text} truncate`}>
-                              {ordersScope === 'task' && selectedTaskId != null ? `任务 #${selectedTaskId} 当日订单` : '当日订单'}
+                              {ordersScope === 'task' && selectedTaskId != null ? `任务 #${selectedTaskId} 相关订单` : '当日订单'}
                             </div>
                           </div>
                           <div className={`text-xs ${themes[theme].text} opacity-60`}>
-                            {selectedAccountId ? `合计 ${orders.length}（组合 ${comboOrders.length} • 实际 ${realOrders.length}）` : ''}
+                            {selectedAccountId ? `合计 ${displayOrders.length}（组合 ${comboOrders.length} • 实际 ${realOrders.length}） • 当前显示 ${visibleOrders.length}` : ''}
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-1">
@@ -755,9 +989,63 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
                                 disabled={ordersLoading}
                                 title="切回账户当日全部订单"
                               >
-                                全部
+                                切回账户
                               </button>
                             )}
+                            <div className={`flex items-center rounded border ${themes[theme].border} overflow-hidden`}>
+                              <button
+                                type="button"
+                                className={`px-2 py-1 text-xs ${ordersDisplayMode === 'merged' ? themes[theme].primary : themes[theme].secondary}`}
+                                onClick={() => setOrdersDisplayMode('merged')}
+                                disabled={ordersLoading}
+                                aria-pressed={ordersDisplayMode === 'merged'}
+                                title="按时间合并展示"
+                              >
+                                合并
+                              </button>
+                              <button
+                                type="button"
+                                className={`px-2 py-1 text-xs ${ordersDisplayMode === 'split' ? themes[theme].primary : themes[theme].secondary}`}
+                                onClick={() => setOrdersDisplayMode('split')}
+                                disabled={ordersLoading}
+                                aria-pressed={ordersDisplayMode === 'split'}
+                                title="组合/实际分开展示"
+                              >
+                                分开
+                              </button>
+                            </div>
+                            <div className={`flex items-center rounded border ${themes[theme].border} overflow-hidden`}>
+                              <button
+                                type="button"
+                                className={`px-2 py-1 text-xs ${ordersKind === 'all' ? themes[theme].primary : themes[theme].secondary}`}
+                                onClick={() => setOrdersKind('all')}
+                                disabled={ordersLoading}
+                                aria-pressed={ordersKind === 'all'}
+                                title="显示全部"
+                              >
+                                全部
+                              </button>
+                              <button
+                                type="button"
+                                className={`px-2 py-1 text-xs ${ordersKind === 'combo' ? themes[theme].primary : themes[theme].secondary}`}
+                                onClick={() => setOrdersKind('combo')}
+                                disabled={ordersLoading}
+                                aria-pressed={ordersKind === 'combo'}
+                                title="仅看组合"
+                              >
+                                组合
+                              </button>
+                              <button
+                                type="button"
+                                className={`px-2 py-1 text-xs ${ordersKind === 'real' ? themes[theme].primary : themes[theme].secondary}`}
+                                onClick={() => setOrdersKind('real')}
+                                disabled={ordersLoading}
+                                aria-pressed={ordersKind === 'real'}
+                                title="仅看实际"
+                              >
+                                实际
+                              </button>
+                            </div>
                           </div>
                           <div className="flex items-center justify-end gap-1 flex-wrap">
                             {ordersScope === 'task' && selectedTaskId != null && (
@@ -768,20 +1056,102 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
                                 {getStatusBadgeConfig(selectedDetail?.status).label}
                               </span>
                             )}
-                            {orders.length > 0 &&
-                              orderStatusSummaryList.map((s) => {
-                                const cfg = getOrderStatusBadgeConfig(s.raw || s.status);
+                            {orderStatusSummaryList.length > 0 && (
+                              <>
+                                <button
+                                  type="button"
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${
+                                    orderStatusFilters.length === 0
+                                      ? `${themes[theme].primary} border-transparent`
+                                      : `bg-transparent ${themes[theme].text} ${themes[theme].border}`
+                                  }`}
+                                  onClick={() => setOrderStatusFilters([])}
+                                  disabled={ordersLoading}
+                                  aria-pressed={orderStatusFilters.length === 0}
+                                  title="清空状态过滤"
+                                >
+                                  全部
+                                </button>
+                                {orderStatusSummaryList.map((s) => {
+                                  const active = orderStatusFilters.includes(s.key);
+                                  const isJunk = s.key === 'JUNK';
+                                  const activeClass = isJunk
+                                    ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-100 border-transparent'
+                                    : `${themes[theme].primary} border-transparent`;
+                                  return (
+                                    <button
+                                      key={`order-status-filter-${s.key}`}
+                                      type="button"
+                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${
+                                        active ? activeClass : `bg-transparent ${themes[theme].text} ${themes[theme].border}`
+                                      }`}
+                                      onClick={() =>
+                                        setOrderStatusFilters((prev) => (prev.includes(s.key) ? prev.filter(x => x !== s.key) : [...prev, s.key]))
+                                      }
+                                      disabled={ordersLoading}
+                                      aria-pressed={active}
+                                      title="按状态过滤"
+                                    >
+                                      {s.label} {s.count}
+                                    </button>
+                                  );
+                                })}
+                              </>
+                            )}
+                          </div>
+                          {availableActionKeys.length > 0 && (
+                            <div className="flex items-center justify-end gap-1 flex-wrap">
+                              <button
+                                type="button"
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${
+                                  orderActionFilters.length === 0
+                                    ? `${themes[theme].primary} border-transparent`
+                                    : `bg-transparent ${themes[theme].text} ${themes[theme].border}`
+                                }`}
+                                onClick={() => setOrderActionFilters([])}
+                                disabled={ordersLoading}
+                                aria-pressed={orderActionFilters.length === 0}
+                                title="清空动作过滤"
+                              >
+                                全部
+                              </button>
+                              {availableActionKeys.map((k) => {
+                                const active = orderActionFilters.includes(k);
+                                const cfg = getOrderActionConfig(
+                                  k === 'buy_open'
+                                    ? '买入开仓'
+                                    : k === 'buy_close'
+                                      ? '买入平仓'
+                                      : k === 'sell_open'
+                                        ? '卖出开仓'
+                                        : k === 'sell_close'
+                                          ? '卖出平仓'
+                                          : k === 'build_combo'
+                                            ? '构建组合持仓'
+                                            : k === 'split_combo'
+                                              ? '拆分组合持仓'
+                                              : '其他'
+                                );
                                 return (
-                                  <span
-                                    key={`order-status-summary-${s.status}`}
-                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.className}`}
-                                    title={`成交 ${s.traded}/${s.total}`}
+                                  <button
+                                    key={`order-action-filter-${k}`}
+                                    type="button"
+                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${
+                                      active ? `${cfg.className} border-transparent` : `bg-transparent ${themes[theme].text} ${themes[theme].border}`
+                                    }`}
+                                    onClick={() =>
+                                      setOrderActionFilters((prev) => (prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k]))
+                                    }
+                                    disabled={ordersLoading}
+                                    aria-pressed={active}
+                                    title="按动作过滤"
                                   >
-                                    {cfg.label} {s.count}
-                                  </span>
+                                    {cfg.label} {actionCounts[k]}
+                                  </button>
                                 );
                               })}
-                          </div>
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -792,127 +1162,35 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
                         {!ordersLoading && !!ordersError && (
                           <div className="text-sm text-red-500">{ordersError}</div>
                         )}
-                        {!ordersLoading && !ordersError && orders.length === 0 && (
-                          <div className={`text-sm ${themes[theme].text} opacity-75`}>当日暂无订单。</div>
-                        )}
-                        {!ordersLoading && !ordersError && orders.length > 0 && (
-                          <div className="space-y-4">
-                            <div className="space-y-2">
-                              <div className={`text-sm font-medium ${themes[theme].text}`}>组合交易（{comboOrders.length}）</div>
-                              {comboOrders.length === 0 ? (
-                                <div className={`text-sm ${themes[theme].text} opacity-75`}>当日暂无组合交易订单。</div>
-                              ) : (
-                                <div className="overflow-x-auto">
-                                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                                    <thead className="bg-gray-50 dark:bg-gray-900/50">
-                                      <tr>
-                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">时间</th>
-                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">组合</th>
-                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">动作</th>
-                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
-                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">数量</th>
-                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">协议号</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                                      {comboOrders.map((order, idx) => (
-                                        <tr key={`today-combo-orders-side-comb-${order.compact_no || order.order_time || 'na'}-${idx}`}>
-                                          <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">
-                                            {order.order_time?.includes(' ') ? order.order_time.split(' ')[1]?.slice(0, 8) : (order.order_time || '-')}
-                                          </td>
-                                          <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">{order.instrument_name || '-'}</td>
-                                          <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">{order.op_type_name_zh || order.op_type_name || '-'}</td>
-                                          <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">
-                                            {(() => {
-                                              const cfg = getOrderStatusBadgeConfig(order.order_status_name);
-                                              return (
-                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${cfg.className}`} title={cfg.raw || undefined}>
-                                                  {cfg.label}
-                                                </span>
-                                              );
-                                            })()}
-                                            {normalizeOrderStatus(order.order_status_name) === 'JUNK' && order.cancel_info && (
-                                              <div className="text-[10px] text-red-500 mt-1 whitespace-normal break-all max-w-[320px]">
-                                                {order.cancel_info}
-                                              </div>
-                                            )}
-                                          </td>
-                                          <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">
-                                            {order.volume_traded}/{order.volume_total_original}
-                                          </td>
-                                          <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{order.compact_no || '-'}</td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              )}
-                            </div>
-
-                            <div className="space-y-2">
-                              <div className={`text-sm font-medium ${themes[theme].text}`}>实际订单（{realOrders.length}）</div>
-                              {realOrders.length === 0 ? (
-                                <div className={`text-sm ${themes[theme].text} opacity-75`}>当日暂无实际订单。</div>
-                              ) : (
-                                <div className="overflow-x-auto">
-                                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                                    <thead className="bg-gray-50 dark:bg-gray-900/50">
-                                      <tr>
-                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">时间</th>
-                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">合约</th>
-                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">名称</th>
-                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">动作</th>
-                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
-                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">价格</th>
-                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">数量</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                                      {realOrders.map((order, idx) => (
-                                        <tr key={`today-combo-orders-side-real-${order.contract_code_full || order.instrument_id || order.order_time || 'na'}-${idx}`}>
-                                          <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">
-                                            {order.order_time?.includes(' ') ? order.order_time.split(' ')[1]?.slice(0, 8) : (order.order_time || '-')}
-                                          </td>
-                                          <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">
-                                            {order.contract_code_full || order.instrument_id || '-'}
-                                          </td>
-                                          <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">{order.instrument_name || '-'}</td>
-                                          <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">{order.op_type_name_zh || order.op_type_name || '-'}</td>
-                                          <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">
-                                            {(() => {
-                                              const cfg = getOrderStatusBadgeConfig(order.order_status_name);
-                                              return (
-                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${cfg.className}`} title={cfg.raw || undefined}>
-                                                  {cfg.label}
-                                                </span>
-                                              );
-                                            })()}
-                                            {normalizeOrderStatus(order.order_status_name) === 'JUNK' && order.cancel_info && (
-                                              <div className="text-[10px] text-red-500 mt-1 whitespace-normal break-all max-w-[320px]">
-                                                {order.cancel_info}
-                                              </div>
-                                            )}
-                                          </td>
-                                          <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">
-                                            {(() => {
-                                              const traded = Number.isFinite(order.traded_price) ? order.traded_price : null;
-                                              const limit = Number.isFinite(order.limit_price) ? order.limit_price : null;
-                                              const t = traded != null ? traded.toFixed(6) : '-';
-                                              const l = limit != null ? limit.toFixed(6) : '-';
-                                              return `${t} / ${l}`;
-                                            })()}
-                                          </td>
-                                          <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">
-                                            {order.volume_traded}/{order.volume_total_original}
-                                          </td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              )}
-                            </div>
+                        {!ordersLoading && !ordersError && visibleOrders.length === 0 && (
+                          <div className={`text-sm ${themes[theme].text} opacity-75`}>
+                            {ordersScope === 'task' ? '未找到本任务相关订单。' : '当日暂无订单。'}
                           </div>
+                        )}
+                        {!ordersLoading && !ordersError && visibleOrders.length > 0 && (
+                          <>
+                            {ordersDisplayMode === 'merged' && renderOrdersTable(visibleOrders)}
+                            {ordersDisplayMode === 'split' && (
+                              <div className="space-y-4">
+                                <div className="space-y-2">
+                                  <div className={`text-sm font-medium ${themes[theme].text}`}>组合交易（{visibleComboOrders.length}）</div>
+                                  {visibleComboOrders.length === 0 ? (
+                                    <div className={`text-sm ${themes[theme].text} opacity-75`}>当日暂无组合交易订单。</div>
+                                  ) : (
+                                    renderOrdersTable(visibleComboOrders)
+                                  )}
+                                </div>
+                                <div className="space-y-2">
+                                  <div className={`text-sm font-medium ${themes[theme].text}`}>实际订单（{visibleRealOrders.length}）</div>
+                                  {visibleRealOrders.length === 0 ? (
+                                    <div className={`text-sm ${themes[theme].text} opacity-75`}>当日暂无实际订单。</div>
+                                  ) : (
+                                    renderOrdersTable(visibleRealOrders)
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
@@ -1061,19 +1339,156 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
                   </div>
 
                   <div className="space-y-2">
-                    <div className={`text-sm font-semibold ${themes[theme].text}`}>当日订单</div>
-                    {orders.length > 0 && (
+                    <div className={`text-sm font-semibold ${themes[theme].text}`}>
+                      {ordersScope === 'task' ? '本任务相关订单' : '当日订单'}
+                    </div>
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className={`flex items-center rounded border ${themes[theme].border} overflow-hidden`}>
+                        <button
+                          type="button"
+                          className={`px-2 py-1 text-xs ${ordersDisplayMode === 'merged' ? themes[theme].primary : themes[theme].secondary}`}
+                          onClick={() => setOrdersDisplayMode('merged')}
+                          disabled={ordersLoading}
+                          aria-pressed={ordersDisplayMode === 'merged'}
+                          title="按时间合并展示"
+                        >
+                          合并
+                        </button>
+                        <button
+                          type="button"
+                          className={`px-2 py-1 text-xs ${ordersDisplayMode === 'split' ? themes[theme].primary : themes[theme].secondary}`}
+                          onClick={() => setOrdersDisplayMode('split')}
+                          disabled={ordersLoading}
+                          aria-pressed={ordersDisplayMode === 'split'}
+                          title="组合/实际分开展示"
+                        >
+                          分开
+                        </button>
+                      </div>
+                      <div className={`flex items-center rounded border ${themes[theme].border} overflow-hidden`}>
+                        <button
+                          type="button"
+                          className={`px-2 py-1 text-xs ${ordersKind === 'all' ? themes[theme].primary : themes[theme].secondary}`}
+                          onClick={() => setOrdersKind('all')}
+                          disabled={ordersLoading}
+                          aria-pressed={ordersKind === 'all'}
+                          title="显示全部"
+                        >
+                          全部
+                        </button>
+                        <button
+                          type="button"
+                          className={`px-2 py-1 text-xs ${ordersKind === 'combo' ? themes[theme].primary : themes[theme].secondary}`}
+                          onClick={() => setOrdersKind('combo')}
+                          disabled={ordersLoading}
+                          aria-pressed={ordersKind === 'combo'}
+                          title="仅看组合"
+                        >
+                          组合
+                        </button>
+                        <button
+                          type="button"
+                          className={`px-2 py-1 text-xs ${ordersKind === 'real' ? themes[theme].primary : themes[theme].secondary}`}
+                          onClick={() => setOrdersKind('real')}
+                          disabled={ordersLoading}
+                          aria-pressed={ordersKind === 'real'}
+                          title="仅看实际"
+                        >
+                          实际
+                        </button>
+                      </div>
+                    </div>
+                    {displayOrders.length > 0 && (
                       <div className="flex items-center justify-start gap-1 flex-wrap">
+                        <button
+                          type="button"
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${
+                            orderStatusFilters.length === 0
+                              ? `${themes[theme].primary} border-transparent`
+                              : `bg-transparent ${themes[theme].text} ${themes[theme].border}`
+                          }`}
+                          onClick={() => setOrderStatusFilters([])}
+                          disabled={ordersLoading}
+                          aria-pressed={orderStatusFilters.length === 0}
+                          title="清空状态过滤"
+                        >
+                          全部
+                        </button>
                         {orderStatusSummaryList.map((s) => {
-                          const cfg = getOrderStatusBadgeConfig(s.raw || s.status);
+                          const active = orderStatusFilters.includes(s.key);
+                          const isJunk = s.key === 'JUNK';
+                          const activeClass = isJunk
+                            ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-100 border-transparent'
+                            : `${themes[theme].primary} border-transparent`;
                           return (
-                            <span
-                              key={`order-status-summary-modal-${s.status}`}
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.className}`}
-                              title={`成交 ${s.traded}/${s.total}`}
+                            <button
+                              key={`order-status-filter-modal-${s.key}`}
+                              type="button"
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${
+                                active ? activeClass : `bg-transparent ${themes[theme].text} ${themes[theme].border}`
+                              }`}
+                              onClick={() =>
+                                setOrderStatusFilters((prev) => (prev.includes(s.key) ? prev.filter(x => x !== s.key) : [...prev, s.key]))
+                              }
+                              disabled={ordersLoading}
+                              aria-pressed={active}
+                              title="按状态过滤"
                             >
-                              {cfg.label} {s.count}
-                            </span>
+                              {s.label} {s.count}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {availableActionKeys.length > 0 && (
+                      <div className="flex items-center justify-start gap-1 flex-wrap">
+                        <button
+                          type="button"
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${
+                            orderActionFilters.length === 0
+                              ? `${themes[theme].primary} border-transparent`
+                              : `bg-transparent ${themes[theme].text} ${themes[theme].border}`
+                          }`}
+                          onClick={() => setOrderActionFilters([])}
+                          disabled={ordersLoading}
+                          aria-pressed={orderActionFilters.length === 0}
+                          title="清空动作过滤"
+                        >
+                          全部
+                        </button>
+                        {availableActionKeys.map((k) => {
+                          const active = orderActionFilters.includes(k);
+                          const cfg = getOrderActionConfig(
+                            k === 'buy_open'
+                              ? '买入开仓'
+                              : k === 'buy_close'
+                                ? '买入平仓'
+                                : k === 'sell_open'
+                                  ? '卖出开仓'
+                                  : k === 'sell_close'
+                                    ? '卖出平仓'
+                                    : k === 'build_combo'
+                                      ? '构建组合持仓'
+                                      : k === 'split_combo'
+                                        ? '拆分组合持仓'
+                                        : '其他'
+                          );
+                          return (
+                            <button
+                              key={`order-action-filter-modal-${k}`}
+                              type="button"
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${
+                                active ? `${cfg.className} border-transparent` : `bg-transparent ${themes[theme].text} ${themes[theme].border}`
+                              }`}
+                              onClick={() =>
+                                setOrderActionFilters((prev) => (prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k]))
+                              }
+                              disabled={ordersLoading}
+                              aria-pressed={active}
+                              title="按动作过滤"
+                            >
+                              {cfg.label} {actionCounts[k]}
+                            </button>
                           );
                         })}
                       </div>
@@ -1084,121 +1499,35 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
                     {!ordersLoading && !!ordersError && (
                       <div className="text-sm text-red-500">{ordersError}</div>
                     )}
-                    {!ordersLoading && !ordersError && orders.length === 0 && (
-                      <div className={`text-sm ${themes[theme].text} opacity-75`}>当日暂无订单。</div>
-                    )}
-                    {!ordersLoading && !ordersError && orders.length > 0 && (
-                      <div className="space-y-4">
-                        <div className="space-y-2">
-                          <div className={`text-sm font-medium ${themes[theme].text}`}>组合交易（{comboOrders.length}）</div>
-                          {comboOrders.length === 0 ? (
-                            <div className={`text-sm ${themes[theme].text} opacity-75`}>当日暂无组合交易订单。</div>
-                          ) : (
-                            <div className="overflow-x-auto">
-                              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                                <thead className="bg-gray-50 dark:bg-gray-900/50">
-                                  <tr>
-                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">时间</th>
-                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">组合</th>
-                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">动作</th>
-                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
-                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">数量</th>
-                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">协议号</th>
-                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">腿</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                                  {comboOrders.map((order, idx) => (
-                                    <tr key={`today-combo-orders-comb-${order.compact_no || order.order_time || 'na'}-${idx}`}>
-                                      <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">
-                                        {order.order_time?.includes(' ') ? order.order_time.split(' ')[1]?.slice(0, 8) : (order.order_time || '-')}
-                                      </td>
-                                      <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">{order.instrument_name || '-'}</td>
-                                      <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">{order.op_type_name_zh || order.op_type_name || '-'}</td>
-                                      <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">
-                                        {(() => {
-                                          const cfg = getOrderStatusBadgeConfig(order.order_status_name);
-                                          return (
-                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${cfg.className}`} title={cfg.raw || undefined}>
-                                              {cfg.label}
-                                            </span>
-                                          );
-                                        })()}
-                                        {normalizeOrderStatus(order.order_status_name) === 'JUNK' && order.cancel_info && (
-                                          <div className="text-[10px] text-red-500 mt-1 whitespace-normal break-all max-w-[320px]">
-                                            {order.cancel_info}
-                                          </div>
-                                        )}
-                                      </td>
-                                      <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">
-                                        {order.volume_traded}/{order.volume_total_original}
-                                      </td>
-                                      <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{order.compact_no || '-'}</td>
-                                      <td className="px-3 py-2 text-xs text-gray-700 dark:text-gray-200 font-mono">
-                                        {Array.isArray(order.contract_ids) && order.contract_ids.length > 0 ? order.contract_ids.join(', ') : '-'}
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="space-y-2">
-                          <div className={`text-sm font-medium ${themes[theme].text}`}>实际订单（{realOrders.length}）</div>
-                          {realOrders.length === 0 ? (
-                            <div className={`text-sm ${themes[theme].text} opacity-75`}>当日暂无实际订单。</div>
-                          ) : (
-                            <div className="overflow-x-auto">
-                              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                                <thead className="bg-gray-50 dark:bg-gray-900/50">
-                                  <tr>
-                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">时间</th>
-                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">合约</th>
-                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">名称</th>
-                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">动作</th>
-                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
-                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">价格</th>
-                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">数量</th>
-                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">备注/原因</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                                  {realOrders.map((order, idx) => (
-                                    <tr key={`today-combo-orders-real-${order.contract_code_full || order.instrument_id || order.order_time || 'na'}-${idx}`}>
-                                      <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">
-                                        {order.order_time?.includes(' ') ? order.order_time.split(' ')[1]?.slice(0, 8) : (order.order_time || '-')}
-                                      </td>
-                                      <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">
-                                        {order.contract_code_full || order.instrument_id || '-'}
-                                      </td>
-                                      <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">{order.instrument_name || '-'}</td>
-                                      <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">{order.op_type_name_zh || order.op_type_name || '-'}</td>
-                                      <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{order.order_status_name || '-'}</td>
-                                      <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">
-                                        {(() => {
-                                          const traded = Number.isFinite(order.traded_price) ? order.traded_price : null;
-                                          const limit = Number.isFinite(order.limit_price) ? order.limit_price : null;
-                                          const t = traded != null ? traded.toFixed(6) : '-';
-                                          const l = limit != null ? limit.toFixed(6) : '-';
-                                          return `${t} / ${l}`;
-                                        })()}
-                                      </td>
-                                      <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">
-                                        {order.volume_traded}/{order.volume_total_original}
-                                      </td>
-                                      <td className="px-3 py-2 text-xs text-gray-700 dark:text-gray-200">
-                                        {order.cancel_info || order.remark || '-'}
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          )}
-                        </div>
+                    {!ordersLoading && !ordersError && visibleOrders.length === 0 && (
+                      <div className={`text-sm ${themes[theme].text} opacity-75`}>
+                        {ordersScope === 'task' ? '未找到本任务相关订单。' : '当日暂无订单。'}
                       </div>
+                    )}
+                    {!ordersLoading && !ordersError && visibleOrders.length > 0 && (
+                      <>
+                        {ordersDisplayMode === 'merged' && renderOrdersTable(visibleOrders)}
+                        {ordersDisplayMode === 'split' && (
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <div className={`text-sm font-medium ${themes[theme].text}`}>组合交易（{visibleComboOrders.length}）</div>
+                              {visibleComboOrders.length === 0 ? (
+                                <div className={`text-sm ${themes[theme].text} opacity-75`}>当日暂无组合交易订单。</div>
+                              ) : (
+                                renderOrdersTable(visibleComboOrders)
+                              )}
+                            </div>
+                            <div className="space-y-2">
+                              <div className={`text-sm font-medium ${themes[theme].text}`}>实际订单（{visibleRealOrders.length}）</div>
+                              {visibleRealOrders.length === 0 ? (
+                                <div className={`text-sm ${themes[theme].text} opacity-75`}>当日暂无实际订单。</div>
+                              ) : (
+                                renderOrdersTable(visibleRealOrders)
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
 
