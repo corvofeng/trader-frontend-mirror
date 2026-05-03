@@ -19,11 +19,13 @@ function filterOrdersForTask(allOrders: OptionOrder[], task: SequentialTradeTask
   const taskId = normalizeToken(task.id);
   const steps = Array.isArray(task.steps) ? task.steps : [];
   const userOrderIds = steps.map(s => normalizeToken(s.user_order_id)).filter(Boolean);
+  const taskOrderIds = (Array.isArray(task.order_ids) ? task.order_ids : []).map(normalizeToken).filter(Boolean);
 
-  const hasStrongKeys = Boolean(comboId || tradeUuid || userOrderIds.length > 0);
+  const hasStrongKeys = Boolean(comboId || tradeUuid || taskOrderIds.length > 0 || userOrderIds.length > 0);
   const tradeUuidLower = tradeUuid.toLowerCase();
   const taskIdLower = taskId.toLowerCase();
   const userOrderIdsLower = userOrderIds.map(v => v.toLowerCase());
+  const taskOrderIdsLower = taskOrderIds.map(v => v.toLowerCase());
 
   const strongMatches = (order: OptionOrder) => {
     const compactNo = normalizeToken(order.compact_no);
@@ -39,6 +41,11 @@ function filterOrdersForTask(allOrders: OptionOrder[], task: SequentialTradeTask
         remarkLower.includes(`task#${taskIdLower}`))
     ) {
       return true;
+    }
+    if (taskOrderIdsLower.length > 0 && remarkLower) {
+      for (const id of taskOrderIdsLower) {
+        if (id && remarkLower.includes(id)) return true;
+      }
     }
     if (userOrderIdsLower.length > 0 && remarkLower) {
       for (const id of userOrderIdsLower) {
@@ -128,9 +135,17 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
     return () => window.clearTimeout(t);
   }, [isOpen, panelMotionMs]);
 
+  const getViewportSize = useCallback(() => {
+    const vv = window.visualViewport;
+    const width = vv?.width ?? window.innerWidth;
+    const height = vv?.height ?? window.innerHeight;
+    return { width, height };
+  }, []);
+
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [dragging, setDragging] = useState(false);
   const dragOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const activeDragPointerIdRef = useRef<number | null>(null);
 
   const [panelPos, setPanelPos] = useState<{ top: number; left: number }>(() => {
     try {
@@ -144,7 +159,9 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
     } catch {
       void 0;
     }
-    return { top: 120, left: window.innerWidth - 16 - 860 };
+    const vv = window.visualViewport;
+    const width = vv?.width ?? window.innerWidth;
+    return { top: 120, left: width - 16 - 860 };
   });
 
   const [panelSize, setPanelSize] = useState<{ width: number; height: number }>(() => {
@@ -169,6 +186,7 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
     width: 860,
     height: 360
   });
+  const activeResizePointerIdRef = useRef<number | null>(null);
 
   const fetchTodayComboTrades = useCallback(async () => {
     if (!selectedAccountId) {
@@ -379,37 +397,50 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
   const getDims = useCallback(() => {
     const headerHeight = 52;
     const collapsedWidth = 56;
-    const maxWidth = Math.max(320, window.innerWidth - 16);
+    const viewport = getViewportSize();
+    const maxWidth = Math.max(320, viewport.width - 16);
     const minWidth = Math.min(640, maxWidth);
     const width = isOpen ? Math.max(minWidth, Math.min(panelSize.width, maxWidth)) : collapsedWidth;
 
-    const maxHeight = Math.max(160, window.innerHeight - 16);
+    const maxHeight = Math.max(160, viewport.height - 16);
     const minHeight = Math.min(180, maxHeight);
     const height = isOpen ? Math.max(minHeight, Math.min(panelSize.height, maxHeight)) : headerHeight;
     return { width, height, headerHeight };
-  }, [isOpen, panelSize.height, panelSize.width]);
+  }, [getViewportSize, isOpen, panelSize.height, panelSize.width]);
 
   const clampPos = useCallback((pos: { top: number; left: number }, dims: { width: number; height: number }) => {
-    const top = Math.max(8, Math.min(pos.top, window.innerHeight - dims.height - 8));
-    const left = Math.max(8, Math.min(pos.left, window.innerWidth - dims.width - 8));
+    const viewport = getViewportSize();
+    const top = Math.max(8, Math.min(pos.top, viewport.height - dims.height - 8));
+    const left = Math.max(8, Math.min(pos.left, viewport.width - dims.width - 8));
     return { top, left };
-  }, []);
+  }, [getViewportSize]);
 
   const startDrag = useCallback(
-    (e: React.MouseEvent) => {
+    (e: React.PointerEvent) => {
       if ((e.target as HTMLElement | null)?.closest('button')) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      e.preventDefault();
       setDragging(true);
+      activeDragPointerIdRef.current = e.pointerId;
+      try {
+        (e.currentTarget as HTMLElement | null)?.setPointerCapture?.(e.pointerId);
+      } catch {
+        void 0;
+      }
       const rect = panelRef.current?.getBoundingClientRect();
       const offsetX = e.clientX - (rect?.left ?? 0);
       const offsetY = e.clientY - (rect?.top ?? 0);
       dragOffsetRef.current = { x: offsetX, y: offsetY };
       const openLeft = panelPos.left;
 
-      const onDrag = (ev: MouseEvent) => {
+      const onDrag = (ev: PointerEvent) => {
+        if (activeDragPointerIdRef.current != null && ev.pointerId !== activeDragPointerIdRef.current) return;
+        ev.preventDefault();
         const dims = getDims();
         const top = ev.clientY - dragOffsetRef.current.y;
         if (!isOpen) {
-          const clampedTop = Math.max(8, Math.min(top, window.innerHeight - dims.height - 8));
+          const viewport = getViewportSize();
+          const clampedTop = Math.max(8, Math.min(top, viewport.height - dims.height - 8));
           const next = { top: clampedTop, left: openLeft };
           setPanelPos(next);
           try {
@@ -432,21 +463,32 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
 
       const endDrag = () => {
         setDragging(false);
-        window.removeEventListener('mousemove', onDrag);
-        window.removeEventListener('mouseup', endDrag);
+        activeDragPointerIdRef.current = null;
+        window.removeEventListener('pointermove', onDrag);
+        window.removeEventListener('pointerup', endDrag);
+        window.removeEventListener('pointercancel', endDrag);
       };
 
-      window.addEventListener('mousemove', onDrag);
-      window.addEventListener('mouseup', endDrag);
+      window.addEventListener('pointermove', onDrag, { passive: false });
+      window.addEventListener('pointerup', endDrag);
+      window.addEventListener('pointercancel', endDrag);
     },
-    [clampPos, getDims, isOpen, panelPos.left]
+    [clampPos, getDims, getViewportSize, isOpen, panelPos.left]
   );
 
   const startResize = useCallback(
-    (e: React.MouseEvent) => {
+    (e: React.PointerEvent) => {
       e.stopPropagation();
       if (!isOpen) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      e.preventDefault();
       setResizing(true);
+      activeResizePointerIdRef.current = e.pointerId;
+      try {
+        (e.currentTarget as HTMLElement | null)?.setPointerCapture?.(e.pointerId);
+      } catch {
+        void 0;
+      }
       resizeStartRef.current = {
         x: e.clientX,
         y: e.clientY,
@@ -454,16 +496,19 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
         height: panelSize.height
       };
 
-      const onResize = (ev: MouseEvent) => {
+      const onResize = (ev: PointerEvent) => {
+        if (activeResizePointerIdRef.current != null && ev.pointerId !== activeResizePointerIdRef.current) return;
+        ev.preventDefault();
         const dx = ev.clientX - resizeStartRef.current.x;
         const dy = ev.clientY - resizeStartRef.current.y;
         const nextWidth = resizeStartRef.current.width + dx;
         const nextHeight = resizeStartRef.current.height + dy;
-        const maxWidth = Math.max(320, window.innerWidth - 16);
+        const viewport = getViewportSize();
+        const maxWidth = Math.max(320, viewport.width - 16);
         const minWidth = Math.min(640, maxWidth);
         const width = Math.max(minWidth, Math.min(nextWidth, maxWidth));
 
-        const maxHeight = Math.max(160, window.innerHeight - 16);
+        const maxHeight = Math.max(160, viewport.height - 16);
         const minHeight = Math.min(180, maxHeight);
         const height = Math.max(minHeight, Math.min(nextHeight, maxHeight));
         setPanelSize({ width, height });
@@ -478,14 +523,17 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
 
       const endResize = () => {
         setResizing(false);
-        window.removeEventListener('mousemove', onResize);
-        window.removeEventListener('mouseup', endResize);
+        activeResizePointerIdRef.current = null;
+        window.removeEventListener('pointermove', onResize);
+        window.removeEventListener('pointerup', endResize);
+        window.removeEventListener('pointercancel', endResize);
       };
 
-      window.addEventListener('mousemove', onResize);
-      window.addEventListener('mouseup', endResize);
+      window.addEventListener('pointermove', onResize, { passive: false });
+      window.addEventListener('pointerup', endResize);
+      window.addEventListener('pointercancel', endResize);
     },
-    [clampPos, isOpen, panelPos, panelSize.height, panelSize.width]
+    [clampPos, getViewportSize, isOpen, panelPos, panelSize.height, panelSize.width]
   );
 
   useEffect(() => {
@@ -495,8 +543,13 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
       setPanelPos(clamped);
     };
     window.addEventListener('resize', onResize);
+    const vv = window.visualViewport;
+    vv?.addEventListener('resize', onResize);
+    vv?.addEventListener('scroll', onResize);
     return () => {
       window.removeEventListener('resize', onResize);
+      vv?.removeEventListener('resize', onResize);
+      vv?.removeEventListener('scroll', onResize);
     };
   }, [clampPos, getDims, panelPos]);
 
@@ -526,7 +579,8 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
   if (viewMode !== 'expiry') return null;
 
   const dims = getDims();
-  const basePos = isOpen ? panelPos : { top: panelPos.top, left: window.innerWidth - dims.width - 8 };
+  const viewport = getViewportSize();
+  const basePos = isOpen ? panelPos : { top: panelPos.top, left: viewport.width - dims.width - 8 };
   const clamped = clampPos(basePos, { width: dims.width, height: dims.height });
 
   const style: React.CSSProperties = {
@@ -536,8 +590,11 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
     left: clamped.left,
     width: dims.width,
     height: dims.height,
-    willChange: 'left, width, height',
-    transition: `left ${panelMotionMs}ms cubic-bezier(0.22, 1, 0.36, 1), width ${panelMotionMs}ms cubic-bezier(0.22, 1, 0.36, 1), height ${panelMotionMs}ms ease`
+    willChange: dragging || resizing ? 'top, left, width, height' : 'left, width, height',
+    transition:
+      dragging || resizing
+        ? 'none'
+        : `left ${panelMotionMs}ms cubic-bezier(0.22, 1, 0.36, 1), width ${panelMotionMs}ms cubic-bezier(0.22, 1, 0.36, 1), height ${panelMotionMs}ms ease`
   };
 
   const selectedDetail = selectedTaskId != null ? (detailById[selectedTaskId] || tasks.find(t => t.id === selectedTaskId) || null) : null;
@@ -777,7 +834,8 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
       >
         <div
           className={`${isOpen ? 'px-3 py-2' : 'p-0'} border-b ${themes[theme].border} flex items-center ${isOpen ? 'justify-between' : 'justify-center'} select-none ${dragging ? 'cursor-grabbing' : resizing ? 'cursor-se-resize' : 'cursor-grab'}`}
-          onMouseDown={startDrag}
+          onPointerDown={startDrag}
+          style={{ touchAction: 'none' }}
           title={isOpen ? '拖动移动位置' : '展开后可拖动移动位置'}
         >
           {isOpen ? (
@@ -880,7 +938,7 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
                           )}
                         </div>
                       </div>
-                      <div className="h-full overflow-auto">
+                      <div className="h-full overflow-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
                         {loading && <div className="py-6 text-center text-sm text-gray-500">正在加载今日组合交易任务...</div>}
                         {!loading && !!error && <div className="py-6 text-center text-sm text-red-500">{error}</div>}
                         {!loading && !error && tasks.length === 0 && <div className="py-6 text-center text-sm text-gray-500">今日暂无组合交易任务。</div>}
@@ -1160,7 +1218,7 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
                         </div>
                       </div>
 
-                      <div className="flex-1 overflow-auto p-3 bg-white dark:bg-gray-900">
+                      <div className="flex-1 overflow-auto p-3 bg-white dark:bg-gray-900" style={{ WebkitOverflowScrolling: 'touch' }}>
                         {ordersLoading && (
                           <div className={`text-sm ${themes[theme].text} opacity-75`}>正在加载当日订单…</div>
                         )}
@@ -1205,8 +1263,9 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
             </div>
 
             <div
-              className="absolute right-1 bottom-1 w-3 h-3 cursor-se-resize bg-gray-400/40 hover:bg-gray-400/70 rounded-sm"
-              onMouseDown={startResize}
+              className="absolute right-0 bottom-0 w-6 h-6 cursor-se-resize bg-gray-400/10 hover:bg-gray-400/20 rounded-sm"
+              onPointerDown={startResize}
+              style={{ touchAction: 'none' }}
               title="拖动调整大小"
             />
           </>
@@ -1219,7 +1278,10 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
             className="absolute inset-0 bg-black bg-opacity-50"
             onClick={closeDetail}
           />
-          <div className={`relative w-full max-w-5xl max-h-[90vh] ${themes[theme].card} rounded-lg shadow-xl overflow-hidden`}>
+          <div
+            className={`relative w-full max-w-5xl max-h-[90vh] ${themes[theme].card} rounded-lg shadow-xl overflow-hidden`}
+            style={{ maxHeight: Math.floor(getViewportSize().height * 0.9) }}
+          >
             <div className={`flex items-center justify-between p-4 border-b ${themes[theme].border}`}>
               <div className="flex items-center gap-2 min-w-0">
                 <Info className="w-5 h-5 text-blue-500 flex-shrink-0" />
@@ -1253,7 +1315,13 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
               </div>
             </div>
 
-            <div className="p-4 overflow-auto" style={{ maxHeight: 'calc(90vh - 64px)' }}>
+            <div
+              className="p-4 overflow-auto"
+              style={{
+                maxHeight: Math.max(200, Math.floor(getViewportSize().height * 0.9) - 64),
+                WebkitOverflowScrolling: 'touch'
+              }}
+            >
               {!selectedDetail && (
                 <div className={`text-sm ${themes[theme].text} opacity-75`}>未选择任务或任务不存在。</div>
               )}

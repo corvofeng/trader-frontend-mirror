@@ -646,6 +646,7 @@ export interface SequentialTradeTask {
   combo_id?: string | number;
   expiry_date?: string | null;
   action_type: string;
+  order_ids?: string[];
   status: SequentialTradeStatus;
   current_step?: number | null;
   steps_count?: number | null;

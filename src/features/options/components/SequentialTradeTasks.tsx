@@ -2,7 +2,77 @@ import React, { useEffect, useState } from 'react';
 import { ListChecks, Clock, CheckCircle2, AlertTriangle, XCircle, RefreshCw } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { optionsService } from '../../../lib/services';
-import type { SequentialTradeTask, SequentialTradeStep } from '../../../lib/services/types';
+import type { OptionOrder, SequentialTradeTask, SequentialTradeStep } from '../../../lib/services/types';
+
+function normalizeToken(value: unknown): string {
+  if (value == null) return '';
+  return String(value).trim();
+}
+
+function getDateKey(iso?: string | null): string | null {
+  if (!iso) return null;
+  const raw = String(iso).trim();
+  if (!raw) return null;
+  if (raw.includes('T') && raw.length >= 10) return raw.slice(0, 10);
+  if (raw.includes(' ') && raw.split(' ')[0]?.length === 10) return raw.split(' ')[0] || null;
+
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return null;
+  const yyyy = String(d.getFullYear());
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function filterOrdersForTask(allOrders: OptionOrder[], task: SequentialTradeTask | null): OptionOrder[] {
+  if (!task) return [];
+
+  const comboId = normalizeToken(task.combo_id);
+  const tradeUuid = normalizeToken(task.trade_uuid);
+  const taskId = normalizeToken(task.id);
+  const steps = Array.isArray(task.steps) ? task.steps : [];
+  const userOrderIds = steps.map(s => normalizeToken(s.user_order_id)).filter(Boolean);
+  const taskOrderIds = (Array.isArray(task.order_ids) ? task.order_ids : []).map(normalizeToken).filter(Boolean);
+
+  const hasStrongKeys = Boolean(comboId || tradeUuid || taskOrderIds.length > 0 || userOrderIds.length > 0);
+  const tradeUuidLower = tradeUuid.toLowerCase();
+  const taskIdLower = taskId.toLowerCase();
+  const userOrderIdsLower = userOrderIds.map(v => v.toLowerCase());
+  const taskOrderIdsLower = taskOrderIds.map(v => v.toLowerCase());
+
+  const strongMatches = (order: OptionOrder) => {
+    const compactNo = normalizeToken(order.compact_no);
+    if (comboId && compactNo && compactNo === comboId) return true;
+
+    const remarkLower = normalizeToken(order.remark).toLowerCase();
+    if (tradeUuidLower && remarkLower.includes(tradeUuidLower)) return true;
+    if (
+      taskIdLower &&
+      (remarkLower.includes(`task_id=${taskIdLower}`) ||
+        remarkLower.includes(`taskid=${taskIdLower}`) ||
+        remarkLower.includes(`task:${taskIdLower}`) ||
+        remarkLower.includes(`task#${taskIdLower}`))
+    ) {
+      return true;
+    }
+    if (taskOrderIdsLower.length > 0 && remarkLower) {
+      for (const id of taskOrderIdsLower) {
+        if (id && remarkLower.includes(id)) return true;
+      }
+    }
+    if (userOrderIdsLower.length > 0 && remarkLower) {
+      for (const id of userOrderIdsLower) {
+        if (id && remarkLower.includes(id)) return true;
+      }
+    }
+    return false;
+  };
+
+  if (hasStrongKeys) {
+    return allOrders.filter(strongMatches);
+  }
+  return [];
+}
 
 interface SequentialTradeTasksProps {
   theme: Theme;
@@ -19,6 +89,9 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const [detailById, setDetailById] = useState<Record<number, SequentialTradeTask>>({});
   const [detailLoadingId, setDetailLoadingId] = useState<number | null>(null);
+  const [ordersByTaskId, setOrdersByTaskId] = useState<Record<number, OptionOrder[]>>({});
+  const [ordersErrorByTaskId, setOrdersErrorByTaskId] = useState<Record<number, string>>({});
+  const [ordersLoadingId, setOrdersLoadingId] = useState<number | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [actionLoading, setActionLoading] = useState<'pause' | 'resume' | 'terminate' | 'restart' | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -30,6 +103,9 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
       setTasks([]);
       setSelectedTaskId(null);
       setDetailById({});
+      setOrdersByTaskId({});
+      setOrdersErrorByTaskId({});
+      setOrdersLoadingId(null);
       setError(null);
       setOffset(0);
       return;
@@ -127,6 +203,57 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
       cancelled = true;
     };
   }, [selectedTaskId, detailById, selectedAccountId, tasks]);
+
+  useEffect(() => {
+    if (!selectedTaskId) return;
+    if (ordersByTaskId[selectedTaskId]) return;
+    let cancelled = false;
+    const fetchOrders = async () => {
+      try {
+        const base =
+          detailById[selectedTaskId] || tasks.find(t => t.id === selectedTaskId) || null;
+        const accountAlias =
+          base?.account_alias || base?.account_id || selectedAccountId || '';
+        if (!accountAlias) return;
+
+        const dateKey = getDateKey(base?.completed_at) || getDateKey(base?.updated_at) || getDateKey(base?.created_at);
+        setOrdersLoadingId(selectedTaskId);
+        setOrdersErrorByTaskId(prev => {
+          const next = { ...prev };
+          delete next[selectedTaskId];
+          return next;
+        });
+
+        const { data, error: serviceError } = await optionsService.getOptionOrders(accountAlias, undefined, dateKey ? { date: dateKey } : { only_today: true });
+        if (cancelled) return;
+        if (serviceError) {
+          throw serviceError;
+        }
+        setOrdersByTaskId(prev => ({
+          ...prev,
+          [selectedTaskId]: Array.isArray(data) ? data : []
+        }));
+      } catch (e) {
+        if (cancelled) return;
+        setOrdersByTaskId(prev => ({
+          ...prev,
+          [selectedTaskId]: []
+        }));
+        setOrdersErrorByTaskId(prev => ({
+          ...prev,
+          [selectedTaskId]: e instanceof Error ? e.message : '加载订单失败'
+        }));
+      } finally {
+        if (!cancelled) {
+          setOrdersLoadingId(null);
+        }
+      }
+    };
+    fetchOrders();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedTaskId, ordersByTaskId, detailById, selectedAccountId, tasks]);
 
   const statusFilters: { id: StatusFilter; label: string }[] = [
     { id: 'all', label: '全部' },
@@ -228,6 +355,9 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
       ? detailById[selectedTaskId] || tasks.find(t => t.id === selectedTaskId) || null
       : null;
   const selectedSteps = selectedTask?.steps ?? [];
+  const selectedOrders = selectedTaskId != null ? (ordersByTaskId[selectedTaskId] || []) : [];
+  const matchedOrders = filterOrdersForTask(selectedOrders, selectedTask);
+  const ordersError = selectedTaskId != null ? (ordersErrorByTaskId[selectedTaskId] || null) : null;
   const selectedStatus = selectedTask?.status ? selectedTask.status.toLowerCase() : '';
   const canPause = selectedStatus === 'pending' || selectedStatus === 'executing';
   const canResume = selectedStatus === 'paused';
@@ -246,6 +376,16 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
 
   const refreshSelectedTask = (taskId: number) => {
     setDetailById(prev => {
+      const next = { ...prev };
+      delete next[taskId];
+      return next;
+    });
+    setOrdersByTaskId(prev => {
+      const next = { ...prev };
+      delete next[taskId];
+      return next;
+    });
+    setOrdersErrorByTaskId(prev => {
       const next = { ...prev };
       delete next[taskId];
       return next;
@@ -706,6 +846,108 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
                       ) : (
                         <div className={`text-xs ${themes[theme].text} opacity-70`}>
                           当前任务暂时没有可展示的阶段信息。
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="border-t border-dashed border-slate-200 dark:border-slate-700 pt-2 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className={`text-xs font-medium ${themes[theme].text}`}>关联订单</div>
+                        {ordersLoadingId === selectedTask.id && (
+                          <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-300">
+                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-500" />
+                            <span>加载中...</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {Array.isArray(selectedTask.order_ids) && selectedTask.order_ids.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {selectedTask.order_ids.slice(0, 12).map((id) => (
+                            <span
+                              key={id}
+                              className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                              title={id}
+                            >
+                              {id}
+                            </span>
+                          ))}
+                          {selectedTask.order_ids.length > 12 && (
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                              +{selectedTask.order_ids.length - 12}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {ordersError && (
+                        <div className="text-[11px] text-red-500">
+                          订单加载失败: {ordersError}
+                        </div>
+                      )}
+
+                      {!ordersError && ordersLoadingId !== selectedTask.id && matchedOrders.length === 0 && (
+                        <div className={`text-xs ${themes[theme].text} opacity-70`}>
+                          暂无可展示的关联订单。
+                        </div>
+                      )}
+
+                      {matchedOrders.length > 0 && (
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                            <thead className="bg-slate-50 dark:bg-slate-900/50">
+                              <tr>
+                                <th className="px-2 py-1 text-left text-[10px] font-medium text-slate-500 dark:text-slate-300">
+                                  时间
+                                </th>
+                                <th className="px-2 py-1 text-left text-[10px] font-medium text-slate-500 dark:text-slate-300">
+                                  合约
+                                </th>
+                                <th className="px-2 py-1 text-left text-[10px] font-medium text-slate-500 dark:text-slate-300">
+                                  动作
+                                </th>
+                                <th className="px-2 py-1 text-left text-[10px] font-medium text-slate-500 dark:text-slate-300">
+                                  状态
+                                </th>
+                                <th className="px-2 py-1 text-right text-[10px] font-medium text-slate-500 dark:text-slate-300">
+                                  价
+                                </th>
+                                <th className="px-2 py-1 text-right text-[10px] font-medium text-slate-500 dark:text-slate-300">
+                                  成交/委托
+                                </th>
+                                <th className="px-2 py-1 text-left text-[10px] font-medium text-slate-500 dark:text-slate-300">
+                                  备注
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                              {matchedOrders.map((o, idx) => (
+                                <tr key={`${o.remark}-${idx}`} className="bg-white dark:bg-slate-900">
+                                  <td className="px-2 py-1 whitespace-nowrap text-[10px] text-slate-600 dark:text-slate-300">
+                                    {o.order_time ? formatTime(o.order_time) : '-'}
+                                  </td>
+                                  <td className="px-2 py-1 whitespace-nowrap text-[10px] text-slate-700 dark:text-slate-100">
+                                    {o.instrument_name || o.contract_code_full || o.instrument_id || '-'}
+                                  </td>
+                                  <td className="px-2 py-1 whitespace-nowrap text-[10px] text-slate-700 dark:text-slate-100">
+                                    {o.op_type_name_zh || o.op_type_name || '-'}
+                                  </td>
+                                  <td className="px-2 py-1 whitespace-nowrap text-[10px] text-slate-700 dark:text-slate-100">
+                                    {o.order_status_name || '-'}
+                                  </td>
+                                  <td className="px-2 py-1 whitespace-nowrap text-[10px] text-right text-slate-700 dark:text-slate-100">
+                                    {o.traded_price || o.limit_price || 0}
+                                  </td>
+                                  <td className="px-2 py-1 whitespace-nowrap text-[10px] text-right text-slate-700 dark:text-slate-100">
+                                    {o.volume_traded}/{o.volume_total_original}
+                                  </td>
+                                  <td className="px-2 py-1 text-[10px] text-slate-500 dark:text-slate-400 font-mono max-w-[260px] truncate" title={o.remark || undefined}>
+                                    {o.remark || '-'}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
                       )}
                     </div>
