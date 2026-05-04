@@ -205,7 +205,7 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0 }: Unde
   const baseClass = `${themes[theme].card} shadow-lg rounded-lg border ${themes[theme].border} overflow-hidden opacity-90 hover:opacity-100 transition-opacity ${dragging ? 'cursor-grabbing' : 'cursor-move'}`;
   const motionMs = 240;
   const monitorWidth = 256; // 16rem
-  const approximateHeight = 360; // 用于重叠规避的近似高度
+  const monitorApproxHeight = 360;
 
   const readTodayPanelState = (includeClosed: boolean) => {
     try {
@@ -251,43 +251,8 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0 }: Unde
     if (corner === 'top-left') { style.top = 96; style.left = 16; }
     if (corner === 'bottom-left') { style.bottom = 80; style.left = 16; }
   } else {
-    style.top = Math.max(16, Math.min(customPos.top, window.innerHeight - 360));
+    style.top = Math.max(16, Math.min(customPos.top, window.innerHeight - monitorApproxHeight));
     style.left = Math.max(16, Math.min(customPos.left, window.innerWidth - 280));
-  }
-
-  // 避免与「今日组合」面板重叠（该面板使用 localStorage 持久化位置与开启状态）
-  const todayOpen = readTodayPanelState(false);
-  if (todayOpen && todayOpen.open) {
-    const monitorLeft = typeof style.left === 'number' ? style.left : (typeof style.right === 'number' ? window.innerWidth - (style.right + monitorWidth) : (window.innerWidth - monitorWidth - 16));
-    const monitorTop = typeof style.top === 'number'
-      ? style.top
-      : (typeof style.bottom === 'number' ? Math.max(16, window.innerHeight - (style.bottom + approximateHeight)) : 96);
-
-    const overlapHorizontally = (todayOpen.left + todayOpen.width) > monitorLeft;
-    const todayBottom = todayOpen.top + todayOpen.height;
-    const monitorBottom = monitorTop + approximateHeight;
-    const overlapVertically = !(monitorBottom < todayOpen.top || monitorTop > todayBottom);
-
-    if (overlapHorizontally && overlapVertically) {
-      const gap = 12;
-      if (positionMode === 'corner') {
-        if (typeof style.top === 'number' && typeof style.right === 'number') {
-          style.top = Math.min(
-            Math.max(16, todayBottom + gap),
-            Math.max(16, window.innerHeight - approximateHeight - 16)
-          );
-        } else if (typeof style.bottom === 'number' && typeof style.right === 'number') {
-          const newBottom = Math.max(80, Math.max(16, window.innerHeight - (todayOpen.top - gap)));
-          style.bottom = newBottom;
-        }
-      } else {
-        style.top = Math.min(
-          Math.max(16, todayBottom + gap),
-          Math.max(16, window.innerHeight - approximateHeight - 16)
-        );
-        delete style.bottom;
-      }
-    }
   }
 
   const collapsedStyle: React.CSSProperties = {
@@ -349,7 +314,7 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0 }: Unde
     setCustomPos(() => {
       const top = e.clientY - dragOffsetRef.current.y;
       const left = e.clientX - dragOffsetRef.current.x;
-      const clampedTop = Math.max(8, Math.min(top, window.innerHeight - 360));
+      const clampedTop = Math.max(8, Math.min(top, window.innerHeight - monitorApproxHeight));
       const clampedLeft = Math.max(8, Math.min(left, window.innerWidth - 280));
       try {
         localStorage.setItem('underlying_price_monitor_custom', JSON.stringify({ top: clampedTop, left: clampedLeft }));
