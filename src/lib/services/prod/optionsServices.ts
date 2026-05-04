@@ -279,6 +279,35 @@ const collectBatchErrors = (data: unknown): string[] => {
 // Cache for options data to prevent redundant requests
 const optionsDataCache: Partial<Record<string, Promise<ServiceResponse<OptionsData>>>> = {};
 
+const fetchOptionsData = async (symbol?: string): Promise<ServiceResponse<OptionsData>> => {
+  try {
+    const queryParam = symbol ? `?symbol=${encodeURIComponent(symbol)}` : '';
+    const response = await fetch(`/api/options${queryParam}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch options data');
+    }
+    const raw = await safeParseJson(response);
+    const rec = asRecord(raw);
+    if (!rec || !Array.isArray(rec.quotes)) {
+      return { data: null, error: new Error('Invalid options data response') };
+    }
+    return {
+      data: {
+        quotes: rec.quotes as OptionsData['quotes'],
+        surface: Array.isArray(rec.surface) ? (rec.surface as OptionsData['surface']) : [],
+        opt_undl_code_full: typeof rec.opt_undl_code_full === 'string' ? rec.opt_undl_code_full : undefined,
+        vertical_spread_monthly_prices: Array.isArray(rec.vertical_spread_monthly_prices)
+          ? (rec.vertical_spread_monthly_prices as OptionsData['vertical_spread_monthly_prices'])
+          : undefined,
+      },
+      error: null
+    };
+  } catch (error) {
+    console.error('Error fetching options data:', error);
+    return { data: null, error: error as Error };
+  }
+};
+
 export const optionsService: OptionsService = {
   createOptionPriceWebSocketClient: (handlers?: OptionPriceWebSocketHandlers): OptionPriceWebSocketClient => {
     const getWebSocketUrl = () => {
@@ -348,7 +377,7 @@ export const optionsService: OptionsService = {
   },
   getOptionContractDetail: async (contractCode: string) => {
     try {
-      const response = await fetch(`https://stock.in.corvo.fun/api/option-contract/detail/${contractCode}`);
+      const response = await fetch(`/api/option-contract/detail/${contractCode}`);
       if (!response.ok) {
         throw new Error('Failed to fetch option contract detail');
       }
@@ -370,64 +399,20 @@ export const optionsService: OptionsService = {
     }
 
     const fetchPromise: Promise<ServiceResponse<OptionsData>> = (async () => {
-      try {
-        if (symbol) {
-          const externalUrl = `https://stock.in.corvo.fun/api/options?symbol=${encodeURIComponent(symbol)}`;
-          const externalResp = await fetch(externalUrl);
-          if (externalResp.ok) {
-            const externalData = await safeParseJson(externalResp);
-            const externalRecord = asRecord(externalData);
-            const quotesRaw = externalRecord && Array.isArray(externalRecord.quotes) ? externalRecord.quotes : null;
-            if (quotesRaw) {
-              const surface = Array.isArray(externalRecord?.surface) ? (externalRecord.surface as OptionsData['surface']) : [];
-              const opt_undl_code_full =
-                typeof externalRecord?.opt_undl_code_full === 'string' ? externalRecord.opt_undl_code_full : undefined;
-              const vertical_spread_monthly_prices = Array.isArray(externalRecord?.vertical_spread_monthly_prices)
-                ? (externalRecord.vertical_spread_monthly_prices as OptionsData['vertical_spread_monthly_prices'])
-                : undefined;
-              return {
-                data: {
-                  quotes: quotesRaw as OptionsData['quotes'],
-                  surface,
-                  opt_undl_code_full,
-                  vertical_spread_monthly_prices,
-                },
-                error: null
-              };
-            }
-          }
-        }
-        const queryParam = symbol ? `?symbol=${encodeURIComponent(symbol)}` : '';
-        const fallbackResp = await fetch(`/api/options${queryParam}`);
-        if (!fallbackResp.ok) {
-          throw new Error('Failed to fetch options data');
-        }
-        const raw = await safeParseJson(fallbackResp);
-        const rec = asRecord(raw);
-        if (!rec || !Array.isArray(rec.quotes)) {
-          return { data: null, error: new Error('Invalid options data response') };
-        }
-        return {
-          data: {
-            quotes: rec.quotes as OptionsData['quotes'],
-            surface: Array.isArray(rec.surface) ? (rec.surface as OptionsData['surface']) : [],
-            opt_undl_code_full: typeof rec.opt_undl_code_full === 'string' ? rec.opt_undl_code_full : undefined,
-            vertical_spread_monthly_prices: Array.isArray(rec.vertical_spread_monthly_prices)
-              ? (rec.vertical_spread_monthly_prices as OptionsData['vertical_spread_monthly_prices'])
-              : undefined,
-          },
-          error: null
-        };
-      } catch (error) {
-        console.error('Error fetching options data:', error);
-        // Remove from cache on error to allow retries
+      const result = await fetchOptionsData(symbol);
+      if (result.error) {
         delete optionsDataCache[cacheKey];
-        return { data: null, error: error as Error };
       }
+      return result;
     })();
 
     optionsDataCache[cacheKey] = fetchPromise;
     return fetchPromise;
+  },
+  refreshOptionsData: async (symbol?: string) => {
+    const cacheKey = symbol || '__default__';
+    delete optionsDataCache[cacheKey];
+    return fetchOptionsData(symbol);
   },
 
   getAvailableSymbols: async () => {

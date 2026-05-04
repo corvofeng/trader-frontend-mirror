@@ -890,6 +890,9 @@ export const optionsService: OptionsService = {
     
     return { data: { quotes, surface }, error: null };
   },
+  refreshOptionsData: async (symbol?: string) => {
+    return optionsService.getOptionsData(symbol);
+  },
 
   getAvailableSymbols: async () => {
     await new Promise(resolve => setTimeout(resolve, 300));

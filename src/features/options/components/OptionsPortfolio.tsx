@@ -374,7 +374,8 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       previousPositionsRef.current = currentPositions;
   }, []);
 
-  const fetchPortfolio = useCallback(async () => {
+  const fetchPortfolio = useCallback(async (): Promise<OptionsPortfolioData | null> => {
+    let fetched: OptionsPortfolioData | null = null;
     try {
       setIsLoading(true);
 
@@ -389,7 +390,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       }
       if (!userId) {
         setIsLoading(false);
-        return;
+        return null;
       }
 
       const [portfolioRes, analysisRes, whitelistsRes] = await Promise.all([
@@ -415,25 +416,57 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         processDiff(data);
 
         setPortfolioData(data);
+        fetched = data;
       }
+      return fetched;
     } catch (error) {
       console.error('Error fetching portfolio data:', error);
+      return null;
     } finally {
       setIsLoading(false);
     }
   }, [selectedAccountIdProp, activeSymbol, processDiff]);
 
-  const refreshPortfolioAndQuotes = useCallback(() => {
+  const refreshPortfolioAndQuotes = useCallback(async () => {
     setWsRefreshNonce((prev) => prev + 1);
     if (isConnected && activeSymbol) {
       queryPrice([activeSymbol]);
     }
-    fetchPortfolio();
+    const refreshed = await fetchPortfolio();
+
+    const symbolSet = new Set<string>();
+    if (activeSymbol) {
+      symbolSet.add(activeSymbol);
+    } else if (refreshed) {
+      (refreshed.expiryBuckets || []).forEach(bucket => {
+        bucket.single.forEach(pos => {
+          if (pos.opt_undl_code_full) symbolSet.add(pos.opt_undl_code_full);
+        });
+      });
+    }
+
+    const symbols = Array.from(symbolSet);
+    if (symbols.length === 0) return;
+
+    const results = await Promise.all(
+      symbols.map(async (sym) => {
+        const resp = await optionsService.refreshOptionsData(sym);
+        return { sym, ...resp };
+      })
+    );
+
+    setInternalOptionsDataMap(prev => {
+      const next = { ...prev };
+      for (const item of results) {
+        if (item.data) next[item.sym] = item.data;
+      }
+      return next;
+    });
   }, [activeSymbol, fetchPortfolio, isConnected, queryPrice]);
 
   useEffect(() => {
-    fetchPortfolio();
-  }, [fetchPortfolio, refreshKey]);
+    void refreshPortfolioAndQuotes();
+  }, [refreshKey, refreshPortfolioAndQuotes]);
 
   useEffect(() => {
     if (!portfolioData) return;

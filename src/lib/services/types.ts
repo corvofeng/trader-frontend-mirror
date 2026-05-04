@@ -818,6 +818,7 @@ export interface MarginStressData {
 
 export interface OptionsService {
   getOptionsData: (symbol?: string) => Promise<ServiceResponse<OptionsData>>;
+  refreshOptionsData: (symbol?: string) => Promise<ServiceResponse<OptionsData>>;
   getOptionContractDetail: (contractCode: string) => Promise<ServiceResponse<OptionContractDetail>>;
   getAvailableSymbols: () => Promise<ServiceResponse<string[]>>;
   getOptionsPortfolio: (userId: string, accountId?: string | null, options?: { symbol?: string }) => Promise<ServiceResponse<OptionsPortfolioData>>;
