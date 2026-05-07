@@ -444,6 +444,10 @@ export interface OptionQuote {
   callTimeValue?: number;
   putIntrinsicValue?: number;
   putTimeValue?: number;
+  callMargin?: number;
+  putMargin?: number;
+  call_margin?: number;
+  put_margin?: number;
   callVolume: number;
   putVolume: number;
   callOpenInterest: number;

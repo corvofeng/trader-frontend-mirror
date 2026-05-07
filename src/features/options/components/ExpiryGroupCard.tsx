@@ -707,25 +707,27 @@ export function ExpiryGroupCard({
                         };
                         return (
                           <div className="space-y-3">
-                            <div className="overflow-x-auto hidden md:block">
-                            <table className="w-full text-sm min-w-[980px]">
+                          <div className="overflow-x-auto hidden md:block">
+                            <table className="w-full text-xs min-w-[980px]">
                               <thead>
                                 <tr className={`${themes[theme].text} opacity-75`}>
-                                  <th className="text-center py-2" colSpan={6}>Calls</th>
+                                  <th className="text-center py-2" colSpan={7}>Calls</th>
                                   <th className={`text-center py-2 border-l border-r ${themes[theme].border}`}></th>
-                                  <th className="text-center py-2" colSpan={6}>Puts</th>
+                                  <th className="text-center py-2" colSpan={7}>Puts</th>
                                 </tr>
                                 <tr className={`text-xs ${themes[theme].text} opacity-70`}>
                                   <th className="text-center py-2">Call 组合</th>
                                   <th className="text-center py-2">Call 备兑</th>
                                   <th className="text-center py-2">Call 义务</th>
-                                  <th className="text-center py-2 px-3">Call 权利</th>
-                                  <th className="text-center py-2 px-3">Call 时间价值</th>
-                                  <th className={`text-center py-2 px-3 border-r ${themes[theme].border}`}>Call 现价</th>
-                                  <th className="text-center py-2 px-4">行权价</th>
-                                  <th className={`text-center py-2 px-3 border-l ${themes[theme].border}`}>Put 现价</th>
-                                  <th className="text-center py-2 px-3">Put 时间价值</th>
-                                  <th className="text-center py-2 px-3">Put 权利</th>
+                                  <th className="text-center py-2 px-2">Call 权利</th>
+                                  <th className="text-center py-2 px-2">Call 时间价值</th>
+                                  <th className="text-center py-2 px-2">Call 保证金</th>
+                                  <th className={`text-center py-2 px-2 border-r ${themes[theme].border}`}>Call 现价</th>
+                                  <th className="text-center py-2 px-3">行权价</th>
+                                  <th className={`text-center py-2 px-2 border-l ${themes[theme].border}`}>Put 现价</th>
+                                  <th className="text-center py-2 px-2">Put 时间价值</th>
+                                  <th className="text-center py-2 px-2">Put 保证金</th>
+                                  <th className="text-center py-2 px-2">Put 权利</th>
                                   <th className="text-center py-2">Put 义务</th>
                                   <th className="text-center py-2">Put 备兑</th>
                                   <th className="text-center py-2">Put 组合</th>
@@ -880,6 +882,8 @@ export function ExpiryGroupCard({
                                     const activeData = optionsData || localOptionsData;
                                     let callPrice = '';
                                     let putPrice = '';
+                                    let callMarginText = '-';
+                                    let putMarginText = '-';
                                     
                                     let callCode = '';
                                     let putCode = '';
@@ -908,6 +912,8 @@ export function ExpiryGroupCard({
                                       callFullCode = quote.call_contract_code_full || '';
                                       putCode = quote.put_contract_code || '';
                                       putFullCode = quote.put_contract_code_full || '';
+                                      const callMargin = quote.callMargin ?? quote.call_margin;
+                                      const putMargin = quote.putMargin ?? quote.put_margin;
                                       
                                       const getPrice = (code: string, fullCode: string, last?: number) => {
                                         const p = (code && prices[code]) || (fullCode && prices[fullCode]);
@@ -917,33 +923,45 @@ export function ExpiryGroupCard({
                                       
                                       callPrice = getPrice(callCode, callFullCode, quote.call_last_price);
                                       putPrice = getPrice(putCode, putFullCode, quote.put_last_price);
+
+                                      if (typeof callMargin === 'number' && Number.isFinite(callMargin)) {
+                                        callMarginText = formatCurrency(callMargin, currencyConfig, Number.isInteger(callMargin) ? 0 : 2);
+                                      }
+                                      if (typeof putMargin === 'number' && Number.isFinite(putMargin)) {
+                                        putMarginText = formatCurrency(putMargin, currencyConfig, Number.isInteger(putMargin) ? 0 : 2);
+                                      }
                                     }
 
-                                    // Time Value Highlight
                                     let timeValueColor = 'transparent';
                                     let displayCallTV = '-';
                                     let displayPutTV = '-';
 
-                                    if (underlyingPrice != null) {
+                                    let callTV: number | null = null;
+                                    let putTV: number | null = null;
+                                    if (quote) {
+                                      const qCallTV = quote.callTimeValue;
+                                      const qPutTV = quote.putTimeValue;
+                                      if (typeof qCallTV === 'number' && Number.isFinite(qCallTV)) callTV = qCallTV;
+                                      if (typeof qPutTV === 'number' && Number.isFinite(qPutTV)) putTV = qPutTV;
+                                    }
+
+                                    if ((callTV == null || putTV == null) && underlyingPrice != null) {
                                       const cp = parseFloat(callPrice);
                                       const pp = parseFloat(putPrice);
-                                      
-                                      const callTV = !isNaN(cp) ? Math.max(0, cp - Math.max(0, underlyingPrice - m.s)) : null;
-                                      const putTV = !isNaN(pp) ? Math.max(0, pp - Math.max(0, m.s - underlyingPrice)) : null;
+                                      if (callTV == null && !isNaN(cp)) callTV = cp - Math.max(0, underlyingPrice - m.s);
+                                      if (putTV == null && !isNaN(pp)) putTV = pp - Math.max(0, m.s - underlyingPrice);
+                                    }
 
-                                      if (callTV !== null) displayCallTV = callTV.toFixed(4);
-                                      if (putTV !== null) displayPutTV = putTV.toFixed(4);
+                                    if (callTV != null) displayCallTV = callTV.toFixed(4);
+                                    if (putTV != null) displayPutTV = putTV.toFixed(4);
 
-                                      if (callTV !== null || putTV !== null) {
-                                        const maxTV = Math.max(callTV || 0, putTV || 0);
-                                        const tvRatio = maxTV / underlyingPrice;
-                                        // Intensity logic: High TV (e.g. ATM) -> Vivid Color
-                                        const intensity = Math.min(1, tvRatio * 25); // 4% TV = 100% intensity
-                                        if (intensity > 0.01) {
-                                          // Gold/Orange for time value
-                                          const alpha = theme === 'dark' ? 0.3 : 0.5;
-                                          timeValueColor = `rgba(255, 170, 0, ${intensity * alpha})`;
-                                        }
+                                    if (underlyingPrice != null && (callTV != null || putTV != null)) {
+                                      const maxTV = Math.max(0, callTV ?? 0, putTV ?? 0);
+                                      const tvRatio = maxTV / underlyingPrice;
+                                      const intensity = Math.min(1, tvRatio * 25);
+                                      if (intensity > 0.01) {
+                                        const alpha = theme === 'dark' ? 0.3 : 0.5;
+                                        timeValueColor = `rgba(255, 170, 0, ${intensity * alpha})`;
                                       }
                                     }
 
@@ -1193,22 +1211,28 @@ export function ExpiryGroupCard({
                                             </div>
                                           </div>
                                         </td>
-                                        <td className={`text-center py-2 px-3 w-24 ${themes[theme].text}`}>
-                                            <AnimatedFlash value={displayCallTV} className="font-mono text-gray-500" />
+                                        <td className={`text-center py-1.5 px-2 w-20 ${themes[theme].text} text-xs leading-tight`}>
+                                            <AnimatedFlash value={displayCallTV} className="font-mono text-xs text-gray-500" />
                                         </td>
-                                        <td className={`text-center py-2 px-3 w-24 border-r ${themes[theme].border} ${themes[theme].text}`}>
-                                            <AnimatedFlash value={callPrice || '-'} className="font-mono" type="price" />
+                                        <td className={`text-center py-1.5 px-2 w-20 ${themes[theme].text} text-xs leading-tight`}>
+                                            <AnimatedFlash value={callMarginText} className="font-mono text-xs text-gray-500" type="price" />
                                         </td>
-                                        <td className={`text-center py-2 px-4 w-24 ${themes[theme].text}`}>{m.s}
+                                        <td className={`text-center py-1.5 px-2 w-20 border-r ${themes[theme].border} ${themes[theme].text} text-xs leading-tight`}>
+                                            <AnimatedFlash value={callPrice || '-'} className="font-mono text-xs" type="price" />
+                                        </td>
+                                        <td className={`text-center py-1.5 px-2 w-20 ${themes[theme].text}`}>{m.s}
                                           {underlyingPrice != null && (
                                             <div className={`mt-1 text-[10px] opacity-75`}>{m.getM()}</div>
                                           )}
                                         </td>
-                                        <td className={`text-center py-2 px-3 w-24 border-l ${themes[theme].border} ${themes[theme].text}`}>
-                                            <AnimatedFlash value={putPrice || '-'} className="font-mono" type="price" />
+                                        <td className={`text-center py-1.5 px-2 w-20 border-l ${themes[theme].border} ${themes[theme].text} text-xs leading-tight`}>
+                                            <AnimatedFlash value={putPrice || '-'} className="font-mono text-xs" type="price" />
                                         </td>
-                                        <td className={`text-center py-2 px-3 w-24 ${themes[theme].text}`}>
-                                            <AnimatedFlash value={displayPutTV} className="font-mono text-gray-500" />
+                                        <td className={`text-center py-1.5 px-2 w-20 ${themes[theme].text} text-xs leading-tight`}>
+                                            <AnimatedFlash value={displayPutTV} className="font-mono text-xs text-gray-500" />
+                                        </td>
+                                        <td className={`text-center py-1.5 px-2 w-20 ${themes[theme].text} text-xs leading-tight`}>
+                                            <AnimatedFlash value={putMarginText} className="font-mono text-xs text-gray-500" type="price" />
                                         </td>
                                         <td className={`text-center py-2 px-3 w-20 ${themes[theme].text}`}>
                                           <div className="flex items-center justify-center gap-1">
@@ -1471,6 +1495,8 @@ export function ExpiryGroupCard({
                                 const activeData = optionsData || localOptionsData;
                                 let callPrice = '';
                                 let putPrice = '';
+                                let callMarginText = '-';
+                                let putMarginText = '-';
                                 let quote: OptionQuote | undefined;
 
                                 const findQuote = (data: OptionsData) => {
@@ -1493,6 +1519,8 @@ export function ExpiryGroupCard({
                                   const callFullCode = quote.call_contract_code_full || '';
                                   const putCode = quote.put_contract_code || '';
                                   const putFullCode = quote.put_contract_code_full || '';
+                                  const callMargin = quote.callMargin ?? quote.call_margin;
+                                  const putMargin = quote.putMargin ?? quote.put_margin;
 
                                   const getPrice = (code: string, fullCode: string, last?: number) => {
                                     const p = (code && prices[code]) || (fullCode && prices[fullCode]);
@@ -1502,30 +1530,45 @@ export function ExpiryGroupCard({
 
                                   callPrice = getPrice(callCode, callFullCode, quote.call_last_price);
                                   putPrice = getPrice(putCode, putFullCode, quote.put_last_price);
+
+                                  if (typeof callMargin === 'number' && Number.isFinite(callMargin)) {
+                                    callMarginText = formatCurrency(callMargin, currencyConfig, Number.isInteger(callMargin) ? 0 : 2);
+                                  }
+                                  if (typeof putMargin === 'number' && Number.isFinite(putMargin)) {
+                                    putMarginText = formatCurrency(putMargin, currencyConfig, Number.isInteger(putMargin) ? 0 : 2);
+                                  }
                                 }
 
                                 let timeValueColor = 'transparent';
                                 let displayCallTV = '-';
                                 let displayPutTV = '-';
 
-                                if (underlyingPrice != null) {
+                                let callTV: number | null = null;
+                                let putTV: number | null = null;
+                                if (quote) {
+                                  const qCallTV = quote.callTimeValue;
+                                  const qPutTV = quote.putTimeValue;
+                                  if (typeof qCallTV === 'number' && Number.isFinite(qCallTV)) callTV = qCallTV;
+                                  if (typeof qPutTV === 'number' && Number.isFinite(qPutTV)) putTV = qPutTV;
+                                }
+
+                                if ((callTV == null || putTV == null) && underlyingPrice != null) {
                                   const cp = parseFloat(callPrice);
                                   const pp = parseFloat(putPrice);
+                                  if (callTV == null && !isNaN(cp)) callTV = cp - Math.max(0, underlyingPrice - m.s);
+                                  if (putTV == null && !isNaN(pp)) putTV = pp - Math.max(0, m.s - underlyingPrice);
+                                }
 
-                                  const callTV = !isNaN(cp) ? Math.max(0, cp - Math.max(0, underlyingPrice - m.s)) : null;
-                                  const putTV = !isNaN(pp) ? Math.max(0, pp - Math.max(0, m.s - underlyingPrice)) : null;
+                                if (callTV != null) displayCallTV = callTV.toFixed(4);
+                                if (putTV != null) displayPutTV = putTV.toFixed(4);
 
-                                  if (callTV !== null) displayCallTV = callTV.toFixed(4);
-                                  if (putTV !== null) displayPutTV = putTV.toFixed(4);
-
-                                  if (callTV !== null || putTV !== null) {
-                                    const maxTV = Math.max(callTV || 0, putTV || 0);
-                                    const tvRatio = maxTV / underlyingPrice;
-                                    const intensity = Math.min(1, tvRatio * 25);
-                                    if (intensity > 0.01) {
-                                      const alpha = theme === 'dark' ? 0.3 : 0.5;
-                                      timeValueColor = `rgba(255, 170, 0, ${intensity * alpha})`;
-                                    }
+                                if (underlyingPrice != null && (callTV != null || putTV != null)) {
+                                  const maxTV = Math.max(0, callTV ?? 0, putTV ?? 0);
+                                  const tvRatio = maxTV / underlyingPrice;
+                                  const intensity = Math.min(1, tvRatio * 25);
+                                  if (intensity > 0.01) {
+                                    const alpha = theme === 'dark' ? 0.3 : 0.5;
+                                    timeValueColor = `rgba(255, 170, 0, ${intensity * alpha})`;
                                   }
                                 }
 
@@ -1544,11 +1587,14 @@ export function ExpiryGroupCard({
                                       </div>
                                       <div className="text-right shrink-0">
                                         <div className={`text-xs ${themes[theme].text} opacity-70`}>Call / Put</div>
-                                        <div className={`text-xs ${themes[theme].text} font-mono`}>
+                                        <div className={`text-[11px] ${themes[theme].text} font-mono`}>
                                           <AnimatedFlash value={callPrice || '-'} type="price" /> / <AnimatedFlash value={putPrice || '-'} type="price" />
                                         </div>
-                                        <div className={`text-[11px] ${themes[theme].text} opacity-70 font-mono`}>
+                                        <div className={`text-[10px] ${themes[theme].text} opacity-70 font-mono`}>
                                           TV <AnimatedFlash value={displayCallTV} /> / <AnimatedFlash value={displayPutTV} />
+                                        </div>
+                                        <div className={`text-[10px] ${themes[theme].text} opacity-70 font-mono`}>
+                                          保证金 <AnimatedFlash value={callMarginText} type="price" /> / <AnimatedFlash value={putMarginText} type="price" />
                                         </div>
                                       </div>
                                     </div>
