@@ -11,20 +11,12 @@ interface ExpiryGroup {
   complex: OptionsStrategy[];
 }
 
-interface Analysis {
-  exercise_analysis?: {
-    call_obligation_count_worst: number;
-    put_obligation_count_worst: number;
-  };
-}
-
 interface ExpiryFastNavProps {
   theme: Theme;
   groups: ExpiryGroup[];
   currencyConfig: CurrencyConfig;
   activeExpiry: string | null;
   expandedExpiryGroups: Record<string, boolean>;
-  analysisMap?: Record<string, Analysis>;
 }
 
 export function ExpiryFastNav({
@@ -32,8 +24,7 @@ export function ExpiryFastNav({
   groups,
   currencyConfig,
   activeExpiry,
-  expandedExpiryGroups,
-  analysisMap = {}
+  expandedExpiryGroups
 }: ExpiryFastNavProps) {
   return (
     <div className={`${themes[theme].card} rounded-lg p-4 mb-6 flex flex-wrap gap-3 sticky top-16 z-40 shadow-md bg-opacity-95 backdrop-blur-sm transition-all duration-200`}>
@@ -46,10 +37,6 @@ export function ExpiryFastNav({
         const complexPL = group.complex.reduce((sum, s) => sum + s.profitLoss, 0);
         const totalPL = singlePL + complexPL;
         const isProfitable = totalPL >= 0;
-        const analysis = analysisMap[group.expiry];
-        const worstCalls = analysis?.exercise_analysis?.call_obligation_count_worst ?? 0;
-        const worstPuts = analysis?.exercise_analysis?.put_obligation_count_worst ?? 0;
-        const hasObligations = worstCalls > 0 || worstPuts > 0;
         const totalMargin = group.single.reduce((sum, p) => sum + (p.margin || 0), 0) +
           group.complex.reduce((sum, s) => sum + s.positions.reduce((pSum, p) => pSum + (p.margin || 0), 0), 0);
 
@@ -78,12 +65,6 @@ export function ExpiryFastNav({
                 </span>
               )}
             </div>
-            {hasObligations && (
-              <span className={`ml-1 px-1.5 py-0.5 rounded text-[10px] font-mono border flex items-center gap-1 ${theme === 'dark' ? 'bg-red-900/30 border-red-800 text-red-300' : 'bg-red-50 border-red-200 text-red-600'}`}>
-                {worstCalls > 0 && <span>C:{worstCalls}</span>}
-                {worstPuts > 0 && <span>P:{worstPuts}</span>}
-              </span>
-            )}
           </button>
         );
       })}

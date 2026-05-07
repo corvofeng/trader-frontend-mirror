@@ -393,9 +393,12 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         return null;
       }
 
-      const [portfolioRes, analysisRes, whitelistsRes] = await Promise.all([
-        optionsService.getOptionsPortfolio(userId, selectedAccountIdProp || null, activeSymbol ? { symbol: activeSymbol } : undefined),
-        optionsService.getPortfolioAnalysis(userId, selectedAccountIdProp || null),
+      const [portfolioRes, whitelistsRes] = await Promise.all([
+        optionsService.getOptionsPortfolio(
+          userId,
+          selectedAccountIdProp || null,
+          activeSymbol ? { symbol: activeSymbol } : undefined
+        ),
         optionsService.getWhitelists(userId, selectedAccountIdProp || null)
       ]);
 
@@ -403,11 +406,6 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       
       if (error) throw error;
       if (data) {
-        // Merge analysis data if available
-        if (analysisRes.data) {
-          data.expiry_analysis = analysisRes.data;
-        }
-
         if (whitelistsRes.data) {
           setWhitelists(whitelistsRes.data);
         }
@@ -530,14 +528,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     // Process diff logic for websocket updates
     processDiff(portfolioSnapshot);
 
-    setPortfolioData(prev => {
-      // Preserve expiry_analysis if missing in snapshot but present in previous data
-      const analysis = portfolioSnapshot.expiry_analysis || prev?.expiry_analysis;
-      return {
-        ...portfolioSnapshot,
-        expiry_analysis: analysis
-      };
-    });
+    setPortfolioData(portfolioSnapshot);
   }, [portfolioSnapshot, processDiff]);
 
   
@@ -937,7 +928,6 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                   currencyConfig={currencyConfig}
                   activeExpiry={activeExpiry}
                   expandedExpiryGroups={expandedExpiryGroups}
-                  analysisMap={portfolioData.expiry_analysis || {}}
                 />
 
                 {groups.map((group) => {
@@ -977,7 +967,6 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                       onToggleExpand={() => toggleExpiryGroup(group.expiry)}
                       isTBoardExpanded={tBoardExpandedGroups[group.expiry] !== false}
                       onToggleTBoard={() => toggleTBoardGroup(group.expiry)}
-                      analysis={portfolioData.expiry_analysis?.[group.expiry]}
                       onRefresh={fetchPortfolio}
                       wsRefreshNonce={wsRefreshNonce}
                     />

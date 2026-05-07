@@ -45,18 +45,6 @@ interface ExpiryGroupCardProps {
   onToggleExpand: () => void;
   isTBoardExpanded: boolean;
   onToggleTBoard: () => void;
-  analysis?: {
-    phase: string;
-    days_to_expiry: number;
-    risk_positions_count: number;
-    safe_positions_count: number;
-    strategies_count: number;
-    exercise_analysis?: {
-      call_obligation_count_worst: number;
-      put_obligation_count_worst: number;
-    };
-    report: string;
-  };
   whitelists?: OptionWhitelist[];
   isRefreshing?: boolean;
   onRefresh?: () => void;
@@ -97,7 +85,6 @@ export function ExpiryGroupCard({
   onToggleExpand,
   isTBoardExpanded,
   onToggleTBoard,
-  analysis,
   whitelists = [],
   isRefreshing,
   onRefresh,
@@ -151,10 +138,6 @@ export function ExpiryGroupCard({
   const filteredPositions = useMemo(() => selectedSymbol
     ? basePositions.filter(p => p.opt_undl_code_full === selectedSymbol)
     : basePositions, [selectedSymbol, basePositions]);
-
-  // Use worst-case exercise quantities from analysis report
-  const totalShortCalls = analysis?.exercise_analysis?.call_obligation_count_worst ?? 0;
-  const totalShortPuts = analysis?.exercise_analysis?.put_obligation_count_worst ?? 0;
 
   // Calculate total margin for the group
   const totalMargin = useMemo(() => {
@@ -509,22 +492,6 @@ export function ExpiryGroupCard({
                 <span className={`text-sm opacity-75 text-amber-600 dark:text-amber-400 font-mono`}>
                   保证金: {formatCurrency(totalMargin, currencyConfig, 0)}
                 </span>
-              )}
-              {(totalShortCalls > 0 || totalShortPuts > 0) && (
-                <div className={`flex items-center gap-2 px-2 py-0.5 rounded text-xs border ${theme === 'dark' ? 'bg-red-900/20 border-red-800/30' : 'bg-red-50 border-red-200'}`}>
-                  <span className={`font-medium ${theme === 'dark' ? 'text-red-400' : 'text-red-600'}`}>最大义务:</span>
-                  <div className="flex items-center gap-2">
-                    <span className={`${themes[theme].text} font-mono`}>
-                      <span className="opacity-70 mr-0.5">C</span>
-                      <span className="font-bold">{totalShortCalls}</span>
-                    </span>
-                    <span className={`w-px h-3 ${theme === 'dark' ? 'bg-red-800' : 'bg-red-200'}`}></span>
-                    <span className={`${themes[theme].text} font-mono`}>
-                      <span className="opacity-70 mr-0.5">P</span>
-                      <span className="font-bold">{totalShortPuts}</span>
-                    </span>
-                  </div>
-                </div>
               )}
             </div>
           </div>
