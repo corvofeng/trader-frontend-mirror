@@ -10,6 +10,7 @@ import { logger } from '../../../shared/utils/logger';
 import toast from 'react-hot-toast';
 import { useAutoRefresh, useOptionPriceWebSocket } from '../hooks/useOptionPriceWebSocket';
 import { AnimatedFlash } from './AnimatedFlash';
+import { RealTimeSpreadChart } from './RealTimeSpreadChart';
 
 
 
@@ -99,16 +100,37 @@ export function ExpiryGroupCard({
     return Array.from(new Set(cleaned));
   }, []);
 
+  const priceKeyIndex = useMemo(() => {
+    const map = new Map<string, string>();
+    Object.keys(prices).forEach((k) => {
+      const base = k.split('.')[0];
+      if (base && !map.has(base)) map.set(base, k);
+    });
+    return map;
+  }, [prices]);
+
   const resolvePriceUpdate = useCallback(
     (codes: Array<string | undefined | null>) => {
       const list = normalizeCodeList(codes);
       for (const c of list) {
-        const p = prices[c];
-        if (p) return p;
+        const direct = prices[c];
+        if (direct) return direct;
+
+        const base = c.split('.')[0];
+        if (base && base !== c) {
+          const baseHit = prices[base];
+          if (baseHit) return baseHit;
+        }
+
+        const indexedKey = priceKeyIndex.get(base);
+        if (indexedKey) {
+          const indexedHit = prices[indexedKey];
+          if (indexedHit) return indexedHit;
+        }
       }
       return null;
     },
-    [normalizeCodeList, prices]
+    [normalizeCodeList, priceKeyIndex, prices]
   );
 
   const getCounterpartyTopPrice = useCallback((p: ReturnType<typeof resolvePriceUpdate>, side: 'buy' | 'sell') => {
@@ -131,6 +153,8 @@ export function ExpiryGroupCard({
   const [confirmData, setConfirmData] = useState<{ ids: string[]; meta?: { action?: string; comboType?: 'call' | 'put'; strike?: number; expiry?: string; strategyIds?: string[]; category?: string; defaultComboCount?: number; perLegMaxQty?: Record<string, number>; quote?: OptionQuote; contract_code?: string; contract_code_full?: string; strategies?: Array<{ strategy: OptionsStrategy; qty: number }> }; title: string; description: string } | null>(null);
   const [qtyOverrides, setQtyOverrides] = useState<Record<string, number>>({});
   const [syncPrice, setSyncPrice] = useState<number | null>(null);
+  const [spreadHistory, setSpreadHistory] = useState<{ time: string; price: number | null; ts: number }[]>([]);
+  const [spreadStatus, setSpreadStatus] = useState<{ ts: number; source: 'snapshot' | 'last_known' | 'empty' } | null>(null);
   const [isPageLocked, setIsPageLocked] = useState(false);
   const pageLockRef = useRef(false);
   const basePositions = useMemo(() => filterAndSortPositions(group.single), [filterAndSortPositions, group.single]);
@@ -373,10 +397,9 @@ export function ExpiryGroupCard({
     if (confirmData.meta?.action !== 'unwind_combo_selection') return;
     const strategies = confirmData.meta?.strategies || [];
     const codes = normalizeCodeList(
-      strategies.flatMap((s) => {
-        const legs = s.strategy?.positions || [];
-        return legs.flatMap((p) => [p.contract_code_full || p.contract_code]);
-      })
+      strategies.flatMap((item) =>
+        (item.strategy?.positions || []).map((p) => p.contract_code_full || p.contract_code || p.symbol)
+      )
     );
     if (codes.length === 0) return;
     if (!isConnected) {
@@ -423,8 +446,8 @@ export function ExpiryGroupCard({
     const buyPx = getCounterpartyTopPrice(buyUpdate, 'buy');
     const sellPx = getCounterpartyTopPrice(sellUpdate, 'sell');
 
-    const buyLegQty = Math.max(1, Number(buyPos.quantity || 1));
-    const sellLegQty = Math.max(1, Number(sellPos.quantity || 1));
+    const buyLegQty = Math.max(1, Number(buyPos.leg_quantity ?? buyPos.selectedQuantity ?? buyPos.quantity ?? 1) || 1);
+    const sellLegQty = Math.max(1, Number(sellPos.leg_quantity ?? sellPos.selectedQuantity ?? sellPos.quantity ?? 1) || 1);
 
     const buyAmt = buyPx != null ? -buyPx * buyLegQty : null;
     const sellAmt = sellPx != null ? sellPx * sellLegQty : null;
@@ -458,20 +481,145 @@ export function ExpiryGroupCard({
         const closeSide: 'buy' | 'sell' = p.position_type === 'buy' ? 'sell' : 'buy';
         const update = resolvePriceUpdate([p.contract_code_full, p.contract_code, p.symbol]);
         const px = getCounterpartyTopPrice(update, closeSide);
-        const qty = Math.max(0, Number(p.quantity ?? 0) || 0);
+        const qty = Math.max(1, Number(p.leg_quantity ?? p.selectedQuantity ?? p.quantity ?? 1) || 1);
         const amt = px != null ? (closeSide === 'sell' ? px * qty : -px * qty) : null;
         return { pos: p, closeSide, px, qty, amt, ts: update?.timestamp || 0 };
       });
       const net = legEstimates.every((l) => l.amt != null) ? legEstimates.reduce((s, l) => s + (l.amt as number), 0) : null;
       const buyQty = legEstimates.reduce((s, l) => s + (l.closeSide === 'buy' ? l.qty : 0), 0);
       const sellQty = legEstimates.reduce((s, l) => s + (l.closeSide === 'sell' ? l.qty : 0), 0);
-      const pairedQty = Math.min(buyQty, sellQty);
-      const perHedge = net != null && pairedQty > 0 ? net / pairedQty : null;
+      const pairedQty = Math.max(1, Math.min(buyQty, sellQty));
+      const perHedge = net != null ? net / pairedQty : null;
       const ts = Math.max(0, ...legEstimates.map((l) => l.ts || 0));
       return { legs: legEstimates, net, perHedge, pairedQty, ts };
     },
     [getCounterpartyTopPrice, resolvePriceUpdate]
   );
+
+  const currentSpreadSnapshot = useMemo(() => {
+    if (confirmData?.meta?.action === 'unwind_combo_selection') {
+      const strategies = confirmData.meta?.strategies || [];
+      if (strategies.length > 0) {
+        const item = strategies[0];
+        const strategy = item.strategy;
+        const qty = Math.max(1, Number(item?.qty || strategy.positions[0]?.quantity || 1));
+
+        const est = estimateCloseForStrategy(strategy);
+        if (est.perHedge != null) {
+          return { price: est.perHedge, ts: est.ts || Date.now() };
+        }
+        if (strategy.currentValue != null && Number.isFinite(strategy.currentValue)) {
+          return { price: strategy.currentValue / qty / 100, ts: Date.now() };
+        }
+      }
+    }
+
+    if (advisedModal && advisedPricePreview?.perHedge != null) {
+      return { price: advisedPricePreview.perHedge, ts: advisedPricePreview.ts || Date.now() };
+    }
+
+    return null;
+  }, [advisedModal, advisedPricePreview, confirmData, estimateCloseForStrategy]);
+
+  const spreadSnapshotRef = useRef<{ price: number; ts: number } | null>(null);
+  spreadSnapshotRef.current = currentSpreadSnapshot;
+
+  const lastKnownSpreadPriceRef = useRef<number | null>(null);
+
+  const pushSpreadSample = useCallback((sampleTs: number) => {
+    const snap = spreadSnapshotRef.current;
+    let price: number | null = null;
+    let source: 'snapshot' | 'last_known' | 'empty' = 'empty';
+    if (snap && Number.isFinite(snap.price)) {
+      price = snap.price;
+      lastKnownSpreadPriceRef.current = snap.price;
+      source = 'snapshot';
+    } else if (lastKnownSpreadPriceRef.current != null) {
+      price = lastKnownSpreadPriceRef.current;
+      source = 'last_known';
+    }
+    const time = format(new Date(sampleTs), 'HH:mm:ss');
+    setSpreadHistory((prev) => {
+      const last = prev[prev.length - 1];
+      if (last) {
+        const recentlyAdded = sampleTs - last.ts < 900;
+        if (recentlyAdded) return prev;
+      }
+      const next = [...prev, { time, price, ts: sampleTs }];
+      return next.slice(-60);
+    });
+    setSpreadStatus({ ts: sampleTs, source });
+  }, []);
+
+  const spreadWatchCodes = useMemo(() => {
+    if (confirmData?.meta?.action === 'unwind_combo_selection') {
+      const strategies = confirmData.meta?.strategies || [];
+      const first = strategies[0]?.strategy;
+      const legs = first?.positions || [];
+      return normalizeCodeList(legs.map((p) => p.contract_code_full || p.contract_code || p.symbol));
+    }
+    if (advisedModal) {
+      const buyPos = advisedModal.combo.buy_position?.position;
+      const sellPos = advisedModal.combo.sell_position?.position;
+      return normalizeCodeList([
+        buyPos?.contract_code_full || buyPos?.contract_code || buyPos?.symbol,
+        sellPos?.contract_code_full || sellPos?.contract_code || sellPos?.symbol,
+      ]);
+    }
+    return [];
+  }, [advisedModal, confirmData, normalizeCodeList]);
+
+  const spreadWatchStatusText = useMemo(() => {
+    if (spreadWatchCodes.length === 0) return '';
+    const parts = spreadWatchCodes.slice(0, 4).map((code) => {
+      const direct = prices[code];
+      if (direct) return `${code} OK`;
+      const base = code.split('.')[0];
+      const baseHit = base && prices[base];
+      if (baseHit) return `${code} OK(${base})`;
+      const indexedKey = base ? priceKeyIndex.get(base) : undefined;
+      if (indexedKey && prices[indexedKey]) return `${code} OK(${indexedKey})`;
+      return `${code} MISS`;
+    });
+    const extra = spreadWatchCodes.length > 4 ? ` +${spreadWatchCodes.length - 4}` : '';
+    return `订阅 ${spreadWatchCodes.length}: ${parts.join(' • ')}${extra}`;
+  }, [priceKeyIndex, prices, spreadWatchCodes]);
+
+  const spreadWatchQuoteText = useMemo(() => {
+    if (spreadWatchCodes.length === 0) return '';
+    const parts = spreadWatchCodes.slice(0, 2).map((code) => {
+      const update = resolvePriceUpdate([code]);
+      const bid1 = update?.bid_price?.[0] ?? update?.bid;
+      const ask1 = update?.ask_price?.[0] ?? update?.ask;
+      const ts = update?.timestamp ? format(new Date(update.timestamp), 'HH:mm:ss') : '--';
+      const bidText = typeof bid1 === 'number' && Number.isFinite(bid1) ? bid1.toFixed(4) : '--';
+      const askText = typeof ask1 === 'number' && Number.isFinite(ask1) ? ask1.toFixed(4) : '--';
+      return `${code} BID1 ${bidText} ASK1 ${askText} @${ts}`;
+    });
+    return parts.join(' | ');
+  }, [resolvePriceUpdate, spreadWatchCodes]);
+
+  useEffect(() => {
+    if (!confirmData && !advisedModal) {
+      if (spreadHistory.length > 0) setSpreadHistory([]);
+    }
+  }, [advisedModal, confirmData, spreadHistory.length]);
+
+  useEffect(() => {
+    if (!confirmData && !advisedModal) return;
+    const now = Date.now();
+    pushSpreadSample(now);
+    const timer = window.setInterval(() => {
+      pushSpreadSample(Date.now());
+    }, 1500);
+    return () => window.clearInterval(timer);
+  }, [advisedModal, confirmData, pushSpreadSample]);
+
+  useEffect(() => {
+    if (!confirmData && !advisedModal) return;
+    if (!currentSpreadSnapshot) return;
+    pushSpreadSample(Date.now());
+  }, [advisedModal, confirmData, currentSpreadSnapshot, pushSpreadSample]);
 
   return (
     <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
@@ -872,6 +1020,56 @@ export function ExpiryGroupCard({
                                     };
                                   });
                                   const maxRisk = Math.max(1, ...metrics.map(m => m.risk));
+                                  const resolveQuoteForStrike = (strike: number): OptionQuote | undefined => {
+                                    const findQuote = (data?: OptionsData | null) => {
+                                      return data?.quotes?.find(q => q.expiry === group.expiry && getQuoteStrike(q) === strike);
+                                    };
+
+                                    const activeData = optionsData || localOptionsData;
+                                    let quote: OptionQuote | undefined;
+                                    if (activeData) quote = findQuote(activeData);
+                                    if (!quote && optionsDataMap) {
+                                      for (const data of Object.values(optionsDataMap)) {
+                                        quote = findQuote(data);
+                                        if (quote) break;
+                                      }
+                                    }
+                                    return quote;
+                                  };
+
+                                  const resolveMaxTimeValueForStrike = (strike: number): number => {
+                                    const quote = resolveQuoteForStrike(strike);
+                                    if (!quote) return 0;
+
+                                    let callTV: number | null = null;
+                                    let putTV: number | null = null;
+
+                                    const qCallTV = quote.callTimeValue;
+                                    const qPutTV = quote.putTimeValue;
+                                    if (typeof qCallTV === 'number' && Number.isFinite(qCallTV)) callTV = qCallTV;
+                                    if (typeof qPutTV === 'number' && Number.isFinite(qPutTV)) putTV = qPutTV;
+
+                                    if ((callTV == null || putTV == null) && underlyingPrice != null) {
+                                      const callCode = quote.call_contract_code || '';
+                                      const callFullCode = quote.call_contract_code_full || '';
+                                      const putCode = quote.put_contract_code || '';
+                                      const putFullCode = quote.put_contract_code_full || '';
+
+                                      const callPrice = (callCode && prices[callCode]?.price) || (callFullCode && prices[callFullCode]?.price) || quote.call_last_price;
+                                      const putPrice = (putCode && prices[putCode]?.price) || (putFullCode && prices[putFullCode]?.price) || quote.put_last_price;
+
+                                      if (callTV == null && typeof callPrice === 'number' && Number.isFinite(callPrice)) {
+                                        callTV = callPrice - Math.max(0, underlyingPrice - strike);
+                                      }
+                                      if (putTV == null && typeof putPrice === 'number' && Number.isFinite(putPrice)) {
+                                        putTV = putPrice - Math.max(0, strike - underlyingPrice);
+                                      }
+                                    }
+
+                                    return Math.max(0, callTV ?? 0, putTV ?? 0);
+                                  };
+
+                                  const maxTimeValue = Math.max(0, ...metrics.map(m => resolveMaxTimeValueForStrike(m.s)));
                                   return metrics.map(m => {
                                     const intensity = Math.min(1, m.risk / maxRisk);
                                     const h = Math.round(0 + 120 * (1 - intensity));
@@ -955,15 +1153,16 @@ export function ExpiryGroupCard({
                                     if (callTV != null) displayCallTV = callTV.toFixed(4);
                                     if (putTV != null) displayPutTV = putTV.toFixed(4);
 
-                                    if (underlyingPrice != null && (callTV != null || putTV != null)) {
-                                      const maxTV = Math.max(0, callTV ?? 0, putTV ?? 0);
-                                      const tvRatio = maxTV / underlyingPrice;
-                                      const intensity = Math.min(1, tvRatio * 25);
-                                      if (intensity > 0.01) {
-                                        const alpha = theme === 'dark' ? 0.3 : 0.5;
-                                        timeValueColor = `rgba(255, 170, 0, ${intensity * alpha})`;
-                                      }
+                                    const strikeMaxTV = Math.max(0, callTV ?? 0, putTV ?? 0);
+                                    const tvIntensity = maxTimeValue > 0 ? Math.min(1, strikeMaxTV / maxTimeValue) : 0;
+                                    if (tvIntensity > 0.01) {
+                                      const alpha = theme === 'dark' ? 0.3 : 0.5;
+                                      timeValueColor = `rgba(255, 170, 0, ${tvIntensity * alpha})`;
                                     }
+                                    const timeValueBg = timeValueColor !== 'transparent'
+                                      ? `linear-gradient(0deg, ${timeValueColor}, ${timeValueColor})`
+                                      : 'none';
+                                    const rowBg = timeValueBg === 'none' ? bg : `${timeValueBg}, ${bg}`;
 
                                     const openComboAdjustModal = (comboType: 'call' | 'put') => {
                                       const pickStrategy = comboType === 'call' ? m.comboCallStrategies?.[0]?.strategy : m.comboPutStrategies?.[0]?.strategy;
@@ -1109,7 +1308,7 @@ export function ExpiryGroupCard({
                                     };
 
                                   return (
-                                      <tr key={`trow-top-${group.expiry}-${m.s}`} className={themes[theme].cardHover} style={{ backgroundImage: bg, backgroundColor: timeValueColor }}>
+                                      <tr key={`trow-top-${group.expiry}-${m.s}`} className={themes[theme].cardHover} style={{ backgroundImage: rowBg }}>
                                         <td className={`text-center py-2 ${themes[theme].text}`}>
                                           <div className="flex flex-col items-center gap-1">
                                             {m.comboCallStrategies.length > 0 ? (
@@ -1485,6 +1684,56 @@ export function ExpiryGroupCard({
                               });
 
                               const maxRisk = Math.max(1, ...metrics.map(m => m.risk));
+                              const resolveQuoteForStrike = (strike: number): OptionQuote | undefined => {
+                                const findQuote = (data?: OptionsData | null) => {
+                                  return data?.quotes?.find(q => q.expiry === group.expiry && getQuoteStrike(q) === strike);
+                                };
+
+                                const activeData = optionsData || localOptionsData;
+                                let quote: OptionQuote | undefined;
+                                if (activeData) quote = findQuote(activeData);
+                                if (!quote && optionsDataMap) {
+                                  for (const data of Object.values(optionsDataMap)) {
+                                    quote = findQuote(data);
+                                    if (quote) break;
+                                  }
+                                }
+                                return quote;
+                              };
+
+                              const resolveMaxTimeValueForStrike = (strike: number): number => {
+                                const quote = resolveQuoteForStrike(strike);
+                                if (!quote) return 0;
+
+                                let callTV: number | null = null;
+                                let putTV: number | null = null;
+
+                                const qCallTV = quote.callTimeValue;
+                                const qPutTV = quote.putTimeValue;
+                                if (typeof qCallTV === 'number' && Number.isFinite(qCallTV)) callTV = qCallTV;
+                                if (typeof qPutTV === 'number' && Number.isFinite(qPutTV)) putTV = qPutTV;
+
+                                if ((callTV == null || putTV == null) && underlyingPrice != null) {
+                                  const callCode = quote.call_contract_code || '';
+                                  const callFullCode = quote.call_contract_code_full || '';
+                                  const putCode = quote.put_contract_code || '';
+                                  const putFullCode = quote.put_contract_code_full || '';
+
+                                  const callPrice = (callCode && prices[callCode]?.price) || (callFullCode && prices[callFullCode]?.price) || quote.call_last_price;
+                                  const putPrice = (putCode && prices[putCode]?.price) || (putFullCode && prices[putFullCode]?.price) || quote.put_last_price;
+
+                                  if (callTV == null && typeof callPrice === 'number' && Number.isFinite(callPrice)) {
+                                    callTV = callPrice - Math.max(0, underlyingPrice - strike);
+                                  }
+                                  if (putTV == null && typeof putPrice === 'number' && Number.isFinite(putPrice)) {
+                                    putTV = putPrice - Math.max(0, strike - underlyingPrice);
+                                  }
+                                }
+
+                                return Math.max(0, callTV ?? 0, putTV ?? 0);
+                              };
+
+                              const maxTimeValue = Math.max(0, ...metrics.map(m => resolveMaxTimeValueForStrike(m.s)));
 
                               return metrics.map(m => {
                                 const intensity = Math.min(1, m.risk / maxRisk);
@@ -1562,21 +1811,22 @@ export function ExpiryGroupCard({
                                 if (callTV != null) displayCallTV = callTV.toFixed(4);
                                 if (putTV != null) displayPutTV = putTV.toFixed(4);
 
-                                if (underlyingPrice != null && (callTV != null || putTV != null)) {
-                                  const maxTV = Math.max(0, callTV ?? 0, putTV ?? 0);
-                                  const tvRatio = maxTV / underlyingPrice;
-                                  const intensity = Math.min(1, tvRatio * 25);
-                                  if (intensity > 0.01) {
-                                    const alpha = theme === 'dark' ? 0.3 : 0.5;
-                                    timeValueColor = `rgba(255, 170, 0, ${intensity * alpha})`;
-                                  }
+                                const strikeMaxTV = Math.max(0, callTV ?? 0, putTV ?? 0);
+                                const tvIntensity = maxTimeValue > 0 ? Math.min(1, strikeMaxTV / maxTimeValue) : 0;
+                                if (tvIntensity > 0.01) {
+                                  const alpha = theme === 'dark' ? 0.3 : 0.5;
+                                  timeValueColor = `rgba(255, 170, 0, ${tvIntensity * alpha})`;
                                 }
+                                const timeValueBg = timeValueColor !== 'transparent'
+                                  ? `linear-gradient(0deg, ${timeValueColor}, ${timeValueColor})`
+                                  : 'none';
+                                const cardBg = timeValueBg === 'none' ? bg : `${timeValueBg}, ${bg}`;
 
                                 return (
                                   <div
                                     key={`tcard-${group.expiry}-${m.s}`}
                                     className={`${themes[theme].background} rounded-lg p-3 border ${themes[theme].border}`}
-                                    style={{ backgroundImage: bg, backgroundColor: timeValueColor }}
+                                    style={{ backgroundImage: cardBg }}
                                   >
                                     <div className="flex items-start justify-between gap-3">
                                       <div className="min-w-0">
@@ -2027,9 +2277,33 @@ export function ExpiryGroupCard({
         <div className="mt-4 overflow-y-auto min-h-0 flex-1 space-y-2">
           {confirmData.meta?.action === 'unwind_combo_selection' ? (
             <div className="space-y-4">
+              <div className={`${themes[theme].background} rounded-lg border ${themes[theme].border} p-3`}>
+                <div className={`mb-1 text-[11px] ${themes[theme].text} opacity-70 flex items-center justify-between`}>
+                  <span>点数 {spreadHistory.length}</span>
+                  <span>
+                    {spreadStatus
+                      ? `采样 ${format(new Date(spreadStatus.ts), 'HH:mm:ss')} • ${spreadStatus.source === 'snapshot' ? 'WS' : (spreadStatus.source === 'last_known' ? '沿用' : '等待')}`
+                      : '采样 --'}
+                  </span>
+                </div>
+                {spreadWatchStatusText ? (
+                  <div className={`mb-1 text-[11px] ${themes[theme].text} opacity-60`}>
+                    {spreadWatchStatusText}
+                  </div>
+                ) : null}
+                {spreadWatchQuoteText ? (
+                  <div className={`mb-1 text-[11px] ${themes[theme].text} opacity-60 font-mono`}>
+                    {spreadWatchQuoteText}
+                  </div>
+                ) : null}
+                <RealTimeSpreadChart theme={theme} data={spreadHistory} title="价差走势 (Per Combo)" />
+              </div>
               {(confirmData.meta.strategies || []).map((item, idx) => (
-                <div key={`strat-select-${idx}`} className={`p-3 rounded border ${themes[theme].border} flex items-center justify-between`}>
-                  <div>
+                <div
+                  key={`strat-select-${idx}`}
+                  className={`p-3 rounded border ${themes[theme].border} flex flex-col md:flex-row md:items-start md:justify-between gap-3`}
+                >
+                  <div className="min-w-0 flex-1">
                     <div className={`font-semibold ${themes[theme].text}`}>
                       {item.strategy.name}
                       <span className="ml-2 text-xs font-normal opacity-50">{item.strategy.id}</span>
@@ -2096,10 +2370,10 @@ export function ExpiryGroupCard({
                       );
                     })()}
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 md:flex-col md:items-stretch shrink-0 self-start">
                     <button
                       disabled={isPageLocked}
-                      className="px-3 py-1.5 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-3 py-1.5 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[92px]"
                       onClick={async () => {
                          if (!selectedAccountId) {
                             toast.error('未选择账户');
@@ -2117,7 +2391,7 @@ export function ExpiryGroupCard({
                     >清仓</button>
                     <button
                       disabled={isPageLocked}
-                      className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[92px]"
                       onClick={async () => {
                         if (pageLockRef.current) return;
                         if (!selectedAccountId) {
@@ -2622,16 +2896,22 @@ export function ExpiryGroupCard({
                         );
                       })()}
                     </div>
-                    <div className={`${themes[theme].background} rounded p-2 border ${themes[theme].border}`}>
-                      <pre className={`text-[11px] ${themes[theme].text} overflow-auto max-h-40`}>{JSON.stringify(raw, null, 2)}</pre>
-                    </div>
+                    <details className={`${themes[theme].background} rounded p-2 border ${themes[theme].border}`}>
+                      <summary className={`cursor-pointer text-[11px] ${themes[theme].text} opacity-80 select-none`}>
+                        原始数据 (JSON)
+                      </summary>
+                      <pre className={`mt-2 text-[11px] ${themes[theme].text} overflow-auto max-h-40`}>{JSON.stringify(raw, null, 2)}</pre>
+                    </details>
                   </div>
                 );
               });
               return <div className="space-y-2">{items}</div>;
             })()
           )}
-        <div className={`mt-4 ${themes[theme].background} rounded p-3 border ${themes[theme].border}`}>
+        <details className={`mt-4 ${themes[theme].background} rounded p-3 border ${themes[theme].border}`}>
+          <summary className={`cursor-pointer text-xs ${themes[theme].text} opacity-80 select-none`}>
+            请求详情 (JSON)
+          </summary>
           {(() => {
             const positions = (() => {
               if (confirmData?.meta?.action === 'sync_category') {
@@ -2668,10 +2948,10 @@ export function ExpiryGroupCard({
               positions
             };
             return (
-              <pre className={`text-xs ${themes[theme].text} overflow-auto max-h-60`}>{JSON.stringify(data, null, 2)}</pre>
+              <pre className={`mt-2 text-xs ${themes[theme].text} overflow-auto max-h-60`}>{JSON.stringify(data, null, 2)}</pre>
             );
           })()}
-        </div>
+        </details>
         </div>
         <div className="mt-4 flex justify-end gap-2">
           <button
@@ -2983,6 +3263,33 @@ export function ExpiryGroupCard({
                   </span>
                 </div>
               </div>
+              {spreadHistory.length > 0 && (
+                <div className="mt-2">
+                  <div className={`mb-1 text-[11px] ${themes[theme].text} opacity-70 flex items-center justify-between`}>
+                    <span>点数 {spreadHistory.length}</span>
+                    <span>
+                      {spreadStatus
+                        ? `采样 ${format(new Date(spreadStatus.ts), 'HH:mm:ss')} • ${spreadStatus.source === 'snapshot' ? 'WS' : (spreadStatus.source === 'last_known' ? '沿用' : '等待')}`
+                        : '采样 --'}
+                    </span>
+                  </div>
+                  {spreadWatchStatusText ? (
+                    <div className={`mb-1 text-[11px] ${themes[theme].text} opacity-60`}>
+                      {spreadWatchStatusText}
+                    </div>
+                  ) : null}
+                  {spreadWatchQuoteText ? (
+                    <div className={`mb-1 text-[11px] ${themes[theme].text} opacity-60 font-mono`}>
+                      {spreadWatchQuoteText}
+                    </div>
+                  ) : null}
+                  <RealTimeSpreadChart 
+                    theme={theme} 
+                    data={spreadHistory} 
+                    title="组合价差走势" 
+                  />
+                </div>
+              )}
               <div className="mt-2 grid grid-cols-1 gap-1 text-xs">
                 <div className="grid grid-cols-[minmax(0,1fr)_84px_minmax(0,140px)] items-center gap-3">
                   <div className={`${themes[theme].text} opacity-80`}>买入腿（ASK1）x{p.buy.qty}</div>

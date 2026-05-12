@@ -432,22 +432,34 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     }
     const refreshed = await fetchPortfolio();
 
-    const symbolSet = new Set<string>();
+    const symbols = new Set<string>();
     if (activeSymbol) {
-      symbolSet.add(activeSymbol);
+      symbols.add(activeSymbol);
     } else if (refreshed) {
+      const isValidSymbol = (s: string | undefined): s is string => {
+        if (!s) return false;
+        // 过滤掉明显的期权合约代码 (中国市场通常为8位数字)
+        if (/^\d{8}(\..+)?$/.test(s)) return false;
+        return true;
+      };
+
       (refreshed.expiryBuckets || []).forEach(bucket => {
         bucket.single.forEach(pos => {
-          if (pos.opt_undl_code_full) symbolSet.add(pos.opt_undl_code_full);
+          if (isValidSymbol(pos.opt_undl_code_full)) symbols.add(pos.opt_undl_code_full);
+        });
+        bucket.complex.forEach(strategy => {
+          strategy.positions.forEach(pos => {
+            if (isValidSymbol(pos.opt_undl_code_full)) symbols.add(pos.opt_undl_code_full);
+          });
         });
       });
     }
 
-    const symbols = Array.from(symbolSet);
-    if (symbols.length === 0) return;
+    const symbolList = Array.from(symbols);
+    if (symbolList.length === 0) return;
 
     const results = await Promise.all(
-      symbols.map(async (sym) => {
+      symbolList.map(async (sym) => {
         const resp = await optionsService.refreshOptionsData(sym);
         return { sym, ...resp };
       })
@@ -472,14 +484,23 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     // Identify unique symbols and fetch their options data if needed
     const symbols = new Set<string>();
     if (activeSymbol) {
-       // If activeSymbol is set, ensure we fetch it
        symbols.add(activeSymbol);
     }
     
-    // Collect all symbols from positions to ensure we have data for everything if needed
+    const isValidSymbol = (s: string | undefined): s is string => {
+      if (!s) return false;
+      if (/^\d{8}(\..+)?$/.test(s)) return false;
+      return true;
+    };
+
     (portfolioData.expiryBuckets || []).forEach(bucket => {
       bucket.single.forEach(pos => {
-        if (pos.opt_undl_code_full) symbols.add(pos.opt_undl_code_full);
+        if (isValidSymbol(pos.opt_undl_code_full)) symbols.add(pos.opt_undl_code_full);
+      });
+      bucket.complex.forEach(strategy => {
+        strategy.positions.forEach(pos => {
+          if (isValidSymbol(pos.opt_undl_code_full)) symbols.add(pos.opt_undl_code_full);
+        });
       });
     });
 
