@@ -38,6 +38,7 @@ interface PortfolioProps {
   holdings: Holding[];
   theme: Theme;
   recentTrades?: Trade[];
+  isLoading?: boolean;
   dateRange: {
     startDate: string;
     endDate: string;
@@ -54,6 +55,7 @@ export function Portfolio({
   holdings, 
   theme, 
   recentTrades = [], 
+  isLoading = false,
   dateRange, 
   onDateRangeChange,
   isSharedView = false,
@@ -472,39 +474,41 @@ export function Portfolio({
         )}
 
         <div className="mt-4 md:mt-6">
-          <FadeIn delay={300}>
-            <PortfolioHeatmap 
-              holdings={holdings}
-              theme={theme}
-            />
-          </FadeIn>
-        </div>
-
-        <FadeIn delay={400}>
-          <div className="grid lg:grid-cols-2 gap-4 md:gap-6 p-2 md:p-6">
-            <div className="order-2 lg:order-1 min-w-0">
-              <HoldingsTable
-                theme={theme}
-                holdings={holdings}
-                paginatedHoldings={paginatedHoldings}
-                holdingsPage={holdingsPage}
-                holdingsPerPage={holdingsPerPage}
-                totalHoldingsPages={totalHoldingsPages}
-                onHoldingsPageChange={setHoldingsPage}
-                onHoldingsPerPageChange={setHoldingsPerPage}
-                holdingsSort={holdingsSort}
-                onHoldingsSort={handleHoldingsSort}
-                onAnalyzeStock={(code, name) => setSelectedStockForAnalysis({ code, name })}
-              />
-            </div>
-
-            <div className="order-1 lg:order-2 min-w-0">
-              <div className="h-[180px] xs:h-[220px] sm:h-[320px] md:h-[360px] lg:h-[450px] relative mx-auto">
-                <Pie data={pieChartData} options={pieChartOptions} />
+          {isLoading && holdings.length === 0 ? (
+            <div className={`${themes[theme].card} rounded-lg shadow-md`}>
+              <div className="p-4 sm:p-6">
+                <div className="h-[400px] sm:h-[600px] rounded-md bg-gray-200/60 dark:bg-gray-800/60 animate-pulse" />
               </div>
             </div>
+          ) : (
+            <PortfolioHeatmap holdings={holdings} theme={theme} />
+          )}
+        </div>
+
+        <div className="grid lg:grid-cols-2 gap-4 md:gap-6 p-2 md:p-6">
+          <div className="order-2 lg:order-1 min-w-0">
+            <HoldingsTable
+              theme={theme}
+              holdings={holdings}
+              paginatedHoldings={paginatedHoldings}
+              holdingsPage={holdingsPage}
+              holdingsPerPage={holdingsPerPage}
+              totalHoldingsPages={totalHoldingsPages}
+              onHoldingsPageChange={setHoldingsPage}
+              onHoldingsPerPageChange={setHoldingsPerPage}
+              holdingsSort={holdingsSort}
+              onHoldingsSort={handleHoldingsSort}
+              onAnalyzeStock={(code, name) => setSelectedStockForAnalysis({ code, name })}
+              isLoading={isLoading}
+            />
           </div>
-        </FadeIn>
+
+          <div className="order-1 lg:order-2 min-w-0">
+            <div className="h-[180px] xs:h-[220px] sm:h-[320px] md:h-[360px] lg:h-[450px] relative mx-auto">
+              <Pie data={pieChartData} options={pieChartOptions} />
+            </div>
+          </div>
+        </div>
       </div>
 
       {recentTrades.length > 0 && (

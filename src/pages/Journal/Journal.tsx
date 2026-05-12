@@ -5,7 +5,7 @@ import { TabNavigation } from './components/TabNavigation';
 import { StockSearchSection } from './components/StockSearchSection';
 import { SharedPortfolioInfo } from './components/SharedPortfolioInfo';
 import { TabContent } from './components/TabContent';
-import { portfolioService, accountService } from '../../lib/services';
+import { portfolioService, accountService, stockConfigService, tradeService, stockService, operationService } from '../../lib/services';
 import type { Stock, Holding, Trade } from '../../lib/services/types';
 import type { Theme } from '../../lib/theme';
 
@@ -29,10 +29,53 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
       ? tab
       : 'portfolio';
   });
-  const [holdings, setHoldings] = useState<Holding[]>([]);
-  const [recentTrades, setRecentTrades] = useState<Trade[]>([]);
+  const [holdings, setHoldings] = useState<Holding[]>(() => {
+    try {
+      const uuid = new URLSearchParams(window.location.search).get('uuid');
+      const key =
+        (uuid && `uuid:${uuid}`) ||
+        localStorage.getItem('journalSelectedAccountAlias') ||
+        localStorage.getItem('journalAccountId') ||
+        localStorage.getItem('selectedAccountAlias') ||
+        localStorage.getItem('selectedAccountId') ||
+        '';
+      if (!key) return [];
+      const raw = localStorage.getItem(`journal:holdings:${key}`);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw) as { data?: Holding[]; ts?: number } | Holding[];
+      if (Array.isArray(parsed)) return parsed;
+      return Array.isArray(parsed.data) ? parsed.data : [];
+    } catch {
+      return [];
+    }
+  });
+  const [recentTrades, setRecentTrades] = useState<Trade[]>(() => {
+    try {
+      const uuid = new URLSearchParams(window.location.search).get('uuid');
+      const key =
+        (uuid && `uuid:${uuid}`) ||
+        localStorage.getItem('journalSelectedAccountAlias') ||
+        localStorage.getItem('journalAccountId') ||
+        localStorage.getItem('selectedAccountAlias') ||
+        localStorage.getItem('selectedAccountId') ||
+        '';
+      if (!key) return [];
+      const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const endDate = new Date().toISOString().split('T')[0];
+      const raw = localStorage.getItem(`journal:recentTrades:${key}:${startDate}:${endDate}`);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw) as { data?: Trade[]; ts?: number } | Trade[];
+      if (Array.isArray(parsed)) return parsed;
+      return Array.isArray(parsed.data) ? parsed.data : [];
+    } catch {
+      return [];
+    }
+  });
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() => {
-    const alias = localStorage.getItem('selectedAccountAlias');
+    const alias =
+      localStorage.getItem('journalSelectedAccountAlias') ||
+      localStorage.getItem('journalAccountId') ||
+      localStorage.getItem('selectedAccountAlias');
     const legacy = localStorage.getItem('selectedAccountId');
     return alias || legacy || null;
   });
@@ -40,9 +83,33 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
     startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0]
   });
+  const [portfolioLoading, setPortfolioLoading] = useState(true);
 
   // Get UUID from URL params for portfolio sharing
   const portfolioUuid = new URLSearchParams(location.search).get('uuid');
+
+  useEffect(() => {
+    const key = portfolioUuid ? `uuid:${portfolioUuid}` : selectedAccountId || '';
+    if (!key) return;
+
+    try {
+      const cachedHoldingsRaw = localStorage.getItem(`journal:holdings:${key}`);
+      if (cachedHoldingsRaw) {
+        const parsed = JSON.parse(cachedHoldingsRaw) as { data?: Holding[]; ts?: number } | Holding[];
+        const data = Array.isArray(parsed) ? parsed : parsed.data;
+        if (Array.isArray(data)) setHoldings(data);
+      }
+    } catch {}
+
+    try {
+      const cachedTradesRaw = localStorage.getItem(`journal:recentTrades:${key}:${dateRange.startDate}:${dateRange.endDate}`);
+      if (cachedTradesRaw) {
+        const parsed = JSON.parse(cachedTradesRaw) as { data?: Trade[]; ts?: number } | Trade[];
+        const data = Array.isArray(parsed) ? parsed : parsed.data;
+        if (Array.isArray(data)) setRecentTrades(data);
+      }
+    } catch {}
+  }, [dateRange.endDate, dateRange.startDate, portfolioUuid, selectedAccountId]);
 
   const handleTabChange = (newTab: Tab) => {
     setActiveTab(newTab);
@@ -77,31 +144,92 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (activeTab === 'portfolio') {
-        if (portfolioUuid) {
-          // Fetch portfolio data by UUID
-          const [holdingsResponse, tradesResponse] = await Promise.all([
-            portfolioService.getHoldingsByUuid(portfolioUuid),
-            portfolioService.getRecentTradesByUuid(portfolioUuid, dateRange.startDate, dateRange.endDate)
-          ]);
+      setPortfolioLoading(true);
+      if (portfolioUuid) {
+        const [holdingsResponse, tradesResponse] = await Promise.all([
+          portfolioService.getHoldingsByUuid(portfolioUuid),
+          portfolioService.getRecentTradesByUuid(portfolioUuid, dateRange.startDate, dateRange.endDate)
+        ]);
 
-          if (holdingsResponse.data) setHoldings(holdingsResponse.data);
-          if (tradesResponse.data) setRecentTrades(tradesResponse.data);
-        } else {
-          // Fetch regular user portfolio data
-          const [holdingsResponse, tradesResponse] = await Promise.all([
-            portfolioService.getHoldings(DEMO_USER_ID, selectedAccountId || undefined),
-            portfolioService.getRecentTrades(DEMO_USER_ID, dateRange.startDate, dateRange.endDate, selectedAccountId || undefined)
-          ]);
-
-          if (holdingsResponse.data) setHoldings(holdingsResponse.data);
-          if (tradesResponse.data) setRecentTrades(tradesResponse.data);
+        if (holdingsResponse.data) {
+          setHoldings(holdingsResponse.data);
+          try {
+            localStorage.setItem(
+              `journal:holdings:uuid:${portfolioUuid}`,
+              JSON.stringify({ ts: Date.now(), data: holdingsResponse.data })
+            );
+          } catch {}
         }
+        if (tradesResponse.data) {
+          setRecentTrades(tradesResponse.data);
+          try {
+            localStorage.setItem(
+              `journal:recentTrades:uuid:${portfolioUuid}:${dateRange.startDate}:${dateRange.endDate}`,
+              JSON.stringify({ ts: Date.now(), data: tradesResponse.data })
+            );
+          } catch {}
+        }
+        setPortfolioLoading(false);
+        return;
       }
+
+      if (!selectedAccountId) {
+        return;
+      }
+
+      const [holdingsResponse, tradesResponse] = await Promise.all([
+        portfolioService.getHoldings(DEMO_USER_ID, selectedAccountId),
+        portfolioService.getRecentTrades(DEMO_USER_ID, dateRange.startDate, dateRange.endDate, selectedAccountId)
+      ]);
+
+      if (holdingsResponse.data) {
+        setHoldings(holdingsResponse.data);
+        try {
+          localStorage.setItem(
+            `journal:holdings:${selectedAccountId}`,
+            JSON.stringify({ ts: Date.now(), data: holdingsResponse.data })
+          );
+        } catch {}
+      }
+      if (tradesResponse.data) {
+        setRecentTrades(tradesResponse.data);
+        try {
+          localStorage.setItem(
+            `journal:recentTrades:${selectedAccountId}:${dateRange.startDate}:${dateRange.endDate}`,
+            JSON.stringify({ ts: Date.now(), data: tradesResponse.data })
+          );
+        } catch {}
+      }
+      setPortfolioLoading(false);
     };
 
     fetchData();
-  }, [activeTab, dateRange, portfolioUuid, selectedAccountId]);
+  }, [dateRange, portfolioUuid, selectedAccountId]);
+
+  useEffect(() => {
+    const prefetch = async () => {
+      await Promise.allSettled([stockConfigService.getStockConfigs()]);
+
+      if (portfolioUuid) {
+        await Promise.allSettled([
+          portfolioService.getTrendDataByUuid(portfolioUuid, dateRange.startDate, dateRange.endDate),
+        ]);
+        return;
+      }
+
+      if (!selectedAccountId) return;
+
+      await Promise.allSettled([
+        portfolioService.getTrendData(DEMO_USER_ID, dateRange.startDate, dateRange.endDate, selectedAccountId),
+        tradeService.getTrades(DEMO_USER_ID, undefined, 'all', selectedAccountId),
+        tradeService.getTrades(DEMO_USER_ID, undefined, 'completed', selectedAccountId),
+        stockService.getTodayOrders(selectedAccountId),
+        operationService.getOperations(dateRange.startDate, dateRange.endDate),
+      ]);
+    };
+
+    prefetch();
+  }, [dateRange.startDate, dateRange.endDate, portfolioUuid, selectedAccountId]);
 
   const tabs = [
     { id: 'portfolio' as Tab, name: 'Portfolio', icon: Briefcase },
@@ -129,7 +257,7 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
             tabs={tabs}
             activeTab={activeTab}
             theme={theme}
-            onTabChange={handleTabChange}
+            onTabChange={(tab) => handleTabChange(tab as Tab)}
           />
         </div>
       </div>
@@ -146,6 +274,7 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
         theme={theme}
         holdings={holdings}
         recentTrades={recentTrades}
+        portfolioLoading={portfolioLoading}
         dateRange={dateRange}
         onDateRangeChange={setDateRange}
         portfolioUuid={portfolioUuid}

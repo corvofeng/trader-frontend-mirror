@@ -1,7 +1,7 @@
 import React, { useEffect, useState, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { MainLayout } from './layouts/MainLayout';
-import { authService } from './lib/services';
+import { authService, accountService, portfolioService, stockConfigService } from './lib/services';
 import { CurrencyProvider } from './lib/context/CurrencyContext';
 import analytics from './lib/analytics';
 import type { User, Stock } from './lib/services/types';
@@ -45,9 +45,109 @@ function AppContent() {
       setTheme(savedTheme);
     }
 
-    authService.getUser().then(({ data: { user } }) => {
-      setUser(user);
+    authService.getUser().then((resp) => {
+      setUser(resp.data?.user ?? null);
     });
+  }, []);
+
+  useEffect(() => {
+    const schedule = (fn: () => void) => {
+      const w = window as unknown as { requestIdleCallback?: (cb: () => void, opts?: { timeout?: number }) => number };
+      if (typeof w.requestIdleCallback === 'function') {
+        w.requestIdleCallback(fn, { timeout: 1200 });
+        return;
+      }
+      setTimeout(fn, 0);
+    };
+
+    const getAccountKey = () => {
+      try {
+        return (
+          localStorage.getItem('journalSelectedAccountAlias') ||
+          localStorage.getItem('journalAccountId') ||
+          localStorage.getItem('selectedAccountAlias') ||
+          localStorage.getItem('selectedAccountId') ||
+          ''
+        );
+      } catch {
+        return '';
+      }
+    };
+
+    const shouldSkipByTtl = (key: string, ttlMs: number) => {
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return false;
+        const parsed = JSON.parse(raw) as { ts?: number };
+        const ts = typeof parsed?.ts === 'number' ? parsed.ts : 0;
+        return ts > 0 && Date.now() - ts < ttlMs;
+      } catch {
+        return false;
+      }
+    };
+
+    const prefetchJournalCritical = async () => {
+      try {
+        if (sessionStorage.getItem('prefetch:journal:critical') === '1') return;
+        sessionStorage.setItem('prefetch:journal:critical', '1');
+      } catch {}
+
+      let accountAlias = getAccountKey();
+      if (!accountAlias) {
+        try {
+          const resp = await accountService.getAccounts('mock-user-id');
+          const list = resp?.data || [];
+          const defaultAccount = list.find(acc => acc.is_default) || list[0];
+          const key = defaultAccount ? (defaultAccount.alias || defaultAccount.id) : '';
+          if (key) {
+            accountAlias = key;
+            try {
+              localStorage.setItem('journalSelectedAccountAlias', key);
+              localStorage.setItem('journalAccountId', key);
+              localStorage.setItem('selectedAccountAlias', key);
+              localStorage.setItem('selectedAccountId', key);
+            } catch {}
+          }
+        } catch {}
+      }
+
+      schedule(async () => {
+        const stockCfg = await stockConfigService.getStockConfigs();
+        if (stockCfg?.data) {
+          try {
+            localStorage.setItem('journal:stockConfigs', JSON.stringify({ ts: Date.now(), data: stockCfg.data }));
+          } catch {}
+        }
+
+        if (!accountAlias) return;
+
+        const endDate = new Date().toISOString().split('T')[0];
+        const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+        const holdingsCacheKey = `journal:holdings:${accountAlias}`;
+        const recentTradesCacheKey = `journal:recentTrades:${accountAlias}:${startDate}:${endDate}`;
+
+        if (!shouldSkipByTtl(holdingsCacheKey, 15_000)) {
+          const holdingsResp = await portfolioService.getHoldings('mock-user-id', accountAlias);
+          if (holdingsResp?.data) {
+            try {
+              localStorage.setItem(holdingsCacheKey, JSON.stringify({ ts: Date.now(), data: holdingsResp.data }));
+            } catch {}
+          }
+        }
+
+        if (!shouldSkipByTtl(recentTradesCacheKey, 15_000)) {
+          const tradesResp = await portfolioService.getRecentTrades('mock-user-id', startDate, endDate, accountAlias);
+          if (tradesResp?.data) {
+            try {
+              localStorage.setItem(recentTradesCacheKey, JSON.stringify({ ts: Date.now(), data: tradesResp.data }));
+            } catch {}
+          }
+        }
+      });
+    };
+
+    prefetchJournalCritical();
   }, []);
 
   const handleThemeChange = (newTheme: Theme) => {
@@ -59,8 +159,8 @@ function AppContent() {
   };
 
   const handleSignIn = async () => {
-    const { data: { user } } = await authService.signIn();
-    setUser(user);
+    const resp = await authService.signIn();
+    setUser(resp.data?.user ?? null);
     setMobileMenuOpen(false);
     analytics.event('User', 'sign_in');
   };

@@ -1,5 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { logger } from '../../../shared/utils/logger';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as echarts from 'echarts';
 import { Filter } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
@@ -119,8 +118,21 @@ export function PortfolioHeatmap({ holdings, theme }: PortfolioHeatmapProps) {
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<echarts.ECharts | null>(null);
   const [groupingDimension, setGroupingDimension] = useState<GroupingDimension>('category');
-  const [stockConfigs, setStockConfigs] = useState<StockConfig[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [stockConfigs, setStockConfigs] = useState<StockConfig[]>(() => {
+    try {
+      const raw = localStorage.getItem('journal:stockConfigs');
+      if (!raw) return [];
+      const parsed = JSON.parse(raw) as { ts?: number; data?: StockConfig[] } | StockConfig[];
+      if (Array.isArray(parsed)) return parsed;
+      if (!Array.isArray(parsed.data)) return [];
+      const ts = typeof parsed.ts === 'number' ? parsed.ts : 0;
+      if (ts > 0 && Date.now() - ts > 30 * 60_000) return [];
+      return parsed.data;
+    } catch {
+      return [];
+    }
+  });
+  const [isLoading, setIsLoading] = useState(() => stockConfigs.length === 0);
   const { currencyConfig, regionalColors } = useCurrency();
   const isMobile = window.innerWidth < 768;
 
@@ -131,6 +143,9 @@ export function PortfolioHeatmap({ holdings, theme }: PortfolioHeatmapProps) {
         if (error) throw error;
         if (data) {
           setStockConfigs(data);
+          try {
+            localStorage.setItem('journal:stockConfigs', JSON.stringify({ ts: Date.now(), data }));
+          } catch {}
         }
       } catch (error) {
         console.error('Failed to fetch stock configs:', error);
@@ -142,159 +157,129 @@ export function PortfolioHeatmap({ holdings, theme }: PortfolioHeatmapProps) {
     fetchStockConfigs();
   }, []);
 
-  useEffect(() => {
-    if (!chartRef.current || holdings.length === 0 || isLoading) {
-      logger.debug('[PortfolioHeatmap] Guard: chart not ready or no holdings', {
-        hasRef: !!chartRef.current,
-        holdingsCount: holdings.length,
-        isLoading,
-      });
-      return;
+  const stockConfigByCode = useMemo(() => {
+    const map = new Map<string, StockConfig>();
+    for (const cfg of stockConfigs) {
+      if (cfg?.stock_code) map.set(cfg.stock_code, cfg);
     }
+    return map;
+  }, [stockConfigs]);
 
-    if (chartInstance.current) {
-      chartInstance.current.dispose();
-    }
+  const isDark = theme === 'dark';
+  const totalPortfolioValue = useMemo(() => holdings.reduce((sum, h) => sum + h.total_value, 0), [holdings]);
 
-    const chart = echarts.init(chartRef.current);
-    chartInstance.current = chart;
+  const treemapData = useMemo(() => {
+    if (groupingDimension === 'tags') {
+      const tagGroups = new Map<string, { value: number; dailyPL: number; holdings: Holding[] }>();
 
-    const isDark = theme === 'dark';
-    const totalPortfolioValue = holdings.reduce((sum, h) => sum + h.total_value, 0);
+      for (const holding of holdings) {
+        const config = stockConfigByCode.get(holding.stock_code);
+        const tags = config?.tags?.length ? config.tags : ['Untagged'];
 
-    const prepareTreemapData = () => {
-      if (groupingDimension === 'tags') {
-        const tagGroups = new Map<string, {
-          value: number,
-          dailyPL: number,
-          holdings: Holding[]
-        }>();
-
-        holdings.forEach(holding => {
-          const config = stockConfigs.find(c => c.stock_code === holding.stock_code);
-          const tags = config?.tags?.length ? config.tags : ['Untagged'];
-          
-          tags.forEach(tag => {
-            if (!tag) {
-              logger.debug('[PortfolioHeatmap] Guard: skipping undefined tag');
-              return; // Skip undefined tags
-            }
-            
-            if (!tagGroups.has(tag)) {
-              tagGroups.set(tag, {
-                value: 0,
-                dailyPL: 0,
-                holdings: []
-              });
-            }
-            const group = tagGroups.get(tag)!;
-            group.value += holding.total_value;
-            group.dailyPL += holding.daily_profit_loss;
-            group.holdings.push(holding);
-          });
-        });
-
-        return Array.from(tagGroups.entries())
-          .filter(([tag]) => tag) // Filter out any remaining undefined tags
-          .map(([tag, group]) => {
-            const dailyPLPercentage = group.value > 0 ? (group.dailyPL / group.value) * 100 : 0;
-            const color = getColorByPercentage(dailyPLPercentage, isDark, regionalColors);
-
-            return {
-              name: tag,
-              value: group.value,
-              dailyPLPercentage,
-              itemStyle: {
-                color,
-                borderWidth: 2,
-                borderColor: isDark ? '#4b5563' : '#e5e7eb'
-              },
-              label: {
-                color: isDark ? '#e5e7eb' : '#111827',
-                fontWeight: 500
-              },
-              children: group.holdings.map(holding => ({
-                name: holding.stock_name || holding.stock_code,
-                stock_code: holding.stock_code,
-                value: holding.total_value,
-                dailyPLPercentage: holding.daily_profit_loss_percentage || 0,
-                itemStyle: {
-                  color: getColorByPercentage(holding.daily_profit_loss_percentage || 0, isDark, regionalColors),
-                  borderWidth: 1,
-                  borderColor: isDark ? '#374151' : '#e5e7eb'
-                },
-                label: {
-                  color: isDark ? '#e5e7eb' : '#111827',
-                  fontWeight: 500
-                }
-              }))
-            };
-          });
-      } else {
-        const categoryGroups = new Map<string, {
-          value: number,
-          dailyPL: number,
-          holdings: Holding[]
-        }>();
-
-        holdings.forEach(holding => {
-          const config = stockConfigs.find(c => c.stock_code === holding.stock_code);
-          const category = config?.category || 'Other';
-          
-          if (!categoryGroups.has(category)) {
-            categoryGroups.set(category, {
-              value: 0,
-              dailyPL: 0,
-              holdings: []
-            });
+        for (const tag of tags) {
+          if (!tag) continue;
+          let group = tagGroups.get(tag);
+          if (!group) {
+            group = { value: 0, dailyPL: 0, holdings: [] };
+            tagGroups.set(tag, group);
           }
-          const group = categoryGroups.get(category)!;
           group.value += holding.total_value;
           group.dailyPL += holding.daily_profit_loss;
           group.holdings.push(holding);
-        });
-
-        return Array.from(categoryGroups.entries())
-          .filter(([category]) => category) // Filter out any undefined categories
-          .map(([category, group]) => {
-            const dailyPLPercentage = group.value > 0 ? (group.dailyPL / group.value) * 100 : 0;
-            const color = getColorByPercentage(dailyPLPercentage, isDark, regionalColors);
-
-            return {
-              name: category,
-              value: group.value,
-              dailyPLPercentage,
-              itemStyle: {
-                color,
-                borderWidth: 2,
-                borderColor: isDark ? '#4b5563' : '#e5e7eb'
-              },
-              label: {
-                color: isDark ? '#e5e7eb' : '#111827',
-                fontWeight: 500
-              },
-              children: group.holdings.map(holding => ({
-                name: holding.stock_name || holding.stock_code,
-                stock_code: holding.stock_code,
-                value: holding.total_value,
-                dailyPLPercentage: holding.daily_profit_loss_percentage || 0,
-                itemStyle: {
-                  color: getColorByPercentage(holding.daily_profit_loss_percentage || 0, isDark, regionalColors),
-                  borderWidth: 1,
-                  borderColor: isDark ? '#374151' : '#e5e7eb'
-                },
-                label: {
-                  color: isDark ? '#e5e7eb' : '#111827',
-                  fontWeight: 500
-                }
-              }))
-            };
-          });
+        }
       }
-    };
 
-    const option = {
+      return Array.from(tagGroups.entries()).map(([tag, group]) => {
+        const dailyPLPercentage = group.value > 0 ? (group.dailyPL / group.value) * 100 : 0;
+        const color = getColorByPercentage(dailyPLPercentage, isDark, regionalColors);
+
+        return {
+          name: tag,
+          value: group.value,
+          dailyPLPercentage,
+          itemStyle: {
+            color,
+            borderWidth: 2,
+            borderColor: isDark ? '#4b5563' : '#e5e7eb'
+          },
+          label: {
+            color: isDark ? '#e5e7eb' : '#111827',
+            fontWeight: 500
+          },
+          children: group.holdings.map(holding => ({
+            name: holding.stock_name || holding.stock_code,
+            stock_code: holding.stock_code,
+            value: holding.total_value,
+            dailyPLPercentage: holding.daily_profit_loss_percentage || 0,
+            itemStyle: {
+              color: getColorByPercentage(holding.daily_profit_loss_percentage || 0, isDark, regionalColors),
+              borderWidth: 1,
+              borderColor: isDark ? '#374151' : '#e5e7eb'
+            },
+            label: {
+              color: isDark ? '#e5e7eb' : '#111827',
+              fontWeight: 500
+            }
+          }))
+        };
+      });
+    }
+
+    const categoryGroups = new Map<string, { value: number; dailyPL: number; holdings: Holding[] }>();
+
+    for (const holding of holdings) {
+      const config = stockConfigByCode.get(holding.stock_code);
+      const category = config?.category || 'Other';
+      let group = categoryGroups.get(category);
+      if (!group) {
+        group = { value: 0, dailyPL: 0, holdings: [] };
+        categoryGroups.set(category, group);
+      }
+      group.value += holding.total_value;
+      group.dailyPL += holding.daily_profit_loss;
+      group.holdings.push(holding);
+    }
+
+    return Array.from(categoryGroups.entries()).map(([category, group]) => {
+      const dailyPLPercentage = group.value > 0 ? (group.dailyPL / group.value) * 100 : 0;
+      const color = getColorByPercentage(dailyPLPercentage, isDark, regionalColors);
+
+      return {
+        name: category,
+        value: group.value,
+        dailyPLPercentage,
+        itemStyle: {
+          color,
+          borderWidth: 2,
+          borderColor: isDark ? '#4b5563' : '#e5e7eb'
+        },
+        label: {
+          color: isDark ? '#e5e7eb' : '#111827',
+          fontWeight: 500
+        },
+        children: group.holdings.map(holding => ({
+          name: holding.stock_name || holding.stock_code,
+          stock_code: holding.stock_code,
+          value: holding.total_value,
+          dailyPLPercentage: holding.daily_profit_loss_percentage || 0,
+          itemStyle: {
+            color: getColorByPercentage(holding.daily_profit_loss_percentage || 0, isDark, regionalColors),
+            borderWidth: 1,
+            borderColor: isDark ? '#374151' : '#e5e7eb'
+          },
+          label: {
+            color: isDark ? '#e5e7eb' : '#111827',
+            fontWeight: 500
+          }
+        }))
+      };
+    });
+  }, [groupingDimension, holdings, isDark, regionalColors, stockConfigByCode]);
+
+  const option = useMemo(() => {
+    return {
       grid: { left: 24, right: 24, top: 24, bottom: 24, containLabel: true },
+      animation: false,
       tooltip: {
         formatter: (params: TreemapTooltipParams) => {
           const { name, value, dailyPLPercentage, stock_code } = params.data;
@@ -319,7 +304,7 @@ export function PortfolioHeatmap({ holdings, theme }: PortfolioHeatmapProps) {
       series: [{
         name: groupingDimension === 'tags' ? 'Tags' : 'Categories',
         type: 'treemap',
-        data: prepareTreemapData(),
+        data: treemapData,
         width: '100%',
         height: '100%',
         roam: false,
@@ -405,24 +390,36 @@ export function PortfolioHeatmap({ holdings, theme }: PortfolioHeatmapProps) {
         }
       }]
     };
+  }, [currencyConfig, groupingDimension, isDark, isMobile, regionalColors, totalPortfolioValue, treemapData]);
 
-    chart.setOption(option);
+  useEffect(() => {
+    const el = chartRef.current;
+    if (!el) return;
+    if (chartInstance.current) return;
 
-    const handleResize = () => {
-      if (chartInstance.current) {
-        chartInstance.current.resize();
-      }
-    };
+    chartInstance.current = echarts.init(el);
 
-    window.addEventListener('resize', handleResize);
+    const ro = new ResizeObserver(() => {
+      chartInstance.current?.resize();
+    });
+    ro.observe(el);
 
     return () => {
-      window.removeEventListener('resize', handleResize);
-      if (chartInstance.current) {
-        chartInstance.current.dispose();
-      }
+      ro.disconnect();
+      chartInstance.current?.dispose();
+      chartInstance.current = null;
     };
-  }, [holdings, theme, currencyConfig, groupingDimension, stockConfigs, isLoading, isMobile, regionalColors]);
+  }, []);
+
+  useEffect(() => {
+    const chart = chartInstance.current;
+    if (!chart) return;
+    if (holdings.length === 0) return;
+    chart.setOption(option, { notMerge: true, lazyUpdate: true });
+    try {
+      performance.mark('portfolioHeatmap:rendered');
+    } catch {}
+  }, [holdings.length, option]);
 
   return (
     <div className={`${themes[theme].card} rounded-lg shadow-md`}>
@@ -446,13 +443,19 @@ export function PortfolioHeatmap({ holdings, theme }: PortfolioHeatmapProps) {
           </div>
         </div>
 
-        {isLoading ? (
-          <div className="h-[400px] sm:h-[600px] flex items-center justify-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-          </div>
-        ) : (
-          <div ref={chartRef} style={{ height: isMobile ? '400px' : '600px' }} className="mt-4" />
-        )}
+        <div className="mt-4 relative">
+          <div ref={chartRef} style={{ height: isMobile ? '400px' : '600px' }} />
+          {holdings.length === 0 ? (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>
+            </div>
+          ) : null}
+          {holdings.length > 0 && isLoading ? (
+            <div className="absolute top-2 right-2 text-xs px-2 py-1 rounded bg-gray-100/80 dark:bg-gray-900/70 text-gray-700 dark:text-gray-200">
+              正在加载分类…
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   );

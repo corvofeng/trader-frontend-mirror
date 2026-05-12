@@ -18,6 +18,7 @@ interface HoldingsTableProps {
   holdingsSort: { field: string; direction: 'asc' | 'desc' };
   onHoldingsSort: (field: string) => void;
   onAnalyzeStock: (code: string, name: string) => void;
+  isLoading?: boolean;
 }
 
 const SortIcon = ({ field, currentSort }: { field: string, currentSort: { field: string; direction: 'asc' | 'desc' } }) => {
@@ -41,9 +42,11 @@ export function HoldingsTable({
   holdingsSort,
   onHoldingsSort,
   onAnalyzeStock,
+  isLoading = false,
 }: HoldingsTableProps) {
   const { currencyConfig } = useCurrency();
   const totalPortfolioValue = holdings.reduce((sum, h) => sum + h.total_value, 0);
+  const showSkeleton = isLoading && holdings.length === 0;
 
   return (
     <div>
@@ -52,6 +55,7 @@ export function HoldingsTable({
         <select
           value={holdingsPerPage}
           onChange={(e) => onHoldingsPerPageChange(Number(e.target.value))}
+          disabled={showSkeleton}
           className={`px-2 py-1 rounded-md text-base ${themes[theme].input} ${themes[theme].text}`}
         >
           <option value={5}>每页 5 条</option>
@@ -98,7 +102,26 @@ export function HoldingsTable({
                     </tr>
           </thead>
           <tbody className={`divide-y ${themes[theme].border}`}>
-            {paginatedHoldings.map((holding) => (
+            {showSkeleton
+              ? Array.from({ length: holdingsPerPage }, (_, idx) => (
+                  <tr key={`sk-${idx}`} className={themes[theme].cardHover}>
+                    <td className="px-1 py-2 sm:px-4 sm:py-3">
+                      <div className="h-5 w-24 rounded bg-gray-200/70 dark:bg-gray-800/70 animate-pulse" />
+                      <div className="mt-2 h-4 w-32 rounded bg-gray-200/60 dark:bg-gray-800/60 animate-pulse" />
+                    </td>
+                    <td className="px-1 py-2 sm:px-4 sm:py-3">
+                      <div className="ml-auto h-5 w-28 rounded bg-gray-200/70 dark:bg-gray-800/70 animate-pulse" />
+                      <div className="mt-2 ml-auto h-4 w-14 rounded bg-gray-200/60 dark:bg-gray-800/60 animate-pulse" />
+                    </td>
+                    <td className="px-1 py-2 sm:px-4 sm:py-3">
+                      <div className="ml-auto h-5 w-16 rounded bg-gray-200/70 dark:bg-gray-800/70 animate-pulse" />
+                    </td>
+                    <td className="px-1 py-2 sm:px-4 sm:py-3">
+                      <div className="ml-auto h-8 w-16 rounded bg-gray-200/70 dark:bg-gray-800/70 animate-pulse" />
+                    </td>
+                  </tr>
+                ))
+              : paginatedHoldings.map((holding) => (
               <tr key={holding.stock_code} className={themes[theme].cardHover}>
                 <td className="px-1 py-2 sm:px-4 sm:py-3 truncate">
                    <div className="flex flex-col">
@@ -139,23 +162,25 @@ export function HoldingsTable({
 
       <div className="flex items-center justify-between mt-4">
                 <div className={`text-base ${themes[theme].text}`}>
-                  显示 {Math.min(holdings.length, (holdingsPage - 1) * holdingsPerPage + 1)} 到 {Math.min(holdings.length, holdingsPage * holdingsPerPage)} 条，共 {holdings.length} 条持仓
+                  {showSkeleton
+                    ? '正在加载持仓…'
+                    : `显示 ${Math.min(holdings.length, (holdingsPage - 1) * holdingsPerPage + 1)} 到 ${Math.min(holdings.length, holdingsPage * holdingsPerPage)} 条，共 ${holdings.length} 条持仓`}
                 </div>
                 <div className="flex gap-2">
           <button
             onClick={() => onHoldingsPageChange(Math.max(1, holdingsPage - 1))}
-            disabled={holdingsPage === 1}
+            disabled={showSkeleton || holdingsPage === 1}
             className={`p-1 rounded-md ${themes[theme].secondary} ${
-              holdingsPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
+              showSkeleton || holdingsPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
           <button
             onClick={() => onHoldingsPageChange(Math.min(totalHoldingsPages, holdingsPage + 1))}
-            disabled={holdingsPage === totalHoldingsPages}
+            disabled={showSkeleton || holdingsPage === totalHoldingsPages}
             className={`p-1 rounded-md ${themes[theme].secondary} ${
-              holdingsPage === totalHoldingsPages ? 'opacity-50 cursor-not-allowed' : ''
+              showSkeleton || holdingsPage === totalHoldingsPages ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           >
             <ChevronRight className="w-5 h-5" />

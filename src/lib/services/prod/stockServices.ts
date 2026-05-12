@@ -4,6 +4,7 @@ import type {
   StockService,
   PortfolioService,
   CurrencyService,
+  Operation,
   OperationService,
   StockConfigService,
   StockConfig,
@@ -25,6 +26,22 @@ import type { Trade } from '../types';
 
 let cachedUser: User | null = null;
 let pendingUserPromise: Promise<ServiceResponse<{ user: User | null }>> | null = null;
+
+type CacheEntry<T> = { data: T; expiresAt: number };
+
+const getCached = <T>(map: Map<string, CacheEntry<T>>, key: string) => {
+  const entry = map.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    map.delete(key);
+    return null;
+  }
+  return entry.data;
+};
+
+const setCached = <T>(map: Map<string, CacheEntry<T>>, key: string, data: T, ttlMs: number) => {
+  map.set(key, { data, expiresAt: Date.now() + ttlMs });
+};
 
 export const authService: AuthService = {
   getUser: async () => {
@@ -77,24 +94,47 @@ const getCurrentAccountAlias = () => {
   }
 };
 
+const actionsCache = new Map<string, CacheEntry<Trade[]>>();
+const actionsPending = new Map<string, Promise<Trade[]>>();
+
 export const tradeService: TradeService = {
   getTrades: async (userId: string, stock_code?: string, status?: string, accountAlias?: string) => {
     const params = new URLSearchParams();
-    
-    // Use passed accountAlias or fallback to current selected
-    const targetAccount = accountAlias || getCurrentAccountAlias();
+
+    const targetAccount = accountAlias || getCurrentAccountAlias() || '';
     if (targetAccount) {
       params.set('account_alias', targetAccount);
     }
-    
-    const url = params.toString() ? `/api/actions?${params.toString()}` : '/api/actions';
-    let filteredTrades = await (await fetch(url)).json();
-    console.log(userId, stock_code, status, filteredTrades);
 
+    const cacheKey = targetAccount || '__all__';
+    const cached = getCached(actionsCache, cacheKey);
+    const baseTrades = cached
+      ? cached
+      : await (async () => {
+          const pending = actionsPending.get(cacheKey);
+          if (pending) return pending;
+
+          const promise = (async () => {
+            const url = params.toString() ? `/api/actions?${params.toString()}` : '/api/actions';
+            const res = await fetch(url);
+            const json = await res.json();
+            const list = Array.isArray(json) ? (json as Trade[]) : [];
+            setCached(actionsCache, cacheKey, list, 15_000);
+            return list;
+          })();
+
+          actionsPending.set(cacheKey, promise);
+          try {
+            return await promise;
+          } finally {
+            actionsPending.delete(cacheKey);
+          }
+        })();
+
+    let filteredTrades = baseTrades;
     if (stock_code) {
       filteredTrades = filteredTrades.filter((trade: Trade) => trade.stock_code === stock_code);
     }
-
     if (status && status !== 'all') {
       filteredTrades = filteredTrades.filter((trade: Trade) => trade.status === status);
     }
@@ -121,6 +161,9 @@ export const tradeService: TradeService = {
       return { data: null, error: new Error('Failed to create trade') };
     }
 
+    actionsCache.clear();
+    actionsPending.clear();
+
     const newTrade = await response.json();
     return { data: newTrade, error: null };
   },
@@ -143,6 +186,9 @@ export const tradeService: TradeService = {
     if (!response.ok) {
       return { data: null, error: new Error('Failed to update trade') };
     }
+
+    actionsCache.clear();
+    actionsPending.clear();
 
     return { data: trade, error: null };
   }
@@ -282,7 +328,21 @@ export const stockService: StockService = {
       return [];
     };
 
-    try {
+    const cacheKey = accountAlias;
+    const cached = getCached(todayOrdersCache, cacheKey);
+    if (cached) return { data: cached, error: null };
+
+    const pending = todayOrdersPending.get(cacheKey);
+    if (pending) {
+      try {
+        const data = await pending;
+        return { data, error: null };
+      } catch (error) {
+        return { data: null, error: error as Error };
+      }
+    }
+
+    const promise = (async () => {
       const response = await fetch(
         `/api/stocks/orders/${encodeURIComponent(accountAlias)}?only_today=true&_=${Date.now()}`,
         { cache: 'no-store' }
@@ -292,10 +352,20 @@ export const stockService: StockService = {
         throw new Error(text || `请求失败 (${response.status})`);
       }
       const raw = await response.json();
-      return { data: extractOrders(raw), error: null };
+      const data = extractOrders(raw);
+      setCached(todayOrdersCache, cacheKey, data, 5_000);
+      return data;
+    })();
+
+    todayOrdersPending.set(cacheKey, promise);
+    try {
+      const data = await promise;
+      return { data, error: null };
     } catch (error) {
       console.error('Error fetching today orders:', error);
       return { data: null, error: error as Error };
+    } finally {
+      todayOrdersPending.delete(cacheKey);
     }
   },
   getTradingCalendar: async (year: number) => {
@@ -350,18 +420,40 @@ export const stockService: StockService = {
   }
 };
 
+const todayOrdersCache = new Map<string, CacheEntry<StockOrder[]>>();
+const todayOrdersPending = new Map<string, Promise<StockOrder[]>>();
+
+const stockConfigsCache = new Map<string, CacheEntry<StockConfig[]>>();
+let stockConfigsPending: Promise<StockConfig[]> | null = null;
+
 export const stockConfigService: StockConfigService = {
   getStockConfigs: async () => {
     try {
-      const response = await fetch('/api/stock-configs');
-      if (!response.ok) {
-        throw new Error('Failed to fetch stock configs');
+      const cached = getCached(stockConfigsCache, 'all');
+      if (cached) return { data: cached, error: null };
+
+      if (stockConfigsPending) {
+        const data = await stockConfigsPending;
+        return { data, error: null };
       }
-      const data = await response.json();
+
+      stockConfigsPending = (async () => {
+        const response = await fetch('/api/stock-configs');
+        if (!response.ok) {
+          throw new Error('Failed to fetch stock configs');
+        }
+        const data = (await response.json()) as StockConfig[];
+        setCached(stockConfigsCache, 'all', data, 5 * 60_000);
+        return data;
+      })();
+
+      const data = await stockConfigsPending;
       return { data, error: null };
     } catch (error) {
       console.error('Error fetching stock configs:', error);
       return { data: null, error: error as Error };
+    } finally {
+      stockConfigsPending = null;
     }
   },
 
@@ -380,6 +472,7 @@ export const stockConfigService: StockConfigService = {
       }
       
       const data = await response.json();
+      stockConfigsCache.clear();
       return { data, error: null };
     } catch (error) {
       console.error('Error updating stock config:', error);
@@ -397,6 +490,7 @@ export const stockConfigService: StockConfigService = {
         throw new Error('Failed to delete stock config');
       }
       
+      stockConfigsCache.clear();
       return { data: null, error: null };
     } catch (error) {
       console.error('Error deleting stock config:', error);
@@ -404,6 +498,9 @@ export const stockConfigService: StockConfigService = {
     }
   }
 };
+
+const trendCache = new Map<string, CacheEntry<unknown>>();
+const trendPending = new Map<string, Promise<unknown>>();
 
 export const portfolioService: PortfolioService = {
   getHoldings: async (userId: string, accountId?: string) => {
@@ -454,15 +551,36 @@ export const portfolioService: PortfolioService = {
       // 使用默认账户ID或用户ID作为路径参数
       if (!accountId) return { data: null, error: new Error('Account ID is required') };
 
-      const url = `/api/portfolio/${accountId}/trend?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&userId=${userId}`;
-      const response = await fetch(url);
+      const cacheKey = `${accountId}|${startDate}|${endDate}`;
+      const cached = getCached(trendCache, cacheKey);
+      if (cached) return { data: cached as any, error: null };
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch trend data');
+      const pending = trendPending.get(cacheKey);
+      if (pending) {
+        const data = await pending;
+        return { data: data as any, error: null };
       }
 
-      const data = await response.json();
-      return { data, error: null };
+      const promise = (async () => {
+        const url = `/api/portfolio/${accountId}/trend?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&userId=${userId}`;
+        const response = await fetch(url);
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch trend data');
+        }
+
+        const data = await response.json();
+        setCached(trendCache, cacheKey, data, 30_000);
+        return data;
+      })();
+
+      trendPending.set(cacheKey, promise);
+      try {
+        const data = await promise;
+        return { data: data as any, error: null };
+      } finally {
+        trendPending.delete(cacheKey);
+      }
     } catch (error) {
       console.error('Error fetching trend data:', error);
       return { data: null, error: error as Error };
@@ -522,16 +640,37 @@ export const portfolioService: PortfolioService = {
 
   getTrendDataByUuid: async (uuid: string, startDate: string, endDate: string) => {
     try {
-      const response = await fetch(
-        `/api/portfolio/shared/${uuid}/trend?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`
-      );
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch shared portfolio trend data');
+      const cacheKey = `uuid:${uuid}|${startDate}|${endDate}`;
+      const cached = getCached(trendCache, cacheKey);
+      if (cached) return { data: cached as any, error: null };
+
+      const pending = trendPending.get(cacheKey);
+      if (pending) {
+        const data = await pending;
+        return { data: data as any, error: null };
       }
-      
-      const data = await response.json();
-      return { data, error: null };
+
+      const promise = (async () => {
+        const response = await fetch(
+          `/api/portfolio/shared/${uuid}/trend?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`
+        );
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch shared portfolio trend data');
+        }
+
+        const data = await response.json();
+        setCached(trendCache, cacheKey, data, 30_000);
+        return data;
+      })();
+
+      trendPending.set(cacheKey, promise);
+      try {
+        const data = await promise;
+        return { data: data as any, error: null };
+      } finally {
+        trendPending.delete(cacheKey);
+      }
     } catch (error) {
       console.error('Error fetching shared portfolio trend data:', error);
       return { data: null, error: error as Error };
@@ -579,22 +718,44 @@ export const operationService: OperationService = {
       const accountAlias = getCurrentAccountAlias();
       if (!accountAlias) return { data: [], error: null };
 
-      const url = `/api/portfolio/${encodeURIComponent(accountAlias)}/operations?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`;
-      
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch operations');
+      const cacheKey = `${accountAlias}|${startDate}|${endDate}`;
+      const cached = getCached(operationsCache, cacheKey);
+      if (cached) return { data: cached, error: null };
+
+      const pending = operationsPending.get(cacheKey);
+      if (pending) {
+        const data = await pending;
+        return { data, error: null };
       }
-      
-      const data = await response.json();
-      return { data, error: null };
+
+      const url = `/api/portfolio/${encodeURIComponent(accountAlias)}/operations?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`;
+
+      const promise = (async () => {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error('Failed to fetch operations');
+        }
+        const data = await response.json();
+        setCached(operationsCache, cacheKey, data, 30_000);
+        return data as Operation[];
+      })();
+
+      operationsPending.set(cacheKey, promise);
+      try {
+        const data = await promise;
+        return { data, error: null };
+      } finally {
+        operationsPending.delete(cacheKey);
+      }
     } catch (error) {
       console.error('Error fetching operations:', error);
       return { data: null, error: error as Error };
     }
   }
 };
+
+const operationsCache = new Map<string, CacheEntry<Operation[]>>();
+const operationsPending = new Map<string, Promise<Operation[]>>();
 
 const listNotices = async (): Promise<ServiceResponse<Notice[]>> => {
   const normalizeNotice = (raw: unknown): Notice | null => {

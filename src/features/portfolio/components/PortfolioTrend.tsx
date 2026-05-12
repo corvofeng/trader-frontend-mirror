@@ -2,7 +2,8 @@ import React from 'react';
 import { format } from 'date-fns';
 import { TrendingUp, BarChart3, RefreshCw } from 'lucide-react';
 import { Line } from 'react-chartjs-2';
-import { Theme, themes } from '../../../shared/constants/theme';
+import type { Theme } from '../../../lib/theme';
+import { themes } from '../../../lib/theme';
 import { stockService } from '../../../lib/services';
 import type { TrendData } from '../../../lib/services/types';
 import { formatCurrency } from '../../../shared/utils/format';
@@ -23,15 +24,6 @@ interface SSEPoint {
   returnRate: number;
 }
 
-interface TooltipLabelContext {
-  dataset: { label?: string };
-  raw: number | null;
-}
-
-interface TooltipItem {
-  raw: number;
-}
-
 export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendProps) {
   const { currencyConfig, getThemedColors } = useCurrency();
   const themedColors = getThemedColors(theme);
@@ -40,7 +32,7 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
   const [isLoadingSSE, setIsLoadingSSE] = React.useState(false);
   const [viewMode, setViewMode] = React.useState<'absolute' | 'return'>('absolute');
 
-  // Fetch SSE data for comparison
+  // Fetch comparison index data for return comparison
   React.useEffect(() => {
     const fetchSSEData = async () => {
       setIsLoadingSSE(true);
@@ -124,10 +116,34 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
       }
     };
 
-    if (showComparison && trendData.length > 0) {
-      fetchSSEData();
+    if (viewMode !== 'return' || !showComparison || trendData.length === 0) {
+      return;
     }
-  }, [dateRange, showComparison, trendData.length]);
+
+    let cancelled = false;
+    const run = () => {
+      if (cancelled) return;
+      fetchSSEData();
+    };
+
+    const w = window as unknown as {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout?: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+
+    const id = typeof w.requestIdleCallback === 'function'
+      ? w.requestIdleCallback(run, { timeout: 2500 })
+      : window.setTimeout(run, 0);
+
+    return () => {
+      cancelled = true;
+      if (typeof w.cancelIdleCallback === 'function' && typeof id === 'number') {
+        w.cancelIdleCallback(id);
+      } else {
+        clearTimeout(id);
+      }
+    };
+  }, [dateRange, showComparison, trendData.length, viewMode]);
 
   // Prepare chart data based on view mode
   const getChartData = () => {
@@ -215,9 +231,9 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
     }
   };
 
-  const lineChartData = getChartData();
+  const lineChartData = getChartData() as any;
 
-  const lineChartOptions = {
+  const lineChartOptions: any = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -242,21 +258,21 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
         borderColor: theme === 'dark' ? '#4b5563' : '#e5e7eb',
         borderWidth: 1,
         callbacks: {
-          label: (context: TooltipLabelContext) => {
+          label: (context: any) => {
             const label = context.dataset.label || '';
             if (viewMode === 'return') {
               const value = context.raw;
               return `${label}: ${value !== null ? (value >= 0 ? '+' : '') + value.toFixed(2) + '%' : 'N/A'}`;
             } else {
-              const value = formatCurrency(context.raw, currencyConfig);
-              return `${label}: ${value}`;
+              const raw = typeof context.raw === 'number' ? context.raw : null;
+              return `${label}: ${raw !== null ? formatCurrency(raw, currencyConfig) : 'N/A'}`;
             }
           },
-          afterBody: (tooltipItems: TooltipItem[]) => {
+          afterBody: (tooltipItems: any[]) => {
             if (viewMode === 'absolute' && tooltipItems.length >= 2) {
-              const assetValue = tooltipItems[0].raw;
-              const positionValue = tooltipItems[1].raw;
-              if (assetValue > 0 && positionValue > 0) {
+              const assetValue = typeof tooltipItems[0]?.raw === 'number' ? tooltipItems[0].raw : null;
+              const positionValue = typeof tooltipItems[1]?.raw === 'number' ? tooltipItems[1].raw : null;
+              if (assetValue !== null && positionValue !== null && assetValue > 0 && positionValue > 0) {
                 const ratio = ((positionValue / assetValue) * 100).toFixed(2);
                 return [`持仓比例: ${ratio}%`];
               }

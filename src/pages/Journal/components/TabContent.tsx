@@ -26,6 +26,7 @@ interface TabContentProps {
   theme: Theme;
   holdings: Holding[];
   recentTrades: Trade[];
+  portfolioLoading?: boolean;
   dateRange: {
     startDate: string;
     endDate: string;
@@ -43,6 +44,7 @@ export function TabContent({
   theme,
   holdings,
   recentTrades,
+  portfolioLoading = false,
   dateRange,
   onDateRangeChange,
   portfolioUuid,
@@ -108,6 +110,7 @@ export function TabContent({
         isSharedView={isSharedView}
         userId={userId}
         selectedAccountId={selectedAccountId}
+        isLoading={portfolioLoading}
         onAccountChange={(accountId) => {
           onAccountChange?.(accountId);
           if (accountId) {
