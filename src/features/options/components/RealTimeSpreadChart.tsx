@@ -69,7 +69,10 @@ export function RealTimeSpreadChart({ theme, data, height = 180, title }: RealTi
     const fillBottom = 'rgba(99, 102, 241, 0.0)';
 
     const left = 42;
-    const right = 24;
+    const approxCharWidth = 7;
+    const lastValueText = model.lastText === '--' ? '' : model.lastText;
+    const reservedRight = lastValueText ? Math.max(24, Math.min(160, lastValueText.length * approxCharWidth + 18)) : 24;
+    const right = Math.min(reservedRight, Math.max(24, w - left - 8));
     const top = title ? 26 : 16;
     const bottom = 22;
     const pw = Math.max(1, w - left - right);
@@ -105,6 +108,17 @@ export function RealTimeSpreadChart({ theme, data, height = 180, title }: RealTi
       const y = top + t * ph;
       return <line key={i} x1={left} y1={y} x2={left + pw} y2={y} stroke={grid} strokeWidth={1} />;
     });
+
+    const placeValueLabel = (x: number, text: string) => {
+      const textW = text.length * approxCharWidth;
+      const pad = 10;
+      const maxX = w - 6;
+      const preferRightX = x + pad;
+      if (preferRightX + textW <= maxX) {
+        return { x: preferRightX, anchor: 'start' as const };
+      }
+      return { x: Math.max(left + 2, x - pad), anchor: 'end' as const };
+    };
 
     return (
       <svg width="100%" height="100%" viewBox={`0 0 ${w} ${h}`} role="img" aria-label={title || 'spread-chart'}>
@@ -166,27 +180,41 @@ export function RealTimeSpreadChart({ theme, data, height = 180, title }: RealTi
               fill={line}
             />
             <circle cx={pts[pts.length - 1].x} cy={pts[pts.length - 1].y} r={4} fill={line} />
-            <text
-              x={Math.min(left + pw, pts[pts.length - 1].x + 10)}
-              y={Math.max(top + 12, pts[pts.length - 1].y - 10)}
-              fontSize={11}
-              fill={textColor}
-            >
-              {pts[pts.length - 1].v.toFixed(4)}
-            </text>
+            {(() => {
+              const text = pts[pts.length - 1].v.toFixed(4);
+              const placement = placeValueLabel(pts[pts.length - 1].x, text);
+              return (
+                <text
+                  x={placement.x}
+                  y={Math.max(top + 12, pts[pts.length - 1].y - 10)}
+                  textAnchor={placement.anchor}
+                  fontSize={11}
+                  fill={textColor}
+                >
+                  {text}
+                </text>
+              );
+            })()}
           </>
         ) : pts.length === 1 ? (
           <>
             <circle className="rt-pulse" cx={pts[0].x} cy={pts[0].y} r={7} fill={line} />
             <circle cx={pts[0].x} cy={pts[0].y} r={5} fill={line} />
-            <text
-              x={Math.min(left + pw, pts[0].x + 10)}
-              y={Math.max(top + 12, pts[0].y - 10)}
-              fontSize={11}
-              fill={textColor}
-            >
-              {pts[0].v.toFixed(4)}
-            </text>
+            {(() => {
+              const text = pts[0].v.toFixed(4);
+              const placement = placeValueLabel(pts[0].x, text);
+              return (
+                <text
+                  x={placement.x}
+                  y={Math.max(top + 12, pts[0].y - 10)}
+                  textAnchor={placement.anchor}
+                  fontSize={11}
+                  fill={textColor}
+                >
+                  {text}
+                </text>
+              );
+            })()}
           </>
         ) : null}
 

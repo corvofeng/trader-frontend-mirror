@@ -3229,7 +3229,9 @@ export function ExpiryGroupCard({
   {advisedModal && (
     <div className="fixed inset-0 z-50">
       <div className="absolute inset-0 bg-black/40" onClick={() => setAdvisedModal(null)}></div>
-      <div className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-md rounded-lg border ${themes[theme].card} ${themes[theme].border} p-6`}>
+      <div
+        className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[92%] md:w-auto md:min-w-[600px] md:max-w-2xl max-h-[85vh] overflow-y-auto rounded-lg border ${themes[theme].card} ${themes[theme].border} p-6`}
+      >
         <div className={`text-lg font-semibold ${themes[theme].text}`}>{advisedModal.combo.description}</div>
         <div className={`mt-1 text-xs ${themes[theme].text} opacity-75`}>到期 {format(new Date(advisedModal.combo.expiry), 'yyyy-MM-dd')}</div>
         {(() => {
