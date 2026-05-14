@@ -292,6 +292,60 @@ export const stockService: StockService = {
     }
   },
 
+  getStockGtimgRaw: async (symbol: string, options?: { signal?: AbortSignal }) => {
+    const extractList = (value: unknown): Record<string, unknown>[] => {
+      if (Array.isArray(value)) {
+        return value.filter((v): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v));
+      }
+      if (!value || typeof value !== 'object') return [];
+      const obj = value as Record<string, unknown>;
+      if (Array.isArray(obj.data)) return extractList(obj.data);
+      return [obj];
+    };
+
+    try {
+      const response = await fetch(`/api/stocks/${encodeURIComponent(symbol)}/gtimg`, {
+        signal: options?.signal,
+        cache: 'no-store'
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const data = await response.json();
+      return { data: extractList(data), error: null };
+    } catch (error) {
+      console.error('Error fetching gtimg data:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  getStockYfinanceRaw: async (symbol: string, options?: { signal?: AbortSignal }) => {
+    const extractList = (value: unknown): Record<string, unknown>[] => {
+      if (Array.isArray(value)) {
+        return value.filter((v): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v));
+      }
+      if (!value || typeof value !== 'object') return [];
+      const obj = value as Record<string, unknown>;
+      if (Array.isArray(obj.data)) return extractList(obj.data);
+      return [obj];
+    };
+
+    try {
+      const response = await fetch(`/api/stocks/${encodeURIComponent(symbol)}/yfinance`, {
+        signal: options?.signal,
+        cache: 'no-store'
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const data = await response.json();
+      return { data: extractList(data), error: null };
+    } catch (error) {
+      console.error('Error fetching yfinance data:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
   getCurrentPrice: async (symbol: string) => {
     try {
       const response = await fetch(`/api/stocks/${symbol}/price`);

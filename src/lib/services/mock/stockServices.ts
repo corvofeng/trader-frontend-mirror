@@ -208,6 +208,36 @@ export const stockService: StockService = {
     return { data: ticks, error: null };
   },
 
+  getStockGtimgRaw: async (symbol: string, _options?: { signal?: AbortSignal }) => {
+    await new Promise(resolve => setTimeout(resolve, 400));
+    const now = new Date();
+    const base = 100 + Math.random() * 50;
+    const last = base * (1 + (Math.random() - 0.5) * 0.01);
+    const record: Record<string, unknown> = {
+      symbol,
+      timetag: format(now, 'yyyy-MM-dd HH:mm:ss'),
+      time: now.getTime(),
+      open: base,
+      lastPrice: last
+    };
+    return { data: [record], error: null };
+  },
+
+  getStockYfinanceRaw: async (symbol: string, _options?: { signal?: AbortSignal }) => {
+    await new Promise(resolve => setTimeout(resolve, 400));
+    const now = new Date();
+    const base = 100 + Math.random() * 50;
+    const last = base * (1 + (Math.random() - 0.5) * 0.01);
+    const record: Record<string, unknown> = {
+      symbol,
+      datetime: now.toISOString(),
+      timestamp: Math.floor(now.getTime() / 1000),
+      open: base,
+      close: last
+    };
+    return { data: [record], error: null };
+  },
+
   getCurrentPrice: async (symbol: string) => {
     await new Promise(resolve => setTimeout(resolve, 300));
     const lastPrice = DEMO_STOCK_DATA[DEMO_STOCK_DATA.length - 1].current_price;

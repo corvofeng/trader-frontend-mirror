@@ -285,6 +285,8 @@ export interface StockService {
   getStockData: (symbol: string) => Promise<ServiceResponse<StockData[]>>;
   getStockHistoryRaw: (symbol: string, options?: { signal?: AbortSignal }) => Promise<ServiceResponse<Record<string, unknown>[]>>;
   getStockTicksRaw: (symbol: string, options?: { signal?: AbortSignal }) => Promise<ServiceResponse<Record<string, unknown>[]>>;
+  getStockGtimgRaw: (symbol: string, options?: { signal?: AbortSignal }) => Promise<ServiceResponse<Record<string, unknown>[]>>;
+  getStockYfinanceRaw: (symbol: string, options?: { signal?: AbortSignal }) => Promise<ServiceResponse<Record<string, unknown>[]>>;
   getCurrentPrice: (symbol: string) => Promise<ServiceResponse<StockPrice>>;
   getTodayOrders: (accountAlias: string) => Promise<ServiceResponse<StockOrder[]>>;
   getTradingCalendar: (year: number) => Promise<ServiceResponse<string[]>>;
