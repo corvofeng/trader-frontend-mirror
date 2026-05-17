@@ -22,6 +22,19 @@ export const renderMarkdown = (raw: string, theme: Theme) => {
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
 
+  const parseTableRow = (line: string) => {
+    const trimmed = line.trim();
+    let parts = trimmed.split('|');
+    if (trimmed.startsWith('|')) parts = parts.slice(1);
+    if (trimmed.endsWith('|')) parts = parts.slice(0, -1);
+    return parts.map((cell) => cell.trim());
+  };
+
+  const isTableSeparatorLine = (line: string) => {
+    const trimmed = line.trim();
+    return trimmed.includes('|') && /^[\s|:-]+$/.test(trimmed) && trimmed.includes('-');
+  };
+
   const formatText = (text: string) => {
     const buttonClass = `inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium ${themes[theme].primary}`;
     const linkClass = 'underline text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300';
@@ -63,35 +76,33 @@ export const renderMarkdown = (raw: string, theme: Theme) => {
   };
 
   const closeTable = () => {
-     if (inTable) {
-       html += `<div class="overflow-x-auto mb-4 border rounded-lg ${themes[theme].border}"><table class="min-w-full table-fixed divide-y ${themes[theme].border}">`;
-       
-       // Header
-       if (tableHeader.length > 0) {
-         html += `<thead class="bg-gray-50 dark:bg-gray-800"><tr>`;
-         const colWidth = 100 / tableHeader.length;
-         tableHeader.forEach(cell => {
-             html += `<th scope="col" class="px-4 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-70 uppercase tracking-wider break-words" style="width: ${colWidth}%">${formatText(cell.trim())}</th>`;
-          });
-         html += `</tr></thead>`;
-       }
+    if (!inTable) return;
 
-       // Body
-       html += `<tbody class="divide-y ${themes[theme].border} bg-white dark:bg-gray-900">`;
-       tableRows.forEach(row => {
-         html += `<tr>`;
-         row.forEach(cell => {
-           html += `<td class="px-4 py-2 text-sm ${themes[theme].text} break-words align-top">${formatText(cell.trim())}</td>`;
-         });
-         html += `</tr>`;
-       });
-       html += `</tbody></table></div>`;
+    html += `<div class="overflow-x-auto mb-4 border rounded-lg ${themes[theme].border}">`;
+    html += `<table class="min-w-full table-auto divide-y ${themes[theme].border}">`;
 
-       inTable = false;
-       tableHeader = [];
-       tableRows = [];
-     }
-   };
+    if (tableHeader.length > 0) {
+      html += `<thead class="bg-gray-50 dark:bg-gray-800"><tr>`;
+      tableHeader.forEach((cell) => {
+        html += `<th scope="col" class="px-4 py-3 text-left text-xs font-medium ${themes[theme].text} opacity-70 uppercase tracking-wider break-words">${formatText(cell.trim())}</th>`;
+      });
+      html += `</tr></thead>`;
+    }
+
+    html += `<tbody class="divide-y ${themes[theme].border} bg-white dark:bg-gray-900">`;
+    tableRows.forEach((row) => {
+      html += `<tr class="odd:bg-gray-50 dark:odd:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/50">`;
+      row.forEach((cell) => {
+        html += `<td class="px-4 py-2 text-sm ${themes[theme].text} break-words align-top">${formatText(cell.trim())}</td>`;
+      });
+      html += `</tr>`;
+    });
+    html += `</tbody></table></div>`;
+
+    inTable = false;
+    tableHeader = [];
+    tableRows = [];
+  };
 
   const closeCodeBlock = () => {
     if (!inCodeBlock) return;
@@ -149,58 +160,40 @@ export const renderMarkdown = (raw: string, theme: Theme) => {
       continue;
     }
 
-    // Table detection
-    const isTableLine = trimmed.startsWith('|') || (trimmed.includes('|') && trimmed.length > 2);
-    
-    if (isTableLine) {
-       flushParagraph();
-       closeList();
+    if (inTable) {
+      if (trimmed === '') {
+        closeTable();
+        continue;
+      }
+      if (isTableSeparatorLine(trimmed)) {
+        continue;
+      }
+      if (!trimmed.includes('|')) {
+        closeTable();
+        i -= 1;
+        continue;
+      }
+      const cells = parseTableRow(trimmed);
+      const normalized =
+        tableHeader.length > 0 && cells.length < tableHeader.length
+          ? [...cells, ...new Array(tableHeader.length - cells.length).fill('')]
+          : cells;
+      tableRows.push(normalized);
+      continue;
+    }
 
-       // Check if it's a separator line (only dashes and pipes)
-       const isSeparator = /^[\s|:-]+$/.test(trimmed) && trimmed.includes('-');
+    const nextLine = lines[i + 1]?.trim();
+    const canStartTable = trimmed.includes('|') && !!nextLine && isTableSeparatorLine(nextLine);
+    if (canStartTable) {
+      flushParagraph();
+      closeList();
+      closeTable();
 
-       if (isSeparator) {
-          // If we encounter a separator but haven't started a table, 
-          // it means the previous line was actually the header.
-          // But our loop structure processes line by line.
-          // We need to look ahead or handle state carefully.
-          // Simplified: If we are not inTable, this line is useless unless we buffered the previous line as header?
-          // Actually, standard markdown: Header \n Separator \n Rows
-          
-          // Let's change approach:
-          // If current line looks like a separator:
-          //   AND previous line looked like a table row (pipes)
-          //   THEN start table, treat previous line as header.
-          continue; 
-       }
-
-       // Parse cells
-       const cells = trimmed.split('|').filter((c, idx, arr) => {
-         // Remove first and last empty elements if the line starts/ends with pipe
-         if (idx === 0 && c.trim() === '' && trimmed.startsWith('|')) return false;
-         if (idx === arr.length - 1 && c.trim() === '' && trimmed.endsWith('|')) return false;
-         return true;
-       });
-
-       // Look ahead for separator to decide if this is a header
-       const nextLine = lines[i + 1]?.trim();
-       const nextIsSeparator = nextLine && /^[\s|:-]+$/.test(nextLine) && nextLine.includes('-');
-
-       if (!inTable && nextIsSeparator) {
-          inTable = true;
-          tableHeader = cells;
-          // Skip next line (separator)
-          i++; 
-          continue;
-       }
-
-       if (inTable) {
-          tableRows.push(cells);
-          continue;
-       }
-    } else {
-       // Not a table line, but we might be in a table
-       closeTable();
+      inTable = true;
+      tableHeader = parseTableRow(trimmed);
+      tableRows = [];
+      i += 1;
+      continue;
     }
 
     // Horizontal Rule

@@ -4,6 +4,7 @@ import { Theme, themes } from '../../../lib/theme';
 import { analysisService } from '../../../lib/services';
 import type { PortfolioAnalysis } from '../../../lib/services/types';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
+import { renderMarkdown } from '../../../shared/utils/markdown';
 import toast from 'react-hot-toast';
 
 interface PortfolioAnalysisPanelProps {
@@ -21,105 +22,6 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid, userId, selectedA
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [expandedSections, setExpandedSections] = useState<string[]>(['overview']);
   const { regionalColors } = useCurrency();
-
-  // 优化的 markdown 渲染，控制间距，消除过度留白
-  const renderMarkdownContent = (raw: string) => {
-    const content = raw.trim().replace(/\n{3,}/g, '\n\n');
-
-    const lines = content.split(/\r?\n/);
-    let html = '';
-    let paragraph = '';
-    let inList = false;
-    let listTag: 'ul' | 'ol' | null = null;
-
-    const flushParagraph = () => {
-      const text = paragraph.trim();
-      if (text) {
-        const formatted = text
-          .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
-          .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>');
-        html += `<p class="mb-2 leading-relaxed text-base ${themes[theme].text}">${formatted}</p>`;
-      }
-      paragraph = '';
-    };
-
-    const closeList = () => {
-      if (inList && listTag) {
-        html += `</${listTag}>`;
-        inList = false;
-        listTag = null;
-      }
-    };
-
-    for (const line of lines) {
-      // 分割线
-      if (/^(-{3,}|\*\*\*)$/.test(line.trim())) {
-        flushParagraph();
-        closeList();
-        html += '<hr class="my-3 border-t border-gray-300 dark:border-gray-600" />';
-        continue;
-      }
-
-      // 标题
-      const headingMatch = /^(#{1,4})\s+(.*)$/.exec(line);
-      if (headingMatch) {
-        flushParagraph();
-        closeList();
-        const level = headingMatch[1].length;
-        const text = headingMatch[2]
-          .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
-          .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>');
-        const common = `leading-tight whitespace-normal ${themes[theme].text}`;
-        if (level === 1) html += `<h1 class="text-2xl font-semibold mt-4 mb-3 ${common}">${text}</h1>`;
-        else if (level === 2) html += `<h2 class="text-xl font-semibold mt-3 mb-2 ${common}">${text}</h2>`;
-        else if (level === 3) html += `<h3 class="text-lg font-semibold mt-2 mb-1 ${common}">${text}</h3>`;
-        else html += `<h4 class="text-base font-medium mt-2 mb-1 ${common}">${text}</h4>`;
-        continue;
-      }
-
-      // 列表项（支持 * / - 和有序列表）
-      const unorderedMatch = /^\s{0,4}[-*]\s+(.*)$/.exec(line);
-      const orderedMatch = /^\s{0,4}\d+\.\s+(.*)$/.exec(line);
-      if (unorderedMatch || orderedMatch) {
-        flushParagraph();
-
-        const isOrdered = !!orderedMatch;
-        const tag: 'ul' | 'ol' = isOrdered ? 'ol' : 'ul';
-        const rawItem = (unorderedMatch ? unorderedMatch[1] : orderedMatch![1]) || '';
-
-        if (!inList || listTag !== tag) {
-          closeList();
-          const listClass = isOrdered ? 'list-decimal' : 'list-disc';
-          html += `<${tag} class="ml-4 ${listClass} space-y-1">`;
-          inList = true;
-          listTag = tag;
-        }
-
-        const item = rawItem
-          .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
-          .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>');
-
-        // 判断缩进（简单按前导空格判断二级列表）
-        const indentClass = /^\s{2,}/.test(line) ? 'ml-4' : '';
-        html += `<li class="text-base ${themes[theme].text} ${indentClass}">${item}</li>`;
-        continue;
-      }
-
-      // 空行：结束段落或列表
-      if (line.trim() === '') {
-        flushParagraph();
-        closeList();
-        continue;
-      }
-
-      // 普通文本，合并为段落
-      paragraph += (paragraph ? ' ' : '') + line.trim();
-    }
-
-    flushParagraph();
-    closeList();
-    return html;
-  };
 
   const fetchAnalysis = useCallback(async (refresh = false) => {
     try {
@@ -206,12 +108,9 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid, userId, selectedA
             <h3 className={`text-xl font-semibold leading-tight whitespace-nowrap flex-shrink-0 ${themes[theme].text}`}>分析报告</h3>
           </div>
           <div 
-            className={`${themes[theme].text} text-base leading-relaxed space-y-2 break-words`}
+            className="break-words"
             dangerouslySetInnerHTML={{ 
-              __html: renderMarkdownContent(analysis.content) 
-            }}
-            style={{
-              lineHeight: '1.6'
+              __html: renderMarkdown(analysis.content, theme) 
             }}
           />
         </div>
