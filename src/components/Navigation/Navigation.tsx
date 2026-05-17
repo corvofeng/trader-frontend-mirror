@@ -298,6 +298,12 @@ export function Navigation({
                 >
                   Admin
                 </button>
+                <button
+                  onClick={() => navigate('/about')}
+                  className={`px-3 py-2 rounded-md text-sm font-medium ${themes[theme].secondary}`}
+                >
+                  About
+                </button>
               </div>
               <button
                 onClick={() => setNoticesOpen(true)}
@@ -418,6 +424,15 @@ export function Navigation({
                     className={`w-full px-4 py-2 rounded-md text-sm font-medium text-left ${themes[theme].secondary}`}
                   >
                     Admin
+                  </button>
+                  <button
+                    onClick={() => {
+                      navigate('/about');
+                      onMobileMenuToggle();
+                    }}
+                    className={`w-full px-4 py-2 rounded-md text-sm font-medium text-left ${themes[theme].secondary}`}
+                  >
+                    About
                   </button>
                   <button
                     onClick={() => {

@@ -12,6 +12,7 @@ const Landing = React.lazy(() => import('./pages/Landing').then(module => ({ def
 const Journal = React.lazy(() => import('./pages/Journal').then(module => ({ default: module.Journal })));
 const Options = React.lazy(() => import('./pages/Options').then(module => ({ default: module.Options })));
 const Admin = React.lazy(() => import('./pages/Admin').then(module => ({ default: module.Admin })));
+const About = React.lazy(() => import('./pages/About').then(module => ({ default: module.About })));
 
 const Loading = () => (
   <div className="flex items-center justify-center min-h-[50vh]">
@@ -212,6 +213,10 @@ function AppContent() {
           <Route
             path="/admin"
             element={<Admin theme={theme} />}
+          />
+          <Route
+            path="/about"
+            element={<About theme={theme} />}
           />
         </Routes>
       </Suspense>

@@ -1,7 +1,8 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ChevronRight, Home } from 'lucide-react';
-import { Theme, themes } from '../../constants/theme';
+import type { Theme } from '../../types';
+import { themes } from '../../constants/theme';
 
 interface BreadcrumbItem {
   label: string;
@@ -75,6 +76,8 @@ export function Breadcrumbs({ theme, customItems }: BreadcrumbsProps) {
       } else {
         breadcrumbs[breadcrumbs.length - 1] = { ...breadcrumbs[breadcrumbs.length - 1], isActive: true };
       }
+    } else if (pathSegments.includes('about')) {
+      breadcrumbs.push({ label: 'About', path: '/about', isActive: true });
     }
     
     return breadcrumbs;

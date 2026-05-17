@@ -36,6 +36,11 @@ const SITE_SECTIONS: SiteSection[] = [
         title: 'Options Trading',
         path: '/options',
         description: 'Advanced options analysis and trading tools'
+      },
+      {
+        title: 'About',
+        path: '/about',
+        description: 'Disclaimer and contact information'
       }
     ]
   },

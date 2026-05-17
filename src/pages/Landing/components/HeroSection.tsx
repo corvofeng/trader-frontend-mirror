@@ -8,6 +8,7 @@ interface HeroSectionProps {
   onNavigateToJournal: () => void;
   onNavigateToOptions: () => void;
   onNavigateToAdmin: () => void;
+  onNavigateToAbout: () => void;
 }
 
 export function HeroSection({ 
@@ -15,7 +16,8 @@ export function HeroSection({
   onThemeChange, 
   onNavigateToJournal, 
   onNavigateToOptions,
-  onNavigateToAdmin
+  onNavigateToAdmin,
+  onNavigateToAbout
 }: HeroSectionProps) {
   const isDark = theme === 'dark';
 
@@ -39,6 +41,14 @@ export function HeroSection({
             }`}
           >
             Admin
+          </button>
+          <button
+            onClick={onNavigateToAbout}
+            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors duration-200 ${
+              isDark ? 'bg-gray-800 text-gray-200 hover:bg-gray-700' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+            }`}
+          >
+            About
           </button>
           <button
             onClick={() => onThemeChange(isDark ? 'light' : 'dark')}

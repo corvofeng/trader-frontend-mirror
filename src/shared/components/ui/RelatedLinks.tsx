@@ -1,7 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, TrendingUp, BarChart2, Upload, Settings } from 'lucide-react';
-import { Theme, themes } from '../../constants/theme';
+import type { Theme } from '../../types';
+import { themes } from '../../constants/theme';
 
 interface RelatedLink {
   title: string;
