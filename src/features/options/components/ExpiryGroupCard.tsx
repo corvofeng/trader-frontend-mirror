@@ -868,8 +868,8 @@ export function ExpiryGroupCard({
                                   <th className="text-center py-2">Call 备兑</th>
                                   <th className="text-center py-2">Call 义务</th>
                                   <th className="text-center py-2 px-2">Call 权利</th>
-                                  <th className="text-center py-2 px-2">Call 时间价值</th>
                                   <th className="text-center py-2 px-2">Call 保证金</th>
+                                  <th className="text-center py-2 px-2">Call 时间价值</th>
                                   <th className={`text-center py-2 px-2 border-r ${themes[theme].border}`}>Call 现价</th>
                                   <th className="text-center py-2 px-3">行权价</th>
                                   <th className={`text-center py-2 px-2 border-l ${themes[theme].border}`}>Put 现价</th>
@@ -1411,10 +1411,10 @@ export function ExpiryGroupCard({
                                           </div>
                                         </td>
                                         <td className={`text-center py-1.5 px-2 w-20 ${themes[theme].text} text-xs leading-tight`}>
-                                            <AnimatedFlash value={displayCallTV} className="font-mono text-xs text-gray-500" />
+                                            <AnimatedFlash value={callMarginText} className="font-mono text-xs text-gray-500" type="price" />
                                         </td>
                                         <td className={`text-center py-1.5 px-2 w-20 ${themes[theme].text} text-xs leading-tight`}>
-                                            <AnimatedFlash value={callMarginText} className="font-mono text-xs text-gray-500" type="price" />
+                                            <AnimatedFlash value={displayCallTV} className="font-mono text-xs text-gray-500" />
                                         </td>
                                         <td className={`text-center py-1.5 px-2 w-20 border-r ${themes[theme].border} ${themes[theme].text} text-xs leading-tight`}>
                                             <AnimatedFlash value={callPrice || '-'} className="font-mono text-xs" type="price" />
