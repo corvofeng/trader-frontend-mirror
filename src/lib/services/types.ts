@@ -822,6 +822,16 @@ export interface MarginStressData {
   legs_summary: unknown[];
 }
 
+export interface AdminOrdersDailyStats {
+  total_count: number;
+  completed_count: number;
+  succeeded_count: number;
+  canceled_count: number;
+  failed_count: number;
+  pending_count: number;
+  status_breakdown?: Record<string, number>;
+}
+
 export interface OptionsService {
   getOptionsData: (symbol?: string) => Promise<ServiceResponse<OptionsData>>;
   refreshOptionsData: (symbol?: string) => Promise<ServiceResponse<OptionsData>>;
@@ -870,7 +880,7 @@ export interface OptionsService {
   getOptionOrders: (accountId: string, userId?: string | null, options?: { only_today?: boolean; date?: string }) => Promise<ServiceResponse<OptionOrder[]>>;
   getOptionOrdersStats: (accountId: string, month: string) => Promise<ServiceResponse<Record<string, { completed_count: number; pending_count: number; junk_count: number; total_count: number }>>>;
   getAdminOrders: (accountId: string, options?: { date?: string; only_today?: boolean }) => Promise<ServiceResponse<OptionOrder[]>>;
-  getAdminOrdersStats: (accountId: string, month: string) => Promise<ServiceResponse<Record<string, { completed_count: number; pending_count: number; junk_count: number; total_count: number }>>>;
+  getAdminOrdersStats: (accountId: string, month: string) => Promise<ServiceResponse<Record<string, AdminOrdersDailyStats>>>;
   getSequentialTrades: (accountId: string, options?: { status?: string; limit?: number; offset?: number; today_only?: boolean }) => Promise<ServiceResponse<SequentialTradeTask[]>>;
   getSequentialTradeDetail: (accountAlias: string, tradeId: number | string) => Promise<ServiceResponse<SequentialTradeTask>>;
   pauseSequentialTrade: (accountAlias: string, tradeId: number | string) => Promise<ServiceResponse<void>>;

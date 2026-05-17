@@ -1,4 +1,4 @@
-import type { OptionsService, OptionsPortfolioData, OptionsPosition, OptionsStrategy, RatioSpreadPlanResult, OptionWhitelist, ServiceResponse, AdvisedCombination, OptionOrder, SequentialTradeTask, SequentialTradeStatus, OptionPriceWebSocketClient, OptionPriceWebSocketHandlers } from '../types';
+import type { AdminOrdersDailyStats, OptionsService, OptionsPortfolioData, OptionsPosition, OptionsStrategy, RatioSpreadPlanResult, OptionWhitelist, ServiceResponse, AdvisedCombination, OptionOrder, SequentialTradeTask, SequentialTradeStatus, OptionPriceWebSocketClient, OptionPriceWebSocketHandlers } from '../types';
 import type { CustomOptionsStrategy } from '../types';
 
 // 支持的期权标的列表
@@ -1254,8 +1254,72 @@ export const optionsService: OptionsService = {
     return this.getOptionOrders(accountId, null, options);
   },
 
-  getAdminOrdersStats: async function (accountId: string, month: string): Promise<ServiceResponse<Record<string, { completed_count: number; pending_count: number; junk_count: number; total_count: number }>>> {
-    return this.getOptionOrdersStats(accountId, month);
+  getAdminOrdersStats: async function (accountId: string, month: string): Promise<ServiceResponse<Record<string, AdminOrdersDailyStats>>> {
+    console.log('Mock getAdminOrdersStats called', accountId, month);
+
+    const [yearStr, monthStr] = month.split('-');
+    const year = parseInt(yearStr, 10);
+    const m = parseInt(monthStr, 10);
+    const formatDate = (d: number) => `${year}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
+    const mockOrders: Array<{ date: string; status: string }> = [];
+
+    const days = [5, 6, 7, 8, 12, 15, 20];
+    const today = new Date().getDate();
+    if (!days.includes(today) && new Date().getMonth() + 1 === m && new Date().getFullYear() === year) {
+      days.push(today);
+    }
+
+    days.forEach(day => {
+      const dateStr = formatDate(day);
+      const failedCount = day % 2 === 0 || day === today ? Math.floor(Math.random() * 3) + 1 : 0;
+      for (let i = 0; i < failedCount; i++) mockOrders.push({ date: dateStr, status: 'JUNK' });
+
+      const pendingCount = Math.floor(Math.random() * 3);
+      for (let i = 0; i < pendingCount; i++) mockOrders.push({ date: dateStr, status: 'REPORTED' });
+
+      const canceledCount = Math.floor(Math.random() * 3);
+      for (let i = 0; i < canceledCount; i++) mockOrders.push({ date: dateStr, status: 'CANCELED' });
+
+      const succeededCount = Math.floor(Math.random() * 10) + 2;
+      for (let i = 0; i < succeededCount; i++) mockOrders.push({ date: dateStr, status: 'SUCCEEDED' });
+    });
+
+    const stats: Record<string, AdminOrdersDailyStats> = {};
+
+    mockOrders.forEach(order => {
+      if (!stats[order.date]) {
+        stats[order.date] = {
+          total_count: 0,
+          completed_count: 0,
+          succeeded_count: 0,
+          canceled_count: 0,
+          failed_count: 0,
+          pending_count: 0,
+          status_breakdown: {}
+        };
+      }
+
+      const dayStats = stats[order.date];
+      dayStats.total_count += 1;
+      dayStats.status_breakdown = dayStats.status_breakdown || {};
+      dayStats.status_breakdown[order.status] = (dayStats.status_breakdown[order.status] || 0) + 1;
+
+      if (order.status === 'SUCCEEDED') {
+        dayStats.succeeded_count += 1;
+        dayStats.completed_count += 1;
+      } else if (order.status === 'CANCELED') {
+        dayStats.canceled_count += 1;
+        dayStats.completed_count += 1;
+      } else if (order.status === 'JUNK' || order.status === 'FAILED') {
+        dayStats.failed_count += 1;
+        dayStats.completed_count += 1;
+      } else {
+        dayStats.pending_count += 1;
+      }
+    });
+
+    return { data: stats, error: null };
   },
 
   getSequentialTrades: async (accountId: string, options?: { status?: string; limit?: number; offset?: number; today_only?: boolean }) => {

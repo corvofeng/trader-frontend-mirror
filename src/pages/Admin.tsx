@@ -8,7 +8,7 @@ import { AccountSelector } from '../shared/components/AccountSelector';
 import { TabNavigation } from './Journal/components/TabNavigation';
 import { OperationsView, UploadPage } from './Journal/features';
 import { accountService, authService, optionsService, stockService } from '../lib/services';
-import type { AdminAccountStatusItem, OptionOrder } from '../lib/services/types';
+import type { AdminAccountStatusItem, AdminOrdersDailyStats, OptionOrder } from '../lib/services/types';
 import { AnalysisTab } from './Journal/components/AnalysisTab';
 import { HistoryTradesChart } from '../features/trading/components/HistoryTradesChart';
 import { DailyTradeHistory } from '../features/trading/components/DailyTradeHistory';
@@ -99,7 +99,7 @@ export function Admin({ theme }: AdminProps) {
   const [ordersError, setOrdersError] = useState<string | null>(null);
   const [tradingDaysByYear, setTradingDaysByYear] = useState<Record<number, Set<string>>>({});
   const [tradingCalendarError, setTradingCalendarError] = useState<string | null>(null);
-  const [ordersStatsByMonth, setOrdersStatsByMonth] = useState<Record<string, Record<string, { completed_count: number; pending_count: number; junk_count: number; total_count: number }>>>({});
+  const [ordersStatsByMonth, setOrdersStatsByMonth] = useState<Record<string, Record<string, AdminOrdersDailyStats>>>({});
   const [selectedDate, setSelectedDate] = useState<string>(() => format(new Date(), 'yyyy-MM-dd'));
   const [currentMonth, setCurrentMonth] = useState<Date>(() => new Date());
 
@@ -486,17 +486,19 @@ export function Admin({ theme }: AdminProps) {
     if (activeTab !== 'calendar') return;
     if (!selectedAccountId) return;
     const monthKey = format(currentMonth, 'yyyy-MM');
+    const selectedMonthKey = selectedDate ? selectedDate.slice(0, 7) : monthKey;
+    const monthKeys = Array.from(new Set([monthKey, selectedMonthKey]));
 
     let cancelled = false;
     const fetchStats = async () => {
       try {
-        const { data, error } = await optionsService.getAdminOrdersStats(selectedAccountId, monthKey);
-        if (!cancelled && !error && data) {
-          setOrdersStatsByMonth(prev => ({
-            ...prev,
-            [monthKey]: data
-          }));
-        }
+        await Promise.all(
+          monthKeys.map(async (key) => {
+            const { data, error } = await optionsService.getAdminOrdersStats(selectedAccountId, key);
+            if (cancelled || error || !data) return;
+            setOrdersStatsByMonth(prev => ({ ...prev, [key]: data }));
+          })
+        );
       } catch (err) {
         if (!cancelled) {
           console.error('Failed to load orders stats', err);
@@ -507,7 +509,7 @@ export function Admin({ theme }: AdminProps) {
     return () => {
       cancelled = true;
     };
-  }, [activeTab, currentMonth, selectedAccountId]);
+  }, [activeTab, currentMonth, selectedAccountId, selectedDate]);
 
   React.useEffect(() => {
     if (activeTab !== 'calendar') return;
@@ -1153,14 +1155,24 @@ export function Admin({ theme }: AdminProps) {
                                   共 {stats.total_count}
                                 </span>
                                 <div className="flex flex-wrap justify-end gap-0.5 max-w-full">
+                                  {stats.succeeded_count > 0 && (
+                                    <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-100 px-1.5 py-0.5 text-[10px] font-medium">
+                                      成 {stats.succeeded_count}
+                                    </span>
+                                  )}
+                                  {stats.canceled_count > 0 && (
+                                    <span className="inline-flex items-center rounded-full bg-slate-200 text-slate-800 dark:bg-slate-800/60 dark:text-slate-100 px-1.5 py-0.5 text-[10px] font-medium">
+                                      撤 {stats.canceled_count}
+                                    </span>
+                                  )}
+                                  {stats.failed_count > 0 && (
+                                    <span className="inline-flex items-center rounded-full bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-100 px-1.5 py-0.5 text-[10px] font-medium">
+                                      败 {stats.failed_count}
+                                    </span>
+                                  )}
                                   {stats.pending_count > 0 && (
                                     <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-100 px-1.5 py-0.5 text-[10px] font-medium">
                                       待 {stats.pending_count}
-                                    </span>
-                                  )}
-                                  {stats.junk_count > 0 && (
-                                    <span className="inline-flex items-center rounded-full bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-100 px-1.5 py-0.5 text-[10px] font-medium">
-                                      废 {stats.junk_count}
                                     </span>
                                   )}
                                 </div>
@@ -1191,6 +1203,34 @@ export function Admin({ theme }: AdminProps) {
                   按日查看下单、成交和状态
                 </p>
               </div>
+              {selectedAccountId && selectedDate && (() => {
+                const monthKey = selectedDate.slice(0, 7);
+                const stats = ordersStatsByMonth[monthKey]?.[selectedDate];
+                const total = stats?.total_count ?? 0;
+                const succeeded = stats?.succeeded_count ?? 0;
+                const canceled = stats?.canceled_count ?? 0;
+                const failed = stats?.failed_count ?? 0;
+                const pending = stats?.pending_count ?? 0;
+                return (
+                  <div className="flex flex-wrap justify-end gap-1">
+                    <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-100 px-2 py-1 text-[10px] font-medium">
+                      总 {total}
+                    </span>
+                    <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-100 px-2 py-1 text-[10px] font-medium">
+                      成 {succeeded}
+                    </span>
+                    <span className="inline-flex items-center rounded-full bg-slate-200 text-slate-800 dark:bg-slate-800/60 dark:text-slate-100 px-2 py-1 text-[10px] font-medium">
+                      撤 {canceled}
+                    </span>
+                    <span className="inline-flex items-center rounded-full bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-100 px-2 py-1 text-[10px] font-medium">
+                      败 {failed}
+                    </span>
+                    <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-100 px-2 py-1 text-[10px] font-medium">
+                      待 {pending}
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
 
             {!selectedAccountId && (

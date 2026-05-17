@@ -1,4 +1,5 @@
 import type {
+  AdminOrdersDailyStats,
   OptionsData,
   OptionOrder,
   OptionPriceWebSocketClient,
@@ -1085,24 +1086,26 @@ export const optionsService: OptionsService = {
       if (!response.ok) {
         throw new Error('Failed to fetch admin orders stats');
       }
-      const raw = await response.json();
-      const payload =
-        raw && typeof raw === 'object' && 'data' in raw && (raw as { data?: unknown }).data !== undefined
-          ? (raw as { data?: unknown }).data
-          : raw;
+      const raw = await safeParseJson(response);
+      const record = asRecord(raw);
+      if (!record) {
+        throw new Error('Invalid response');
+      }
 
-      let stats = payload;
-      if (payload && typeof payload === 'object') {
-        if ('stats' in payload && (payload as { stats?: unknown }).stats && typeof (payload as { stats?: unknown }).stats === 'object') {
-          stats = (payload as { stats: unknown }).stats;
-        } else if ('data' in payload && (payload as { data?: unknown }).data && typeof (payload as { data?: unknown }).data === 'object') {
-          stats = (payload as { data: unknown }).data;
-        }
+      if (typeof record.status === 'string' && record.status !== 'success') {
+        const msg = typeof record.message === 'string' && record.message.trim() ? record.message.trim() : '请求失败';
+        throw new Error(msg);
+      }
+
+      const statsCandidate = record.stats ?? record.data ?? raw;
+      const statsRecord = asRecord(statsCandidate);
+      if (!statsRecord) {
+        return { data: {}, error: null };
       }
 
       return {
-        data: stats as Record<string, { completed_count: number; pending_count: number; junk_count: number; total_count: number }>,
-        error: null
+        data: statsRecord as unknown as Record<string, AdminOrdersDailyStats>,
+        error: null,
       };
     } catch (error) {
       console.error('Error fetching admin orders stats:', error);
