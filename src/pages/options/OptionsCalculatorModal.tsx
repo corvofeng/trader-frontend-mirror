@@ -1,10 +1,10 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { logger } from '../../shared/utils/logger';
 import * as echarts from 'echarts';
 import { X, Calculator, Plus, Minus, Save, FolderOpen, Trash2, Camera, Download } from 'lucide-react';
 import { Theme, themes } from '../../lib/theme';
 import { useCurrency } from '../../lib/context/CurrencyContext';
-import { formatCurrency } from '../../lib/types';
+import { formatCurrency, type CurrencyConfig } from '../../lib/types';
 import type { OptionsData, OptionQuote } from '../../lib/services/types';
 
 interface OptionsCalculatorModalProps {
@@ -45,6 +45,206 @@ interface Strategy {
   cashPositions: CashPosition[];
   currentStockPrice: number;
   timestamp: string;
+}
+
+interface OptionSelectorModalProps {
+  theme: Theme;
+  optionsData: OptionsData;
+  selectedSymbol: string;
+  uniqueExpiryDates: string[];
+  lastSelectedExpiry: string;
+  currentStockPrice: number;
+  currencyConfig: CurrencyConfig;
+  onClose: () => void;
+  onSelectOption: (quote: OptionQuote, type: 'call' | 'put', action: 'buy' | 'sell') => void;
+  onPersistExpiry: (expiry: string) => void;
+}
+
+function OptionSelectorModal({
+  theme,
+  optionsData,
+  selectedSymbol,
+  uniqueExpiryDates,
+  lastSelectedExpiry,
+  currentStockPrice,
+  currencyConfig,
+  onClose,
+  onSelectOption,
+  onPersistExpiry
+}: OptionSelectorModalProps) {
+  const [selectedExpiry, setSelectedExpiry] = useState<string>(() => {
+    if (lastSelectedExpiry && uniqueExpiryDates.includes(lastSelectedExpiry)) {
+      return lastSelectedExpiry;
+    }
+    return uniqueExpiryDates[0] || '';
+  });
+
+  useEffect(() => {
+    if (selectedExpiry && uniqueExpiryDates.includes(selectedExpiry)) {
+      return;
+    }
+
+    const nextExpiry =
+      lastSelectedExpiry && uniqueExpiryDates.includes(lastSelectedExpiry)
+        ? lastSelectedExpiry
+        : uniqueExpiryDates[0] || '';
+
+    if (nextExpiry && nextExpiry !== selectedExpiry) {
+      setSelectedExpiry(nextExpiry);
+    }
+  }, [lastSelectedExpiry, selectedExpiry, uniqueExpiryDates]);
+
+  const quotesByExpiry = useMemo(() => {
+    return optionsData.quotes
+      .filter(q => q.expiry === selectedExpiry)
+      .sort((a, b) => a.strike - b.strike);
+  }, [optionsData.quotes, selectedExpiry]);
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className={`${themes[theme].card} rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto`}>
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex justify-between items-center">
+            <h3 className={`text-xl font-bold ${themes[theme].text}`}>
+              选择期权合约 - {selectedSymbol}
+            </h3>
+            <button onClick={onClose} className={`p-2 rounded-md ${themes[theme].secondary}`}>
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="mt-2 text-sm opacity-80">
+            <span className={themes[theme].text}>Spot: {formatCurrency(currentStockPrice, currencyConfig)}</span>
+          </div>
+
+          <div className="mt-4">
+            <div className="flex flex-wrap gap-2">
+              {uniqueExpiryDates.map(date => {
+                const isActive = date === selectedExpiry;
+                return (
+                  <button
+                    key={date}
+                    type="button"
+                    onClick={() => {
+                      setSelectedExpiry(date);
+                      onPersistExpiry(date);
+                    }}
+                    className={[
+                      'px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                      isActive ? themes[theme].primary : themes[theme].secondary
+                    ].join(' ')}
+                  >
+                    {new Date(date).toLocaleDateString()}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className={`${themes[theme].background}`}>
+                <tr>
+                  <th
+                    colSpan={2}
+                    className={`text-center px-4 py-2 border-b border-r ${themes[theme].border} ${themes[theme].text}`}
+                  >
+                    Calls
+                  </th>
+                  <th className={`px-4 py-2 border-b ${themes[theme].border} ${themes[theme].text} text-center font-bold`}>
+                    行权价
+                  </th>
+                  <th
+                    colSpan={2}
+                    className={`text-center px-4 py-2 border-b border-l ${themes[theme].border} ${themes[theme].text}`}
+                  >
+                    Puts
+                  </th>
+                </tr>
+                <tr>
+                  <th className={`px-3 py-2 ${themes[theme].text} text-center text-sm`}>买入</th>
+                  <th className={`px-3 py-2 ${themes[theme].text} text-center text-sm border-r ${themes[theme].border}`}>
+                    卖出
+                  </th>
+                  <th className={`px-4 py-2 ${themes[theme].text} text-center font-bold`}>
+                    <div className="flex flex-col items-center leading-tight">
+                      <div>Strike</div>
+                      <div className="text-xs opacity-70">Spot: {formatCurrency(currentStockPrice, currencyConfig)}</div>
+                    </div>
+                  </th>
+                  <th className={`px-3 py-2 ${themes[theme].text} text-center text-sm border-l ${themes[theme].border}`}>
+                    买入
+                  </th>
+                  <th className={`px-3 py-2 ${themes[theme].text} text-center text-sm`}>卖出</th>
+                </tr>
+              </thead>
+              <tbody className={`divide-y ${themes[theme].border}`}>
+                {quotesByExpiry.map((quote: OptionQuote) => (
+                  <tr key={quote.strike} className={themes[theme].cardHover}>
+                    <td className={`px-3 py-3 text-center ${themes[theme].text}`}>
+                      <button
+                        onClick={() => onSelectOption(quote, 'call', 'buy')}
+                        className={`px-6 py-4 rounded-xl text-lg font-bold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-110 ${
+                          theme === 'dark'
+                            ? 'bg-green-800 text-green-50 hover:bg-green-700 border-3 border-green-400 hover:border-green-300'
+                            : 'bg-green-100 text-green-900 hover:bg-green-200 border-3 border-green-400 hover:border-green-500'
+                        }`}
+                      >
+                        {formatCurrency(quote.callPrice, currencyConfig)}
+                      </button>
+                    </td>
+                    <td className={`px-3 py-3 text-center ${themes[theme].text} border-r ${themes[theme].border}`}>
+                      <button
+                        onClick={() => onSelectOption(quote, 'call', 'sell')}
+                        className={`px-6 py-4 rounded-xl text-lg font-bold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-110 ${
+                          theme === 'dark'
+                            ? 'bg-red-800 text-red-50 hover:bg-red-700 border-3 border-red-400 hover:border-red-300'
+                            : 'bg-red-100 text-red-900 hover:bg-red-200 border-3 border-red-400 hover:border-red-500'
+                        }`}
+                      >
+                        {formatCurrency(quote.callPrice, currencyConfig)}
+                      </button>
+                    </td>
+
+                    <td className={`px-4 py-3 text-center font-bold ${themes[theme].text} bg-opacity-50 ${themes[theme].background}`}>
+                      {formatCurrency(quote.strike, currencyConfig)}
+                    </td>
+
+                    <td className={`px-3 py-3 text-center ${themes[theme].text} border-l ${themes[theme].border}`}>
+                      <button
+                        onClick={() => onSelectOption(quote, 'put', 'buy')}
+                        className={`px-6 py-4 rounded-xl text-lg font-bold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-110 ${
+                          theme === 'dark'
+                            ? 'bg-green-800 text-green-50 hover:bg-green-700 border-3 border-green-400 hover:border-green-300'
+                            : 'bg-green-100 text-green-900 hover:bg-green-200 border-3 border-green-400 hover:border-green-500'
+                        }`}
+                      >
+                        {formatCurrency(quote.putPrice, currencyConfig)}
+                      </button>
+                    </td>
+                    <td className={`px-3 py-3 text-center ${themes[theme].text}`}>
+                      <button
+                        onClick={() => onSelectOption(quote, 'put', 'sell')}
+                        className={`px-6 py-4 rounded-xl text-lg font-bold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-110 ${
+                          theme === 'dark'
+                            ? 'bg-red-800 text-red-50 hover:bg-red-700 border-3 border-red-400 hover:border-red-300'
+                            : 'bg-red-100 text-red-900 hover:bg-red-200 border-3 border-red-400 hover:border-red-500'
+                        }`}
+                      >
+                        {formatCurrency(quote.putPrice, currencyConfig)}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onClose }: OptionsCalculatorModalProps) {
@@ -975,146 +1175,6 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
     };
   }, [optionPositions, stockPositions, cashPositions, currentStockPrice, theme, selectedSymbol, calculateTotalProfit, getThemedColors, currencyConfig, generateProfitLossData]);
 
-  // 期权选择器
-  const OptionSelector = () => {
-    const [selectedExpiry, setSelectedExpiry] = useState<string>(() => {
-      if (lastOptionSelectionTime && uniqueExpiryDates.includes(lastOptionSelectionTime)) {
-        return lastOptionSelectionTime;
-      }
-      return uniqueExpiryDates[0] || '';
-    });
-    if (!optionsData) return null;
-    
-    const quotesByExpiry = optionsData.quotes
-      .filter(q => q.expiry === selectedExpiry)
-      .sort((a, b) => a.strike - b.strike);
-
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className={`${themes[theme].card} rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto`}>
-          <div className="p-6 border-b border-gray-200">
-            <div className="flex justify-between items-center">
-              <h3 className={`text-xl font-bold ${themes[theme].text}`}>
-                选择期权合约 - {selectedSymbol}
-              </h3>
-              <button
-                onClick={() => setShowOptionSelector(false)}
-                className={`p-2 rounded-md ${themes[theme].secondary}`}
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="mt-4">
-              <select
-                value={selectedExpiry}
-                onChange={(e) => {
-                  setSelectedExpiry(e.target.value);
-                  saveOptionSelectionTime(e.target.value);
-                }}
-                className={`px-3 py-2 rounded-md ${themes[theme].input} ${themes[theme].text}`}
-              >
-                {uniqueExpiryDates.map(date => (
-                  <option key={date} value={date}>
-                    {new Date(date).toLocaleDateString()}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="p-6">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className={`${themes[theme].background}`}>
-                  <tr>
-                    <th colSpan={2} className={`text-center px-4 py-2 border-b border-r ${themes[theme].border} ${themes[theme].text}`}>
-                      Calls
-                    </th>
-                    <th className={`px-4 py-2 border-b ${themes[theme].border} ${themes[theme].text} text-center font-bold`}>
-                      行权价
-                    </th>
-                    <th colSpan={2} className={`text-center px-4 py-2 border-b border-l ${themes[theme].border} ${themes[theme].text}`}>
-                      Puts
-                    </th>
-                  </tr>
-                  <tr>
-                    <th className={`px-3 py-2 ${themes[theme].text} text-center text-sm`}>买入</th>
-                    <th className={`px-3 py-2 ${themes[theme].text} text-center text-sm border-r ${themes[theme].border}`}>卖出</th>
-                    <th className={`px-4 py-2 ${themes[theme].text} text-center font-bold`}>Strike</th>
-                    <th className={`px-3 py-2 ${themes[theme].text} text-center text-sm border-l ${themes[theme].border}`}>买入</th>
-                    <th className={`px-3 py-2 ${themes[theme].text} text-center text-sm`}>卖出</th>
-                  </tr>
-                </thead>
-                <tbody className={`divide-y ${themes[theme].border}`}>
-                  {quotesByExpiry.map((quote: OptionQuote) => (
-                    <tr key={quote.strike} className={themes[theme].cardHover}>
-                      {/* Call Options */}
-                      <td className={`px-3 py-3 text-center ${themes[theme].text}`}>
-                        <button
-                          onClick={() => selectOptionFromChain(quote, 'call', 'buy')}
-                          className={`px-6 py-4 rounded-xl text-lg font-bold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-110 ${
-                            theme === 'dark' 
-                              ? 'bg-green-800 text-green-50 hover:bg-green-700 border-3 border-green-400 hover:border-green-300' 
-                              : 'bg-green-100 text-green-900 hover:bg-green-200 border-3 border-green-400 hover:border-green-500'
-                          }`}
-                        >
-                          {formatCurrency(quote.callPrice, currencyConfig)}
-                        </button>
-                      </td>
-                      <td className={`px-3 py-3 text-center ${themes[theme].text} border-r ${themes[theme].border}`}>
-                        <button
-                          onClick={() => selectOptionFromChain(quote, 'call', 'sell')}
-                          className={`px-6 py-4 rounded-xl text-lg font-bold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-110 ${
-                            theme === 'dark' 
-                              ? 'bg-red-800 text-red-50 hover:bg-red-700 border-3 border-red-400 hover:border-red-300' 
-                              : 'bg-red-100 text-red-900 hover:bg-red-200 border-3 border-red-400 hover:border-red-500'
-                          }`}
-                        >
-                          {formatCurrency(quote.callPrice, currencyConfig)}
-                        </button>
-                      </td>
-                      
-                      {/* Strike Price */}
-                      <td className={`px-4 py-3 text-center font-bold ${themes[theme].text} bg-opacity-50 ${themes[theme].background}`}>
-                        {formatCurrency(quote.strike, currencyConfig)}
-                      </td>
-                      
-                      {/* Put Options */}
-                      <td className={`px-3 py-3 text-center ${themes[theme].text} border-l ${themes[theme].border}`}>
-                        <button
-                          onClick={() => selectOptionFromChain(quote, 'put', 'buy')}
-                          className={`px-6 py-4 rounded-xl text-lg font-bold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-110 ${
-                            theme === 'dark' 
-                              ? 'bg-green-800 text-green-50 hover:bg-green-700 border-3 border-green-400 hover:border-green-300' 
-                              : 'bg-green-100 text-green-900 hover:bg-green-200 border-3 border-green-400 hover:border-green-500'
-                          }`}
-                        >
-                          {formatCurrency(quote.putPrice, currencyConfig)}
-                        </button>
-                      </td>
-                      <td className={`px-3 py-3 text-center ${themes[theme].text}`}>
-                        <button
-                          onClick={() => selectOptionFromChain(quote, 'put', 'sell')}
-                          className={`px-6 py-4 rounded-xl text-lg font-bold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-110 ${
-                            theme === 'dark' 
-                              ? 'bg-red-800 text-red-50 hover:bg-red-700 border-3 border-red-400 hover:border-red-300' 
-                              : 'bg-red-100 text-red-900 hover:bg-red-200 border-3 border-red-400 hover:border-red-500'
-                          }`}
-                        >
-                          {formatCurrency(quote.putPrice, currencyConfig)}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40 p-4">
       <div className={`${themes[theme].card} rounded-lg max-w-7xl w-full max-h-[95vh] overflow-y-auto`}>
@@ -1446,8 +1506,20 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
           </div>
         </div>
 
-        {/* 期权选择器弹窗 */}
-        {showOptionSelector && <OptionSelector />}
+        {showOptionSelector && optionsData && (
+          <OptionSelectorModal
+            theme={theme}
+            optionsData={optionsData}
+            selectedSymbol={selectedSymbol}
+            uniqueExpiryDates={uniqueExpiryDates}
+            lastSelectedExpiry={lastOptionSelectionTime}
+            currentStockPrice={currentStockPrice}
+            currencyConfig={currencyConfig}
+            onClose={() => setShowOptionSelector(false)}
+            onSelectOption={selectOptionFromChain}
+            onPersistExpiry={saveOptionSelectionTime}
+          />
+        )}
         
         {/* 截图预览弹窗 */}
         {showScreenshotPreview && (
