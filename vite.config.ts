@@ -63,6 +63,8 @@ export default defineConfig({
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [
           /^\/api(\/|$)/,
+          /^\/login(\/|$)/,
+          /^\/logout(\/|$)/,
         ],
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest,woff2}'],
         skipWaiting: true,
