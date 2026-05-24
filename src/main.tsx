@@ -7,7 +7,19 @@ import './index.css';
 const isProduction = import.meta.env.PROD || import.meta.env.VITE_ENV === 'production';
 
 if (isProduction) {
-  registerSW({ immediate: true });
+  const updateSW = registerSW({ immediate: true });
+  if (typeof window !== 'undefined') {
+    const w = window as unknown as Record<string, unknown>;
+    w.__pwaUpdateSW = (reload?: boolean) => updateSW(reload ?? true);
+    w.__pwaCheckSW = async () => {
+      const reg = await navigator.serviceWorker.getRegistration();
+      await reg?.update();
+    };
+    w.__pwaUnregisterSW = async () => {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister()));
+    };
+  }
 } else if ('serviceWorker' in navigator) {
   void navigator.serviceWorker.getRegistrations().then(registrations => {
     registrations.forEach(registration => {
