@@ -62,6 +62,13 @@ export default defineConfig({
       workbox: {
         navigateFallback: '/index.html',
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest,woff2}'],
+        runtimeCaching: [
+          {
+            urlPattern: /\/api(\/|$)/,
+            handler: 'NetworkOnly',
+            method: 'GET',
+          },
+        ],
       },
     }),
   ],
