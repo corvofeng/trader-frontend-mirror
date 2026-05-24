@@ -986,10 +986,10 @@ export function Admin({ theme }: AdminProps) {
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                   <thead className="bg-gray-50 dark:bg-gray-900/50">
                     <tr>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">账户</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account ID</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">类型</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">后端时间</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">最后快照</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">消息</th>
@@ -1005,20 +1005,16 @@ export function Admin({ theme }: AdminProps) {
                       const snapshotStale =
                         accountsSnapshotMeta.maxSnapshotMs !== null &&
                         (snapshotMs === null || snapshotMs < accountsSnapshotMeta.maxSnapshotMs);
+                      const rowClass = !ok
+                        ? 'bg-red-50/70 dark:bg-red-900/15'
+                        : snapshotStale
+                          ? 'bg-amber-50/60 dark:bg-amber-900/15'
+                          : undefined;
                       return (
                         <tr
                           key={item.account_id_alias || item.alias}
-                          className={snapshotStale ? 'bg-amber-50/60 dark:bg-amber-900/15' : undefined}
+                          className={rowClass}
                         >
-                          <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
-                            <div className="font-medium">{item.alias || '-'}</div>
-                          </td>
-                          <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
-                            {item.account_id_alias || '-'}
-                          </td>
-                          <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
-                            {item.account_type || '-'}
-                          </td>
                           <td className="px-4 py-2 whitespace-nowrap text-xs">
                             <span
                               className={`inline-flex items-center rounded-full px-2 py-1 text-[10px] font-medium ${
@@ -1029,6 +1025,15 @@ export function Admin({ theme }: AdminProps) {
                             >
                               {item.status || '-'}
                             </span>
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
+                            <div className="font-medium">{item.alias || '-'}</div>
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
+                            {item.account_id_alias || '-'}
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
+                            {item.account_type || '-'}
                           </td>
                           <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
                             {item.last_check || '-'}
