@@ -61,7 +61,12 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: '/index.html',
+        navigateFallbackDenylist: [
+          /^\/api(\/|$)/,
+        ],
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest,woff2}'],
+        skipWaiting: true,
+        clientsClaim: true,
         runtimeCaching: [
           {
             urlPattern: /\/api(\/|$)/,

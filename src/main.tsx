@@ -4,7 +4,20 @@ import { registerSW } from 'virtual:pwa-register';
 import App from './App.tsx';
 import './index.css';
 
-registerSW({ immediate: true });
+const isProduction = import.meta.env.PROD || import.meta.env.VITE_ENV === 'production';
+
+if (isProduction) {
+  registerSW({ immediate: true });
+} else if ('serviceWorker' in navigator) {
+  void navigator.serviceWorker.getRegistrations().then(registrations => {
+    registrations.forEach(registration => {
+      void registration.unregister();
+    });
+  });
+  if ('caches' in window) {
+    void caches.keys().then(names => Promise.all(names.map(name => caches.delete(name))));
+  }
+}
 
 const purgeApiFromCaches = async () => {
   if (!('caches' in window)) return;
