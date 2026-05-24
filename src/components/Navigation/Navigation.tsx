@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Bell, LogIn, LogOut, Menu, X, Sun, Moon, Palette } from 'lucide-react';
+import { ArrowLeft, Bell, LogIn, LogOut, Menu, X, Sun, Moon, Palette, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Theme, themes } from '../../lib/theme';
 import { noticeService } from '../../lib/services';
@@ -148,6 +148,25 @@ export function Navigation({
       if (!options?.silent) {
         setNoticesLoading(false);
       }
+    }
+  }, []);
+
+  const handleRefreshServiceWorker = useCallback(async () => {
+    if (!('serviceWorker' in navigator)) {
+      toast.error('当前浏览器不支持 Service Worker');
+      return;
+    }
+    try {
+      const w = window as unknown as { __pwaUpdateSW?: (reload?: boolean) => Promise<void> };
+      if (typeof w.__pwaUpdateSW === 'function') {
+        await w.__pwaUpdateSW(true);
+        return;
+      }
+      const reg = await navigator.serviceWorker.getRegistration();
+      await reg?.update();
+      window.location.reload();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '刷新 Service Worker 失败');
     }
   }, []);
 
@@ -306,6 +325,14 @@ export function Navigation({
                 </button>
               </div>
               <button
+                onClick={() => void handleRefreshServiceWorker()}
+                className={`inline-flex items-center px-3 py-2 rounded-md text-sm font-medium ${themes[theme].secondary}`}
+                title="刷新 Service Worker"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                刷新
+              </button>
+              <button
                 onClick={() => setNoticesOpen(true)}
                 className={`relative p-2 rounded-md ${themes[theme].secondary}`}
                 title="Alerts"
@@ -442,6 +469,16 @@ export function Navigation({
                     className={`w-full px-4 py-2 rounded-md text-sm font-medium text-left ${themes[theme].secondary}`}
                   >
                     Alerts{unresolvedCount > 0 ? ` (${unresolvedCount > 99 ? '99+' : unresolvedCount})` : ''}
+                  </button>
+                  <button
+                    onClick={() => {
+                      void handleRefreshServiceWorker();
+                      onMobileMenuToggle();
+                    }}
+                    className={`w-full inline-flex items-center px-4 py-2 rounded-md text-sm font-medium text-left ${themes[theme].secondary}`}
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    刷新 Service Worker
                   </button>
                 </div>
                 <div className="flex justify-center space-x-2">
