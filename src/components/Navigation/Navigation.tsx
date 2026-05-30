@@ -97,9 +97,11 @@ export function Navigation({
   const [selectedNotice, setSelectedNotice] = useState<Notice | null>(null);
   const [noticeLoading, setNoticeLoading] = useState(false);
   const [noticeActionLoading, setNoticeActionLoading] = useState<'ack' | 'resolve' | null>(null);
+  const [noticeListActionLoading, setNoticeListActionLoading] = useState<string | null>(null);
   const noticesLoadingRef = useRef(false);
   const noticeLoadingRef = useRef(false);
   const noticeActionLoadingRef = useRef(false);
+  const noticeListActionLoadingRef = useRef(false);
 
   const unresolvedCount = useMemo(() => {
     return notices.filter(n => !n.is_resolved).length;
@@ -239,15 +241,8 @@ export function Navigation({
     noticeActionLoadingRef.current = true;
     setNoticeActionLoading('resolve');
 
-    const resolutionType = window.prompt('resolution_type', 'manual_fix') ?? null;
-    if (resolutionType === null) {
-      noticeActionLoadingRef.current = false;
-      setNoticeActionLoading(null);
-      return;
-    }
-
     try {
-      const { data, error } = await noticeService.resolveNotice(selectedNoticeUuid, { resolution_type: resolutionType });
+      const { data, error } = await noticeService.resolveNotice(selectedNoticeUuid, { resolution_type: 'manual_fix' });
       if (error) {
         toast.error(error.message || 'Resolve 失败');
         return;
@@ -264,6 +259,71 @@ export function Navigation({
       setNoticeActionLoading(null);
     }
   }, [loadNotices, openNotice, selectedNoticeUuid]);
+
+  const handleQuickResolveNotice = useCallback(
+    async (noticeUuid: string) => {
+      if (!noticeUuid) return;
+      if (noticeListActionLoadingRef.current) return;
+      noticeListActionLoadingRef.current = true;
+      setNoticeListActionLoading(noticeUuid);
+      try {
+        const { data, error } = await noticeService.resolveNotice(noticeUuid, { resolution_type: 'manual_fix' });
+        if (error) {
+          toast.error(error.message || 'Resolve 失败');
+          return;
+        }
+        toast.success('已处理');
+        if (selectedNoticeUuid === noticeUuid) {
+          if (data) {
+            setSelectedNotice(data);
+          } else {
+            await openNotice(noticeUuid);
+          }
+        }
+        await loadNotices({ silent: true });
+      } finally {
+        noticeListActionLoadingRef.current = false;
+        setNoticeListActionLoading(null);
+      }
+    },
+    [loadNotices, openNotice, selectedNoticeUuid]
+  );
+
+  const handleResolveAllUnresolved = useCallback(async () => {
+    if (noticeListActionLoadingRef.current) return;
+    const targets = notices.filter(n => !n.is_resolved).map(n => n.notice_uuid);
+    if (targets.length === 0) return;
+
+    noticeListActionLoadingRef.current = true;
+    setNoticeListActionLoading('ALL');
+    const toastId = toast.loading(`Resolving ${targets.length} 条...`);
+    let ok = 0;
+    let failed = 0;
+    try {
+      for (const uuid of targets) {
+        const { error } = await noticeService.resolveNotice(uuid, { resolution_type: 'manual_fix' });
+        if (error) {
+          failed += 1;
+          continue;
+        }
+        ok += 1;
+      }
+      await loadNotices({ silent: true });
+      if (selectedNoticeUuid && targets.includes(selectedNoticeUuid)) {
+        await openNotice(selectedNoticeUuid);
+      }
+      toast.dismiss(toastId);
+      if (failed === 0) {
+        toast.success(`已处理 ${ok} 条`);
+      } else {
+        toast.error(`已处理 ${ok} 条，失败 ${failed} 条`);
+      }
+    } finally {
+      noticeListActionLoadingRef.current = false;
+      setNoticeListActionLoading(null);
+      toast.dismiss(toastId);
+    }
+  }, [loadNotices, notices, openNotice, selectedNoticeUuid]);
 
   useEffect(() => {
     if (!user) {
@@ -560,12 +620,23 @@ export function Navigation({
               </div>
               <div className="flex items-center gap-2">
                 {!selectedNoticeUuid && (
-                  <button
-                    onClick={() => void loadNotices()}
-                    className={`px-3 py-2 rounded-md text-sm font-medium ${themes[theme].secondary}`}
-                  >
-                    Refresh
-                  </button>
+                  <React.Fragment>
+                    <button
+                      onClick={() => void loadNotices()}
+                      className={`px-3 py-2 rounded-md text-sm font-medium ${themes[theme].secondary}`}
+                    >
+                      Refresh
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleResolveAllUnresolved()}
+                      disabled={unresolvedCount === 0 || noticeListActionLoading !== null}
+                      className={`px-3 py-2 rounded-md text-sm font-medium ${themes[theme].primary} ${unresolvedCount === 0 || noticeListActionLoading !== null ? 'opacity-60 cursor-not-allowed' : ''}`}
+                      title={unresolvedCount === 0 ? '没有未处理提醒' : '一键 Resolve 全部未处理提醒'}
+                    >
+                      {noticeListActionLoading === 'ALL' ? 'Resolving...' : `一键 Resolve${unresolvedCount > 0 ? ` (${unresolvedCount})` : ''}`}
+                    </button>
+                  </React.Fragment>
                 )}
                 <button onClick={closeNotices} className={`p-2 rounded-md ${themes[theme].secondary}`}>
                   <X className="w-5 h-5" />
@@ -665,7 +736,7 @@ export function Navigation({
                           disabled={noticeActionLoading !== null || selectedNotice.is_resolved}
                           className={`px-3 py-2 rounded-md text-sm font-medium ${themes[theme].primary} ${noticeActionLoading !== null || selectedNotice.is_resolved ? 'opacity-60 cursor-not-allowed' : ''}`}
                         >
-                          {selectedNotice.is_resolved ? 'Resolved' : noticeActionLoading === 'resolve' ? 'Resolving...' : 'Resolve'}
+                          {selectedNotice.is_resolved ? '已 Resolve' : noticeActionLoading === 'resolve' ? 'Resolving...' : '一键 Resolve'}
                         </button>
                       </div>
                     </div>
@@ -755,9 +826,22 @@ export function Navigation({
                                         已处理
                                       </span>
                                     ) : (
-                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs">
-                                        未处理
-                                      </span>
+                                      <React.Fragment>
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs">
+                                          未处理
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            void handleQuickResolveNotice(n.notice_uuid);
+                                          }}
+                                          disabled={noticeListActionLoading !== null}
+                                          className={`px-2 py-1 rounded text-[10px] font-semibold ${themes[theme].primary} ${noticeListActionLoading !== null ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                        >
+                                          {noticeListActionLoading === n.notice_uuid ? 'Resolving...' : '一键 Resolve'}
+                                        </button>
+                                      </React.Fragment>
                                     )}
                                   </div>
                                 </div>
