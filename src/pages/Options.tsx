@@ -53,7 +53,13 @@ function OptionsContent({ theme }: OptionsProps) {
   });
 
   const [availableSymbols, setAvailableSymbols] = useState<string[]>([]);
-  const [selectedSymbol, setSelectedSymbol] = useState<string>('');
+  const [selectedSymbol, setSelectedSymbol] = useState<string>(() => {
+    try {
+      return localStorage.getItem('optionsSelectedSymbol') || '';
+    } catch {
+      return '';
+    }
+  });
   const [optionsData, setOptionsData] = useState<OptionsData | null>(null);
   const [selectedExpiry, setSelectedExpiry] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
@@ -105,7 +111,7 @@ function OptionsContent({ theme }: OptionsProps) {
         
         if (data && data.length > 0) {
           setAvailableSymbols(data);
-          setSelectedSymbol(data[0]); // Set first symbol as default
+          setSelectedSymbol((prev) => (prev && data.includes(prev) ? prev : data[0]));
         }
       } catch (err) {
         console.error('Error fetching available symbols:', err);
@@ -118,6 +124,15 @@ function OptionsContent({ theme }: OptionsProps) {
 
     fetchAvailableSymbols();
   }, []);
+
+  React.useEffect(() => {
+    if (!selectedSymbol) return;
+    try {
+      localStorage.setItem('optionsSelectedSymbol', selectedSymbol);
+    } catch {
+      logger.debug('[Pages/Options] Failed to persist selectedSymbol to localStorage');
+    }
+  }, [selectedSymbol]);
 
   React.useEffect(() => {
     authService.getUser().then(res => {

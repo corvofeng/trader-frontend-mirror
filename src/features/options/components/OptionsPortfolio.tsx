@@ -378,6 +378,10 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     let fetched: OptionsPortfolioData | null = null;
     try {
       setIsLoading(true);
+      const effectiveSymbol = activeSymbol || selectedSymbol || '';
+      if (!effectiveSymbol) {
+        return null;
+      }
 
       let userId: string | null = null;
       try {
@@ -397,7 +401,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         optionsService.getOptionsPortfolio(
           userId,
           selectedAccountIdProp || null,
-          activeSymbol ? { symbol: activeSymbol } : undefined
+          { symbol: effectiveSymbol }
         ),
         optionsService.getWhitelists(userId, selectedAccountIdProp || null)
       ]);
@@ -423,18 +427,20 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     } finally {
       setIsLoading(false);
     }
-  }, [selectedAccountIdProp, activeSymbol, processDiff]);
+  }, [selectedAccountIdProp, activeSymbol, processDiff, selectedSymbol]);
 
   const refreshPortfolioAndQuotes = useCallback(async () => {
+    const effectiveSymbol = activeSymbol || selectedSymbol || '';
+    if (!effectiveSymbol) return;
     setWsRefreshNonce((prev) => prev + 1);
-    if (isConnected && activeSymbol) {
-      queryPrice([activeSymbol]);
+    if (isConnected) {
+      queryPrice([effectiveSymbol]);
     }
     const refreshed = await fetchPortfolio();
 
     const symbols = new Set<string>();
-    if (activeSymbol) {
-      symbols.add(activeSymbol);
+    if (effectiveSymbol) {
+      symbols.add(effectiveSymbol);
     } else if (refreshed) {
       const isValidSymbol = (s: string | undefined): s is string => {
         if (!s) return false;
@@ -472,7 +478,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       }
       return next;
     });
-  }, [activeSymbol, fetchPortfolio, isConnected, queryPrice]);
+  }, [activeSymbol, fetchPortfolio, isConnected, queryPrice, selectedSymbol]);
 
   useEffect(() => {
     void refreshPortfolioAndQuotes();
@@ -858,7 +864,13 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       if (error) throw error;
       toast.success('已执行组合建议');
       try {
-        const { data: refreshed } = await optionsService.getOptionsPortfolio(currentUserId || DEMO_USER_ID, selectedAccountIdProp || null, activeSymbol ? { symbol: activeSymbol } : undefined);
+        const effectiveSymbol = activeSymbol || selectedSymbol || '';
+        if (!effectiveSymbol) return;
+        const { data: refreshed } = await optionsService.getOptionsPortfolio(
+          currentUserId || DEMO_USER_ID,
+          selectedAccountIdProp || null,
+          { symbol: effectiveSymbol }
+        );
         if (refreshed) setPortfolioData(refreshed);
       } catch (refreshError) {
         console.error(refreshError);

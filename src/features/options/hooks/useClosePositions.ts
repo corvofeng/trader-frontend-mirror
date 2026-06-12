@@ -134,10 +134,11 @@ export function useClosePositions({
         toast.success('同步成功');
 
         try {
+          if (!activeSymbol) return;
           const { data: refreshed } = await optionsService.getOptionsPortfolio(
             userId || fallbackUserId,
             selectedAccountId,
-            activeSymbol ? { symbol: activeSymbol } : undefined
+            { symbol: activeSymbol }
           );
           if (refreshed) setPortfolioData(refreshed);
         } catch (refreshError) {

@@ -41,13 +41,14 @@ export function OptionsAnalysisTab({ theme, selectedSymbol, selectedAccountId }:
   useEffect(() => {
     const fetchAnalysis = async () => {
       if (!currentUserId) return;
+      if (!selectedSymbol) return;
       
       try {
         setIsLoading(true);
         // We fetch both portfolio and analysis to construct a complete view, 
         // similar to OptionsPortfolio.tsx, although we mainly need analysis.
         const [portfolioRes, analysisRes] = await Promise.all([
-          optionsService.getOptionsPortfolio(currentUserId, selectedAccountId, selectedSymbol ? { symbol: selectedSymbol } : undefined),
+          optionsService.getOptionsPortfolio(currentUserId, selectedAccountId, { symbol: selectedSymbol }),
           optionsService.getPortfolioAnalysis(currentUserId, selectedAccountId)
         ]);
 

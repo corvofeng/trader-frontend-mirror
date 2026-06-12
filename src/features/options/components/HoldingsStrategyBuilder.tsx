@@ -49,6 +49,7 @@ export function HoldingsStrategyBuilder({ theme, onStrategyCreated, selectedSymb
 
   useEffect(() => {
     const fetchPortfolio = async () => {
+      if (!selectedSymbol) return;
       try {
         setIsLoading(true);
         setError(null);
@@ -60,7 +61,7 @@ export function HoldingsStrategyBuilder({ theme, onStrategyCreated, selectedSymb
         } catch {
           // ignore, fallback to demo id
         }
-        const { data, error } = await optionsService.getOptionsPortfolio(userId, null, selectedSymbol ? { symbol: selectedSymbol } : undefined);
+        const { data, error } = await optionsService.getOptionsPortfolio(userId, null, { symbol: selectedSymbol });
         if (error) throw error;
         setPortfolioData(data);
       } catch (e) {
