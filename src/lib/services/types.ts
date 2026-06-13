@@ -832,6 +832,51 @@ export interface AdminOrdersDailyStats {
   status_breakdown?: Record<string, number>;
 }
 
+export interface OptionExpiryRiskReportListItem {
+  id?: number;
+  report_id?: string;
+  report_date: string;
+  account_alias?: string;
+  account_id?: string;
+  status?: string;
+  error_message?: string | null;
+  generated_at?: string;
+  created_at?: string;
+  updated_at?: string;
+  report_markdown?: string;
+  summary?: Record<string, unknown>;
+}
+
+export interface OptionExpiryRiskReportItem {
+  expiry_date: string;
+  phase?: string;
+  days_to_expiry?: number;
+  calendar_days_to_expiry?: number;
+  risk_positions_count?: number;
+  safe_positions_count?: number;
+  strategies_count?: number;
+  report?: string;
+  exercise_analysis?: ExerciseAnalysis;
+  payoff_calculator?: unknown;
+}
+
+export interface OptionExpiryRiskReport {
+  id?: number;
+  report_id?: string;
+  report_date: string;
+  account_alias?: string;
+  account_id?: string;
+  status?: string;
+  error_message?: string | null;
+  generated_at?: string;
+  created_at?: string;
+  updated_at?: string;
+  report_markdown?: string;
+  summary?: Record<string, unknown>;
+  items?: OptionExpiryRiskReportItem[];
+  expiries?: OptionExpiryRiskReportItem[];
+}
+
 export interface OptionsService {
   getOptionsData: (symbol?: string) => Promise<ServiceResponse<OptionsData>>;
   refreshOptionsData: (symbol?: string) => Promise<ServiceResponse<OptionsData>>;
@@ -841,6 +886,16 @@ export interface OptionsService {
   getPortfolioAnalysis: (userId: string, accountId?: string | null) => Promise<ServiceResponse<Record<string, ExpiryAnalysisReport>>>;
   getPayoffSurface: (accountId: string, symbol?: string) => Promise<ServiceResponse<PayoffSurfaceData>>;
   getMarginStress: (accountId: string, symbol?: string) => Promise<ServiceResponse<MarginStressData>>;
+  listOptionExpiryRiskReports: (accountAlias: string, options?: { limit?: number }) => Promise<ServiceResponse<OptionExpiryRiskReportListItem[]>>;
+  getOptionExpiryRiskReport: (
+    accountAlias: string,
+    reportDate: string,
+    options?: { expiry_date?: string; raw?: boolean }
+  ) => Promise<ServiceResponse<OptionExpiryRiskReport>>;
+  generateOptionExpiryRiskReport: (
+    accountAlias: string,
+    payload?: { report_date?: string; overwrite?: boolean }
+  ) => Promise<ServiceResponse<OptionExpiryRiskReport>>;
   getAvailableStrategies: () => Promise<ServiceResponse<string[]>>;
   createOptionPriceWebSocketClient: (handlers?: OptionPriceWebSocketHandlers) => OptionPriceWebSocketClient;
   saveCustomStrategy: (

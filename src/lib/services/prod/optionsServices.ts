@@ -502,6 +502,80 @@ export const optionsService: OptionsService = {
     }
   },
 
+  listOptionExpiryRiskReports: async (accountAlias: string, options?: { limit?: number }) => {
+    try {
+      const queryParams = new URLSearchParams();
+      if (typeof options?.limit === 'number') queryParams.set('limit', String(options.limit));
+      const url = queryParams.toString()
+        ? `/api/options/expiry-risk-reports/${encodeURIComponent(accountAlias)}?${queryParams.toString()}`
+        : `/api/options/expiry-risk-reports/${encodeURIComponent(accountAlias)}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error('Failed to fetch expiry risk reports');
+      }
+      const json = await response.json();
+      const list = Array.isArray(json)
+        ? json
+        : (Array.isArray(json?.reports)
+            ? json.reports
+            : (Array.isArray(json?.data)
+                ? json.data
+                : []));
+      return { data: list, error: null };
+    } catch (error) {
+      console.error('Error fetching expiry risk reports:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  getOptionExpiryRiskReport: async (
+    accountAlias: string,
+    reportDate: string,
+    options?: { expiry_date?: string; raw?: boolean }
+  ) => {
+    try {
+      const queryParams = new URLSearchParams();
+      if (options?.expiry_date) queryParams.set('expiry_date', options.expiry_date);
+      if (options?.raw) queryParams.set('raw', 'true');
+      const qs = queryParams.toString();
+      const url = qs
+        ? `/api/options/expiry-risk-reports/${encodeURIComponent(accountAlias)}/${encodeURIComponent(reportDate)}?${qs}`
+        : `/api/options/expiry-risk-reports/${encodeURIComponent(accountAlias)}/${encodeURIComponent(reportDate)}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error('Failed to fetch expiry risk report');
+      }
+      const json = await response.json();
+      const data = json?.report ?? json?.data ?? json;
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error fetching expiry risk report:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  generateOptionExpiryRiskReport: async (
+    accountAlias: string,
+    payload?: { report_date?: string; overwrite?: boolean }
+  ) => {
+    try {
+      const response = await fetch(`/api/options/expiry-risk-reports/${encodeURIComponent(accountAlias)}/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload || {})
+      });
+      if (!response.ok) {
+        throw new Error('Failed to generate expiry risk report');
+      }
+      const json = await response.json();
+      const data = json?.data ?? json;
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error generating expiry risk report:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
   getAvailableStrategies: async () => {
     try {
       const response = await fetch('/api/options/strategies');

@@ -779,6 +779,68 @@ export const optionsService: OptionsService = {
       error: null
     };
   },
+
+  listOptionExpiryRiskReports: async (_accountAlias: string, options?: { limit?: number }) => {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    const today = new Date().toISOString().slice(0, 10);
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const list = [
+      { report_date: today, account_alias: _accountAlias },
+      { report_date: yesterday, account_alias: _accountAlias }
+    ];
+    const limit = typeof options?.limit === 'number' ? Math.max(0, options.limit) : list.length;
+    return { data: list.slice(0, limit), error: null };
+  },
+
+  getOptionExpiryRiskReport: async (accountAlias: string, reportDate: string, options?: { expiry_date?: string; raw?: boolean }) => {
+    await new Promise(resolve => setTimeout(resolve, 350));
+    const baseItems = [
+      {
+        expiry_date: '2026-06-24',
+        phase: 'urgent',
+        days_to_expiry: 12,
+        risk_positions_count: 2,
+        safe_positions_count: 1,
+        strategies_count: 1,
+        report: '### 紧急提示\n临近到期，请注意义务仓保证金与备兑覆盖情况。',
+        payoff_calculator: {
+          underlying: { price: 100 },
+          axes: { shock_pcts: [-0.2, -0.1, 0, 0.1, 0.2], eval_day_offsets: [0, 3, 7, 12] },
+          legs: []
+        }
+      },
+      {
+        expiry_date: '2026-07-22',
+        phase: 'watch',
+        days_to_expiry: 40,
+        risk_positions_count: 0,
+        safe_positions_count: 3,
+        strategies_count: 2,
+        report: '### 观察\n距离到期尚远，继续跟踪波动率变化与仓位集中度。',
+        payoff_calculator: {
+          underlying: { price: 100 },
+          axes: { shock_pcts: [-0.2, -0.1, 0, 0.1, 0.2], eval_day_offsets: [0, 7, 14, 30] },
+          legs: []
+        }
+      }
+    ];
+    const items = options?.expiry_date ? baseItems.filter(i => i.expiry_date === options.expiry_date) : baseItems;
+    return {
+      data: {
+        report_date: reportDate,
+        account_alias: accountAlias,
+        items,
+      },
+      error: null
+    };
+  },
+
+  generateOptionExpiryRiskReport: async (accountAlias: string, payload?: { report_date?: string; overwrite?: boolean }) => {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    const reportDate = payload?.report_date || new Date().toISOString().slice(0, 10);
+    const { data } = await optionsService.getOptionExpiryRiskReport(accountAlias, reportDate);
+    return { data, error: null };
+  },
   getOptionsData: async (symbol?: string) => {
     await new Promise(resolve => setTimeout(resolve, 1000));
     
