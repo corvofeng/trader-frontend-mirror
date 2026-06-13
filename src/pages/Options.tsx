@@ -1,7 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { logger } from '../shared/utils/logger';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { BarChart2, TrendingUp, Briefcase, Calculator, RefreshCw, Shield, Activity, BookOpen, Hourglass } from 'lucide-react';
+import { BarChart2, TrendingUp, Briefcase, Calculator, RefreshCw, Shield, Activity, BookOpen, Hourglass, BellRing } from 'lucide-react';
 import { Theme, themes } from '../lib/theme';
 import { OptionsChain } from '../features/options/components/OptionsChain';
 import { TimeValueChart } from '../features/options/components/TimeValueChart';
@@ -9,8 +9,10 @@ import { VerticalSpreadMonthlyPricesChart } from '../features/options/components
 import { VolatilitySurface } from '../features/options/components/VolatilitySurface';
 import { OptionsPortfolio } from '../features/options/components/OptionsPortfolio';
 import { RiskAnalysis } from '../features/options/components/RiskAnalysis';
+import { OptionExpiryRiskReportsPanel } from '../features/options/components/OptionExpiryRiskReportsPanel';
 import { OptionsTradePlans } from '../features/options/components/OptionsTradePlans';
 import { OptionsCalculatorCard } from '../features/options/components/OptionsCalculatorCard';
+import type { PayoffChartEngine } from '../features/options/components/OptionPayoffCalculatorChart';
 import { OptionsCalculatorModal } from './options/OptionsCalculatorModal';
 import { RelatedLinks, AccountSelector } from '../shared/components';
 import { optionsService, authService } from '../lib/services';
@@ -26,7 +28,7 @@ interface OptionsProps {
   theme: Theme;
 }
 
-type OptionsTab = 'data' | 'portfolio' | 'analysis' | 'trading' | 'management' | 'whitelist' | 'risk';
+type OptionsTab = 'data' | 'portfolio' | 'analysis' | 'trading' | 'management' | 'whitelist' | 'expiry-risk' | 'risk';
 
 function OptionsContent({ theme }: OptionsProps) {
   const location = useLocation();
@@ -49,7 +51,7 @@ function OptionsContent({ theme }: OptionsProps) {
   const [activeTab, setActiveTab] = useState<OptionsTab>(() => {
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab') as OptionsTab;
-    return tab && ['data', 'portfolio', 'analysis', 'trading', 'management', 'whitelist', 'risk'].includes(tab) ? tab : 'data';
+    return tab && ['data', 'portfolio', 'analysis', 'trading', 'management', 'whitelist', 'expiry-risk', 'risk'].includes(tab) ? tab : 'data';
   });
 
   const [availableSymbols, setAvailableSymbols] = useState<string[]>([]);
@@ -89,6 +91,11 @@ function OptionsContent({ theme }: OptionsProps) {
   const effectiveUserId = userId ?? 'demo';
   const { isConnected, queryOptionsData, optionsDataSnapshots } = useOptionPriceWebSocket();
   const pendingFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const payoffChartEngine: PayoffChartEngine = (() => {
+    const params = new URLSearchParams(location.search);
+    const chart = params.get('chart');
+    return chart === 'plotly' || chart === 'echarts' ? chart : 'tradingview';
+  })();
 
   const handleTabChange = (newTab: string) => {
     const nextTab = newTab as OptionsTab;
@@ -97,6 +104,12 @@ function OptionsContent({ theme }: OptionsProps) {
     params.set('tab', nextTab);
     navigate(`/options?${params.toString()}`, { replace: true });
   };
+
+  const handlePayoffChartEngineChange = useCallback((engine: PayoffChartEngine) => {
+    const params = new URLSearchParams(location.search);
+    params.set('chart', engine);
+    navigate(`/options?${params.toString()}`, { replace: true });
+  }, [location.search, navigate]);
 
   // Fetch available symbols on component mount
   React.useEffect(() => {
@@ -234,6 +247,7 @@ function OptionsContent({ theme }: OptionsProps) {
     { id: 'trading' as OptionsTab, name: 'Plans', icon: TrendingUp },
     { id: 'management' as OptionsTab, name: 'Manage', icon: Calculator },
     { id: 'whitelist' as OptionsTab, name: 'Whitelist', icon: Shield },
+    { id: 'expiry-risk' as OptionsTab, name: '到期风险', icon: BellRing },
     { id: 'risk' as OptionsTab, name: 'Risk', icon: Activity },
   ];
 
@@ -493,9 +507,31 @@ function OptionsContent({ theme }: OptionsProps) {
           </div>
         )}
 
+        {activeTab === 'expiry-risk' && (
+          <div className="space-y-6">
+            <OptionExpiryRiskReportsPanel
+              theme={theme}
+              selectedAccountId={selectedAccountId}
+              chartEngine={payoffChartEngine}
+              onChartEngineChange={handlePayoffChartEngineChange}
+            />
+            <RelatedLinks
+              theme={theme}
+              currentPath="/options?tab=expiry-risk"
+              maxItems={4}
+            />
+          </div>
+        )}
+
         {activeTab === 'risk' && (
           <div className="space-y-6">
-            <RiskAnalysis theme={theme} selectedAccountId={selectedAccountId} selectedSymbol={selectedSymbol} />
+            <RiskAnalysis
+              theme={theme}
+              selectedAccountId={selectedAccountId}
+              selectedSymbol={selectedSymbol}
+              payoffChartEngine={payoffChartEngine}
+              onPayoffChartEngineChange={handlePayoffChartEngineChange}
+            />
             <RelatedLinks 
               theme={theme}
               currentPath="/options?tab=risk" 

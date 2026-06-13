@@ -5,6 +5,8 @@ import { optionsService } from '../../../lib/services';
 import { PayoffSurfaceData, MarginStressData } from '../../../lib/services/types';
 import { Theme, themes } from '../../../lib/theme';
 import { Loader, AlertTriangle, ShieldCheck, TrendingUp, Info } from 'lucide-react';
+import { OptionExpiryRiskReportsPanel } from './OptionExpiryRiskReportsPanel';
+import type { PayoffChartEngine } from './OptionPayoffCalculatorChart';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -38,9 +40,17 @@ interface RiskAnalysisProps {
   theme: Theme;
   selectedAccountId: string | null;
   selectedSymbol?: string;
+  payoffChartEngine?: PayoffChartEngine;
+  onPayoffChartEngineChange?: (engine: PayoffChartEngine) => void;
 }
 
-export function RiskAnalysis({ theme, selectedAccountId, selectedSymbol }: RiskAnalysisProps) {
+export function RiskAnalysis({
+  theme,
+  selectedAccountId,
+  selectedSymbol,
+  payoffChartEngine = 'tradingview',
+  onPayoffChartEngineChange,
+}: RiskAnalysisProps) {
   const [surfaceData, setSurfaceData] = useState<PayoffSurfaceData | null>(null);
   const [stressData, setStressData] = useState<MarginStressData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -282,6 +292,14 @@ export function RiskAnalysis({ theme, selectedAccountId, selectedSymbol }: RiskA
 
   return (
     <div className="space-y-8 animate-fade-in-up">
+      <OptionExpiryRiskReportsPanel
+        theme={theme}
+        selectedAccountId={selectedAccountId}
+        standaloneHref={`/options?tab=expiry-risk&chart=${payoffChartEngine}`}
+        chartEngine={payoffChartEngine}
+        onChartEngineChange={onPayoffChartEngineChange}
+      />
+
       {/* 1. Payoff Surface Section */}
       <section className={`${themes[theme].card} rounded-lg p-6 shadow-sm border ${themes[theme].border}`}>
         <div className="flex items-center justify-between mb-6">
