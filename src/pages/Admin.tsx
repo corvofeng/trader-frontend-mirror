@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Activity, Calendar, RefreshCw, BookOpen, History as HistoryIcon, ListChecks, HeartPulse, Bell, Upload } from 'lucide-react';
+import { Activity, Calendar, RefreshCw, BookOpen, History as HistoryIcon, ListChecks, HeartPulse, Bell, Upload, X } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, addMonths, isSameMonth, isSameDay, differenceInCalendarDays } from 'date-fns';
 import { logger } from '../shared/utils/logger';
 import { Theme, themes } from '../lib/theme';
@@ -37,6 +37,15 @@ const safeParseBackendDateTime = (raw: unknown): Date | null => {
   if (!s || s === '-') return null;
   const d = s.includes('T') ? new Date(s) : new Date(s.replace(' ', 'T'));
   return Number.isFinite(d.getTime()) ? d : null;
+};
+
+const formatBackendDateOnly = (raw: unknown): string => {
+  const d = safeParseBackendDateTime(raw);
+  if (d) return format(d, 'yyyy-MM-dd');
+  if (typeof raw !== 'string') return '-';
+  const s = raw.trim();
+  if (!s || s === '-') return '-';
+  return s.length >= 10 ? s.slice(0, 10) : s;
 };
 
 const getAdminNoticeTimeBucket = (createdAt: unknown): AdminNoticeTimeBucket => {
@@ -110,6 +119,7 @@ export function Admin({ theme }: AdminProps) {
   const [accountsHeartbeatLatencyMs, setAccountsHeartbeatLatencyMs] = useState<number | null>(null);
   const [accountsHeartbeatInFlight, setAccountsHeartbeatInFlight] = useState(false);
   const accountsHeartbeatAbortRef = React.useRef<AbortController | null>(null);
+  const [activeAccountDetailKey, setActiveAccountDetailKey] = useState<string | null>(null);
 
   const accountsSnapshotMeta = useMemo(() => {
     const snapshotMsByKey = new Map<string, number | null>();
@@ -127,6 +137,11 @@ export function Admin({ theme }: AdminProps) {
 
     return { snapshotMsByKey, maxSnapshotMs };
   }, [accountsStatus]);
+
+  const activeAccountDetail = useMemo(() => {
+    if (!activeAccountDetailKey) return null;
+    return accountsStatus.find((item) => (item.account_id_alias || item.alias) === activeAccountDetailKey) ?? null;
+  }, [activeAccountDetailKey, accountsStatus]);
 
   type NoticeUserScope = 'current' | 'all' | 'custom';
   type NoticeResolvedFilter = 'all' | 'resolved' | 'unresolved';
@@ -237,6 +252,15 @@ export function Admin({ theme }: AdminProps) {
       if (accountsHeartbeatAbortRef.current) accountsHeartbeatAbortRef.current.abort();
     };
   }, [activeTab, refreshKey]);
+
+  React.useEffect(() => {
+    if (!activeAccountDetailKey) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setActiveAccountDetailKey(null);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [activeAccountDetailKey]);
 
   const normalizeAdminNoticeList = React.useCallback((payload: unknown): Array<Record<string, unknown>> => {
     const unwrap = (v: unknown): unknown => {
@@ -983,16 +1007,19 @@ export function Admin({ theme }: AdminProps) {
             )}
             {accountsStatus.length > 0 && (
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <table className="w-full table-fixed divide-y divide-gray-200 text-xs sm:text-sm dark:divide-gray-700">
+                  <colgroup>
+                    <col className="w-[34%]" />
+                    <col className="w-[28%]" />
+                    <col className="w-[22%]" />
+                    <col className="w-[16%]" />
+                  </colgroup>
                   <thead className="bg-gray-50 dark:bg-gray-900/50">
                     <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">账户</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account ID</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">类型</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">后端时间</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">最后快照</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">消息</th>
+                      <th className="px-2 py-3 text-left text-[11px] font-semibold text-gray-500 sm:px-3">账户</th>
+                      <th className="px-2 py-3 text-left text-[11px] font-semibold text-gray-500 sm:px-3">标识</th>
+                      <th className="px-2 py-3 text-left text-[11px] font-semibold text-gray-500 sm:px-3">快照</th>
+                      <th className="px-2 py-3 text-right text-[11px] font-semibold text-gray-500 sm:px-3">详情</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
@@ -1005,49 +1032,44 @@ export function Admin({ theme }: AdminProps) {
                       const snapshotStale =
                         accountsSnapshotMeta.maxSnapshotMs !== null &&
                         (snapshotMs === null || snapshotMs < accountsSnapshotMeta.maxSnapshotMs);
-                      const rowClass = !ok
-                        ? 'bg-red-50/70 dark:bg-red-900/15'
+                      const badgeClass = !ok
+                        ? 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-100'
                         : snapshotStale
-                          ? 'bg-amber-50/60 dark:bg-amber-900/15'
-                          : undefined;
+                          ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-100'
+                          : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-100';
+                      const statusLabel = !ok ? (item.status || '异常') : snapshotStale ? '快照偏旧' : '正常';
                       return (
                         <tr
                           key={item.account_id_alias || item.alias}
-                          className={rowClass}
+                          className="align-middle hover:bg-gray-50/60 dark:hover:bg-gray-900/20"
                         >
-                          <td className="px-4 py-2 whitespace-nowrap text-xs">
-                            <span
-                              className={`inline-flex items-center rounded-full px-2 py-1 text-[10px] font-medium ${
-                                ok
-                                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-100'
-                                  : 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-100'
-                              }`}
-                            >
-                              {item.status || '-'}
-                            </span>
+                          <td className="px-2 py-3 text-xs text-gray-700 dark:text-gray-200 sm:px-3">
+                            <div className="font-medium break-words">{item.alias || '-'}</div>
+                            <div className="mt-1">
+                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${badgeClass}`}>
+                                {statusLabel}
+                              </span>
+                            </div>
                           </td>
-                          <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
-                            <div className="font-medium">{item.alias || '-'}</div>
+                          <td className="px-2 py-3 text-xs text-gray-700 dark:text-gray-200 sm:px-3">
+                            <div className="break-all">{item.account_id_alias || '-'}</div>
+                            <div className="mt-1 text-[10px] opacity-70">{item.account_type || '-'}</div>
                           </td>
-                          <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
-                            {item.account_id_alias || '-'}
-                          </td>
-                          <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
-                            {item.account_type || '-'}
-                          </td>
-                          <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
-                            {item.last_check || '-'}
-                          </td>
-                          <td className="px-4 py-2 whitespace-nowrap text-xs">
+                          <td className="px-2 py-3 text-xs sm:px-3">
                             <div className={`flex flex-col ${snapshotStale ? 'text-amber-700 dark:text-amber-200 font-medium' : 'text-gray-700 dark:text-gray-200'}`}>
-                              <span>{item.last_snapshot_at || '-'}</span>
+                              <span>{formatBackendDateOnly(item.last_snapshot_at)}</span>
                               <span className={`text-[10px] ${snapshotStale ? 'opacity-90' : 'opacity-70'}`}>
                                 {snapshotDiffDays === null ? '-' : `${snapshotDiffDays} 天`}
                               </span>
                             </div>
                           </td>
-                          <td className="px-4 py-2 text-xs text-gray-700 dark:text-gray-200 max-w-[520px] whitespace-normal break-words">
-                            {item.message || '-'}
+                          <td className="px-2 py-3 text-right sm:px-3">
+                            <button
+                              onClick={() => setActiveAccountDetailKey(key)}
+                              className={`inline-flex items-center justify-center rounded-md px-2 py-1.5 text-[11px] font-medium ${themes[theme].secondary}`}
+                            >
+                              详情
+                            </button>
                           </td>
                         </tr>
                       );
@@ -1057,6 +1079,84 @@ export function Admin({ theme }: AdminProps) {
               </div>
             )}
           </div>
+          {activeAccountDetail && (() => {
+            const detailKey = activeAccountDetail.account_id_alias || activeAccountDetail.alias;
+            const snapshotMs = accountsSnapshotMeta.snapshotMsByKey.get(detailKey) ?? null;
+            const snapshotDate = snapshotMs !== null ? new Date(snapshotMs) : null;
+            const snapshotDiffDays = snapshotDate ? differenceInCalendarDays(new Date(), snapshotDate) : null;
+            const snapshotStale =
+              accountsSnapshotMeta.maxSnapshotMs !== null &&
+              (snapshotMs === null || snapshotMs < accountsSnapshotMeta.maxSnapshotMs);
+            const ok = ['connected', 'ok', 'healthy', 'alive'].includes(activeAccountDetail.status.toLowerCase());
+            const badgeClass = !ok
+              ? 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-100'
+              : snapshotStale
+                ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-100'
+                : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-100';
+            return (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div className="absolute inset-0 bg-black/50" onClick={() => setActiveAccountDetailKey(null)} />
+                <div className={`relative w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-lg shadow-xl ${themes[theme].card}`}>
+                  <div className="flex items-center justify-between gap-3 border-b border-gray-200 p-4 dark:border-gray-700">
+                    <div className="min-w-0">
+                      <h3 className={`text-lg font-semibold ${themes[theme].text}`}>账户状态详情</h3>
+                      <div className="mt-1 text-sm text-gray-500 break-all">{activeAccountDetail.alias || activeAccountDetail.account_id_alias || '-'}</div>
+                    </div>
+                    <button
+                      onClick={() => setActiveAccountDetailKey(null)}
+                      className={`p-2 rounded-md ${themes[theme].secondary}`}
+                      title="关闭"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="max-h-[calc(90vh-72px)] overflow-y-auto p-4 space-y-4">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <div className="rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-800/40">
+                        <div className={`${themes[theme].text} opacity-70 text-xs`}>账户</div>
+                        <div className={`${themes[theme].text} mt-1 text-sm font-medium break-words`}>{activeAccountDetail.alias || '-'}</div>
+                      </div>
+                      <div className="rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-800/40">
+                        <div className={`${themes[theme].text} opacity-70 text-xs`}>状态</div>
+                        <div className="mt-1">
+                          <span className={`inline-flex items-center rounded-full px-2 py-1 text-[11px] font-medium ${badgeClass}`}>
+                            {activeAccountDetail.status || '-'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-800/40">
+                        <div className={`${themes[theme].text} opacity-70 text-xs`}>标识</div>
+                        <div className={`${themes[theme].text} mt-1 text-sm font-medium break-all`}>{activeAccountDetail.account_id_alias || '-'}</div>
+                      </div>
+                      <div className="rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-800/40">
+                        <div className={`${themes[theme].text} opacity-70 text-xs`}>类型</div>
+                        <div className={`${themes[theme].text} mt-1 text-sm font-medium`}>{activeAccountDetail.account_type || '-'}</div>
+                      </div>
+                      <div className="rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-800/40">
+                        <div className={`${themes[theme].text} opacity-70 text-xs`}>后端日期</div>
+                        <div className={`${themes[theme].text} mt-1 text-sm font-medium`}>{formatBackendDateOnly(activeAccountDetail.last_check)}</div>
+                      </div>
+                      <div className="rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-800/40">
+                        <div className={`${themes[theme].text} opacity-70 text-xs`}>快照日期</div>
+                        <div className={`${themes[theme].text} mt-1 text-sm font-medium`}>
+                          {formatBackendDateOnly(activeAccountDetail.last_snapshot_at)}
+                          {snapshotDiffDays !== null ? ` · ${snapshotDiffDays} 天` : ''}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className={`mb-2 text-sm font-medium ${themes[theme].text}`}>消息</div>
+                      <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-700 break-words dark:border-gray-700 dark:bg-black/20 dark:text-gray-200">
+                        {activeAccountDetail.message || '-'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
           <DataFreshnessStatus theme={theme} />
         </div>
       )}

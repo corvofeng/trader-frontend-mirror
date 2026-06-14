@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Theme, themes } from '../../../lib/theme';
-import { differenceInCalendarDays, parseISO } from 'date-fns';
-import { RefreshCw, AlertCircle, CheckCircle2, ChevronDown } from 'lucide-react';
+import { differenceInCalendarDays, format, parseISO } from 'date-fns';
+import { RefreshCw, AlertCircle, CheckCircle2, X } from 'lucide-react';
 import { stockService } from '../../../lib/services';
 
 interface DataFreshnessStatusProps {
@@ -60,6 +60,17 @@ const formatPrice = (value: unknown): string => {
   return n.toLocaleString('en-US', { maximumFractionDigits: 4 });
 };
 
+const formatDateOnly = (value: unknown): string => {
+  const d = safeParseDateLike(value);
+  if (d) return format(d, 'yyyy-MM-dd');
+  if (typeof value === 'string') {
+    const s = value.trim();
+    if (!s) return '-';
+    return s.length >= 10 ? s.slice(0, 10) : s;
+  }
+  return '-';
+};
+
 type DataCheckResult = {
   loading: boolean;
   error: string | null;
@@ -74,6 +85,7 @@ export function DataFreshnessStatus({ theme }: DataFreshnessStatusProps) {
   const [akshareSinaStatus, setAkshareSinaStatus] = useState<DataCheckResult>({ loading: true, error: null, lastDate: null, diffDays: null, details: null });
   const [gtimgStatus, setGtimgStatus] = useState<DataCheckResult>({ loading: true, error: null, lastDate: null, diffDays: null, details: null });
   const [yfinanceStatus, setYfinanceStatus] = useState<DataCheckResult>({ loading: true, error: null, lastDate: null, diffDays: null, details: null });
+  const [activeDetailKey, setActiveDetailKey] = useState<string | null>(null);
 
   const fetchHistoryData = async () => {
     setHistoryStatus(prev => ({ ...prev, loading: true, error: null }));
@@ -129,6 +141,15 @@ export function DataFreshnessStatus({ theme }: DataFreshnessStatusProps) {
     fetchYfinanceData();
     fetchAkshareSinaData();
   }, []);
+
+  useEffect(() => {
+    if (!activeDetailKey) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setActiveDetailKey(null);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [activeDetailKey]);
 
   const fetchTicksData = async () => {
     setTicksStatus(prev => ({ ...prev, loading: true, error: null }));
@@ -474,95 +495,35 @@ export function DataFreshnessStatus({ theme }: DataFreshnessStatusProps) {
     },
   ];
 
-  const renderStatusRow = (c: CheckConfig) => {
-    return (
-      <div key={c.key} className="py-2">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex items-start gap-2">
-            <StatusIcon status={c.status} />
-            <div className="min-w-0">
-              <div className={`text-sm font-semibold ${themes[theme].text} leading-5`}>{c.title}</div>
-              <div className="text-[11px] text-gray-500 truncate" title={c.apiPath}>
-                {c.apiPath}
-              </div>
-            </div>
-          </div>
+  const activeCheck = activeDetailKey ? checks.find((item) => item.key === activeDetailKey) ?? null : null;
 
-          <div className="shrink-0 flex items-center gap-2">
-            <button
-              onClick={c.refresh}
-              disabled={c.status.loading}
-              className={`p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 ${themes[theme].text} transition-colors disabled:opacity-50`}
-              title="刷新"
-            >
-              <RefreshCw className={`w-4 h-4 ${c.status.loading ? 'animate-spin' : ''}`} />
-            </button>
-            {c.status.details && (
-              <details className="group">
-                <summary
-                  className={`list-none cursor-pointer select-none inline-flex items-center gap-1 text-xs ${themes[theme].text} opacity-75 hover:opacity-100`}
-                >
-                  详情
-                  <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180" />
-                </summary>
-                <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] font-mono">
-                  {Object.entries(c.status.details)
-                    .filter(([k]) => !c.excludeDetailKeys.includes(k))
-                    .map(([k, v]) => (
-                      <div key={k} className="flex justify-between items-center bg-gray-50 dark:bg-gray-800/50 px-2 py-1 rounded">
-                        <span className="text-gray-500 dark:text-gray-400 truncate mr-2" title={k}>{k}</span>
-                        <span className={`${themes[theme].text} truncate`} title={formatValue(v)}>
-                          {formatValue(v)}
-                        </span>
-                      </div>
-                    ))}
-                </div>
-              </details>
-            )}
-          </div>
-        </div>
-
-        <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-1 text-xs">
-          {c.status.error ? (
-            <div className="col-span-2 md:col-span-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 px-2 py-1 rounded flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span className="break-all">{c.status.error}</span>
-            </div>
-          ) : c.status.loading && !c.status.lastDate ? (
-            <div className="col-span-2 md:col-span-4 flex items-center gap-2 text-gray-500">
-              <RefreshCw className="w-4 h-4 animate-spin" />
-              <span>加载中...</span>
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center justify-between gap-2">
-                <span className={`${themes[theme].text} opacity-70`}>{c.lastLabel}</span>
-                <span className={`${themes[theme].text} font-medium truncate`} title={c.status.lastDate ?? ''}>
-                  {c.status.lastDate ?? '-'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <span className={`${themes[theme].text} opacity-70`}>距今日</span>
-                <span className={`${themes[theme].text} font-medium`}>
-                  {c.status.diffDays ?? '-'} 天
-                </span>
-              </div>
-              {c.primary.map((p) => (
-                <div key={p.label} className="flex items-center justify-between gap-2">
-                  <span className={`${themes[theme].text} opacity-70`}>{p.label}</span>
-                  <span className={`${themes[theme].text} font-semibold`}>{formatPrice(p.value)}</span>
-                </div>
-              ))}
-            </>
-          )}
-        </div>
-      </div>
-    );
+  const getStatusMeta = (status: DataCheckResult) => {
+    const level = getStatusLevel(status);
+    return {
+      level,
+      badgeClass:
+        level === 'ok'
+          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-100'
+          : level === 'warn'
+            ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-100'
+            : 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-100',
+      label:
+        status.loading
+          ? '加载中'
+          : status.error
+            ? '异常'
+            : level === 'ok'
+              ? '正常'
+              : level === 'warn'
+                ? '延迟'
+                : '过期',
+    };
   };
 
   return (
+    <>
     <div className={`${themes[theme].card} rounded-lg p-4 mt-6`}>
-      <div className="mb-3 flex items-start justify-between gap-4">
+      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className={`text-xl font-bold ${themes[theme].text}`}>数据同步状态</h2>
           <p className={`text-sm ${themes[theme].text} opacity-75 mt-1`}>
@@ -575,7 +536,7 @@ export function DataFreshnessStatus({ theme }: DataFreshnessStatusProps) {
         <button
           onClick={refreshAll}
           disabled={anyLoading}
-          className={`inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm ${themes[theme].secondary} disabled:opacity-50`}
+          className={`inline-flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm ${themes[theme].secondary} disabled:opacity-50 sm:self-start`}
           title="刷新"
         >
           <RefreshCw className={`w-4 h-4 ${anyLoading ? 'animate-spin' : ''}`} />
@@ -583,9 +544,156 @@ export function DataFreshnessStatus({ theme }: DataFreshnessStatusProps) {
         </button>
       </div>
       
-      <div className="divide-y divide-gray-200 dark:divide-gray-800">
-        {checks.map(renderStatusRow)}
+      <div className="overflow-x-auto">
+        <table className="w-full table-fixed divide-y divide-gray-200 dark:divide-gray-800 text-xs sm:text-sm">
+          <colgroup>
+            <col className="w-[26%]" />
+            <col className="w-[20%]" />
+            <col className="w-[12%]" />
+            <col className="w-[16%]" />
+            <col className="w-[14%]" />
+            <col className="w-[12%]" />
+          </colgroup>
+          <thead className="bg-gray-50/90 dark:bg-gray-900/50">
+            <tr>
+              <th className="px-2 py-3 text-left text-[11px] font-semibold text-gray-500 sm:px-3">数据源</th>
+              <th className="px-2 py-3 text-left text-[11px] font-semibold text-gray-500 sm:px-3">日期</th>
+              <th className="px-2 py-3 text-center text-[11px] font-semibold text-gray-500 sm:px-3">滞后</th>
+              <th className="px-2 py-3 text-right text-[11px] font-semibold text-gray-500 sm:px-3">最新</th>
+              <th className="px-2 py-3 text-right text-[11px] font-semibold text-gray-500 sm:px-3">开盘</th>
+              <th className="px-2 py-3 text-right text-[11px] font-semibold text-gray-500 sm:px-3">详情</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+            {checks.map((c) => {
+              const primaryValue = formatPrice(c.primary[0]?.value);
+              const secondaryValue = formatPrice(c.primary[1]?.value);
+              const statusMeta = getStatusMeta(c.status);
+
+              return (
+                <tr key={c.key} className="align-middle hover:bg-gray-50/60 dark:hover:bg-gray-900/20">
+                  <td className="px-2 py-3 sm:px-3">
+                    <div className={`font-semibold ${themes[theme].text}`}>{c.title}</div>
+                    <div className="mt-1">
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${statusMeta.badgeClass}`}>
+                        <StatusIcon status={c.status} />
+                        {statusMeta.label}
+                      </span>
+                    </div>
+                    {c.status.error && (
+                      <div className="mt-1 text-[11px] text-red-500 break-all">{c.status.error}</div>
+                    )}
+                  </td>
+                  <td className={`px-2 py-3 ${themes[theme].text} whitespace-nowrap sm:px-3`}>
+                    {formatDateOnly(c.status.lastDate)}
+                  </td>
+                  <td className={`px-2 py-3 text-center ${themes[theme].text} whitespace-nowrap sm:px-3`}>
+                    {c.status.diffDays ?? '-'} 天
+                  </td>
+                  <td className={`px-2 py-3 text-right ${themes[theme].text} whitespace-nowrap sm:px-3`}>
+                    {primaryValue}
+                  </td>
+                  <td className={`px-2 py-3 text-right ${themes[theme].text} whitespace-nowrap sm:px-3`}>
+                    {secondaryValue}
+                  </td>
+                  <td className="px-2 py-3 text-right sm:px-3">
+                    <button
+                      onClick={() => setActiveDetailKey(c.key)}
+                      className={`inline-flex items-center justify-center rounded-md px-2 py-1.5 text-[11px] font-medium ${themes[theme].secondary}`}
+                    >
+                      详情
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
+
+    {activeCheck && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/50" onClick={() => setActiveDetailKey(null)} />
+        <div className={`relative w-full max-w-3xl max-h-[90vh] overflow-hidden rounded-lg shadow-xl ${themes[theme].card}`}>
+          <div className="flex items-center justify-between gap-3 border-b border-gray-200 p-4 dark:border-gray-700">
+            <div className="min-w-0">
+              <h3 className={`text-lg font-semibold ${themes[theme].text}`}>{activeCheck.title} 详情</h3>
+              <div className="mt-1 text-xs text-gray-500 break-all">{activeCheck.apiPath}</div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={activeCheck.refresh}
+                disabled={activeCheck.status.loading}
+                className={`p-2 rounded-md ${themes[theme].secondary} disabled:opacity-50`}
+                title="刷新"
+              >
+                <RefreshCw className={`w-4 h-4 ${activeCheck.status.loading ? 'animate-spin' : ''}`} />
+              </button>
+              <button
+                onClick={() => setActiveDetailKey(null)}
+                className={`p-2 rounded-md ${themes[theme].secondary}`}
+                title="关闭"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="max-h-[calc(90vh-72px)] overflow-y-auto p-4 space-y-4">
+            {activeCheck.status.error && (
+              <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
+                {activeCheck.status.error}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-800/40">
+                <div className={`${themes[theme].text} opacity-70 text-xs`}>日期</div>
+                <div className={`${themes[theme].text} mt-1 text-sm font-medium`}>{formatDateOnly(activeCheck.status.lastDate)}</div>
+              </div>
+              <div className="rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-800/40">
+                <div className={`${themes[theme].text} opacity-70 text-xs`}>距今日</div>
+                <div className={`${themes[theme].text} mt-1 text-sm font-medium`}>{activeCheck.status.diffDays ?? '-'} 天</div>
+              </div>
+              {activeCheck.primary.map((item) => (
+                <div key={item.label} className="rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-800/40">
+                  <div className={`${themes[theme].text} opacity-70 text-xs`}>{item.label}</div>
+                  <div className={`${themes[theme].text} mt-1 text-sm font-medium break-all`}>{formatPrice(item.value)}</div>
+                </div>
+              ))}
+            </div>
+
+            {activeCheck.status.details && (
+              <>
+                <div>
+                  <div className={`mb-2 text-sm font-medium ${themes[theme].text}`}>摘要字段</div>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {Object.entries(activeCheck.status.details)
+                      .filter(([k]) => !activeCheck.excludeDetailKeys.includes(k))
+                      .map(([k, v]) => (
+                        <div key={k} className="rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-800/40">
+                          <div className="text-[11px] text-gray-500 break-all">{k}</div>
+                          <div className={`mt-1 text-xs ${themes[theme].text} break-all font-mono`}>
+                            {formatValue(v)}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+
+                <div>
+                  <div className={`mb-2 text-sm font-medium ${themes[theme].text}`}>原始数据</div>
+                  <pre className="rounded-md border border-gray-200 bg-gray-50 p-3 text-[11px] leading-5 text-gray-700 overflow-auto dark:border-gray-700 dark:bg-black/20 dark:text-gray-200">
+                    {JSON.stringify(activeCheck.status.details, null, 2)}
+                  </pre>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
