@@ -22,6 +22,7 @@ import { OptionsAnalysisTab } from './Options/components/OptionsAnalysisTab';
 import type { OptionsData } from '../lib/services/types';
 import { OptionPriceWebSocketProvider } from '../features/options/context/OptionPriceWebSocketContext';
 import { useAutoRefresh, useOptionPriceWebSocket } from '../features/options/hooks/useOptionPriceWebSocket';
+import type { OptionsChartEngine } from '../features/options/utils/chartEngine';
 import { TabNavigation } from './Journal/components/TabNavigation';
 
 interface OptionsProps {
@@ -96,6 +97,11 @@ function OptionsContent({ theme }: OptionsProps) {
     const chart = params.get('chart');
     return chart === 'plotly' || chart === 'echarts' ? chart : 'tradingview';
   })();
+  const marketChartEngine: OptionsChartEngine = (() => {
+    const params = new URLSearchParams(location.search);
+    const chart = params.get('marketChart');
+    return chart === 'plotly' || chart === 'echarts' ? chart : 'tradingview';
+  })();
 
   const handleTabChange = (newTab: string) => {
     const nextTab = newTab as OptionsTab;
@@ -108,6 +114,12 @@ function OptionsContent({ theme }: OptionsProps) {
   const handlePayoffChartEngineChange = useCallback((engine: PayoffChartEngine) => {
     const params = new URLSearchParams(location.search);
     params.set('chart', engine);
+    navigate(`/options?${params.toString()}`, { replace: true });
+  }, [location.search, navigate]);
+
+  const handleMarketChartEngineChange = useCallback((engine: OptionsChartEngine) => {
+    const params = new URLSearchParams(location.search);
+    params.set('marketChart', engine);
     navigate(`/options?${params.toString()}`, { replace: true });
   }, [location.search, navigate]);
 
@@ -424,12 +436,16 @@ function OptionsContent({ theme }: OptionsProps) {
                   theme={theme}
                   optionsData={optionsData}
                   selectedSymbol={selectedSymbol}
+                  chartEngine={marketChartEngine}
+                  onChartEngineChange={handleMarketChartEngineChange}
                 />
 
                 <VerticalSpreadMonthlyPricesChart
                   theme={theme}
                   optionsData={optionsData}
                   selectedSymbol={selectedSymbol}
+                  chartEngine={marketChartEngine}
+                  onChartEngineChange={handleMarketChartEngineChange}
                 />
 
                 <VolatilitySurface
