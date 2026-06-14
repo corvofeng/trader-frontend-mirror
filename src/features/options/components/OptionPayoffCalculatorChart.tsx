@@ -23,20 +23,10 @@ interface OptionPayoffCalculatorChartProps {
 
 export type PayoffChartEngine = 'tradingview' | 'plotly' | 'echarts';
 
-type ContractType = 'call' | 'put';
-
-interface PayoffCalculatorLeg {
-  contract_type?: ContractType;
-  direction?: number;
-  strike?: number;
-  quantity?: number;
-  multiplier?: number;
-  cost_price?: number;
-  volatility?: number;
-  contract_name?: string;
-}
-
 interface PayoffCalculator {
+  schema_version?: number;
+  calculation?: string;
+  value_semantics?: string;
   as_of_date?: string;
   expiry_date?: string;
   calendar_days_to_expiry?: number;
@@ -44,15 +34,20 @@ interface PayoffCalculator {
     code?: string;
     price?: number;
   };
-  defaults?: {
-    risk_free_rate?: number;
-    fallback_volatility?: number;
-  };
-  axes?: {
+  surface?: {
+    x_axis?: string;
+    y_axis?: string;
+    value_semantics?: string;
+    day_offsets?: number[];
     shock_pcts?: number[];
-    eval_day_offsets?: number[];
+    points?: Array<{
+      eval_day_offset?: number;
+      remaining_days?: number;
+      prices?: unknown[];
+      values?: unknown[];
+    }>;
   };
-  legs?: PayoffCalculatorLeg[];
+  legs?: unknown[];
 }
 
 interface CurvePoint {
@@ -105,7 +100,6 @@ declare global {
   }
 }
 
-const DEFAULT_SHOCKS = Array.from({ length: 121 }, (_, index) => Number((-0.3 + index * 0.005).toFixed(4)));
 const SYNTHETIC_START_TS = Math.floor(Date.UTC(2024, 0, 1) / 1000) as UTCTimestamp;
 const SYNTHETIC_STEP_SECONDS = 24 * 60 * 60;
 const PLOTLY_SCRIPT_ID = 'plotly-cdn-script';
@@ -172,44 +166,6 @@ const extractPayoffCalculator = (payload: unknown): PayoffCalculator | null => {
   return null;
 };
 
-function erf(x: number) {
-  const sign = x < 0 ? -1 : 1;
-  const a1 = 0.254829592;
-  const a2 = -0.284496736;
-  const a3 = 1.421413741;
-  const a4 = -1.453152027;
-  const a5 = 1.061405429;
-  const p = 0.3275911;
-  const z = Math.abs(x);
-  const t = 1 / (1 + p * z);
-  const y = 1 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-z * z);
-  return sign * y;
-}
-
-function normCdf(x: number) {
-  return 0.5 * (1 + erf(x / Math.SQRT2));
-}
-
-function intrinsicValue(spot: number, strike: number, type: ContractType) {
-  return type === 'call' ? Math.max(spot - strike, 0) : Math.max(strike - spot, 0);
-}
-
-function blackScholes(spot: number, strike: number, years: number, rate: number, volatility: number, type: ContractType) {
-  if (years <= 0 || volatility <= 0 || spot <= 0 || strike <= 0) {
-    return intrinsicValue(spot, strike, type);
-  }
-
-  const sqrtYears = Math.sqrt(years);
-  const d1 = (Math.log(spot / strike) + (rate + 0.5 * volatility * volatility) * years) / (volatility * sqrtYears);
-  const d2 = d1 - volatility * sqrtYears;
-
-  if (type === 'call') {
-    return spot * normCdf(d1) - strike * Math.exp(-rate * years) * normCdf(d2);
-  }
-
-  return strike * Math.exp(-rate * years) * normCdf(-d2) - spot * normCdf(-d1);
-}
-
 const getCalendarDaysToExpiry = (calculator: PayoffCalculator) => {
   const explicitDays = Math.round(toFiniteNumber(calculator.calendar_days_to_expiry, Number.NaN));
   if (Number.isFinite(explicitDays) && explicitDays >= 0) return explicitDays;
@@ -217,47 +173,61 @@ const getCalendarDaysToExpiry = (calculator: PayoffCalculator) => {
 };
 
 const getSuggestedEvalDayOffsets = (calculator: PayoffCalculator) => {
-  const axisOffsets = uniqueSortedNumbers(calculator.axes?.eval_day_offsets);
-  if (axisOffsets.length > 0) return axisOffsets;
+  const surfaceOffsets = uniqueSortedNumbers(calculator.surface?.day_offsets);
+  if (surfaceOffsets.length > 0) return surfaceOffsets;
 
   const daysToExpiry = getCalendarDaysToExpiry(calculator);
   return Array.from({ length: daysToExpiry + 1 }, (_, index) => index);
 };
 
-const getShockPcts = (calculator: PayoffCalculator) => {
-  const values = uniqueSortedNumbers(calculator.axes?.shock_pcts);
-  return values.length > 0 ? values : DEFAULT_SHOCKS;
-};
+const buildCurveForOffsetFromSurface = (calculator: PayoffCalculator, offset: number) => {
+  const schemaVersion = toFiniteNumber(calculator.schema_version, Number.NaN);
+  if (schemaVersion !== 2) {
+    throw new Error(`不支持的 payoff_calculator schema_version=${String(calculator.schema_version)}`);
+  }
 
-const buildCurveForOffset = (calculator: PayoffCalculator, offset: number) => {
-  const spot = Math.max(0.0001, toFiniteNumber(calculator.underlying?.price, 0));
-  const daysToExpiry = getCalendarDaysToExpiry(calculator);
-  const remainingDays = Math.max(0, daysToExpiry - offset);
-  const yearsToExpiry = remainingDays / 365.25;
-  const rate = toFiniteNumber(calculator.defaults?.risk_free_rate, 0.02);
-  const fallbackVolatility = toFiniteNumber(calculator.defaults?.fallback_volatility, 0.25);
-  const legs = Array.isArray(calculator.legs) ? calculator.legs : [];
+  const surfacePoints = calculator.surface?.points;
+  if (!Array.isArray(surfacePoints) || surfacePoints.length === 0) {
+    throw new Error('payoff_calculator.surface.points 缺失或为空，无法渲染曲线');
+  }
 
-  return getShockPcts(calculator).map((shock) => {
-    const scenarioSpot = Math.max(0.0001, spot * (1 + shock));
-    const pnl = legs.reduce((total, leg) => {
-      const type: ContractType = leg.contract_type === 'put' ? 'put' : 'call';
-      const strike = toFiniteNumber(leg.strike, 0);
-      const quantity = toFiniteNumber(leg.quantity, 0);
-      const multiplier = toFiniteNumber(leg.multiplier, 10000);
-      const direction = toFiniteNumber(leg.direction, 0);
-      const costPrice = toFiniteNumber(leg.cost_price, 0);
-      const volatility = Math.max(0, toFiniteNumber(leg.volatility, fallbackVolatility));
-      const optionValue = blackScholes(scenarioSpot, strike, yearsToExpiry, rate, volatility, type);
-      return total + direction * (optionValue - costPrice) * quantity * multiplier;
-    }, 0);
+  const point = surfacePoints.find((p) => Number(p.eval_day_offset) === Number(offset));
+  if (!point) {
+    throw new Error(`缺少 eval_day_offset=${offset} 对应的 surface point`);
+  }
 
+  if (!Array.isArray(point.prices) || !Array.isArray(point.values)) {
+    throw new Error('surface point 格式错误：prices 和 values 必须是数组');
+  }
+  if (point.prices.length !== point.values.length) {
+    throw new Error('surface point 格式错误：prices 和 values 长度不一致');
+  }
+
+  const spot = toFiniteNumber(calculator.underlying?.price, 0);
+  const shockPcts = Array.isArray(calculator.surface?.shock_pcts) ? calculator.surface?.shock_pcts ?? [] : [];
+
+  const curve = point.prices.map((price, index) => {
+    const normalizedPrice = toFiniteNumber(price, 0);
+    const fallbackShock = spot > 0 ? normalizedPrice / spot - 1 : 0;
+    const shock = toFiniteNumber(shockPcts[index], fallbackShock);
     return {
       shock,
-      price: scenarioSpot,
-      pnl,
+      price: normalizedPrice,
+      pnl: toFiniteNumber(point.values?.[index], 0),
     };
-  });
+  }).filter((item) => Number.isFinite(item.price) && Number.isFinite(item.pnl) && Number.isFinite(item.shock));
+
+  if (curve.length === 0) {
+    throw new Error('surface point 数据为空，无法渲染曲线');
+  }
+
+  return {
+    curve,
+    pointMeta: {
+      eval_day_offset: toFiniteNumber(point.eval_day_offset, offset),
+      remaining_days: toFiniteNumber(point.remaining_days, Number.NaN),
+    },
+  };
 };
 
 const getBreakevens = (points: CurvePoint[]) => {
@@ -407,18 +377,100 @@ export function OptionPayoffCalculatorChart({
     [calculator],
   );
   const [selectedOffset, setSelectedOffset] = useState(0);
+  const schemaVersion = useMemo(
+    () => (calculator ? toFiniteNumber(calculator.schema_version, Number.NaN) : Number.NaN),
+    [calculator],
+  );
+  const isSchemaV2 = Number.isFinite(schemaVersion) && schemaVersion === 2;
+  const uiLabels = useMemo(() => {
+    if (isSchemaV2) {
+      return {
+        headerKicker: 'Payoff Calculator v2',
+        spotLabel: '现价',
+        expiryLabel: '到期日',
+        priceLabel: '标的价格',
+        valueLabel: '持仓价值',
+        shockLabel: '价格变动',
+        quickOffsetLabel: '快捷评估点',
+        sliderLabel: (offset: number, remainingDays: number) => `评估日 +${offset} 天，剩余 ${remainingDays} 天`,
+        spotValueLabel: '现价价值',
+        maxValueLabel: '最大价值',
+        minValueLabel: '最小价值',
+        zeroCrossingLabel: '零值交叉点',
+        markerSpot: '现价',
+        markerMax: '最大',
+        markerMin: '最小',
+        markerZero: (index: number) => (index === 0 ? '0' : `0${index + 1}`),
+        axisValueLabel: '价值',
+      };
+    }
+
+    return {
+      headerKicker: 'Expiry Risk Payoff',
+      spotLabel: 'Spot',
+      expiryLabel: 'Expiry',
+      priceLabel: 'Price',
+      valueLabel: 'PnL',
+      shockLabel: 'Shock',
+      quickOffsetLabel: '快捷评估点',
+      sliderLabel: (offset: number, calendarDays: number) => `评估日 +${offset}d / 到期 ${calendarDays}d`,
+      spotValueLabel: 'Spot PnL',
+      maxValueLabel: 'Max PnL',
+      minValueLabel: 'Min PnL',
+      zeroCrossingLabel: 'Breakeven',
+      markerSpot: 'Spot',
+      markerMax: 'Max',
+      markerMin: 'Min',
+      markerZero: (index: number) => (index === 0 ? 'BE' : `BE${index + 1}`),
+      axisValueLabel: 'PnL',
+    };
+  }, [isSchemaV2]);
 
   useEffect(() => {
-    setSelectedOffset((previous) => clamp(previous, 0, Math.max(calendarDaysToExpiry, 0)));
-  }, [calendarDaysToExpiry]);
+    setSelectedOffset((previous) => {
+      if (suggestedEvalDayOffsets.length === 0) {
+        return clamp(previous, 0, Math.max(calendarDaysToExpiry, 0));
+      }
+      if (suggestedEvalDayOffsets.includes(previous)) return previous;
+      return suggestedEvalDayOffsets.reduce((best, current) => (
+        Math.abs(current - previous) < Math.abs(best - previous) ? current : best
+      ), suggestedEvalDayOffsets[0]);
+    });
+  }, [calendarDaysToExpiry, suggestedEvalDayOffsets]);
 
-  const curvePoints = useMemo(
-    () => (calculator ? buildCurveForOffset(calculator, selectedOffset) : []),
-    [calculator, selectedOffset],
-  );
+  const curveBuild = useMemo(() => {
+    if (!calculator) {
+      return {
+        curvePoints: [] as CurvePoint[],
+        error: null as string | null,
+        surfacePointMeta: null as { eval_day_offset: number; remaining_days: number } | null,
+      };
+    }
+
+    if (isSchemaV2) {
+      try {
+        const { curve, pointMeta } = buildCurveForOffsetFromSurface(calculator, selectedOffset);
+        return { curvePoints: curve, error: null, surfacePointMeta: pointMeta };
+      } catch (err) {
+        return {
+          curvePoints: [] as CurvePoint[],
+          error: err instanceof Error ? err.message : 'payoff_calculator schema v2 数据解析失败',
+          surfacePointMeta: null,
+        };
+      }
+    }
+
+    return {
+      curvePoints: [] as CurvePoint[],
+      error: `不支持的 payoff_calculator schema_version=${Number.isFinite(schemaVersion) ? String(schemaVersion) : String(calculator.schema_version ?? '-')}`,
+      surfacePointMeta: null,
+    };
+  }, [calculator, isSchemaV2, schemaVersion, selectedOffset]);
+
+  const curvePoints: CurvePoint[] = curveBuild.curvePoints;
 
   const chartPoints = useMemo<ChartCurvePoint[]>(
-    () => sortByTimeAsc(curvePoints.map((point, index) => ({
+    () => sortByTimeAsc(curvePoints.map((point: CurvePoint, index: number) => ({
       ...point,
       time: (SYNTHETIC_START_TS + index * SYNTHETIC_STEP_SECONDS) as UTCTimestamp,
     }))),
@@ -437,9 +489,14 @@ export function OptionPayoffCalculatorChart({
     const maxPoint = chartPoints.reduce((best, point) => (point.pnl > best.pnl ? point : best), chartPoints[0]);
     const minPoint = chartPoints.reduce((best, point) => (point.pnl < best.pnl ? point : best), chartPoints[0]);
 
+    const remainingDaysFromSurface = toFiniteNumber(curveBuild.surfacePointMeta?.remaining_days, Number.NaN);
+    const remainingDays = Number.isFinite(remainingDaysFromSurface)
+      ? Math.max(0, Math.round(remainingDaysFromSurface))
+      : Math.max(0, calendarDaysToExpiry - selectedOffset);
+
     return {
       currentSpot,
-      remainingDays: Math.max(0, calendarDaysToExpiry - selectedOffset),
+      remainingDays,
       spotPnl: spotPoint.pnl,
       spotPoint,
       maxPnl: maxPoint.pnl,
@@ -448,10 +505,10 @@ export function OptionPayoffCalculatorChart({
       minPoint,
       breakevens: getBreakevens(curvePoints),
     };
-  }, [calculator, calendarDaysToExpiry, chartPoints, curvePoints, selectedOffset]);
+  }, [calculator, calendarDaysToExpiry, chartPoints, curveBuild.surfacePointMeta?.remaining_days, curvePoints, selectedOffset]);
 
   const quickOffsets = useMemo(
-    () => getQuickOffsetOptions(suggestedEvalDayOffsets, Math.max(calendarDaysToExpiry, 0)),
+    () => getQuickOffsetOptions(suggestedEvalDayOffsets, Math.max(suggestedEvalDayOffsets[suggestedEvalDayOffsets.length - 1] ?? calendarDaysToExpiry, 0)),
     [calendarDaysToExpiry, suggestedEvalDayOffsets],
   );
 
@@ -478,21 +535,21 @@ export function OptionPayoffCalculatorChart({
       color: '#3b82f6',
       shape: 'circle',
       position: stats.spotPoint.pnl >= 0 ? 'aboveBar' : 'belowBar',
-      text: 'Spot',
+      text: uiLabels.markerSpot,
     });
 
     addMarker(stats.maxPoint, {
       color: '#10b981',
       shape: 'arrowUp',
       position: 'aboveBar',
-      text: 'Max',
+      text: uiLabels.markerMax,
     });
 
     addMarker(stats.minPoint, {
       color: '#f43f5e',
       shape: 'arrowDown',
       position: 'aboveBar',
-      text: 'Min',
+      text: uiLabels.markerMin,
     });
 
     stats.breakevens.forEach((price, index) => {
@@ -500,12 +557,12 @@ export function OptionPayoffCalculatorChart({
         color: '#f59e0b',
         shape: 'square',
         position: 'belowBar',
-        text: index === 0 ? 'BE' : `BE${index + 1}`,
+        text: uiLabels.markerZero(index),
       });
     });
 
     return sortByTimeAsc(markers);
-  }, [chartPoints, stats]);
+  }, [chartPoints, stats, uiLabels]);
 
   const [hoveredPoint, setHoveredPoint] = useState<ChartCurvePoint | null>(null);
   const [plotlyError, setPlotlyError] = useState<string | null>(null);
@@ -758,7 +815,7 @@ export function OptionPayoffCalculatorChart({
           {
             x: stats.currentSpot,
             y: stats.spotPnl,
-            text: 'Spot',
+            text: uiLabels.markerSpot,
             showarrow: true,
             arrowhead: 3,
             ax: 0,
@@ -772,7 +829,7 @@ export function OptionPayoffCalculatorChart({
           ...stats.breakevens.map((value, index) => ({
             x: value,
             y: 0,
-            text: index === 0 ? 'BE' : `BE${index + 1}`,
+            text: uiLabels.markerZero(index),
             showarrow: true,
             arrowhead: 2,
             ax: 0,
@@ -833,7 +890,7 @@ export function OptionPayoffCalculatorChart({
               hovertemplate: [
                 '<b>标的价格</b> %{x:.3f}',
                 '<b>价格变动</b> %{customdata[0]}%',
-                '<b>PnL</b> %{customdata[1]}',
+                `<b>${uiLabels.axisValueLabel}</b> %{customdata[1]}`,
                 '<extra></extra>',
               ].join('<br>'),
               name: 'Payoff',
@@ -843,7 +900,7 @@ export function OptionPayoffCalculatorChart({
               mode: 'markers+text',
               x: [stats.currentSpot, stats.maxPoint.price, stats.minPoint.price, ...stats.breakevens],
               y: [stats.spotPnl, stats.maxPnl, stats.minPnl, ...stats.breakevens.map(() => 0)],
-              text: ['Spot', 'Max', 'Min', ...stats.breakevens.map((_, index) => (index === 0 ? 'BE' : `BE${index + 1}`))],
+              text: [uiLabels.markerSpot, uiLabels.markerMax, uiLabels.markerMin, ...stats.breakevens.map((_, index) => uiLabels.markerZero(index))],
               textposition: ['top center', 'top center', 'bottom center', ...stats.breakevens.map(() => 'top center')],
               textfont: {
                 color: palette.axis,
@@ -896,7 +953,7 @@ export function OptionPayoffCalculatorChart({
               spikethickness: 1,
             },
             yaxis: {
-              title: { text: 'PnL' },
+              title: { text: uiLabels.axisValueLabel },
               color: palette.axis,
               gridcolor: palette.grid,
               zeroline: true,
@@ -988,7 +1045,7 @@ export function OptionPayoffCalculatorChart({
         window.Plotly.purge(chartRef.current);
       }
     };
-  }, [calculator, chartEngine, chartPoints, curvePoints, currencyConfig, stats, theme]);
+  }, [calculator, chartEngine, chartPoints, curvePoints, currencyConfig, stats, theme, uiLabels]);
 
   useEffect(() => {
     if (chartEngine !== 'echarts') {
@@ -1045,7 +1102,7 @@ export function OptionPayoffCalculatorChart({
           return [
             `<div style="font-weight:600;margin-bottom:6px;">标的价格 ${formatPrice(point.price)}</div>`,
             `<div>价格变动 ${(point.shock * 100).toFixed(1)}%</div>`,
-            `<div>PnL ${formatCurrency(point.pnl, currencyConfig)}</div>`,
+            `<div>${uiLabels.axisValueLabel} ${formatCurrency(point.pnl, currencyConfig)}</div>`,
           ].join('');
         },
       },
@@ -1067,7 +1124,7 @@ export function OptionPayoffCalculatorChart({
       },
       yAxis: {
         type: 'value',
-        name: 'PnL',
+        name: uiLabels.axisValueLabel,
         nameGap: 18,
         axisLine: {
           lineStyle: { color: palette.grid },
@@ -1133,14 +1190,14 @@ export function OptionPayoffCalculatorChart({
               formatter: ({ data }: { data?: { label?: string } }) => data?.label ?? '',
             },
             data: [
-              { coord: [stats.currentSpot, stats.spotPnl], value: stats.spotPnl, itemStyle: { color: palette.line }, label: 'Spot' },
-              { coord: [stats.maxPoint.price, stats.maxPnl], value: stats.maxPnl, itemStyle: { color: palette.profit }, label: 'Max' },
-              { coord: [stats.minPoint.price, stats.minPnl], value: stats.minPnl, itemStyle: { color: palette.loss }, label: 'Min' },
+              { coord: [stats.currentSpot, stats.spotPnl], value: stats.spotPnl, itemStyle: { color: palette.line }, label: uiLabels.markerSpot },
+              { coord: [stats.maxPoint.price, stats.maxPnl], value: stats.maxPnl, itemStyle: { color: palette.profit }, label: uiLabels.markerMax },
+              { coord: [stats.minPoint.price, stats.minPnl], value: stats.minPnl, itemStyle: { color: palette.loss }, label: uiLabels.markerMin },
               ...stats.breakevens.map((value, index) => ({
                 coord: [value, 0],
                 value: 0,
                 itemStyle: { color: palette.marker },
-                label: index === 0 ? 'BE' : `BE${index + 1}`,
+                label: uiLabels.markerZero(index),
               })),
             ],
           },
@@ -1172,12 +1229,21 @@ export function OptionPayoffCalculatorChart({
       chart.dispose();
       echartsInstanceRef.current = null;
     };
-  }, [calculator, chartEngine, chartPoints, curvePoints, currencyConfig, stats, theme]);
+  }, [calculator, chartEngine, chartPoints, curvePoints, currencyConfig, stats, theme, uiLabels]);
 
   if (!calculator) {
     return (
       <div className={`rounded-lg border ${themes[theme].border} p-4`}>
         <div className={`text-sm ${themes[theme].text} opacity-70`}>暂无 payoff_calculator 图表数据。</div>
+      </div>
+    );
+  }
+
+  if (curveBuild.error) {
+    return (
+      <div className={`rounded-lg border ${themes[theme].border} p-4`}>
+        <div className="text-sm text-rose-600 dark:text-rose-400">{curveBuild.error}</div>
+        <div className={`mt-1 text-xs ${themes[theme].text} opacity-70`}>请提示后端重新生成报告（payoff_calculator schema v2）。</div>
       </div>
     );
   }
@@ -1191,13 +1257,15 @@ export function OptionPayoffCalculatorChart({
   }
 
   const activePoint = hoveredPoint ?? stats.spotPoint;
+  const selectedOffsetIndex = suggestedEvalDayOffsets.length > 0 ? Math.max(0, suggestedEvalDayOffsets.indexOf(selectedOffset)) : 0;
+  const sliderLabelRight = isSchemaV2 ? stats.remainingDays : calendarDaysToExpiry;
 
   return (
     <div className={`rounded-xl border ${themes[theme].border} space-y-4 bg-gradient-to-b from-white/60 p-3 to-transparent dark:from-gray-900/40 sm:p-5`}>
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className={`text-xs uppercase tracking-[0.18em] ${themes[theme].text} opacity-50`}>
-            Expiry Risk Payoff
+            {uiLabels.headerKicker}
           </div>
           <div className={`mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 ${themes[theme].text}`}>
             <div className="text-lg font-semibold">
@@ -1207,11 +1275,11 @@ export function OptionPayoffCalculatorChart({
               {chartEngine === 'plotly' ? 'Plotly' : chartEngine === 'echarts' ? 'ECharts' : 'TradingView'}
             </div>
             <div className="text-sm opacity-70">
-              Spot {formatPrice(stats.currentSpot)}
+              {uiLabels.spotLabel} {formatPrice(stats.currentSpot)}
             </div>
             {calculator.expiry_date ? (
               <div className="text-sm opacity-70">
-                Expiry {calculator.expiry_date}
+                {uiLabels.expiryLabel} {calculator.expiry_date}
               </div>
             ) : null}
           </div>
@@ -1219,13 +1287,13 @@ export function OptionPayoffCalculatorChart({
 
         <div className={`grid min-w-0 w-full grid-cols-3 gap-2 rounded-xl border ${themes[theme].border} bg-black/5 p-3 dark:bg-white/5 lg:w-auto`}>
           <div className="min-w-0">
-            <div className={`text-[11px] uppercase tracking-wide ${themes[theme].text} opacity-55`}>Price</div>
+            <div className={`text-[11px] uppercase tracking-wide ${themes[theme].text} opacity-55`}>{uiLabels.priceLabel}</div>
             <div className={`mt-1 text-sm font-semibold ${themes[theme].text}`}>
               {formatPrice(activePoint.price)}
             </div>
           </div>
           <div className="min-w-0">
-            <div className={`text-[11px] uppercase tracking-wide ${themes[theme].text} opacity-55`}>PnL</div>
+            <div className={`text-[11px] uppercase tracking-wide ${themes[theme].text} opacity-55`}>{uiLabels.valueLabel}</div>
             <div className={`mt-1 text-sm font-semibold ${
               activePoint.pnl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
             }`}>
@@ -1233,7 +1301,7 @@ export function OptionPayoffCalculatorChart({
             </div>
           </div>
           <div className="min-w-0">
-            <div className={`text-[11px] uppercase tracking-wide ${themes[theme].text} opacity-55`}>Shock</div>
+            <div className={`text-[11px] uppercase tracking-wide ${themes[theme].text} opacity-55`}>{uiLabels.shockLabel}</div>
             <div className={`mt-1 text-sm font-semibold ${themes[theme].text}`}>
               {(activePoint.shock * 100).toFixed(1)}%
             </div>
@@ -1291,7 +1359,7 @@ export function OptionPayoffCalculatorChart({
         </div>
       </div>
 
-      {calendarDaysToExpiry > 0 ? (
+      {suggestedEvalDayOffsets.length > 0 ? (
         <div className="space-y-2">
           {quickOffsets.length > 1 ? (
             <div className="flex flex-wrap gap-2">
@@ -1306,7 +1374,7 @@ export function OptionPayoffCalculatorChart({
                       : `${themes[theme].secondary}`
                   }`}
                 >
-                  +{offset}d
+                  +{offset}{isSchemaV2 ? '天' : 'd'}
                 </button>
               ))}
             </div>
@@ -1315,19 +1383,26 @@ export function OptionPayoffCalculatorChart({
             <input
               type="range"
               min={0}
-              max={Math.max(calendarDaysToExpiry, 0)}
+              max={isSchemaV2 ? Math.max(suggestedEvalDayOffsets.length - 1, 0) : Math.max(calendarDaysToExpiry, 0)}
               step={1}
-              value={selectedOffset}
-              onChange={(event) => setSelectedOffset(Number(event.target.value))}
+              value={isSchemaV2 ? selectedOffsetIndex : selectedOffset}
+              onChange={(event) => {
+                const value = Number(event.target.value);
+                if (isSchemaV2) {
+                  setSelectedOffset(suggestedEvalDayOffsets[value] ?? suggestedEvalDayOffsets[0] ?? 0);
+                  return;
+                }
+                setSelectedOffset(value);
+              }}
               className="w-full accent-blue-600"
             />
             <div className={`text-right text-xs ${themes[theme].text} opacity-70`}>
-              评估日 +{selectedOffset}d / 到期 {calendarDaysToExpiry}d
+              {uiLabels.sliderLabel(selectedOffset, sliderLabelRight)}
             </div>
           </div>
           {quickOffsets.length > 0 ? (
             <div className={`text-xs ${themes[theme].text} opacity-60`}>
-              快捷评估点: {quickOffsets.map((value) => `+${value}d`).join(', ')}
+              {uiLabels.quickOffsetLabel}: {quickOffsets.map((value) => `+${value}${isSchemaV2 ? '天' : 'd'}`).join(', ')}
             </div>
           ) : null}
         </div>
@@ -1335,25 +1410,25 @@ export function OptionPayoffCalculatorChart({
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <div className={`rounded-xl border ${themes[theme].border} p-3 bg-black/5 dark:bg-white/5`}>
-          <div className={`text-xs ${themes[theme].text} opacity-70`}>Spot PnL</div>
+          <div className={`text-xs ${themes[theme].text} opacity-70`}>{uiLabels.spotValueLabel}</div>
           <div className={`mt-1 text-sm font-semibold ${themes[theme].text}`}>
             {formatCurrency(stats.spotPnl, currencyConfig)}
           </div>
         </div>
         <div className={`rounded-xl border ${themes[theme].border} p-3 bg-black/5 dark:bg-white/5`}>
-          <div className={`text-xs ${themes[theme].text} opacity-70`}>Max PnL</div>
+          <div className={`text-xs ${themes[theme].text} opacity-70`}>{uiLabels.maxValueLabel}</div>
           <div className={`mt-1 text-sm font-semibold text-emerald-600 dark:text-emerald-400`}>
             {formatCurrency(stats.maxPnl, currencyConfig)}
           </div>
         </div>
         <div className={`rounded-xl border ${themes[theme].border} p-3 bg-black/5 dark:bg-white/5`}>
-          <div className={`text-xs ${themes[theme].text} opacity-70`}>Min PnL</div>
+          <div className={`text-xs ${themes[theme].text} opacity-70`}>{uiLabels.minValueLabel}</div>
           <div className="mt-1 text-sm font-semibold text-rose-600 dark:text-rose-400">
             {formatCurrency(stats.minPnl, currencyConfig)}
           </div>
         </div>
         <div className={`rounded-xl border ${themes[theme].border} p-3 bg-black/5 dark:bg-white/5`}>
-          <div className={`text-xs ${themes[theme].text} opacity-70`}>Breakeven</div>
+          <div className={`text-xs ${themes[theme].text} opacity-70`}>{uiLabels.zeroCrossingLabel}</div>
           <div className={`mt-1 text-sm font-semibold ${themes[theme].text}`}>
             {stats.breakevens.length > 0 ? stats.breakevens.map((value) => formatPrice(value)).join(', ') : '-'}
           </div>

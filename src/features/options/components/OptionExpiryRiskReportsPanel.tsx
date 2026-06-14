@@ -212,7 +212,7 @@ export function OptionExpiryRiskReportsPanel({
     return () => {
       cancelled = true;
     };
-  }, [selectedAccountId, selectedRiskReportDate]);
+  }, [selectedAccountId, selectedRiskReportDate, riskReportReloadSeq]);
 
   useEffect(() => {
     if (!selectedAccountId || !selectedRiskReportDate || !selectedExpiryDate) return;
@@ -241,7 +241,7 @@ export function OptionExpiryRiskReportsPanel({
     return () => {
       cancelled = true;
     };
-  }, [selectedAccountId, selectedRiskReportDate, selectedExpiryDate]);
+  }, [selectedAccountId, selectedRiskReportDate, selectedExpiryDate, riskReportReloadSeq]);
 
   if (!selectedAccountId) {
     return (

@@ -794,6 +794,43 @@ export const optionsService: OptionsService = {
 
   getOptionExpiryRiskReport: async (accountAlias: string, reportDate: string, options?: { expiry_date?: string; raw?: boolean }) => {
     await new Promise(resolve => setTimeout(resolve, 350));
+    const buildPayoffCalculatorV2 = (payload: {
+      expiry_date: string;
+      calendar_days_to_expiry: number;
+      day_offsets: number[];
+      underlying_price: number;
+    }) => {
+      const shock_pcts = [-0.2, -0.1, 0, 0.1, 0.2];
+      const prices = shock_pcts.map(shock => Number((payload.underlying_price * (1 + shock)).toFixed(4)));
+      return {
+        schema_version: 2,
+        calculation: 'server_black_scholes_or_intrinsic_position_value',
+        value_semantics: 'position_value_excluding_cost',
+        as_of_date: reportDate,
+        expiry_date: payload.expiry_date,
+        calendar_days_to_expiry: payload.calendar_days_to_expiry,
+        underlying: { price: payload.underlying_price },
+        surface: {
+          x_axis: 'underlying_price',
+          y_axis: 'position_value',
+          value_semantics: 'position_value_excluding_cost',
+          day_offsets: payload.day_offsets,
+          shock_pcts,
+          points: payload.day_offsets.map((offset) => {
+            const remainingDays = Math.max(0, payload.calendar_days_to_expiry - offset);
+            const factor = Math.max(0.2, 1 - offset / Math.max(payload.calendar_days_to_expiry, 1));
+            return {
+              eval_day_offset: offset,
+              remaining_days: remainingDays,
+              prices,
+              values: shock_pcts.map(shock => Number((shock * 1000 * factor).toFixed(2))),
+            };
+          }),
+        },
+        legs: [],
+      };
+    };
+
     const baseItems = [
       {
         expiry_date: '2026-06-24',
@@ -803,11 +840,12 @@ export const optionsService: OptionsService = {
         safe_positions_count: 1,
         strategies_count: 1,
         report: '### 紧急提示\n临近到期，请注意义务仓保证金与备兑覆盖情况。',
-        payoff_calculator: {
-          underlying: { price: 100 },
-          axes: { shock_pcts: [-0.2, -0.1, 0, 0.1, 0.2], eval_day_offsets: [0, 3, 7, 12] },
-          legs: []
-        }
+        payoff_calculator: buildPayoffCalculatorV2({
+          expiry_date: '2026-06-24',
+          calendar_days_to_expiry: 12,
+          day_offsets: [0, 3, 7, 12],
+          underlying_price: 100,
+        })
       },
       {
         expiry_date: '2026-07-22',
@@ -817,11 +855,12 @@ export const optionsService: OptionsService = {
         safe_positions_count: 3,
         strategies_count: 2,
         report: '### 观察\n距离到期尚远，继续跟踪波动率变化与仓位集中度。',
-        payoff_calculator: {
-          underlying: { price: 100 },
-          axes: { shock_pcts: [-0.2, -0.1, 0, 0.1, 0.2], eval_day_offsets: [0, 7, 14, 30] },
-          legs: []
-        }
+        payoff_calculator: buildPayoffCalculatorV2({
+          expiry_date: '2026-07-22',
+          calendar_days_to_expiry: 40,
+          day_offsets: [0, 7, 14, 30],
+          underlying_price: 100,
+        })
       }
     ];
     const items = options?.expiry_date ? baseItems.filter(i => i.expiry_date === options.expiry_date) : baseItems;
