@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { ListChecks, Clock, CheckCircle2, AlertTriangle, XCircle, RefreshCw } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ListChecks, Clock, CheckCircle2, AlertTriangle, XCircle, RefreshCw, ChevronDown, ChevronRight, X } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { optionsService } from '../../../lib/services';
 import type { OptionOrder, SequentialTradeTask, SequentialTradeStep } from '../../../lib/services/types';
@@ -81,6 +81,40 @@ interface SequentialTradeTasksProps {
 
 type StatusFilter = 'all' | 'pending' | 'executing' | 'completed' | 'failed' | 'timeout' | 'paused' | 'cancelled';
 
+type TaskDateGroup = {
+  dateKey: string;
+  label: string;
+  tasks: SequentialTradeTask[];
+};
+
+function formatGroupLabel(dateKey: string): string {
+  if (dateKey === 'unknown') return '未知日期';
+  const d = new Date(`${dateKey}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return dateKey;
+  return d.toLocaleDateString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    weekday: 'short'
+  });
+}
+
+function buildTaskSignature(list: SequentialTradeTask[]): string {
+  return JSON.stringify(
+    list.map(task => [
+      task.id,
+      task.status,
+      task.updated_at,
+      task.current_step,
+      task.steps_count,
+      task.current_step_index,
+      task.completed_at ?? '',
+      task.error_msg ?? '',
+      task.action_type,
+    ])
+  );
+}
+
 export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTradeTasksProps) {
   const [tasks, setTasks] = useState<SequentialTradeTask[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -96,6 +130,9 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
   const [actionLoading, setActionLoading] = useState<'pause' | 'resume' | 'terminate' | 'restart' | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
+  const latestSignatureRef = useRef('');
   const limit = 50;
 
   useEffect(() => {
@@ -146,6 +183,11 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
     };
   }, [selectedAccountId, statusFilter, reloadKey, offset]);
 
+
+  useEffect(() => {
+    latestSignatureRef.current = buildTaskSignature(tasks);
+  }, [tasks]);
+
   useEffect(() => {
     if (!selectedAccountId) return;
     setOffset(0);
@@ -153,13 +195,62 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
 
   useEffect(() => {
     if (!selectedAccountId) return;
+    let cancelled = false;
+    const pollTasks = async () => {
+      try {
+        const { data, error: serviceError } = await optionsService.getSequentialTrades(selectedAccountId, {
+          status: statusFilter === 'all' ? undefined : statusFilter,
+          limit,
+          offset
+        });
+        if (cancelled || serviceError) return;
+        const nextTasks = data || [];
+        const nextSignature = buildTaskSignature(nextTasks);
+        if (nextSignature === latestSignatureRef.current) return;
+
+        setTasks(nextTasks);
+        setError(null);
+        setSelectedTaskId(prev => {
+          if (prev != null && nextTasks.some(t => t.id === prev)) return prev;
+          return nextTasks.length > 0 ? nextTasks[0].id : null;
+        });
+
+        if (selectedTaskId != null) {
+          setDetailById(prev => {
+            const next = { ...prev };
+            delete next[selectedTaskId];
+            return next;
+          });
+          setOrdersByTaskId(prev => {
+            const next = { ...prev };
+            delete next[selectedTaskId];
+            return next;
+          });
+          setOrdersErrorByTaskId(prev => {
+            const next = { ...prev };
+            delete next[selectedTaskId];
+            return next;
+          });
+        }
+      } catch {
+        if (cancelled) return;
+      }
+    };
+
     const interval = setInterval(() => {
-      setReloadKey(prev => prev + 1);
+      void pollTasks();
     }, 10000);
     return () => {
+      cancelled = true;
       clearInterval(interval);
     };
-  }, [selectedAccountId, statusFilter]);
+  }, [selectedAccountId, statusFilter, offset, selectedTaskId]);
+
+  useEffect(() => {
+    if (!selectedTaskId) {
+      setMobileDetailOpen(false);
+    }
+  }, [selectedTaskId]);
 
   useEffect(() => {
     if (!selectedTaskId) return;
@@ -350,6 +441,61 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
     return `${d.toLocaleDateString()} ${d.toLocaleTimeString()}`;
   };
 
+  const groupedTasks = useMemo<TaskDateGroup[]>(() => {
+    const groups = new Map<string, SequentialTradeTask[]>();
+    for (const task of tasks) {
+      const dateKey =
+        getDateKey(task.created_at) ||
+        getDateKey(task.updated_at) ||
+        getDateKey(task.completed_at) ||
+        'unknown';
+      const bucket = groups.get(dateKey);
+      if (bucket) {
+        bucket.push(task);
+      } else {
+        groups.set(dateKey, [task]);
+      }
+    }
+
+    return Array.from(groups.entries())
+      .sort(([a], [b]) => {
+        if (a === 'unknown') return 1;
+        if (b === 'unknown') return -1;
+        return a < b ? 1 : -1;
+      })
+      .map(([dateKey, grouped]) => ({
+        dateKey,
+        label: formatGroupLabel(dateKey),
+        tasks: grouped,
+      }));
+  }, [tasks]);
+
+  useEffect(() => {
+    if (groupedTasks.length === 0) {
+      setExpandedGroups({});
+      return;
+    }
+
+    setExpandedGroups((prev) => {
+      const next: Record<string, boolean> = {};
+      for (const group of groupedTasks) {
+        next[group.dateKey] = prev[group.dateKey] ?? false;
+      }
+
+      const selectedGroup = selectedTaskId != null
+        ? groupedTasks.find(group => group.tasks.some(task => task.id === selectedTaskId))
+        : null;
+
+      if (selectedGroup) {
+        next[selectedGroup.dateKey] = true;
+      } else if (!Object.values(next).some(Boolean)) {
+        next[groupedTasks[0].dateKey] = true;
+      }
+
+      return next;
+    });
+  }, [groupedTasks, selectedTaskId]);
+
   const selectedTask =
     selectedTaskId != null
       ? detailById[selectedTaskId] || tasks.find(t => t.id === selectedTaskId) || null
@@ -372,6 +518,11 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
 
   const handleRefresh = () => {
     setReloadKey(prev => prev + 1);
+  };
+
+  const handleSelectTask = (taskId: number) => {
+    setSelectedTaskId(taskId);
+    setMobileDetailOpen(true);
   };
 
   const refreshSelectedTask = (taskId: number) => {
@@ -502,22 +653,361 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
   const canNextPage = tasks.length >= limit;
   const currentPage = Math.floor(offset / limit) + 1;
 
+  const detailPanelContent = (
+    <>
+      {!selectedTask && (
+        <div className={`text-sm ${themes[theme].text} opacity-75`}>
+          从左侧选择一个任务以查看详细阶段。
+        </div>
+      )}
+
+      {selectedTask && (
+        <>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <div className={`text-sm font-semibold ${themes[theme].text} mb-1`}>
+                任务 {selectedTask.id}
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                  {selectedTask.account_alias || selectedTask.account_id} · {selectedTask.action_type}
+                </div>
+                {(() => {
+                  const env = getEnvConfig(selectedTask.env);
+                  if (!env) return null;
+                  return (
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${env.className}`}>
+                      ENV {env.label}
+                    </span>
+                  );
+                })()}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {detailLoadingId === selectedTask.id && (
+                <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-300">
+                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-500" />
+                  <span>刷新中...</span>
+                </div>
+              )}
+              {canPause && (
+                <button
+                  type="button"
+                  onClick={handlePause}
+                  disabled={!!actionLoading}
+                  className="px-2 py-1 rounded text-[11px] font-medium border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {actionLoading === 'pause' ? '暂停中...' : '暂停'}
+                </button>
+              )}
+              {canResume && (
+                <button
+                  type="button"
+                  onClick={handleResume}
+                  disabled={!!actionLoading}
+                  className="px-2 py-1 rounded text-[11px] font-medium border border-emerald-400 text-emerald-700 dark:border-emerald-500 dark:text-emerald-100 hover:bg-emerald-50 dark:hover:bg-emerald-900/40 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {actionLoading === 'resume' ? '恢复中...' : '恢复'}
+                </button>
+              )}
+              {canTerminate && (
+                <button
+                  type="button"
+                  onClick={handleTerminate}
+                  disabled={!!actionLoading}
+                  className="px-2 py-1 rounded text-[11px] font-medium border border-red-400 text-red-600 dark:border-red-500 dark:text-red-100 hover:bg-red-50 dark:hover:bg-red-900/40 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {actionLoading === 'terminate' ? '终止中...' : '终止'}
+                </button>
+              )}
+              {canRestartTask && (
+                <button
+                  type="button"
+                  onClick={() => handleRestart()}
+                  disabled={!!actionLoading}
+                  className="px-2 py-1 rounded text-[11px] font-medium border border-blue-400 text-blue-600 dark:border-blue-400 dark:text-blue-100 hover:bg-blue-50 dark:hover:bg-blue-900/40 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {actionLoading === 'restart' ? '重启中...' : '重启任务'}
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="border-t border-dashed border-slate-200 dark:border-slate-700 pt-2 space-y-1">
+            <div className="text-[11px] text-slate-500 dark:text-slate-400">
+              创建时间: {formatTime(selectedTask.created_at)}
+            </div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400">
+              最近更新: {formatTime(selectedTask.updated_at)}
+            </div>
+            {(selectedTask.combo_id != null || selectedTask.expiry_date) && (
+              <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                {selectedTask.combo_id != null && <>组合ID: {selectedTask.combo_id}</>}
+                {selectedTask.combo_id != null && selectedTask.expiry_date && ' · '}
+                {selectedTask.expiry_date && <>到期日: {selectedTask.expiry_date}</>}
+              </div>
+            )}
+            {selectedTask.completed_at && (
+              <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                完成时间: {formatTime(selectedTask.completed_at)}
+              </div>
+            )}
+            {selectedTask.timeout_seconds != null && (
+              <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                超时时间: {selectedTask.timeout_seconds} 秒
+              </div>
+            )}
+            {selectedTask.error_msg && (
+              <div className="text-[11px] text-red-500">
+                错误信息: {selectedTask.error_msg}
+              </div>
+            )}
+            {actionError && (
+              <div className="text-[11px] text-red-500">
+                操作失败: {actionError}
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-dashed border-slate-200 dark:border-slate-700 pt-2">
+            <div className={`text-xs font-medium mb-2 ${themes[theme].text}`}>
+              任务阶段
+            </div>
+            {selectedSteps.length > 0 ? (
+              <div className="space-y-2">
+                {selectedSteps.map((step: SequentialTradeStep, index: number) => {
+                  const status = getStatusConfig(step.status);
+                  const isCurrent =
+                    selectedTask.current_step_index != null
+                      ? selectedTask.current_step_index === index
+                      : false;
+                  return (
+                    <div key={`${step.name}-${index}`} className="flex items-start gap-2">
+                      <div className="flex flex-col items-center mt-0.5">
+                        <div
+                          className={`w-3 h-3 rounded-full border-2 ${isCurrent ? 'border-blue-500' : 'border-slate-300 dark:border-slate-600'} bg-white dark:bg-slate-900`}
+                        />
+                        {index < selectedSteps.length - 1 && (
+                          <div className="flex-1 w-px bg-slate-200 dark:bg-slate-700 mt-1 mb-1" />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className={`text-xs font-medium ${themes[theme].text}`}>
+                            {step.name || step.action || `阶段 ${index + 1}`}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full ${status.className}`}>
+                              <status.Icon className="w-3 h-3" />
+                              <span className="text-[10px]">{status.label}</span>
+                            </span>
+                            {canRestartTask && (
+                              <button
+                                type="button"
+                                onClick={() => handleRestart(index)}
+                                disabled={!!actionLoading}
+                                className="text-[10px] text-blue-600 dark:text-blue-300 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                从此步骤重启
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        {step.description && (
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                            {step.description}
+                          </div>
+                        )}
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+                          {step.start_time && (
+                            <span>开始: {formatTime(step.start_time)}</span>
+                          )}
+                          {step.end_time && (
+                            <span>结束: {formatTime(step.end_time)}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className={`text-xs ${themes[theme].text} opacity-70`}>
+                当前任务暂时没有可展示的阶段信息。
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-dashed border-slate-200 dark:border-slate-700 pt-2 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className={`text-xs font-medium ${themes[theme].text}`}>关联订单</div>
+              {ordersLoadingId === selectedTask.id && (
+                <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-300">
+                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-500" />
+                  <span>加载中...</span>
+                </div>
+              )}
+            </div>
+
+            {Array.isArray(selectedTask.order_ids) && selectedTask.order_ids.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {selectedTask.order_ids.slice(0, 12).map((id) => (
+                  <span
+                    key={id}
+                    className="inline-flex max-w-full sm:max-w-[320px] items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-mono text-slate-700 dark:bg-slate-800 dark:text-slate-100 overflow-hidden text-ellipsis whitespace-nowrap"
+                    title={id}
+                  >
+                    {id}
+                  </span>
+                ))}
+                {selectedTask.order_ids.length > 12 && (
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                    +{selectedTask.order_ids.length - 12}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {ordersError && (
+              <div className="text-[11px] text-red-500">
+                订单加载失败: {ordersError}
+              </div>
+            )}
+
+            {!ordersError && ordersLoadingId !== selectedTask.id && matchedOrders.length === 0 && (
+              <div className={`text-xs ${themes[theme].text} opacity-70`}>
+                暂无可展示的关联订单。
+              </div>
+            )}
+
+            {matchedOrders.length > 0 && (
+              <>
+                <div className="space-y-2 md:hidden">
+                  {matchedOrders.map((o, idx) => (
+                    <div
+                      key={`${o.remark}-${idx}`}
+                      className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/40 p-2 space-y-2"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-[11px] font-medium text-slate-800 dark:text-slate-100 break-words">
+                            {o.instrument_name || o.contract_code_full || o.instrument_id || '-'}
+                          </div>
+                          <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                            {o.order_time ? formatTime(o.order_time) : '-'}
+                          </div>
+                        </div>
+                        <div className="shrink-0 text-[10px] text-slate-600 dark:text-slate-300">
+                          {o.order_status_name || '-'}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]">
+                        <div className="text-slate-500 dark:text-slate-400">动作</div>
+                        <div className="text-right text-slate-700 dark:text-slate-100 break-words">
+                          {o.op_type_name_zh || o.op_type_name || '-'}
+                        </div>
+                        <div className="text-slate-500 dark:text-slate-400">价格</div>
+                        <div className="text-right text-slate-700 dark:text-slate-100">
+                          {o.traded_price || o.limit_price || 0}
+                        </div>
+                        <div className="text-slate-500 dark:text-slate-400">成交/委托</div>
+                        <div className="text-right text-slate-700 dark:text-slate-100">
+                          {o.volume_traded}/{o.volume_total_original}
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400">备注</div>
+                        <div
+                          className="rounded-md bg-white/80 dark:bg-slate-950/40 px-2 py-1 text-[10px] font-mono text-slate-500 dark:text-slate-400 break-all"
+                          title={o.remark || undefined}
+                        >
+                          {o.remark || '-'}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                    <thead className="bg-slate-50 dark:bg-slate-900/50">
+                      <tr>
+                        <th className="px-2 py-1 text-left text-[10px] font-medium text-slate-500 dark:text-slate-300">
+                          时间
+                        </th>
+                        <th className="px-2 py-1 text-left text-[10px] font-medium text-slate-500 dark:text-slate-300">
+                          合约
+                        </th>
+                        <th className="px-2 py-1 text-left text-[10px] font-medium text-slate-500 dark:text-slate-300">
+                          动作
+                        </th>
+                        <th className="px-2 py-1 text-left text-[10px] font-medium text-slate-500 dark:text-slate-300">
+                          状态
+                        </th>
+                        <th className="px-2 py-1 text-right text-[10px] font-medium text-slate-500 dark:text-slate-300">
+                          价
+                        </th>
+                        <th className="px-2 py-1 text-right text-[10px] font-medium text-slate-500 dark:text-slate-300">
+                          成交/委托
+                        </th>
+                        <th className="px-2 py-1 text-left text-[10px] font-medium text-slate-500 dark:text-slate-300">
+                          备注
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                      {matchedOrders.map((o, idx) => (
+                        <tr key={`${o.remark}-${idx}`} className="bg-white dark:bg-slate-900">
+                          <td className="px-2 py-1 whitespace-nowrap text-[10px] text-slate-600 dark:text-slate-300">
+                            {o.order_time ? formatTime(o.order_time) : '-'}
+                          </td>
+                          <td className="px-2 py-1 whitespace-nowrap text-[10px] text-slate-700 dark:text-slate-100">
+                            {o.instrument_name || o.contract_code_full || o.instrument_id || '-'}
+                          </td>
+                          <td className="px-2 py-1 whitespace-nowrap text-[10px] text-slate-700 dark:text-slate-100">
+                            {o.op_type_name_zh || o.op_type_name || '-'}
+                          </td>
+                          <td className="px-2 py-1 whitespace-nowrap text-[10px] text-slate-700 dark:text-slate-100">
+                            {o.order_status_name || '-'}
+                          </td>
+                          <td className="px-2 py-1 whitespace-nowrap text-[10px] text-right text-slate-700 dark:text-slate-100">
+                            {o.traded_price || o.limit_price || 0}
+                          </td>
+                          <td className="px-2 py-1 whitespace-nowrap text-[10px] text-right text-slate-700 dark:text-slate-100">
+                            {o.volume_traded}/{o.volume_total_original}
+                          </td>
+                          <td className="px-2 py-1 text-[10px] text-slate-500 dark:text-slate-400 font-mono max-w-[260px] truncate" title={o.remark || undefined}>
+                            {o.remark || '-'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
+        </>
+      )}
+    </>
+  );
+
   return (
     <div className={`${themes[theme].card} rounded-lg p-4 space-y-6`}>
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex items-start gap-3 min-w-0">
           <div className="h-9 w-9 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500">
             <ListChecks className="w-5 h-5" />
           </div>
-          <div>
+          <div className="min-w-0">
             <h2 className={`text-lg font-semibold ${themes[theme].text}`}>顺序交易任务</h2>
             <p className={`text-xs ${themes[theme].text} opacity-70`}>
               查看由多个阶段组成的复杂任务及其执行进度
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 flex-wrap text-xs text-slate-500 dark:text-slate-300">
+        <div className="w-full lg:w-auto space-y-2">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-300">
             <span>第 {currentPage} 页</span>
             <button
               type="button"
@@ -545,23 +1035,25 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
             <RefreshCw className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} />
             <span>{isLoading ? '刷新中' : '刷新'}</span>
           </button>
-          {statusFilters.map(f => (
-            <button
-              key={f.id}
-              type="button"
-              onClick={() => {
-                setOffset(0);
-                setStatusFilter(f.id);
-              }}
-              className={`px-2 py-1 rounded-full text-xs font-medium border transition-colors ${
-                statusFilter === f.id
-                  ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-100'
-                  : 'border-transparent bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
+          <div className="flex flex-wrap gap-2">
+            {statusFilters.map(f => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => {
+                  setOffset(0);
+                  setStatusFilter(f.id);
+                }}
+                className={`px-2 py-1 rounded-full text-xs font-medium border transition-colors ${
+                  statusFilter === f.id
+                    ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-100'
+                    : 'border-transparent bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -595,367 +1087,150 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
           {tasks.length > 0 && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="space-y-2">
-                {tasks.map(task => {
-                  const status = getStatusConfig(task.status);
-                  const env = getEnvConfig(task.env);
-                  const progressText =
-                    task.steps_count != null && task.steps_count > 0 && task.current_step != null
-                      ? `${task.current_step}/${task.steps_count}`
-                      : task.steps && task.steps.length > 0 && task.current_step_index != null
-                        ? `${task.current_step_index + 1}/${task.steps.length}`
-                        : '';
-                  const isSelected = selectedTaskId === task.id;
+                {groupedTasks.map(group => {
+                  const isExpanded = !!expandedGroups[group.dateKey];
                   return (
-                    <button
-                      key={task.id}
-                      type="button"
-                      onClick={() => setSelectedTaskId(task.id)}
-                      className={`w-full text-left rounded-lg border px-3 py-2 text-xs transition-colors ${
-                        isSelected
-                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
-                          : themes[theme].border
-                      }`}
+                    <div
+                      key={group.dateKey}
+                      className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden"
                     >
-                      <div className="flex items-center justify-between gap-2 mb-1">
-                        <div className={`font-medium ${themes[theme].text} truncate`}>
-                          {task.action_type}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {env && (
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${env.className}`}>
-                              ENV {env.label}
-                            </span>
+                      <button
+                        type="button"
+                        onClick={() => setExpandedGroups(prev => ({ ...prev, [group.dateKey]: !prev[group.dateKey] }))}
+                        className="w-full px-3 py-2 flex items-center justify-between gap-3 text-left bg-slate-50 dark:bg-slate-900/60 hover:bg-slate-100 dark:hover:bg-slate-800/70 transition-colors"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          {isExpanded ? (
+                            <ChevronDown className="w-4 h-4 text-slate-500 dark:text-slate-300 shrink-0" />
+                          ) : (
+                            <ChevronRight className="w-4 h-4 text-slate-500 dark:text-slate-300 shrink-0" />
                           )}
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full ${status.className}`}>
-                            <status.Icon className="w-3 h-3" />
-                            <span>{status.label}</span>
+                          <span className={`text-sm font-medium ${themes[theme].text}`}>
+                            {group.label}
                           </span>
                         </div>
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-[10px] text-slate-500 dark:text-slate-400">
-                            创建: {formatTime(task.created_at)}
-                          </span>
-                          <span className="text-[10px] text-slate-500 dark:text-slate-400">
-                            更新: {formatTime(task.updated_at)}
-                          </span>
-                          {(task.combo_id != null || task.expiry_date) && (
-                            <span className="text-[10px] text-slate-500 dark:text-slate-400">
-                              {task.combo_id != null && <>组合ID: {task.combo_id}</>}
-                              {task.combo_id != null && task.expiry_date && ' · '}
-                              {task.expiry_date && <>到期日: {task.expiry_date}</>}
-                            </span>
-                          )}
+                        <span className="inline-flex items-center rounded-full bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-100 px-2 py-0.5 text-[10px] font-medium shrink-0">
+                          {group.tasks.length} 条
+                        </span>
+                      </button>
+
+                      {isExpanded && (
+                        <div className="space-y-2 p-2 bg-white dark:bg-transparent">
+                          {group.tasks.map(task => {
+                            const status = getStatusConfig(task.status);
+                            const env = getEnvConfig(task.env);
+                            const progressText =
+                              task.steps_count != null && task.steps_count > 0 && task.current_step != null
+                                ? `${task.current_step}/${task.steps_count}`
+                                : task.steps && task.steps.length > 0 && task.current_step_index != null
+                                  ? `${task.current_step_index + 1}/${task.steps.length}`
+                                  : '';
+                            const isSelected = selectedTaskId === task.id;
+                            return (
+                              <button
+                                key={task.id}
+                                type="button"
+                                onClick={() => handleSelectTask(task.id)}
+                                className={`w-full text-left rounded-lg border px-3 py-2 text-xs transition-colors ${
+                                  isSelected
+                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
+                                    : themes[theme].border
+                                }`}
+                              >
+                                <div className="mb-1 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                  <div className={`font-medium ${themes[theme].text} break-words`}>
+                                    {task.action_type}
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    {env && (
+                                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${env.className}`}>
+                                        ENV {env.label}
+                                      </span>
+                                    )}
+                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full ${status.className}`}>
+                                      <status.Icon className="w-3 h-3" />
+                                      <span>{status.label}</span>
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                  <div className="flex min-w-0 flex-col gap-0.5">
+                                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                                      创建: {formatTime(task.created_at)}
+                                    </span>
+                                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                                      更新: {formatTime(task.updated_at)}
+                                    </span>
+                                    {(task.combo_id != null || task.expiry_date) && (
+                                      <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                                        {task.combo_id != null && <>组合ID: {task.combo_id}</>}
+                                        {task.combo_id != null && task.expiry_date && ' · '}
+                                        {task.expiry_date && <>到期日: {task.expiry_date}</>}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex flex-col gap-0.5 sm:items-end">
+                                    {progressText && (
+                                      <span className="text-[11px] text-slate-600 dark:text-slate-300">
+                                        阶段 {progressText}
+                                      </span>
+                                    )}
+                                    <span className="text-[10px] text-blue-600 dark:text-blue-300 lg:hidden">
+                                      点击查看详情
+                                    </span>
+                                    {task.error_msg && (
+                                      <span className="text-[10px] text-red-500 break-words sm:max-w-[180px]">
+                                        {task.error_msg}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
                         </div>
-                        <div className="flex flex-col items-end gap-0.5">
-                          {progressText && (
-                            <span className="text-[11px] text-slate-600 dark:text-slate-300">
-                              阶段 {progressText}
-                            </span>
-                          )}
-                          {task.error_msg && (
-                            <span className="text-[10px] text-red-500 truncate max-w-[180px]">
-                              {task.error_msg}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </button>
+                      )}
+                    </div>
                   );
                 })}
               </div>
 
-              <div className="rounded-lg border p-3 text-xs space-y-3">
-                {!selectedTask && (
-                  <div className={`text-sm ${themes[theme].text} opacity-75`}>
-                    从左侧选择一个任务以查看详细阶段。
-                  </div>
-                )}
-
-                {selectedTask && (
-                  <>
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className={`text-sm font-semibold ${themes[theme].text} mb-1`}>
-                          任务 {selectedTask.id}
-                        </div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                            {selectedTask.account_alias || selectedTask.account_id} · {selectedTask.action_type}
-                          </div>
-                          {(() => {
-                            const env = getEnvConfig(selectedTask.env);
-                            if (!env) return null;
-                            return (
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${env.className}`}>
-                                ENV {env.label}
-                              </span>
-                            );
-                          })()}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {detailLoadingId === selectedTask.id && (
-                          <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-300">
-                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-500" />
-                            <span>刷新中...</span>
-                          </div>
-                        )}
-                        {canPause && (
-                          <button
-                            type="button"
-                            onClick={handlePause}
-                            disabled={!!actionLoading}
-                            className="px-2 py-1 rounded text-[11px] font-medium border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {actionLoading === 'pause' ? '暂停中...' : '暂停'}
-                          </button>
-                        )}
-                        {canResume && (
-                          <button
-                            type="button"
-                            onClick={handleResume}
-                            disabled={!!actionLoading}
-                            className="px-2 py-1 rounded text-[11px] font-medium border border-emerald-400 text-emerald-700 dark:border-emerald-500 dark:text-emerald-100 hover:bg-emerald-50 dark:hover:bg-emerald-900/40 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {actionLoading === 'resume' ? '恢复中...' : '恢复'}
-                          </button>
-                        )}
-                        {canTerminate && (
-                          <button
-                            type="button"
-                            onClick={handleTerminate}
-                            disabled={!!actionLoading}
-                            className="px-2 py-1 rounded text-[11px] font-medium border border-red-400 text-red-600 dark:border-red-500 dark:text-red-100 hover:bg-red-50 dark:hover:bg-red-900/40 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {actionLoading === 'terminate' ? '终止中...' : '终止'}
-                          </button>
-                        )}
-                        {canRestartTask && (
-                          <button
-                            type="button"
-                            onClick={() => handleRestart()}
-                            disabled={!!actionLoading}
-                            className="px-2 py-1 rounded text-[11px] font-medium border border-blue-400 text-blue-600 dark:border-blue-400 dark:text-blue-100 hover:bg-blue-50 dark:hover:bg-blue-900/40 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {actionLoading === 'restart' ? '重启中...' : '重启任务'}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="border-t border-dashed border-slate-200 dark:border-slate-700 pt-2 space-y-1">
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                        创建时间: {formatTime(selectedTask.created_at)}
-                      </div>
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                        最近更新: {formatTime(selectedTask.updated_at)}
-                      </div>
-                      {(selectedTask.combo_id != null || selectedTask.expiry_date) && (
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                          {selectedTask.combo_id != null && <>组合ID: {selectedTask.combo_id}</>}
-                          {selectedTask.combo_id != null && selectedTask.expiry_date && ' · '}
-                          {selectedTask.expiry_date && <>到期日: {selectedTask.expiry_date}</>}
-                        </div>
-                      )}
-                      {selectedTask.completed_at && (
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                          完成时间: {formatTime(selectedTask.completed_at)}
-                        </div>
-                      )}
-                      {selectedTask.timeout_seconds != null && (
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                          超时时间: {selectedTask.timeout_seconds} 秒
-                        </div>
-                      )}
-                      {selectedTask.error_msg && (
-                        <div className="text-[11px] text-red-500">
-                          错误信息: {selectedTask.error_msg}
-                        </div>
-                      )}
-                      {actionError && (
-                        <div className="text-[11px] text-red-500">
-                          操作失败: {actionError}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="border-t border-dashed border-slate-200 dark:border-slate-700 pt-2">
-                      <div className={`text-xs font-medium mb-2 ${themes[theme].text}`}>
-                        任务阶段
-                      </div>
-                      {selectedSteps.length > 0 ? (
-                        <div className="space-y-2">
-                          {selectedSteps.map((step: SequentialTradeStep, index: number) => {
-                            const status = getStatusConfig(step.status);
-                            const isCurrent =
-                              selectedTask.current_step_index != null
-                                ? selectedTask.current_step_index === index
-                                : false;
-                            return (
-                              <div key={`${step.name}-${index}`} className="flex items-start gap-2">
-                                <div className="flex flex-col items-center mt-0.5">
-                                  <div
-                                    className={`w-3 h-3 rounded-full border-2 ${isCurrent ? 'border-blue-500' : 'border-slate-300 dark:border-slate-600'} bg-white dark:bg-slate-900`}
-                                  />
-                                  {index < selectedSteps.length - 1 && (
-                                    <div className="flex-1 w-px bg-slate-200 dark:bg-slate-700 mt-1 mb-1" />
-                                  )}
-                                </div>
-                                <div className="flex-1">
-                                  <div className="flex items-center justify-between gap-2">
-                                    <div className={`text-xs font-medium ${themes[theme].text}`}>
-                                      {step.name || step.action || `阶段 ${index + 1}`}
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full ${status.className}`}>
-                                        <status.Icon className="w-3 h-3" />
-                                        <span className="text-[10px]">{status.label}</span>
-                                      </span>
-                                      {canRestartTask && (
-                                        <button
-                                          type="button"
-                                          onClick={() => handleRestart(index)}
-                                          disabled={!!actionLoading}
-                                          className="text-[10px] text-blue-600 dark:text-blue-300 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                          从此步骤重启
-                                        </button>
-                                      )}
-                                    </div>
-                                  </div>
-                                  {step.description && (
-                                    <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                      {step.description}
-                                    </div>
-                                  )}
-                                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-[10px] text-slate-500 dark:text-slate-400">
-                                    {step.start_time && (
-                                      <span>开始: {formatTime(step.start_time)}</span>
-                                    )}
-                                    {step.end_time && (
-                                      <span>结束: {formatTime(step.end_time)}</span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className={`text-xs ${themes[theme].text} opacity-70`}>
-                          当前任务暂时没有可展示的阶段信息。
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="border-t border-dashed border-slate-200 dark:border-slate-700 pt-2 space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className={`text-xs font-medium ${themes[theme].text}`}>关联订单</div>
-                        {ordersLoadingId === selectedTask.id && (
-                          <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-300">
-                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-500" />
-                            <span>加载中...</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {Array.isArray(selectedTask.order_ids) && selectedTask.order_ids.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {selectedTask.order_ids.slice(0, 12).map((id) => (
-                            <span
-                              key={id}
-                              className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                              title={id}
-                            >
-                              {id}
-                            </span>
-                          ))}
-                          {selectedTask.order_ids.length > 12 && (
-                            <span className="text-[10px] text-slate-500 dark:text-slate-400">
-                              +{selectedTask.order_ids.length - 12}
-                            </span>
-                          )}
-                        </div>
-                      )}
-
-                      {ordersError && (
-                        <div className="text-[11px] text-red-500">
-                          订单加载失败: {ordersError}
-                        </div>
-                      )}
-
-                      {!ordersError && ordersLoadingId !== selectedTask.id && matchedOrders.length === 0 && (
-                        <div className={`text-xs ${themes[theme].text} opacity-70`}>
-                          暂无可展示的关联订单。
-                        </div>
-                      )}
-
-                      {matchedOrders.length > 0 && (
-                        <div className="overflow-x-auto">
-                          <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
-                            <thead className="bg-slate-50 dark:bg-slate-900/50">
-                              <tr>
-                                <th className="px-2 py-1 text-left text-[10px] font-medium text-slate-500 dark:text-slate-300">
-                                  时间
-                                </th>
-                                <th className="px-2 py-1 text-left text-[10px] font-medium text-slate-500 dark:text-slate-300">
-                                  合约
-                                </th>
-                                <th className="px-2 py-1 text-left text-[10px] font-medium text-slate-500 dark:text-slate-300">
-                                  动作
-                                </th>
-                                <th className="px-2 py-1 text-left text-[10px] font-medium text-slate-500 dark:text-slate-300">
-                                  状态
-                                </th>
-                                <th className="px-2 py-1 text-right text-[10px] font-medium text-slate-500 dark:text-slate-300">
-                                  价
-                                </th>
-                                <th className="px-2 py-1 text-right text-[10px] font-medium text-slate-500 dark:text-slate-300">
-                                  成交/委托
-                                </th>
-                                <th className="px-2 py-1 text-left text-[10px] font-medium text-slate-500 dark:text-slate-300">
-                                  备注
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                              {matchedOrders.map((o, idx) => (
-                                <tr key={`${o.remark}-${idx}`} className="bg-white dark:bg-slate-900">
-                                  <td className="px-2 py-1 whitespace-nowrap text-[10px] text-slate-600 dark:text-slate-300">
-                                    {o.order_time ? formatTime(o.order_time) : '-'}
-                                  </td>
-                                  <td className="px-2 py-1 whitespace-nowrap text-[10px] text-slate-700 dark:text-slate-100">
-                                    {o.instrument_name || o.contract_code_full || o.instrument_id || '-'}
-                                  </td>
-                                  <td className="px-2 py-1 whitespace-nowrap text-[10px] text-slate-700 dark:text-slate-100">
-                                    {o.op_type_name_zh || o.op_type_name || '-'}
-                                  </td>
-                                  <td className="px-2 py-1 whitespace-nowrap text-[10px] text-slate-700 dark:text-slate-100">
-                                    {o.order_status_name || '-'}
-                                  </td>
-                                  <td className="px-2 py-1 whitespace-nowrap text-[10px] text-right text-slate-700 dark:text-slate-100">
-                                    {o.traded_price || o.limit_price || 0}
-                                  </td>
-                                  <td className="px-2 py-1 whitespace-nowrap text-[10px] text-right text-slate-700 dark:text-slate-100">
-                                    {o.volume_traded}/{o.volume_total_original}
-                                  </td>
-                                  <td className="px-2 py-1 text-[10px] text-slate-500 dark:text-slate-400 font-mono max-w-[260px] truncate" title={o.remark || undefined}>
-                                    {o.remark || '-'}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
+              <div className="hidden rounded-lg border p-3 text-xs space-y-3 lg:block">
+                {detailPanelContent}
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {mobileDetailOpen && selectedTask && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <button
+            type="button"
+            aria-label="关闭详情"
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setMobileDetailOpen(false)}
+          />
+          <div className="absolute inset-x-0 bottom-0 top-12 rounded-t-2xl bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-700 shadow-2xl flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+              <div className="min-w-0">
+                <div className={`text-sm font-semibold ${themes[theme].text}`}>任务详情</div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                  任务 {selectedTask.id} · {selectedTask.action_type}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMobileDetailOpen(false)}
+                className="inline-flex items-center justify-center h-8 w-8 rounded-full border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 text-xs space-y-3">
+              {detailPanelContent}
+            </div>
+          </div>
         </div>
       )}
     </div>
