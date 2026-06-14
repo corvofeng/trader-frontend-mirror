@@ -245,26 +245,26 @@ export function OptionExpiryRiskReportsPanel({
 
   if (!selectedAccountId) {
     return (
-      <section className={`${themes[theme].card} rounded-lg p-6 shadow-sm border ${themes[theme].border}`}>
+      <section className={`${themes[theme].card} rounded-lg p-4 sm:p-6 shadow-sm border ${themes[theme].border}`}>
         <div className={`text-sm ${themes[theme].text} opacity-70`}>请选择账户后查看期权到期风险日报。</div>
       </section>
     );
   }
 
   return (
-    <section className={`${themes[theme].card} rounded-lg p-6 shadow-sm border ${themes[theme].border}`}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+    <section className={`${themes[theme].card} rounded-lg p-4 sm:p-6 shadow-sm border ${themes[theme].border}`}>
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h2 className={`text-xl font-bold ${themes[theme].text}`}>期权到期风险日报</h2>
           <p className={`text-sm ${themes[theme].text} opacity-75 mt-1`}>
             打开本页会自动加载最新一份日报，可切换历史日期查看。
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           <select
             value={chartEngine}
             onChange={(e) => onChartEngineChange?.(e.target.value as PayoffChartEngine)}
-            className={`px-3 py-2 rounded-md text-sm ${themes[theme].input} ${themes[theme].text}`}
+            className={`w-full max-w-full px-3 py-2 rounded-md text-sm sm:w-auto ${themes[theme].input} ${themes[theme].text}`}
           >
             <option value="tradingview">TradingView</option>
             <option value="plotly">Plotly</option>
@@ -274,7 +274,7 @@ export function OptionExpiryRiskReportsPanel({
             value={selectedRiskReportDate}
             onChange={(e) => setSelectedRiskReportDate(e.target.value)}
             disabled={isRiskReportLoading || isExpiryIndexLoading || expiryRiskHistory.length === 0}
-            className={`px-3 py-2 rounded-md text-sm ${themes[theme].input} ${themes[theme].text} ${
+            className={`w-full max-w-full px-3 py-2 rounded-md text-sm sm:w-auto ${themes[theme].input} ${themes[theme].text} ${
               isRiskReportLoading || isExpiryIndexLoading || expiryRiskHistory.length === 0 ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           >
@@ -292,7 +292,7 @@ export function OptionExpiryRiskReportsPanel({
             value={selectedExpiryDate}
             onChange={(e) => setSelectedExpiryDate(e.target.value)}
             disabled={isRiskReportLoading || isExpiryIndexLoading || availableExpiries.length === 0}
-            className={`px-3 py-2 rounded-md text-sm ${themes[theme].input} ${themes[theme].text} ${
+            className={`w-full max-w-full px-3 py-2 rounded-md text-sm sm:w-auto ${themes[theme].input} ${themes[theme].text} ${
               isRiskReportLoading || isExpiryIndexLoading || availableExpiries.length === 0 ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           >
@@ -309,12 +309,12 @@ export function OptionExpiryRiskReportsPanel({
           <button
             type="button"
             onClick={() => setRiskReportReloadSeq((s) => s + 1)}
-            className={`px-3 py-2 rounded-md text-sm ${themes[theme].secondary}`}
+            className={`w-full px-3 py-2 rounded-md text-sm sm:w-auto ${themes[theme].secondary}`}
           >
             刷新
           </button>
           {standaloneHref ? (
-            <Link to={standaloneHref} className={`px-3 py-2 rounded-md text-sm ${themes[theme].secondary}`}>
+            <Link to={standaloneHref} className={`w-full px-3 py-2 rounded-md text-sm text-center sm:w-auto ${themes[theme].secondary}`}>
               打开到期日报
             </Link>
           ) : null}
@@ -359,11 +359,11 @@ export function OptionExpiryRiskReportsPanel({
 
           return (
             <div className="space-y-4">
-              <div className={`border rounded-lg ${themes[theme].border} p-4 bg-white dark:bg-gray-900/20`}>
-                <div className="flex items-start justify-between gap-3 mb-2">
+              <div className={`border rounded-lg ${themes[theme].border} bg-white p-3 dark:bg-gray-900/20 sm:p-4`}>
+                <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div className={`font-semibold ${themes[theme].text}`}>{selectedExpiryDate || '到期日'}</div>
                   {selectedPhase ? (
-                    <div className={`text-xs px-2 py-1 rounded ${themes[theme].secondary}`}>
+                    <div className={`w-fit text-xs px-2 py-1 rounded ${themes[theme].secondary}`}>
                       {selectedPhase}
                     </div>
                   ) : null}

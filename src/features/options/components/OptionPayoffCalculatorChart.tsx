@@ -10,6 +10,7 @@ import {
   createChart,
 } from 'lightweight-charts';
 import * as echarts from 'echarts';
+import { Maximize2, Minimize2 } from 'lucide-react';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
@@ -282,6 +283,20 @@ const formatPrice = (value: number) => {
   return value.toFixed(3);
 };
 
+const formatAxisPnl = (value: number) => {
+  if (!Number.isFinite(value)) return '-';
+  const abs = Math.abs(value);
+  const trimTrailingZero = (text: string) => text.replace(/\.0$/, '');
+
+  if (abs >= 1_000_000) {
+    return `${trimTrailingZero((value / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1))}M`;
+  }
+  if (abs >= 1_000) {
+    return `${trimTrailingZero((value / 1_000).toFixed(abs >= 10_000 ? 0 : 1))}K`;
+  }
+  return value.toFixed(0);
+};
+
 const findClosestPointByPrice = <T extends { price: number }>(points: T[], targetPrice: number) => {
   if (points.length === 0) return null;
   return points.reduce((closest, point) => {
@@ -379,6 +394,7 @@ export function OptionPayoffCalculatorChart({
   payload,
   chartEngine = 'tradingview',
 }: OptionPayoffCalculatorChartProps) {
+  const chartShellRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstanceRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<'Baseline'> | null>(null);
@@ -475,7 +491,7 @@ export function OptionPayoffCalculatorChart({
     addMarker(stats.minPoint, {
       color: '#f43f5e',
       shape: 'arrowDown',
-      position: 'belowBar',
+      position: 'aboveBar',
       text: 'Min',
     });
 
@@ -483,7 +499,7 @@ export function OptionPayoffCalculatorChart({
       addMarker(findClosestPointByPrice(chartPoints, price), {
         color: '#f59e0b',
         shape: 'square',
-        position: 'inBar',
+        position: 'belowBar',
         text: index === 0 ? 'BE' : `BE${index + 1}`,
       });
     });
@@ -494,10 +510,22 @@ export function OptionPayoffCalculatorChart({
   const [hoveredPoint, setHoveredPoint] = useState<ChartCurvePoint | null>(null);
   const [plotlyError, setPlotlyError] = useState<string | null>(null);
   const [isPlotlyLoading, setIsPlotlyLoading] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
     setHoveredPoint(stats?.spotPoint ?? chartPoints[0] ?? null);
   }, [chartPoints, stats]);
+
+  useEffect(() => {
+    if (!isFullscreen) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isFullscreen]);
 
   useEffect(() => {
     if (chartEngine !== 'tradingview') {
@@ -509,6 +537,7 @@ export function OptionPayoffCalculatorChart({
     }
 
     const isDark = theme === 'dark';
+    const isCompact = chartRef.current.clientWidth < 640;
     const palette = {
       axis: isDark ? '#e5e7eb' : '#111827',
       muted: isDark ? '#94a3b8' : '#6b7280',
@@ -527,7 +556,7 @@ export function OptionPayoffCalculatorChart({
       layout: {
         background: { type: ColorType.Solid, color: 'transparent' },
         textColor: palette.axis,
-        fontSize: 12,
+        fontSize: isCompact ? 11 : 12,
       },
       grid: {
         vertLines: {
@@ -562,14 +591,14 @@ export function OptionPayoffCalculatorChart({
       rightPriceScale: {
         borderColor: palette.grid,
         scaleMargins: {
-          top: 0.18,
-          bottom: 0.12,
+          top: isCompact ? 0.14 : 0.18,
+          bottom: isCompact ? 0.08 : 0.12,
         },
       },
       timeScale: {
         borderColor: palette.grid,
-        rightOffset: 6,
-        barSpacing: 10,
+        rightOffset: isCompact ? 2 : 6,
+        barSpacing: isCompact ? 8 : 10,
         fixLeftEdge: true,
         fixRightEdge: true,
         tickMarkFormatter: (time: Time) => {
@@ -599,19 +628,19 @@ export function OptionPayoffCalculatorChart({
         type: 'price',
         price: 0,
       },
-      lineWidth: 3,
+      lineWidth: isCompact ? 4 : 3,
       topLineColor: palette.upLine,
       topFillColor1: palette.upFillTop,
       topFillColor2: palette.upFillBottom,
       bottomLineColor: palette.downLine,
       bottomFillColor1: palette.downFillTop,
       bottomFillColor2: palette.downFillBottom,
-      crosshairMarkerRadius: 6,
+      crosshairMarkerRadius: isCompact ? 5 : 6,
       crosshairMarkerBorderColor: isDark ? '#0f172a' : '#ffffff',
       crosshairMarkerBackgroundColor: '#3b82f6',
       priceFormat: {
-        type: 'price',
-        precision: 0,
+        type: 'custom',
+        formatter: formatAxisPnl,
         minMove: 1,
       },
       lastValueVisible: false,
@@ -628,8 +657,7 @@ export function OptionPayoffCalculatorChart({
       color: palette.zero,
       lineWidth: 1,
       lineStyle: LineStyle.Dashed,
-      axisLabelVisible: true,
-      title: 'BE',
+      axisLabelVisible: false,
     });
 
     chart.timeScale().fitContent();
@@ -651,9 +679,23 @@ export function OptionPayoffCalculatorChart({
     const resizeObserver = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (!entry) return;
+      const compact = entry.contentRect.width < 640;
       chart.applyOptions({
         width: entry.contentRect.width,
         height: entry.contentRect.height,
+        layout: {
+          fontSize: compact ? 11 : 12,
+        },
+        rightPriceScale: {
+          scaleMargins: {
+            top: compact ? 0.14 : 0.18,
+            bottom: compact ? 0.08 : 0.12,
+          },
+        },
+        timeScale: {
+          rightOffset: compact ? 2 : 6,
+          barSpacing: compact ? 8 : 10,
+        },
       });
       chart.timeScale().fitContent();
     });
@@ -1151,7 +1193,7 @@ export function OptionPayoffCalculatorChart({
   const activePoint = hoveredPoint ?? stats.spotPoint;
 
   return (
-    <div className={`rounded-xl border ${themes[theme].border} p-4 sm:p-5 space-y-4 bg-gradient-to-b from-white/60 to-transparent dark:from-gray-900/40`}>
+    <div className={`rounded-xl border ${themes[theme].border} space-y-4 bg-gradient-to-b from-white/60 p-3 to-transparent dark:from-gray-900/40 sm:p-5`}>
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className={`text-xs uppercase tracking-[0.18em] ${themes[theme].text} opacity-50`}>
@@ -1175,14 +1217,14 @@ export function OptionPayoffCalculatorChart({
           </div>
         </div>
 
-        <div className={`grid grid-cols-3 gap-2 rounded-xl border ${themes[theme].border} p-3 min-w-0 w-full lg:w-auto bg-black/5 dark:bg-white/5`}>
-          <div>
+        <div className={`grid min-w-0 w-full grid-cols-3 gap-2 rounded-xl border ${themes[theme].border} bg-black/5 p-3 dark:bg-white/5 lg:w-auto`}>
+          <div className="min-w-0">
             <div className={`text-[11px] uppercase tracking-wide ${themes[theme].text} opacity-55`}>Price</div>
             <div className={`mt-1 text-sm font-semibold ${themes[theme].text}`}>
               {formatPrice(activePoint.price)}
             </div>
           </div>
-          <div>
+          <div className="min-w-0">
             <div className={`text-[11px] uppercase tracking-wide ${themes[theme].text} opacity-55`}>PnL</div>
             <div className={`mt-1 text-sm font-semibold ${
               activePoint.pnl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
@@ -1190,7 +1232,7 @@ export function OptionPayoffCalculatorChart({
               {formatCurrency(activePoint.pnl, currencyConfig)}
             </div>
           </div>
-          <div>
+          <div className="min-w-0">
             <div className={`text-[11px] uppercase tracking-wide ${themes[theme].text} opacity-55`}>Shock</div>
             <div className={`mt-1 text-sm font-semibold ${themes[theme].text}`}>
               {(activePoint.shock * 100).toFixed(1)}%
@@ -1200,29 +1242,53 @@ export function OptionPayoffCalculatorChart({
       </div>
 
       <div
-        ref={chartRef}
-        className="h-[380px] w-full rounded-xl"
-      />
-
-      {chartEngine === 'plotly' && isPlotlyLoading ? (
-        <div className={`text-xs ${themes[theme].text} opacity-70`}>
-          正在加载 Plotly 图表资源...
+        ref={chartShellRef}
+        className={isFullscreen ? 'fixed inset-0 z-50 flex flex-col bg-white p-3 dark:bg-slate-950 sm:p-4' : 'space-y-3'}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div className={`text-xs ${themes[theme].text} opacity-60`}>
+            手机端建议使用全屏图表后再双指缩放
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsFullscreen((previous) => !previous)}
+            className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs ${themes[theme].border} ${themes[theme].secondary}`}
+            aria-label={isFullscreen ? '退出全屏图表' : '打开全屏图表'}
+          >
+            {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+            {isFullscreen ? '退出全屏' : '全屏图表'}
+          </button>
         </div>
-      ) : null}
 
-      {chartEngine === 'plotly' && plotlyError ? (
-        <div className="text-sm text-rose-600 dark:text-rose-400">
-          {plotlyError}
+        <div
+          ref={chartRef}
+          className={
+            isFullscreen
+              ? 'min-h-0 flex-1 rounded-xl touch-none'
+              : '-mx-3 h-[440px] w-[calc(100%+1.5rem)] rounded-xl touch-none sm:mx-0 sm:h-[380px] sm:w-full'
+          }
+        />
+
+        {chartEngine === 'plotly' && isPlotlyLoading ? (
+          <div className={`text-xs ${themes[theme].text} opacity-70`}>
+            正在加载 Plotly 图表资源...
+          </div>
+        ) : null}
+
+        {chartEngine === 'plotly' && plotlyError ? (
+          <div className="text-sm text-rose-600 dark:text-rose-400">
+            {plotlyError}
+          </div>
+        ) : null}
+
+        <div className={`flex flex-wrap items-center gap-2 text-xs ${themes[theme].text} opacity-75`}>
+          <span className={`rounded-full border ${themes[theme].border} px-3 py-1 bg-black/5 dark:bg-white/5`}>
+            横轴价格: {formatPrice(activePoint.price)}
+          </span>
+          <span className={`rounded-full border ${themes[theme].border} px-3 py-1 bg-black/5 dark:bg-white/5`}>
+            价格变动: {(activePoint.shock * 100).toFixed(1)}%
+          </span>
         </div>
-      ) : null}
-
-      <div className={`flex flex-wrap items-center gap-2 text-xs ${themes[theme].text} opacity-75`}>
-        <span className={`rounded-full border ${themes[theme].border} px-3 py-1 bg-black/5 dark:bg-white/5`}>
-          横轴价格: {formatPrice(activePoint.price)}
-        </span>
-        <span className={`rounded-full border ${themes[theme].border} px-3 py-1 bg-black/5 dark:bg-white/5`}>
-          价格变动: {(activePoint.shock * 100).toFixed(1)}%
-        </span>
       </div>
 
       {calendarDaysToExpiry > 0 ? (
@@ -1267,7 +1333,7 @@ export function OptionPayoffCalculatorChart({
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <div className={`rounded-xl border ${themes[theme].border} p-3 bg-black/5 dark:bg-white/5`}>
           <div className={`text-xs ${themes[theme].text} opacity-70`}>Spot PnL</div>
           <div className={`mt-1 text-sm font-semibold ${themes[theme].text}`}>
