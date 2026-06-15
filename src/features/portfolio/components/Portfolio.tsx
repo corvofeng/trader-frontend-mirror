@@ -1,10 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { logger } from '../../../shared/utils/logger';
 import { subDays } from 'date-fns';
 import { Filter, ExternalLink } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
-import type { Holding, Trade, TrendData } from '../../../lib/services/types';
+import type { Holding, PortfolioKlinePoint, Trade, TrendData } from '../../../lib/services/types';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement } from 'chart.js';
 import type { LegendItem, TooltipItem } from 'chart.js';
 import { Pie } from 'react-chartjs-2';
@@ -72,6 +72,7 @@ export function Portfolio({
   const [tradesPerPage, setTradesPerPage] = useState(5);
   const [tradesSort, setTradesSort] = useState<{ field: string; direction: 'asc' | 'desc' }>({ field: 'created_at', direction: 'desc' });
   const [trendData, setTrendData] = useState<TrendData[]>([]);
+  const [klineData, setKlineData] = useState<PortfolioKlinePoint[]>([]);
   const [selectedStockForAnalysis, setSelectedStockForAnalysis] = useState<{ code: string; name: string } | null>(null);
   const [showPortfolioAnalysis, setShowPortfolioAnalysis] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -95,12 +96,18 @@ export function Portfolio({
   const portfolioUuid = new URLSearchParams(window.location.search).get('uuid');
 
   useEffect(() => {
+    let cancelled = false;
     const fetchTrendData = async () => {
       try {
-        let response;
+        let trendPromise: Promise<Awaited<ReturnType<typeof portfolioService.getTrendData>> | Awaited<ReturnType<typeof portfolioService.getTrendDataByUuid>>> | null = null;
+        let klinePromise: Promise<Awaited<ReturnType<typeof portfolioService.getKlineData>> | Awaited<ReturnType<typeof portfolioService.getKlineDataByUuid>>> | null = null;
         if (portfolioUuid) {
-          // Use UUID-based API for shared portfolios
-          response = await portfolioService.getTrendDataByUuid(
+          trendPromise = portfolioService.getTrendDataByUuid(
+            portfolioUuid,
+            dateRange.startDate,
+            dateRange.endDate
+          );
+          klinePromise = portfolioService.getKlineDataByUuid(
             portfolioUuid,
             dateRange.startDate,
             dateRange.endDate
@@ -112,16 +119,32 @@ export function Portfolio({
       return;
     }
 
-          response = await portfolioService.getTrendData(
+          trendPromise = portfolioService.getTrendData(
+            userId,
+            dateRange.startDate,
+            dateRange.endDate,
+            selectedAccountId,
+          );
+          klinePromise = portfolioService.getKlineData(
             userId,
             dateRange.startDate,
             dateRange.endDate,
             selectedAccountId,
           );
         }
-        
-        if (response?.data) {
-          setTrendData(response.data);
+
+        if (!trendPromise || !klinePromise) return;
+
+        const [trendResponse, klineResponse] = await Promise.allSettled([trendPromise, klinePromise]);
+        if (cancelled) return;
+
+        if (trendResponse.status === 'fulfilled' && trendResponse.value?.data) {
+          setTrendData(trendResponse.value.data);
+        }
+        if (klineResponse.status === 'fulfilled') {
+          setKlineData(klineResponse.value?.data || []);
+        } else {
+          setKlineData([]);
         }
       } catch (error) {
         console.error('Error fetching trend data:', error);
@@ -129,6 +152,9 @@ export function Portfolio({
     };
 
     fetchTrendData();
+    return () => {
+      cancelled = true;
+    };
   }, [dateRange, isSharedView, portfolioUuid, selectedAccountId, userId]);
 
   const refreshAll = async () => {
@@ -467,6 +493,7 @@ export function Portfolio({
           <FadeIn delay={200}>
             <PortfolioTrend 
               trendData={trendData}
+              klineData={klineData}
               theme={theme}
               dateRange={dateRange}
             />

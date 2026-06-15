@@ -1,16 +1,19 @@
 import React from 'react';
 import { format } from 'date-fns';
-import { TrendingUp, BarChart3, RefreshCw } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { CandlestickChart, TrendingUp, BarChart3, RefreshCw } from 'lucide-react';
 import { Line } from 'react-chartjs-2';
 import type { Theme } from '../../../lib/theme';
 import { themes } from '../../../lib/theme';
 import { stockService } from '../../../lib/services';
-import type { TrendData } from '../../../lib/services/types';
+import type { PortfolioKlinePoint, TrendData } from '../../../lib/services/types';
 import { formatCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
+import { PortfolioKlineChart } from './PortfolioKlineChart';
 
 interface PortfolioTrendProps {
   trendData: TrendData[];
+  klineData: PortfolioKlinePoint[];
   theme: Theme;
   dateRange: {
     startDate: string;
@@ -24,13 +27,38 @@ interface SSEPoint {
   returnRate: number;
 }
 
-export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendProps) {
+export function PortfolioTrend({ trendData, klineData, theme, dateRange }: PortfolioTrendProps) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const { currencyConfig, getThemedColors } = useCurrency();
   const themedColors = getThemedColors(theme);
   const [sseData, setSseData] = React.useState<SSEPoint[]>([]);
-  const [showComparison, setShowComparison] = React.useState(true);
   const [isLoadingSSE, setIsLoadingSSE] = React.useState(false);
-  const [viewMode, setViewMode] = React.useState<'absolute' | 'return'>('absolute');
+  const searchParams = React.useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const requestedViewMode = (() => {
+    const value = searchParams.get('trendView');
+    return value === 'absolute' || value === 'return' || value === 'kline' ? value : 'kline';
+  })();
+  const klineSource = searchParams.get('trendSource') === 'position' ? 'position' : 'asset';
+  const klinePriceMode = (() => {
+    const value = searchParams.get('trendAdjust');
+    return value === 'raw' || value === 'nav' || value === 'adjusted' ? value : 'adjusted';
+  })();
+  const showComparison = searchParams.get('trendCompare') !== '0';
+  const viewMode = requestedViewMode === 'kline' && klineData.length === 0 ? 'absolute' : requestedViewMode;
+
+  const updateTrendParams = React.useCallback((updates: Record<string, string | null>) => {
+    const nextParams = new URLSearchParams(location.search);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === null) {
+        nextParams.delete(key);
+      } else {
+        nextParams.set(key, value);
+      }
+    });
+    const query = nextParams.toString();
+    navigate(`${location.pathname}${query ? `?${query}` : ''}`, { replace: true });
+  }, [location.pathname, location.search, navigate]);
 
   // Fetch comparison index data for return comparison
   React.useEffect(() => {
@@ -157,7 +185,7 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
           })
         : [];
       
-      const datasets = [
+      const datasets: any[] = [
         {
           label: '总资产收益率',
           data: portfolioReturns,
@@ -182,7 +210,7 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
 
         datasets.push({
           label: '上证指数收益率',
-          data: matchedSSEReturns,
+          data: matchedSSEReturns as Array<number | null>,
           borderColor: '#9ca3af',
           backgroundColor: '#9ca3af33',
           fill: false,
@@ -231,7 +259,7 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
     }
   };
 
-  const lineChartData = getChartData() as any;
+  const lineChartData = viewMode === 'kline' ? null : getChartData() as any;
 
   const lineChartOptions: any = {
     responsive: true,
@@ -317,13 +345,22 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
     }
   };
 
+  const title = (() => {
+    if (viewMode === 'kline') {
+      return klineSource === 'position' ? '持仓市值 K 线' : '总资产 K 线';
+    }
+    return viewMode === 'return' ? '收益率趋势' : '资产趋势';
+  })();
+
+  const hasKlineFallback = requestedViewMode === 'kline' && klineData.length === 0;
+
   return (
     <>
       <div className="p-3 md:p-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4">
           <div className="flex items-center justify-between">
             <h3 className={`text-lg font-semibold whitespace-nowrap ${themes[theme].text}`}>
-              {viewMode === 'return' ? '收益率趋势' : '资产趋势'}
+              {title}
             </h3>
             <TrendingUp className={`w-5 h-5 ${themes[theme].text} opacity-75 md:hidden`} />
           </div>
@@ -331,7 +368,16 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
           <div className="flex flex-wrap items-center gap-2 md:gap-4">
             <div className="flex items-center gap-2 flex-shrink-0">
               <button
-                onClick={() => setViewMode('absolute')}
+                onClick={() => updateTrendParams({ trendView: 'kline' })}
+                disabled={klineData.length === 0}
+                className={`px-3 py-1 rounded-md text-xs md:text-sm whitespace-nowrap ${
+                  viewMode === 'kline' ? themes[theme].primary : themes[theme].secondary
+                } ${klineData.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                K 线
+              </button>
+              <button
+                onClick={() => updateTrendParams({ trendView: 'absolute' })}
                 className={`px-3 py-1 rounded-md text-xs md:text-sm whitespace-nowrap ${
                   viewMode === 'absolute' ? themes[theme].primary : themes[theme].secondary
                 }`}
@@ -339,7 +385,7 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
                 绝对值
               </button>
               <button
-                onClick={() => setViewMode('return')}
+                onClick={() => updateTrendParams({ trendView: 'return' })}
                 className={`px-3 py-1 rounded-md text-xs md:text-sm whitespace-nowrap ${
                   viewMode === 'return' ? themes[theme].primary : themes[theme].secondary
                 }`}
@@ -348,10 +394,40 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
               </button>
             </div>
             
+            {viewMode === 'kline' && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => updateTrendParams({ trendSource: 'asset' })}
+                  className={`px-3 py-1 rounded-md text-xs md:text-sm ${
+                    klineSource === 'asset' ? themes[theme].primary : themes[theme].secondary
+                  }`}
+                >
+                  总资产
+                </button>
+                <button
+                  onClick={() => updateTrendParams({ trendSource: 'position' })}
+                  className={`px-3 py-1 rounded-md text-xs md:text-sm ${
+                    klineSource === 'position' ? themes[theme].primary : themes[theme].secondary
+                  }`}
+                >
+                  持仓市值
+                </button>
+                {klineSource === 'asset' && (
+                  <button
+                    onClick={() => updateTrendParams({ trendAdjust: klinePriceMode === 'adjusted' ? 'raw' : 'adjusted' })}
+                    className={`px-3 py-1 rounded-md text-xs md:text-sm ${
+                      klinePriceMode === 'adjusted' ? themes[theme].primary : themes[theme].secondary
+                    }`}
+                  >
+                    复权
+                  </button>
+                )}
+              </div>
+            )}
             {viewMode === 'return' && (
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setShowComparison(!showComparison)}
+                  onClick={() => updateTrendParams({ trendCompare: showComparison ? '0' : '1' })}
                   disabled={isLoadingSSE}
                   className={`px-3 py-1 rounded-md text-xs md:text-sm ${
                     showComparison ? themes[theme].primary : themes[theme].secondary
@@ -369,7 +445,16 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
               </div>
             )}
             <div className="hidden lg:flex items-center gap-4">
-            {viewMode === 'absolute' ? (
+            {viewMode === 'kline' ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <CandlestickChart className={`w-4 h-4 ${themes[theme].text} opacity-75`} />
+                  <span className={`text-sm whitespace-nowrap ${themes[theme].text} opacity-75`}>
+                    {klineSource === 'position' ? '持仓市值 OHLC' : '总资产 OHLC'}
+                  </span>
+                </div>
+              </>
+            ) : viewMode === 'absolute' ? (
               <>
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-0.5" style={{ backgroundColor: themedColors.chart.upColor }}></div>
@@ -402,9 +487,23 @@ export function PortfolioTrend({ trendData, theme, dateRange }: PortfolioTrendPr
             <TrendingUp className={`w-5 h-5 ${themes[theme].text} opacity-75 hidden md:block`} />
           </div>
         </div>
-        <div className="h-[250px] md:h-[300px]">
-          <Line data={lineChartData} options={lineChartOptions} />
-        </div>
+        {hasKlineFallback && (
+          <div className={`mb-3 text-xs ${themes[theme].text} opacity-70`}>
+            当前账户暂无 K 线接口数据，已自动回退到折线趋势视图。
+          </div>
+        )}
+        {viewMode === 'kline' ? (
+          <PortfolioKlineChart
+            klineData={klineData}
+            theme={theme}
+            source={klineSource}
+            priceMode={klinePriceMode}
+          />
+        ) : (
+          <div className="h-[250px] md:h-[300px]">
+            <Line data={lineChartData} options={lineChartOptions} />
+          </div>
+        )}
       </div>
     </>
   );

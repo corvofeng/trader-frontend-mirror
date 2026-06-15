@@ -72,6 +72,30 @@ export interface TrendData {
   return_rate?: number; // 新增：收益率
 }
 
+export interface PortfolioKlinePoint {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  value?: number;
+  adjusted_open?: number;
+  adjusted_high?: number;
+  adjusted_low?: number;
+  adjusted_close?: number;
+  adjusted_value?: number;
+  nav_open?: number;
+  nav_high?: number;
+  nav_low?: number;
+  nav_close?: number;
+  nav_value?: number;
+  position_open?: number;
+  position_high?: number;
+  position_low?: number;
+  position_close?: number;
+  position_value?: number;
+}
+
 export interface CurrencyConfig {
   symbol: string;
   position: 'before' | 'after';
@@ -348,11 +372,13 @@ export interface PortfolioService {
   getHoldings: (userId: string, accountId?: string) => Promise<ServiceResponse<Holding[]>>;
   getRecentTrades: (userId: string, startDate: string, endDate: string, accountId?: string, stockCode?: string) => Promise<ServiceResponse<Trade[]>>;
   getTrendData: (userId: string, startDate: string, endDate: string, accountId?: string) => Promise<ServiceResponse<TrendData[]>>;
+  getKlineData: (userId: string, startDate: string, endDate: string, accountId?: string) => Promise<ServiceResponse<PortfolioKlinePoint[]>>;
   getAccounts: (userId: string) => Promise<ServiceResponse<Account[]>>;
   // UUID-based methods for shared portfolios
   getHoldingsByUuid: (uuid: string) => Promise<ServiceResponse<Holding[]>>;
   getRecentTradesByUuid: (uuid: string, startDate: string, endDate: string) => Promise<ServiceResponse<Trade[]>>;
   getTrendDataByUuid: (uuid: string, startDate: string, endDate: string) => Promise<ServiceResponse<TrendData[]>>;
+  getKlineDataByUuid: (uuid: string, startDate: string, endDate: string) => Promise<ServiceResponse<PortfolioKlinePoint[]>>;
 }
 
 export interface AccountPrompt {

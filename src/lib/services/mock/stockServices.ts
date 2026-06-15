@@ -26,7 +26,8 @@ import type {
   User,
   Notice,
   NoticeService,
-  AdminAccountStatusItem
+  AdminAccountStatusItem,
+  PortfolioKlinePoint
 } from '../types';
 import { format, subDays, addMinutes, startOfDay, endOfDay, parseISO } from 'date-fns';
 
@@ -71,6 +72,61 @@ let accountIdCounter = 3;
 let accountPromptIdCounter = 1;
 
 const mockAccountPrompts: AccountPrompt[] = [];
+
+const toPortfolioKlineData = (trendData: TrendData[]): PortfolioKlinePoint[] => {
+  return trendData
+    .map((point, index, list) => {
+      const previous = list[index - 1];
+      const next = list[index + 1];
+      const open = previous?.value ?? point.value;
+      const close = point.value;
+      const rangeBase = Math.max(Math.abs(close - open), close * 0.004);
+      const nextValue = next?.value ?? close;
+      const high = Math.max(open, close, nextValue) + rangeBase * 0.35;
+      const low = Math.max(0, Math.min(open, close, nextValue) - rangeBase * 0.35);
+
+      const positionOpen = previous?.position_value ?? point.position_value ?? close;
+      const positionClose = point.position_value ?? close;
+      const positionRangeBase = Math.max(Math.abs(positionClose - positionOpen), positionClose * 0.003);
+      const nextPositionValue = next?.position_value ?? positionClose;
+      const positionHigh = Math.max(positionOpen, positionClose, nextPositionValue) + positionRangeBase * 0.35;
+      const positionLow = Math.max(0, Math.min(positionOpen, positionClose, nextPositionValue) - positionRangeBase * 0.35);
+
+      const navClose = typeof point.return_rate === 'number' && Number.isFinite(point.return_rate)
+        ? 1 + point.return_rate / 100
+        : 1;
+      const navOpen = typeof previous?.return_rate === 'number' && Number.isFinite(previous.return_rate)
+        ? 1 + previous.return_rate / 100
+        : navClose;
+      const navHigh = Math.max(navOpen, navClose) * 1.002;
+      const navLow = Math.min(navOpen, navClose) * 0.998;
+
+      return {
+        date: point.date,
+        open,
+        high,
+        low,
+        close,
+        value: point.value,
+        adjusted_open: open,
+        adjusted_high: high,
+        adjusted_low: low,
+        adjusted_close: close,
+        adjusted_value: point.value,
+        nav_open: navOpen,
+        nav_high: navHigh,
+        nav_low: navLow,
+        nav_close: navClose,
+        nav_value: navClose,
+        position_open: positionOpen,
+        position_high: positionHigh,
+        position_low: positionLow,
+        position_close: positionClose,
+        position_value: point.position_value ?? positionClose,
+      };
+    })
+    .filter((point) => Number.isFinite(point.open) && Number.isFinite(point.high) && Number.isFinite(point.low) && Number.isFinite(point.close));
+};
 
 export const authService: AuthService = {
   getUser: async () => {
@@ -490,6 +546,14 @@ export const portfolioService: PortfolioService = {
     return { data: smoothedData, error: null };
   },
 
+  getKlineData: async (userId: string, startDate: string, endDate: string, accountId?: string) => {
+    const trendResponse = await portfolioService.getTrendData(userId, startDate, endDate, accountId);
+    if (!trendResponse.data) {
+      return { data: null, error: trendResponse.error };
+    }
+    return { data: toPortfolioKlineData(trendResponse.data), error: null };
+  },
+
   getAccounts: async (userId: string) => {
     return accountService.getAccounts(userId);
   },
@@ -629,6 +693,14 @@ export const portfolioService: PortfolioService = {
     const smoothedData = fillMissingDays(trendData);
     
     return { data: smoothedData, error: null };
+  },
+
+  getKlineDataByUuid: async (uuid: string, startDate: string, endDate: string) => {
+    const trendResponse = await portfolioService.getTrendDataByUuid(uuid, startDate, endDate);
+    if (!trendResponse.data) {
+      return { data: null, error: trendResponse.error };
+    }
+    return { data: toPortfolioKlineData(trendResponse.data), error: null };
   }
 };
 

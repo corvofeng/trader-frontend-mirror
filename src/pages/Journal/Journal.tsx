@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Briefcase, LayoutGrid, History, Upload, Activity, BookOpen, Settings } from 'lucide-react';
 import { TabNavigation } from './components/TabNavigation';
@@ -18,6 +18,7 @@ interface JournalProps {
 type Tab = 'portfolio' | 'trades' | 'history' | 'analysis' | 'settings' | 'operations' | 'upload';
 
 const DEMO_USER_ID = 'mock-user-id';
+const DEFAULT_RANGE_DAYS = 180;
 
 export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
   const location = useLocation();
@@ -60,7 +61,7 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
         localStorage.getItem('selectedAccountId') ||
         '';
       if (!key) return [];
-      const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const startDate = new Date(Date.now() - DEFAULT_RANGE_DAYS * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
       const endDate = new Date().toISOString().split('T')[0];
       const raw = localStorage.getItem(`journal:recentTrades:${key}:${startDate}:${endDate}`);
       if (!raw) return [];
@@ -80,7 +81,7 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
     return alias || legacy || null;
   });
   const [dateRange, setDateRange] = useState({
-    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    startDate: new Date(Date.now() - DEFAULT_RANGE_DAYS * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0]
   });
   const [portfolioLoading, setPortfolioLoading] = useState(true);

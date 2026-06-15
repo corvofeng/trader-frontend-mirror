@@ -20,7 +20,8 @@ import type {
   NoticeActionResponse,
   NoticeService,
   StockOrder,
-  AdminAccountStatusItem
+  AdminAccountStatusItem,
+  PortfolioKlinePoint
 } from '../types';
 import type { Trade } from '../types';
 
@@ -556,6 +557,82 @@ export const stockConfigService: StockConfigService = {
 const trendCache = new Map<string, CacheEntry<unknown>>();
 const trendPending = new Map<string, Promise<unknown>>();
 
+const normalizePortfolioKlineList = (payload: unknown): PortfolioKlinePoint[] => {
+  const extractList = (value: unknown): Record<string, unknown>[] => {
+    if (Array.isArray(value)) {
+      return value.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object' && !Array.isArray(item));
+    }
+    if (!value || typeof value !== 'object') return [];
+    const record = value as Record<string, unknown>;
+    if (Array.isArray(record.data)) return extractList(record.data);
+    if (Array.isArray(record.items)) return extractList(record.items);
+    if (Array.isArray(record.list)) return extractList(record.list);
+    return [];
+  };
+
+  const toNumber = (value: unknown) => {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string' && value.trim()) {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
+  };
+
+  return extractList(payload)
+    .map((item) => {
+      const date = typeof item.date === 'string' ? item.date : '';
+      const open = toNumber(item.open);
+      const high = toNumber(item.high);
+      const low = toNumber(item.low);
+      const close = toNumber(item.close);
+      if (!date || open === null || high === null || low === null || close === null) {
+        return null;
+      }
+      const point: PortfolioKlinePoint = {
+        date,
+        open,
+        high,
+        low,
+        close,
+      };
+      const value = toNumber(item.value);
+      const adjustedOpen = toNumber(item.adjusted_open);
+      const adjustedHigh = toNumber(item.adjusted_high);
+      const adjustedLow = toNumber(item.adjusted_low);
+      const adjustedClose = toNumber(item.adjusted_close);
+      const adjustedValue = toNumber(item.adjusted_value);
+      const navOpen = toNumber(item.nav_open);
+      const navHigh = toNumber(item.nav_high);
+      const navLow = toNumber(item.nav_low);
+      const navClose = toNumber(item.nav_close);
+      const navValue = toNumber(item.nav_value);
+      const positionOpen = toNumber(item.position_open);
+      const positionHigh = toNumber(item.position_high);
+      const positionLow = toNumber(item.position_low);
+      const positionClose = toNumber(item.position_close);
+      const positionValue = toNumber(item.position_value);
+      if (value !== null) point.value = value;
+      if (adjustedOpen !== null) point.adjusted_open = adjustedOpen;
+      if (adjustedHigh !== null) point.adjusted_high = adjustedHigh;
+      if (adjustedLow !== null) point.adjusted_low = adjustedLow;
+      if (adjustedClose !== null) point.adjusted_close = adjustedClose;
+      if (adjustedValue !== null) point.adjusted_value = adjustedValue;
+      if (navOpen !== null) point.nav_open = navOpen;
+      if (navHigh !== null) point.nav_high = navHigh;
+      if (navLow !== null) point.nav_low = navLow;
+      if (navClose !== null) point.nav_close = navClose;
+      if (navValue !== null) point.nav_value = navValue;
+      if (positionOpen !== null) point.position_open = positionOpen;
+      if (positionHigh !== null) point.position_high = positionHigh;
+      if (positionLow !== null) point.position_low = positionLow;
+      if (positionClose !== null) point.position_close = positionClose;
+      if (positionValue !== null) point.position_value = positionValue;
+      return point;
+    })
+    .filter((item): item is PortfolioKlinePoint => item !== null);
+};
+
 export const portfolioService: PortfolioService = {
   getHoldings: async (userId: string, accountId?: string) => {
     try {
@@ -637,6 +714,27 @@ export const portfolioService: PortfolioService = {
       }
     } catch (error) {
       console.error('Error fetching trend data:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  getKlineData: async (userId: string, startDate: string, endDate: string, accountId?: string) => {
+    try {
+      if (!accountId) return { data: null, error: new Error('Account ID is required') };
+
+      const params = new URLSearchParams({ userId });
+      if (startDate) params.set('startDate', startDate);
+      if (endDate) params.set('endDate', endDate);
+      const response = await fetch(`/api/portfolio/${encodeURIComponent(accountId)}/kline?${params.toString()}`);
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch kline data (${response.status})`);
+      }
+
+      const payload = await response.json();
+      return { data: normalizePortfolioKlineList(payload), error: null };
+    } catch (error) {
+      console.error('Error fetching kline data:', error);
       return { data: null, error: error as Error };
     }
   },
@@ -727,6 +825,28 @@ export const portfolioService: PortfolioService = {
       }
     } catch (error) {
       console.error('Error fetching shared portfolio trend data:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  getKlineDataByUuid: async (uuid: string, startDate: string, endDate: string) => {
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.set('startDate', startDate);
+      if (endDate) params.set('endDate', endDate);
+      const query = params.toString();
+      const response = await fetch(
+        `/api/portfolio/shared/${encodeURIComponent(uuid)}/kline${query ? `?${query}` : ''}`
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch shared portfolio kline data (${response.status})`);
+      }
+
+      const payload = await response.json();
+      return { data: normalizePortfolioKlineList(payload), error: null };
+    } catch (error) {
+      console.error('Error fetching shared portfolio kline data:', error);
       return { data: null, error: error as Error };
     }
   }
