@@ -1,7 +1,7 @@
 import React from 'react';
 import { format } from 'date-fns';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { CandlestickChart, TrendingUp, BarChart3, RefreshCw } from 'lucide-react';
+import { BarChart3, RefreshCw, SlidersHorizontal } from 'lucide-react';
 import { Line } from 'react-chartjs-2';
 import type { Theme } from '../../../lib/theme';
 import { themes } from '../../../lib/theme';
@@ -34,6 +34,9 @@ export function PortfolioTrend({ trendData, klineData, theme, dateRange }: Portf
   const themedColors = getThemedColors(theme);
   const [sseData, setSseData] = React.useState<SSEPoint[]>([]);
   const [isLoadingSSE, setIsLoadingSSE] = React.useState(false);
+  const [showControls, setShowControls] = React.useState(false);
+  const controlsRef = React.useRef<HTMLDivElement | null>(null);
+  const controlsButtonRef = React.useRef<HTMLButtonElement | null>(null);
   const searchParams = React.useMemo(() => new URLSearchParams(location.search), [location.search]);
   const requestedViewMode = (() => {
     const value = searchParams.get('trendView');
@@ -173,6 +176,33 @@ export function PortfolioTrend({ trendData, klineData, theme, dateRange }: Portf
     };
   }, [dateRange, showComparison, trendData.length, viewMode]);
 
+  React.useEffect(() => {
+    if (!showControls) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (controlsRef.current?.contains(target) || controlsButtonRef.current?.contains(target)) {
+        return;
+      }
+      setShowControls(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowControls(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showControls]);
+
   // Prepare chart data based on view mode
   const getChartData = () => {
     if (viewMode === 'return') {
@@ -266,16 +296,7 @@ export function PortfolioTrend({ trendData, klineData, theme, dateRange }: Portf
     maintainAspectRatio: false,
     plugins: {
       legend: {
-        display: true,
-        position: 'top' as const,
-        labels: {
-          color: theme === 'dark' ? '#e5e7eb' : '#374151',
-          usePointStyle: true,
-          padding: 20,
-          font: {
-            size: 12
-          }
-        }
+        display: false,
       },
       tooltip: {
         mode: 'index' as const,
@@ -351,147 +372,170 @@ export function PortfolioTrend({ trendData, klineData, theme, dateRange }: Portf
     }
     return viewMode === 'return' ? '收益率趋势' : '资产趋势';
   })();
+  const mobileTitle = (() => {
+    if (viewMode === 'kline') {
+      return klineSource === 'position' ? '持仓K线' : '总资产K线';
+    }
+    return viewMode === 'return' ? '收益率' : '趋势';
+  })();
 
   const hasKlineFallback = requestedViewMode === 'kline' && klineData.length === 0;
+  const toolbarPanelClass = `rounded-2xl border ${themes[theme].border} ${themes[theme].card} p-3 shadow-xl`;
+  const segmentedGroupClass = `flex flex-wrap items-center gap-1 rounded-xl border ${themes[theme].border} ${themes[theme].card} p-1`;
+  const toolbarLabelClass = `text-[11px] font-medium uppercase tracking-wide ${themes[theme].text} opacity-50`;
+  const toolbarContextLabel = viewMode === 'kline' ? 'K 线设置' : '当前视图';
+  const modeSummary = (() => {
+    if (viewMode === 'kline') {
+      if (klineSource === 'position') {
+        return '持仓市值';
+      }
+      if (klinePriceMode === 'nav') {
+        return '总资产 · NAV';
+      }
+      if (klinePriceMode === 'raw') {
+        return '总资产 · 原始';
+      }
+      return '总资产 · 复权';
+    }
+    if (viewMode === 'return') {
+      return showComparison ? '收益率 · 上证对比' : '收益率';
+    }
+    return '总资产 / 持仓双线';
+  })();
 
   return (
     <>
-      <div className="p-3 md:p-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4">
-          <div className="flex items-center justify-between">
-            <h3 className={`text-lg font-semibold whitespace-nowrap ${themes[theme].text}`}>
-              {title}
-            </h3>
-            <TrendingUp className={`w-5 h-5 ${themes[theme].text} opacity-75 md:hidden`} />
-          </div>
-          
-          <div className="flex flex-wrap items-center gap-2 md:gap-4">
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <button
-                onClick={() => updateTrendParams({ trendView: 'kline' })}
-                disabled={klineData.length === 0}
-                className={`px-3 py-1 rounded-md text-xs md:text-sm whitespace-nowrap ${
-                  viewMode === 'kline' ? themes[theme].primary : themes[theme].secondary
-                } ${klineData.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                K 线
-              </button>
-              <button
-                onClick={() => updateTrendParams({ trendView: 'absolute' })}
-                className={`px-3 py-1 rounded-md text-xs md:text-sm whitespace-nowrap ${
-                  viewMode === 'absolute' ? themes[theme].primary : themes[theme].secondary
-                }`}
-              >
-                绝对值
-              </button>
-              <button
-                onClick={() => updateTrendParams({ trendView: 'return' })}
-                className={`px-3 py-1 rounded-md text-xs md:text-sm whitespace-nowrap ${
-                  viewMode === 'return' ? themes[theme].primary : themes[theme].secondary
-                }`}
-              >
-                收益率
-              </button>
-            </div>
-            
-            {viewMode === 'kline' && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => updateTrendParams({ trendSource: 'asset' })}
-                  className={`px-3 py-1 rounded-md text-xs md:text-sm ${
-                    klineSource === 'asset' ? themes[theme].primary : themes[theme].secondary
-                  }`}
-                >
-                  总资产
-                </button>
-                <button
-                  onClick={() => updateTrendParams({ trendSource: 'position' })}
-                  className={`px-3 py-1 rounded-md text-xs md:text-sm ${
-                    klineSource === 'position' ? themes[theme].primary : themes[theme].secondary
-                  }`}
-                >
-                  持仓市值
-                </button>
-                {klineSource === 'asset' && (
-                  <button
-                    onClick={() => updateTrendParams({ trendAdjust: klinePriceMode === 'adjusted' ? 'raw' : 'adjusted' })}
-                    className={`px-3 py-1 rounded-md text-xs md:text-sm ${
-                      klinePriceMode === 'adjusted' ? themes[theme].primary : themes[theme].secondary
-                    }`}
-                  >
-                    复权
-                  </button>
-                )}
-              </div>
-            )}
-            {viewMode === 'return' && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => updateTrendParams({ trendCompare: showComparison ? '0' : '1' })}
-                  disabled={isLoadingSSE}
-                  className={`px-3 py-1 rounded-md text-xs md:text-sm ${
-                    showComparison ? themes[theme].primary : themes[theme].secondary
-                  } ${isLoadingSSE ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  {isLoadingSSE ? (
-                    <RefreshCw className="w-3 h-3 md:w-4 md:h-4 animate-spin" />
-                  ) : (
-                    <>
-                      <BarChart3 className="w-3 h-3 md:w-4 md:h-4 mr-1" />
-                      上证对比
-                    </>
-                  )}
-                </button>
-              </div>
-            )}
-            <div className="hidden lg:flex items-center gap-4">
-            {viewMode === 'kline' ? (
-              <>
-                <div className="flex items-center gap-2">
-                  <CandlestickChart className={`w-4 h-4 ${themes[theme].text} opacity-75`} />
-                  <span className={`text-sm whitespace-nowrap ${themes[theme].text} opacity-75`}>
-                    {klineSource === 'position' ? '持仓市值 OHLC' : '总资产 OHLC'}
+      <div className="p-2 sm:p-3 md:p-6">
+        <div className="relative mb-3 md:mb-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className={`text-base sm:text-lg md:text-xl font-semibold ${themes[theme].text} whitespace-nowrap`}>
+                <span className="sm:hidden">{mobileTitle}</span>
+                <span className="hidden sm:inline">{title}</span>
+              </h3>
+              <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] sm:text-xs">
+                <span className={`rounded-full px-2 py-0.5 whitespace-nowrap ${themes[theme].secondary}`}>
+                  {modeSummary}
+                </span>
+                {hasKlineFallback && (
+                  <span className={`${themes[theme].text} opacity-60`}>
+                    当前账户暂无 K 线接口数据，已自动回退到折线趋势视图。
                   </span>
-                </div>
-              </>
-            ) : viewMode === 'absolute' ? (
-              <>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-0.5" style={{ backgroundColor: themedColors.chart.upColor }}></div>
-                  <span className={`text-sm whitespace-nowrap ${themes[theme].text} opacity-75`}>总资产</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-0.5 border-dashed" style={{ 
-                    borderTop: `1px dashed ${themedColors.chart.downColor}` 
-                  }}></div>
-                  <span className={`text-sm whitespace-nowrap ${themes[theme].text} opacity-75`}>持仓市值</span>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-0.5" style={{ backgroundColor: themedColors.chart.upColor }}></div>
-                  <span className={`text-sm whitespace-nowrap ${themes[theme].text} opacity-75`}>总资产收益率</span>
-                </div>
-                {showComparison && sseData.length > 0 && (
-                  <div className="flex items-center gap-2">
-                  <div className="w-3 h-0.5 border-dashed" style={{ 
-                    borderTop: '1px dashed #9ca3af' 
-                  }}></div>
-                  <span className={`text-sm whitespace-nowrap ${themes[theme].text} opacity-75`}>上证指数</span>
-                  </div>
                 )}
-              </>
-            )}
+              </div>
             </div>
-            <TrendingUp className={`w-5 h-5 ${themes[theme].text} opacity-75 hidden md:block`} />
+
+            <button
+              ref={controlsButtonRef}
+              type="button"
+              onClick={() => setShowControls((value) => !value)}
+              className={`inline-flex shrink-0 items-center justify-center rounded-full border p-2 ${themes[theme].secondary} border-transparent`}
+              aria-label="图表设置"
+              title="图表设置"
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+            </button>
           </div>
+
+          {showControls && (
+            <div
+              ref={controlsRef}
+              className="absolute left-0 right-0 top-full z-20 mt-3 sm:left-auto sm:w-[22rem]"
+            >
+              <div className={toolbarPanelClass}>
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <div className={toolbarLabelClass}>图表类型</div>
+                    <div className={segmentedGroupClass}>
+                      <button
+                        onClick={() => updateTrendParams({ trendView: 'kline' })}
+                        disabled={klineData.length === 0}
+                        className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap ${
+                          viewMode === 'kline' ? themes[theme].primary : themes[theme].secondary
+                        } ${klineData.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        K 线
+                      </button>
+                      <button
+                        onClick={() => updateTrendParams({ trendView: 'absolute' })}
+                        className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap ${
+                          viewMode === 'absolute' ? themes[theme].primary : themes[theme].secondary
+                        }`}
+                      >
+                        绝对值
+                      </button>
+                      <button
+                        onClick={() => updateTrendParams({ trendView: 'return' })}
+                        className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap ${
+                          viewMode === 'return' ? themes[theme].primary : themes[theme].secondary
+                        }`}
+                      >
+                        收益率
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className={toolbarLabelClass}>{toolbarContextLabel}</div>
+                    {viewMode === 'kline' ? (
+                      <div className={segmentedGroupClass}>
+                        <button
+                          onClick={() => updateTrendParams({ trendSource: 'asset' })}
+                          className={`px-3 py-1.5 rounded-lg text-sm ${
+                            klineSource === 'asset' ? themes[theme].primary : themes[theme].secondary
+                          }`}
+                        >
+                          总资产
+                        </button>
+                        <button
+                          onClick={() => updateTrendParams({ trendSource: 'position' })}
+                          className={`px-3 py-1.5 rounded-lg text-sm ${
+                            klineSource === 'position' ? themes[theme].primary : themes[theme].secondary
+                          }`}
+                        >
+                          持仓市值
+                        </button>
+                        {klineSource === 'asset' && (
+                          <button
+                            onClick={() => updateTrendParams({ trendAdjust: klinePriceMode === 'adjusted' ? 'raw' : 'adjusted' })}
+                            className={`px-3 py-1.5 rounded-lg text-sm ${
+                              klinePriceMode === 'adjusted' ? themes[theme].primary : themes[theme].secondary
+                            }`}
+                          >
+                            复权
+                          </button>
+                        )}
+                      </div>
+                    ) : viewMode === 'return' ? (
+                      <div className={segmentedGroupClass}>
+                        <button
+                          onClick={() => updateTrendParams({ trendCompare: showComparison ? '0' : '1' })}
+                          disabled={isLoadingSSE}
+                          className={`px-3 py-1.5 rounded-lg text-sm inline-flex items-center ${
+                            showComparison ? themes[theme].primary : themes[theme].secondary
+                          } ${isLoadingSSE ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                          {isLoadingSSE ? (
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <>
+                              <BarChart3 className="w-4 h-4 mr-1" />
+                              上证对比
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className={`rounded-xl border border-dashed ${themes[theme].border} px-3 py-2 text-sm ${themes[theme].text} opacity-60`}>
+                        显示总资产与持仓市值双线
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-        {hasKlineFallback && (
-          <div className={`mb-3 text-xs ${themes[theme].text} opacity-70`}>
-            当前账户暂无 K 线接口数据，已自动回退到折线趋势视图。
-          </div>
-        )}
         {viewMode === 'kline' ? (
           <PortfolioKlineChart
             klineData={klineData}
