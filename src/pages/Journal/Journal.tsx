@@ -18,7 +18,7 @@ interface JournalProps {
 type Tab = 'portfolio' | 'trades' | 'history' | 'analysis' | 'settings' | 'operations' | 'upload';
 
 const DEMO_USER_ID = 'mock-user-id';
-const DEFAULT_RANGE_DAYS = 180;
+const DEFAULT_RANGE_DAYS = 30;
 
 export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
   const location = useLocation();

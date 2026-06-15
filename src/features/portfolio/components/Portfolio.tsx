@@ -64,6 +64,7 @@ export function Portfolio({
   onAccountChange,
   isSnapshot = false,
 }: PortfolioProps) {
+  const DEFAULT_ASSET_KLINE_DAYS = 180;
   const [showRecentTrades, setShowRecentTrades] = useState(true);
   const [holdingsPage, setHoldingsPage] = useState(1);
   const [holdingsPerPage, setHoldingsPerPage] = useState(5);
@@ -99,6 +100,17 @@ export function Portfolio({
     let cancelled = false;
     const fetchTrendData = async () => {
       try {
+        const searchParams = new URLSearchParams(window.location.search);
+        const trendView = searchParams.get('trendView');
+        const trendSource = searchParams.get('trendSource');
+        const shouldUseAssetKlineDefaultRange =
+          (trendView === null || trendView === 'kline') &&
+          (trendSource === null || trendSource === 'asset');
+        const klineEndDate = new Date().toISOString().split('T')[0];
+        const klineStartDate = shouldUseAssetKlineDefaultRange
+          ? subDays(new Date(), DEFAULT_ASSET_KLINE_DAYS).toISOString().split('T')[0]
+          : dateRange.startDate;
+
         let trendPromise: Promise<Awaited<ReturnType<typeof portfolioService.getTrendData>> | Awaited<ReturnType<typeof portfolioService.getTrendDataByUuid>>> | null = null;
         let klinePromise: Promise<Awaited<ReturnType<typeof portfolioService.getKlineData>> | Awaited<ReturnType<typeof portfolioService.getKlineDataByUuid>>> | null = null;
         if (portfolioUuid) {
@@ -109,8 +121,8 @@ export function Portfolio({
           );
           klinePromise = portfolioService.getKlineDataByUuid(
             portfolioUuid,
-            dateRange.startDate,
-            dateRange.endDate
+            klineStartDate,
+            shouldUseAssetKlineDefaultRange ? klineEndDate : dateRange.endDate
           );
         } else if (!isSharedView) {
           // Fix null handling for accountId when calling services
@@ -127,8 +139,8 @@ export function Portfolio({
           );
           klinePromise = portfolioService.getKlineData(
             userId,
-            dateRange.startDate,
-            dateRange.endDate,
+            klineStartDate,
+            shouldUseAssetKlineDefaultRange ? klineEndDate : dateRange.endDate,
             selectedAccountId,
           );
         }
