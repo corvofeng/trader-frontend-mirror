@@ -82,7 +82,9 @@ interface PlotlyLike {
 }
 
 interface PlotlyPointEvent {
+  curveNumber?: number;
   pointIndex?: number;
+  pointNumber?: number;
 }
 
 interface PlotlyHoverEvent {
@@ -111,6 +113,59 @@ const isRecord = (value: unknown): value is Record<string, unknown> => !!value &
 const toFiniteNumber = (value: unknown, fallback = 0) => {
   const num = Number(value);
   return Number.isFinite(num) ? num : fallback;
+};
+
+const getFirstNumberField = (record: Record<string, unknown>, keys: string[]) => {
+  for (const key of keys) {
+    if (!(key in record)) continue;
+    const value = toFiniteNumber(record[key], Number.NaN);
+    if (Number.isFinite(value)) return value;
+  }
+  return Number.NaN;
+};
+
+const getDirectionFromLeg = (leg: Record<string, unknown>) => {
+  const rawDirection = leg.direction;
+  if (typeof rawDirection === 'number' && Number.isFinite(rawDirection)) {
+    if (rawDirection === 0) return 0;
+    return rawDirection > 0 ? 1 : -1;
+  }
+  if (typeof rawDirection === 'string') {
+    const normalized = rawDirection.trim().toLowerCase();
+    if (['buy', 'b', 'long', 'l', '+1', '1'].includes(normalized)) return 1;
+    if (['sell', 's', 'short', '-1', '-'].includes(normalized)) return -1;
+  }
+
+  const rawSide = leg.position_type ?? leg.side ?? leg.operation;
+  if (typeof rawSide === 'string') {
+    const normalized = rawSide.trim().toLowerCase();
+    if (['buy', 'long', 'open_long', 'b'].includes(normalized)) return 1;
+    if (['sell', 'short', 'open_short', 's'].includes(normalized)) return -1;
+  }
+
+  const qty = getFirstNumberField(leg, ['quantity', 'leg_quantity', 'qty', 'size']);
+  if (Number.isFinite(qty) && qty !== 0) return qty > 0 ? 1 : -1;
+
+  return 0;
+};
+
+const getClosePriceFromLeg = (leg: Record<string, unknown>, direction: number) => {
+  const currentPrice = getFirstNumberField(leg, ['current_price', 'currentPrice', 'price', 'last', 'last_price', 'mark_price', 'markPrice']);
+  const bid = getFirstNumberField(leg, ['bid_price', 'bidPrice', 'bid']);
+  const ask = getFirstNumberField(leg, ['ask_price', 'askPrice', 'ask']);
+
+  if (direction > 0) {
+    if (Number.isFinite(bid)) return { price: bid, usedFallback: false };
+    if (Number.isFinite(currentPrice)) return { price: currentPrice, usedFallback: true };
+    return { price: Number.NaN, usedFallback: true };
+  }
+  if (direction < 0) {
+    if (Number.isFinite(ask)) return { price: ask, usedFallback: false };
+    if (Number.isFinite(currentPrice)) return { price: currentPrice, usedFallback: true };
+    return { price: Number.NaN, usedFallback: true };
+  }
+  if (Number.isFinite(currentPrice)) return { price: currentPrice, usedFallback: true };
+  return { price: Number.NaN, usedFallback: true };
 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
@@ -368,6 +423,7 @@ export function OptionPayoffCalculatorChart({
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstanceRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<'Baseline'> | null>(null);
+  const closeSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
   const echartsInstanceRef = useRef<echarts.ECharts | null>(null);
   const { currencyConfig } = useCurrency();
   const calculator = useMemo(() => extractPayoffCalculator(payload), [payload]);
@@ -393,10 +449,18 @@ export function OptionPayoffCalculatorChart({
         shockLabel: '价格变动',
         quickOffsetLabel: '快捷评估点',
         sliderLabel: (offset: number, remainingDays: number) => `评估日 +${offset} 天，剩余 ${remainingDays} 天`,
-        spotValueLabel: '现价价值',
+        spotValueLabel: 'Model Spot Value',
         maxValueLabel: '最大价值',
         minValueLabel: '最小价值',
         zeroCrossingLabel: '零值交叉点',
+        marketCloseSectionLabel: '当前平仓价值',
+        marketCloseValueLabel: '当前平仓价值',
+        marketClosePnlLabel: 'Market Close PnL',
+        closeOverExpiryMaxLabel: 'Close / Expiry Max',
+        modelMinusMarketLabel: 'Model - Market',
+        marketCloseNote: '无 bid/ask 时按 current_price 近似平仓价值，不保证等于真实可成交金额。',
+        markerClose: '平仓',
+        markerRange: (pct: number) => `${pct >= 0 ? '+' : ''}${Math.round(pct * 100)}%`,
         markerSpot: '现价',
         markerMax: '最大',
         markerMin: '最小',
@@ -414,10 +478,18 @@ export function OptionPayoffCalculatorChart({
       shockLabel: 'Shock',
       quickOffsetLabel: '快捷评估点',
       sliderLabel: (offset: number, calendarDays: number) => `评估日 +${offset}d / 到期 ${calendarDays}d`,
-      spotValueLabel: 'Spot PnL',
+      spotValueLabel: 'Model Spot PnL',
       maxValueLabel: 'Max PnL',
       minValueLabel: 'Min PnL',
       zeroCrossingLabel: 'Breakeven',
+      marketCloseSectionLabel: '当前平仓价值',
+      marketCloseValueLabel: '当前平仓价值',
+      marketClosePnlLabel: 'Market Close PnL',
+      closeOverExpiryMaxLabel: 'Close / Expiry Max',
+      modelMinusMarketLabel: 'Model - Market',
+      marketCloseNote: 'No bid/ask: falls back to current_price; close value is an approximation.',
+      markerClose: 'Close',
+      markerRange: (pct: number) => `${pct >= 0 ? '+' : ''}${Math.round(pct * 100)}%`,
       markerSpot: 'Spot',
       markerMax: 'Max',
       markerMin: 'Min',
@@ -507,10 +579,104 @@ export function OptionPayoffCalculatorChart({
     };
   }, [calculator, calendarDaysToExpiry, chartPoints, curveBuild.surfacePointMeta?.remaining_days, curvePoints, selectedOffset]);
 
+  const marketClose = useMemo(() => {
+    if (!calculator || !Array.isArray(calculator.legs)) {
+      return {
+        legsCount: 0,
+        marketCloseValue: 0,
+        marketClosePnl: 0,
+        usedFallback: false,
+      };
+    }
+
+    let marketCloseValue = 0;
+    let costEffect = 0;
+    let usedFallback = false;
+    let legsCount = 0;
+
+    for (const rawLeg of calculator.legs) {
+      if (!isRecord(rawLeg)) continue;
+      legsCount += 1;
+
+      const quantity = getFirstNumberField(rawLeg, ['quantity', 'leg_quantity', 'qty', 'size']);
+      const normalizedQuantity = Number.isFinite(quantity) ? Math.abs(quantity) : 0;
+      const multiplier = getFirstNumberField(rawLeg, ['multiplier', 'contract_unit', 'contractUnit', 'unit']);
+      const normalizedMultiplier = Number.isFinite(multiplier) && multiplier !== 0 ? Math.abs(multiplier) : 1;
+
+      const inferredDirection = getDirectionFromLeg(rawLeg);
+      const direction = inferredDirection === 0 ? 1 : inferredDirection;
+
+      const { price: closePrice, usedFallback: legFallback } = getClosePriceFromLeg(rawLeg, direction);
+      usedFallback ||= legFallback;
+      if (!Number.isFinite(closePrice)) continue;
+
+      marketCloseValue += direction * closePrice * normalizedQuantity * normalizedMultiplier;
+
+      const costPrice = getFirstNumberField(rawLeg, ['cost_price', 'costPrice', 'avg_cost', 'avgCost', 'open_price', 'openPrice', 'entry_price', 'entryPrice', 'average_price', 'averagePrice']);
+      if (Number.isFinite(costPrice)) {
+        costEffect += -direction * costPrice * normalizedQuantity * normalizedMultiplier;
+      }
+    }
+
+    return {
+      legsCount,
+      marketCloseValue,
+      marketClosePnl: marketCloseValue + costEffect,
+      usedFallback,
+    };
+  }, [calculator]);
+
+  const expiryMaxValue = useMemo(() => {
+    if (!calculator || !isSchemaV2) return null;
+
+    const offsets = uniqueSortedNumbers(calculator.surface?.day_offsets);
+    const expiryOffset = offsets.length > 0 ? offsets[offsets.length - 1] : Math.max(0, calendarDaysToExpiry);
+
+    try {
+      const { curve } = buildCurveForOffsetFromSurface(calculator, expiryOffset);
+      const max = curve.reduce((best, point) => (point.pnl > best ? point.pnl : best), curve[0]?.pnl ?? 0);
+      return Number.isFinite(max) ? max : null;
+    } catch {
+      return null;
+    }
+  }, [calculator, calendarDaysToExpiry, isSchemaV2]);
+
+  const closeOverExpiryMax = useMemo(() => {
+    if (!marketClose || marketClose.legsCount <= 0) return null;
+    if (expiryMaxValue == null) return null;
+    if (!Number.isFinite(expiryMaxValue) || expiryMaxValue <= 0) return null;
+    const ratio = marketClose.marketCloseValue / expiryMaxValue;
+    return Number.isFinite(ratio) ? ratio : null;
+  }, [expiryMaxValue, marketClose]);
+
+  const modelMinusMarket = useMemo(() => {
+    if (!stats) return null;
+    if (!marketClose || marketClose.legsCount <= 0) return null;
+    const diff = stats.spotPnl - marketClose.marketCloseValue;
+    return Number.isFinite(diff) ? diff : null;
+  }, [marketClose, stats]);
+
   const quickOffsets = useMemo(
     () => getQuickOffsetOptions(suggestedEvalDayOffsets, Math.max(suggestedEvalDayOffsets[suggestedEvalDayOffsets.length - 1] ?? calendarDaysToExpiry, 0)),
     [calendarDaysToExpiry, suggestedEvalDayOffsets],
   );
+
+  const rangeScenario = useMemo(() => {
+    if (!stats || chartPoints.length === 0) {
+      return { points: [] as Array<{ pct: number; point: ChartCurvePoint; targetPrice: number }> };
+    }
+
+    const pcts = [-0.1, 0.1];
+    const points = pcts
+      .map((pct) => {
+        const targetPrice = Math.max(0.0001, stats.currentSpot * (1 + pct));
+        const point = findClosestPointByPrice(chartPoints, targetPrice);
+        return point ? { pct, point, targetPrice } : null;
+      })
+      .filter((item): item is { pct: number; point: ChartCurvePoint; targetPrice: number } => !!item);
+
+    return { points };
+  }, [chartPoints, stats]);
 
   const chartPointMap = useMemo(
     () => new Map(chartPoints.map((point) => [Number(point.time), point])),
@@ -568,6 +734,8 @@ export function OptionPayoffCalculatorChart({
   const [plotlyError, setPlotlyError] = useState<string | null>(null);
   const [isPlotlyLoading, setIsPlotlyLoading] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [axisMarkers, setAxisMarkers] = useState<Array<{ label: string; x: number }>>([]);
+  const [axisBand, setAxisBand] = useState<{ left: number; right: number } | null>(null);
 
   useEffect(() => {
     setHoveredPoint(stats?.spotPoint ?? chartPoints[0] ?? null);
@@ -717,9 +885,58 @@ export function OptionPayoffCalculatorChart({
       axisLabelVisible: false,
     });
 
+    if (marketClose.legsCount > 0 && Number.isFinite(marketClose.marketCloseValue)) {
+      const closeSeries = chart.addLineSeries({
+        color: '#a855f7',
+        lineWidth: 2,
+        lineStyle: LineStyle.Dashed,
+        crosshairMarkerVisible: true,
+        lastValueVisible: false,
+        priceLineVisible: false,
+        priceFormat: {
+          type: 'custom',
+          formatter: formatAxisPnl,
+          minMove: 1,
+        },
+      });
+      closeSeriesRef.current = closeSeries;
+      closeSeries.setData(chartPoints.map((point) => ({
+        time: point.time,
+        value: marketClose.marketCloseValue,
+      })));
+    }
+
     chart.timeScale().fitContent();
 
-    const handleCrosshairMove = (param: { time?: Time }) => {
+    const updateAxisMarkers = () => {
+      const markers = rangeScenario.points
+        .map(({ pct, point }) => {
+          const coord = chart.timeScale().timeToCoordinate(point.time);
+          if (coord == null) return null;
+          const x = Number(coord);
+          if (!Number.isFinite(x)) return null;
+          return { label: uiLabels.markerRange(pct), x };
+        })
+        .filter((item): item is { label: string; x: number } => !!item);
+      setAxisMarkers(markers);
+      if (markers.length >= 2) {
+        const xs = markers.map((m) => m.x).filter((x) => Number.isFinite(x));
+        const left = Math.min(...xs);
+        const right = Math.max(...xs);
+        if (Number.isFinite(left) && Number.isFinite(right) && right > left) {
+          setAxisBand({ left, right });
+        } else {
+          setAxisBand(null);
+        }
+      } else {
+        setAxisBand(null);
+      }
+    };
+
+    updateAxisMarkers();
+
+    const handleCrosshairMove = (param: { time?: Time } | null) => {
+      if (!param) return;
       const key = toTimeKey(param.time);
       if (key == null) {
         setHoveredPoint(stats.spotPoint);
@@ -732,6 +949,7 @@ export function OptionPayoffCalculatorChart({
     };
 
     chart.subscribeCrosshairMove(handleCrosshairMove);
+    chart.timeScale().subscribeVisibleTimeRangeChange(updateAxisMarkers);
 
     const resizeObserver = new ResizeObserver((entries) => {
       const entry = entries[0];
@@ -755,6 +973,7 @@ export function OptionPayoffCalculatorChart({
         },
       });
       chart.timeScale().fitContent();
+      updateAxisMarkers();
     });
 
     resizeObserver.observe(chartRef.current);
@@ -762,11 +981,15 @@ export function OptionPayoffCalculatorChart({
     return () => {
       resizeObserver.disconnect();
       chart.unsubscribeCrosshairMove(handleCrosshairMove);
+      chart.timeScale().unsubscribeVisibleTimeRangeChange(updateAxisMarkers);
       seriesRef.current = null;
+      closeSeriesRef.current = null;
+      setAxisMarkers([]);
+      setAxisBand(null);
       chart.remove();
       chartInstanceRef.current = null;
     };
-  }, [calculator, chartEngine, chartPointMap, chartPoints, currencyConfig, highlightMarkers, selectedOffset, stats, theme]);
+  }, [calculator, chartEngine, chartPointMap, chartPoints, highlightMarkers, marketClose.legsCount, marketClose.marketCloseValue, rangeScenario.points, selectedOffset, stats, theme, uiLabels]);
 
   useEffect(() => {
     if (chartEngine !== 'plotly') {
@@ -811,7 +1034,7 @@ export function OptionPayoffCalculatorChart({
         const priceValues = curvePoints.map((point) => point.price);
         const pnlValues = curvePoints.map((point) => point.pnl);
 
-        const annotations = [
+        const annotations: Array<Record<string, unknown>> = [
           {
             x: stats.currentSpot,
             y: stats.spotPnl,
@@ -841,6 +1064,19 @@ export function OptionPayoffCalculatorChart({
             borderpad: 4,
           })),
         ];
+
+        rangeScenario.points.forEach(({ pct, targetPrice }) => {
+          annotations.push({
+            x: targetPrice,
+            yref: 'paper',
+            y: 0,
+            yanchor: 'top',
+            yshift: -18,
+            text: uiLabels.markerRange(pct),
+            showarrow: false,
+            font: { color: palette.muted, size: 11 },
+          });
+        });
 
         await Plotly.newPlot(
           chartRef.current,
@@ -895,6 +1131,29 @@ export function OptionPayoffCalculatorChart({
               ].join('<br>'),
               name: 'Payoff',
             },
+            ...(marketClose.legsCount > 0 && Number.isFinite(marketClose.marketCloseValue)
+              ? [{
+                type: 'scatter',
+                mode: 'markers',
+                x: [stats.currentSpot],
+                y: [marketClose.marketCloseValue],
+                marker: {
+                  size: 11,
+                  color: '#a855f7',
+                  line: {
+                    color: isDark ? '#0f172a' : '#ffffff',
+                    width: 1.5,
+                  },
+                },
+                hovertemplate: [
+                  '<b>标的价格</b> %{x:.3f}',
+                  `<b>${uiLabels.marketCloseValueLabel}</b> ${formatCurrency(marketClose.marketCloseValue, currencyConfig)}`,
+                  '<extra></extra>',
+                ].join('<br>'),
+                name: uiLabels.marketCloseValueLabel,
+                showlegend: false,
+              }]
+              : []),
             {
               type: 'scatter',
               mode: 'markers+text',
@@ -987,6 +1246,21 @@ export function OptionPayoffCalculatorChart({
                   dash: 'dot',
                 },
               },
+              ...(marketClose.legsCount > 0 && Number.isFinite(marketClose.marketCloseValue)
+                ? [{
+                  type: 'line',
+                  y0: marketClose.marketCloseValue,
+                  y1: marketClose.marketCloseValue,
+                  xref: 'paper',
+                  x0: 0,
+                  x1: 1,
+                  line: {
+                    color: 'rgba(168,85,247,0.55)',
+                    width: 1,
+                    dash: 'dash',
+                  },
+                }]
+                : []),
             ],
             annotations,
           },
@@ -1002,7 +1276,9 @@ export function OptionPayoffCalculatorChart({
         if (cancelled || !chartRef.current) return;
 
         root.on?.('plotly_hover', (event) => {
-          const pointIndex = event.points?.[0]?.pointIndex;
+          const first = event.points?.[0];
+          if (!first || first.curveNumber !== 2) return;
+          const pointIndex = typeof first.pointIndex === 'number' ? first.pointIndex : first.pointNumber;
           if (typeof pointIndex !== 'number') return;
           setHoveredPoint(chartPoints[pointIndex] ?? stats.spotPoint);
         });
@@ -1045,7 +1321,7 @@ export function OptionPayoffCalculatorChart({
         window.Plotly.purge(chartRef.current);
       }
     };
-  }, [calculator, chartEngine, chartPoints, curvePoints, currencyConfig, stats, theme, uiLabels]);
+  }, [calculator, chartEngine, chartPoints, curvePoints, currencyConfig, marketClose.legsCount, marketClose.marketCloseValue, rangeScenario.points, stats, theme, uiLabels]);
 
   useEffect(() => {
     if (chartEngine !== 'echarts') {
@@ -1099,10 +1375,14 @@ export function OptionPayoffCalculatorChart({
           const index = typeof first?.dataIndex === 'number' ? first.dataIndex : -1;
           const point = index >= 0 ? curvePoints[index] : null;
           if (!point) return '';
+          const marketCloseLine = marketClose.legsCount > 0 && Number.isFinite(marketClose.marketCloseValue)
+            ? `<div>${uiLabels.marketCloseValueLabel} ${formatCurrency(marketClose.marketCloseValue, currencyConfig)}</div>`
+            : '';
           return [
             `<div style="font-weight:600;margin-bottom:6px;">标的价格 ${formatPrice(point.price)}</div>`,
             `<div>价格变动 ${(point.shock * 100).toFixed(1)}%</div>`,
             `<div>${uiLabels.axisValueLabel} ${formatCurrency(point.pnl, currencyConfig)}</div>`,
+            marketCloseLine,
           ].join('');
         },
       },
@@ -1180,6 +1460,19 @@ export function OptionPayoffCalculatorChart({
             data: [
               { yAxis: 0 },
               { xAxis: stats.currentSpot, lineStyle: { color: palette.line, type: 'dotted' } },
+              ...(marketClose.legsCount > 0 && Number.isFinite(marketClose.marketCloseValue)
+                ? [{ yAxis: marketClose.marketCloseValue, lineStyle: { color: 'rgba(168,85,247,0.6)', type: 'dashed' } }]
+                : []),
+              ...rangeScenario.points.map(({ pct, targetPrice }) => ({
+                xAxis: targetPrice,
+                lineStyle: { opacity: 0 },
+                label: {
+                  show: true,
+                  formatter: uiLabels.markerRange(pct),
+                  position: 'insideEndBottom',
+                  color: palette.muted,
+                },
+              })),
             ],
           },
           markPoint: {
@@ -1229,7 +1522,7 @@ export function OptionPayoffCalculatorChart({
       chart.dispose();
       echartsInstanceRef.current = null;
     };
-  }, [calculator, chartEngine, chartPoints, curvePoints, currencyConfig, stats, theme, uiLabels]);
+  }, [calculator, chartEngine, chartPoints, curvePoints, currencyConfig, marketClose.legsCount, marketClose.marketCloseValue, rangeScenario.points, stats, theme, uiLabels]);
 
   if (!calculator) {
     return (
@@ -1285,7 +1578,7 @@ export function OptionPayoffCalculatorChart({
           </div>
         </div>
 
-        <div className={`grid min-w-0 w-full grid-cols-3 gap-2 rounded-xl border ${themes[theme].border} bg-black/5 p-3 dark:bg-white/5 lg:w-auto`}>
+        <div className={`grid min-w-0 w-full grid-cols-4 gap-2 rounded-xl border ${themes[theme].border} bg-black/5 p-3 dark:bg-white/5 lg:w-auto`}>
           <div className="min-w-0">
             <div className={`text-[11px] uppercase tracking-wide ${themes[theme].text} opacity-55`}>{uiLabels.priceLabel}</div>
             <div className={`mt-1 text-sm font-semibold ${themes[theme].text}`}>
@@ -1304,6 +1597,12 @@ export function OptionPayoffCalculatorChart({
             <div className={`text-[11px] uppercase tracking-wide ${themes[theme].text} opacity-55`}>{uiLabels.shockLabel}</div>
             <div className={`mt-1 text-sm font-semibold ${themes[theme].text}`}>
               {(activePoint.shock * 100).toFixed(1)}%
+            </div>
+          </div>
+          <div className="min-w-0">
+            <div className={`text-[11px] uppercase tracking-wide ${themes[theme].text} opacity-55`}>{uiLabels.marketCloseValueLabel}</div>
+            <div className={`mt-1 text-sm font-semibold ${themes[theme].text}`}>
+              {marketClose.legsCount > 0 ? formatCurrency(marketClose.marketCloseValue, currencyConfig) : '-'}
             </div>
           </div>
         </div>
@@ -1329,13 +1628,37 @@ export function OptionPayoffCalculatorChart({
         </div>
 
         <div
-          ref={chartRef}
-          className={
+          className={`relative ${
             isFullscreen
               ? 'min-h-0 flex-1 rounded-xl touch-none'
               : '-mx-3 h-[440px] w-[calc(100%+1.5rem)] rounded-xl touch-none sm:mx-0 sm:h-[380px] sm:w-full'
-          }
-        />
+          }`}
+        >
+          <div ref={chartRef} className="absolute inset-0 z-0" />
+
+          {chartEngine === 'tradingview' && axisBand ? (
+            <>
+              <div
+                className="pointer-events-none absolute inset-y-0 z-10 bg-slate-200/50 dark:bg-slate-800/40"
+                style={{ left: 0, width: `${Math.max(0, axisBand.left)}px` }}
+              />
+              <div
+                className="pointer-events-none absolute inset-y-0 z-10 bg-slate-200/50 dark:bg-slate-800/40"
+                style={{ left: `${Math.max(0, axisBand.right)}px`, right: 0 }}
+              />
+            </>
+          ) : null}
+
+          {chartEngine === 'tradingview' ? axisMarkers.map((marker) => (
+            <div
+              key={marker.label}
+              className={`pointer-events-none absolute bottom-1 z-20 rounded border px-1.5 py-0.5 text-[10px] ${themes[theme].border} ${themes[theme].text} bg-white/80 dark:bg-slate-950/60`}
+              style={{ left: `${marker.x}px`, transform: 'translateX(-50%)' }}
+            >
+              {marker.label}
+            </div>
+          )) : null}
+        </div>
 
         {chartEngine === 'plotly' && isPlotlyLoading ? (
           <div className={`text-xs ${themes[theme].text} opacity-70`}>
@@ -1433,6 +1756,39 @@ export function OptionPayoffCalculatorChart({
             {stats.breakevens.length > 0 ? stats.breakevens.map((value) => formatPrice(value)).join(', ') : '-'}
           </div>
         </div>
+      </div>
+
+      <div className="space-y-2">
+        <div className={`text-xs font-semibold ${themes[theme].text} opacity-80`}>{uiLabels.marketCloseSectionLabel}</div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className={`rounded-xl border ${themes[theme].border} p-3 bg-black/5 dark:bg-white/5`}>
+            <div className={`text-xs ${themes[theme].text} opacity-70`}>{uiLabels.marketCloseValueLabel}</div>
+            <div className={`mt-1 text-sm font-semibold ${themes[theme].text}`}>
+              {marketClose.legsCount > 0 ? formatCurrency(marketClose.marketCloseValue, currencyConfig) : '-'}
+            </div>
+          </div>
+          <div className={`rounded-xl border ${themes[theme].border} p-3 bg-black/5 dark:bg-white/5`}>
+            <div className={`text-xs ${themes[theme].text} opacity-70`}>{uiLabels.marketClosePnlLabel}</div>
+            <div className={`mt-1 text-sm font-semibold ${themes[theme].text}`}>
+              {marketClose.legsCount > 0 ? formatCurrency(marketClose.marketClosePnl, currencyConfig) : '-'}
+            </div>
+          </div>
+          <div className={`rounded-xl border ${themes[theme].border} p-3 bg-black/5 dark:bg-white/5`}>
+            <div className={`text-xs ${themes[theme].text} opacity-70`}>{uiLabels.closeOverExpiryMaxLabel}</div>
+            <div className={`mt-1 text-sm font-semibold ${themes[theme].text}`}>
+              {closeOverExpiryMax == null ? '-' : `${(closeOverExpiryMax * 100).toFixed(1)}%`}
+            </div>
+          </div>
+          <div className={`rounded-xl border ${themes[theme].border} p-3 bg-black/5 dark:bg-white/5`}>
+            <div className={`text-xs ${themes[theme].text} opacity-70`}>{uiLabels.modelMinusMarketLabel}</div>
+            <div className={`mt-1 text-sm font-semibold ${themes[theme].text}`}>
+              {modelMinusMarket == null ? '-' : formatCurrency(modelMinusMarket, currencyConfig)}
+            </div>
+          </div>
+        </div>
+        {marketClose.legsCount > 0 && marketClose.usedFallback ? (
+          <div className={`text-xs ${themes[theme].text} opacity-60`}>{uiLabels.marketCloseNote}</div>
+        ) : null}
       </div>
     </div>
   );
