@@ -155,13 +155,314 @@ export function ExpiryGroupCard({
   const [syncPrice, setSyncPrice] = useState<number | null>(null);
   const [spreadHistory, setSpreadHistory] = useState<{ time: string; price: number | null; ts: number }[]>([]);
   const [spreadStatus, setSpreadStatus] = useState<{ ts: number; source: 'snapshot' | 'last_known' | 'empty' } | null>(null);
+  const [comboSpreadHistories, setComboSpreadHistories] = useState<Record<string, { time: string; price: number | null; ts: number }[]>>({});
+  const [comboSpreadStatuses, setComboSpreadStatuses] = useState<Record<string, { ts: number; source: 'snapshot' | 'last_known' | 'empty' }>>({});
+  const [contractUnitMap, setContractUnitMap] = useState<Record<string, number>>({});
   const [isPageLocked, setIsPageLocked] = useState(false);
   const pageLockRef = useRef(false);
+  const requestedContractUnitRef = useRef<Record<string, number>>({});
+  const allSinglePositions = useMemo(() => (allExpiryBuckets || []).flatMap(bucket => bucket.single), [allExpiryBuckets]);
   const basePositions = useMemo(() => filterAndSortPositions(group.single), [filterAndSortPositions, group.single]);
 
   const filteredPositions = useMemo(() => selectedSymbol
     ? basePositions.filter(p => p.opt_undl_code_full === selectedSymbol)
     : basePositions, [selectedSymbol, basePositions]);
+
+  const resolveDisplayPosition = useCallback((position?: OptionsPosition | null) => {
+    if (!position) return null;
+    return (
+      allSinglePositions.find((item) => item.id === position.id) ||
+      filteredPositions.find((item) => item.id === position.id) ||
+      allSinglePositions.find((item) =>
+        (position.contract_code_full && item.contract_code_full === position.contract_code_full) ||
+        (position.contract_code && item.contract_code === position.contract_code) ||
+        (position.contract_code_full && item.contract_code === position.contract_code_full) ||
+        (position.contract_code && item.contract_code_full === position.contract_code)
+      ) ||
+      filteredPositions.find((item) =>
+        (position.contract_code_full && item.contract_code_full === position.contract_code_full) ||
+        (position.contract_code && item.contract_code === position.contract_code) ||
+        (position.contract_code_full && item.contract_code === position.contract_code_full) ||
+        (position.contract_code && item.contract_code_full === position.contract_code)
+      ) ||
+      position
+    );
+  }, [allSinglePositions, filteredPositions]);
+
+  const getPositionContractLabel = useCallback((position?: OptionsPosition | null) => {
+    const resolved = resolveDisplayPosition(position);
+    if (!resolved) return '';
+    return resolved.contract_name || resolved.contract_code_full || resolved.contract_code || resolved.symbol || '';
+  }, [resolveDisplayPosition]);
+
+  const normalizeContractCodeKey = useCallback((code?: string | null) => {
+    return typeof code === 'string' ? code.trim() : '';
+  }, []);
+
+  const registerContractUnit = useCallback((code: string | undefined | null, fullCode: string | undefined | null, unit: number) => {
+    if (!Number.isFinite(unit) || unit <= 0) return;
+    const codeKey = normalizeContractCodeKey(code);
+    const fullCodeKey = normalizeContractCodeKey(fullCode);
+    const baseFullCodeKey = fullCodeKey ? fullCodeKey.split('.')[0] : '';
+    setContractUnitMap((prev) => {
+      const next = { ...prev };
+      if (codeKey) next[codeKey] = unit;
+      if (fullCodeKey) next[fullCodeKey] = unit;
+      if (baseFullCodeKey) next[baseFullCodeKey] = unit;
+      return next;
+    });
+  }, [normalizeContractCodeKey]);
+
+  const getContractUnitForPosition = useCallback((position?: OptionsPosition | null) => {
+    if (!position) return null;
+    const rawUnit = Number((position as OptionsPosition & { contract_unit?: unknown }).contract_unit);
+    if (Number.isFinite(rawUnit) && rawUnit > 0) return rawUnit;
+    const fullCodeKey = normalizeContractCodeKey(position.contract_code_full);
+    const codeKey = normalizeContractCodeKey(position.contract_code);
+    const symbolKey = normalizeContractCodeKey(position.symbol);
+    const keys = [
+      fullCodeKey,
+      fullCodeKey ? fullCodeKey.split('.')[0] : '',
+      codeKey,
+      symbolKey,
+      symbolKey ? symbolKey.split('.')[0] : '',
+    ].filter(Boolean);
+    for (const key of keys) {
+      const value = contractUnitMap[key];
+      if (Number.isFinite(value) && value > 0) return value;
+    }
+    return null;
+  }, [contractUnitMap, normalizeContractCodeKey]);
+
+  const normalizeOptionType = useCallback((position?: OptionsPosition | null): 'call' | 'put' | null => {
+    if (!position) return null;
+    const typeRaw = String(position.type || '').toLowerCase();
+    const altRaw = String(
+      position.option_type ||
+        position.contract_type_zh ||
+        position.contract_type ||
+        position.contract_name ||
+        position.symbol ||
+        ''
+    ).toLowerCase();
+    const raw = typeRaw === 'call' || typeRaw === 'put' ? typeRaw : altRaw;
+    if (raw === 'call' || raw.includes('call') || raw.includes('认购') || raw.includes('购')) return 'call';
+    if (raw === 'put' || raw.includes('put') || raw.includes('认沽') || raw.includes('沽')) return 'put';
+    return null;
+  }, []);
+
+  const formatStrikeNumber = useCallback((value: number) => {
+    if (!Number.isFinite(value)) return '--';
+    if (Number.isInteger(value)) return String(value);
+    return value.toFixed(4).replace(/\.?0+$/, '');
+  }, []);
+
+  const expiryStrikeLadder = useMemo(() => {
+    const sourceQuotes = [optionsData, localOptionsData, ...(optionsDataMap ? Object.values(optionsDataMap) : [])]
+      .filter((data): data is OptionsData => !!data)
+      .filter(data => !selectedSymbol || data.opt_undl_code_full === selectedSymbol)
+      .flatMap(data => data.quotes || [])
+      .filter(q => q.expiry === group.expiry);
+    const quoteStrikes = sourceQuotes.map(q => getQuoteStrike(q)).filter((strike) => Number.isFinite(strike));
+    const positionStrikes = allSinglePositions
+      .filter(p => p.expiry === group.expiry)
+      .map(p => Number(p.contract_strike_price ?? p.strike))
+      .filter((strike) => Number.isFinite(strike));
+    return Array.from(new Set([...quoteStrikes, ...positionStrikes])).sort((a, b) => a - b);
+  }, [allSinglePositions, getQuoteStrike, group.expiry, localOptionsData, optionsData, optionsDataMap, selectedSymbol]);
+
+  const describeStrikeGap = useCallback((strikeA: number, strikeB: number) => {
+    const diff = Math.abs(strikeA - strikeB);
+    const idxA = expiryStrikeLadder.indexOf(strikeA);
+    const idxB = expiryStrikeLadder.indexOf(strikeB);
+    const ticks = idxA >= 0 && idxB >= 0 ? Math.abs(idxA - idxB) : null;
+    const priceDiffText = formatStrikeNumber(diff);
+    if (ticks != null && ticks > 0) {
+      return `相差 ${ticks} 档，行权价差 ${priceDiffText}`;
+    }
+    if (diff > 0) {
+      return `行权价差 ${priceDiffText}`;
+    }
+    return '同行权价';
+  }, [expiryStrikeLadder, formatStrikeNumber]);
+
+  const getStrategyStrikeGapSummary = useCallback((strategy: OptionsStrategy) => {
+    const legs = (strategy.positions || [])
+      .map((position) => resolveDisplayPosition(position))
+      .filter((position): position is OptionsPosition => !!position);
+    if (legs.length < 2) return [];
+
+    const summaries: string[] = [];
+    (['call', 'put'] as const).forEach((optionType) => {
+      const typedLegs = legs.filter((position) => normalizeOptionType(position) === optionType);
+      if (typedLegs.length < 2) return;
+
+      const buys = typedLegs.filter(position => position.position_type === 'buy');
+      const sells = typedLegs.filter(position => position.position_type === 'sell');
+      const optionTypeLabel = optionType === 'call' ? '认购' : '认沽';
+
+      if (buys.length === 1 && sells.length === 1) {
+        const buyStrike = Number(buys[0].contract_strike_price ?? buys[0].strike);
+        const sellStrike = Number(sells[0].contract_strike_price ?? sells[0].strike);
+        if (Number.isFinite(buyStrike) && Number.isFinite(sellStrike)) {
+          summaries.push(
+            `${optionTypeLabel}: 买 ${formatStrikeNumber(buyStrike)} / 卖 ${formatStrikeNumber(sellStrike)}，${describeStrikeGap(buyStrike, sellStrike)}`
+          );
+          return;
+        }
+      }
+
+      const uniqueStrikes = Array.from(new Set(
+        typedLegs
+          .map(position => Number(position.contract_strike_price ?? position.strike))
+          .filter((strike) => Number.isFinite(strike))
+      )).sort((a, b) => a - b);
+
+      if (uniqueStrikes.length >= 2) {
+        const firstStrike = uniqueStrikes[0];
+        const lastStrike = uniqueStrikes[uniqueStrikes.length - 1];
+        summaries.push(
+          `${optionTypeLabel}: ${formatStrikeNumber(firstStrike)} -> ${formatStrikeNumber(lastStrike)}，${describeStrikeGap(firstStrike, lastStrike)}`
+        );
+      }
+    });
+
+    return summaries;
+  }, [describeStrikeGap, formatStrikeNumber, normalizeOptionType, resolveDisplayPosition]);
+
+  const getStrategyPerformanceMetrics = useCallback((
+    strategy: OptionsStrategy,
+    est?: { net: number | null; perHedge: number | null; pairedQty: number }
+  ) => {
+    const legs = (strategy.positions || [])
+      .map((position) => resolveDisplayPosition(position))
+      .filter((position): position is OptionsPosition => !!position);
+
+    let hasVerticalCandidate = false;
+    let missingUnitForCandidate = false;
+    let hasUnknownTypeCandidate = false;
+
+    if (legs.length === 2) {
+      const buys = legs.filter((position) => position.position_type === 'buy');
+      const sells = legs.filter((position) => position.position_type === 'sell');
+      if (buys.length === 1 && sells.length === 1) {
+        const t1 = normalizeOptionType(legs[0]);
+        const t2 = normalizeOptionType(legs[1]);
+        if (t1 == null && t2 == null) {
+          hasUnknownTypeCandidate = true;
+        }
+      }
+    }
+
+    for (const optionType of ['call', 'put'] as const) {
+      const typedLegs = legs.filter((position) => normalizeOptionType(position) === optionType);
+      if (typedLegs.length !== 2) continue;
+
+      const buys = typedLegs.filter((position) => position.position_type === 'buy');
+      const sells = typedLegs.filter((position) => position.position_type === 'sell');
+      if (buys.length !== 1 || sells.length !== 1) continue;
+
+      hasVerticalCandidate = true;
+
+      const buyLeg = buys[0];
+      const sellLeg = sells[0];
+      const buyStrike = Number(buyLeg.contract_strike_price ?? buyLeg.strike);
+      const sellStrike = Number(sellLeg.contract_strike_price ?? sellLeg.strike);
+      const spreadWidth = Math.abs(sellStrike - buyStrike);
+      if (!Number.isFinite(spreadWidth) || spreadWidth <= 0) continue;
+
+      const contractUnit = getContractUnitForPosition(buyLeg) ?? getContractUnitForPosition(sellLeg);
+      if (!contractUnit) {
+        missingUnitForCandidate = true;
+        continue;
+      }
+
+      const findStrikeIndex = (strike: number) => {
+        const eps = 1e-8;
+        for (let i = 0; i < expiryStrikeLadder.length; i += 1) {
+          const v = expiryStrikeLadder[i];
+          if (Math.abs(v - strike) <= eps) return i;
+        }
+        return -1;
+      };
+      const idxA = findStrikeIndex(buyStrike);
+      const idxB = findStrikeIndex(sellStrike);
+      const tickCount = idxA >= 0 && idxB >= 0 ? Math.abs(idxA - idxB) : null;
+      const tickSize = tickCount != null && tickCount > 0 ? spreadWidth / tickCount : null;
+
+      const comboCount = Math.max(1, est?.pairedQty || 0);
+      const avgStrike = (Math.abs(buyStrike) + Math.abs(sellStrike)) / 2;
+      const refSpot = underlyingPrice != null ? Math.abs(underlyingPrice) : null;
+      const ratio = refSpot != null && refSpot > 0 ? avgStrike / refSpot : null;
+      const strikeScale =
+        ratio != null && ratio >= 200
+          ? (ratio >= 5000 ? 10000 : 1000)
+          : 1;
+      const normalizedSpreadWidth = spreadWidth / strikeScale;
+      const normalizedTickSize = tickSize != null ? tickSize / strikeScale : null;
+
+      const maxProfit = normalizedSpreadWidth * contractUnit * comboCount;
+      const currentSpreadValue = est?.net != null ? Math.max(0, est.net * contractUnit) : null;
+      const remainingProfit = currentSpreadValue != null ? Math.max(0, maxProfit - currentSpreadValue) : null;
+      const profitRealizationPct =
+        currentSpreadValue != null && maxProfit > 0
+          ? Math.max(0, Math.min(100, (currentSpreadValue / maxProfit) * 100))
+          : null;
+
+      return {
+        mode: 'spread_value' as const,
+        maxProfit,
+        currentProfit: currentSpreadValue,
+        remainingProfit,
+        profitRealizationPct,
+        hasInfiniteMaxProfit: false,
+        contractUnit,
+        comboCount,
+        currentLabel: '当前价差价值',
+        tickCount,
+        tickSize: normalizedTickSize,
+        strikeDiff: normalizedSpreadWidth,
+        strikeScale,
+        calcStatus: 'ok' as const,
+        calcStatusText: '',
+      };
+    }
+
+    const rawMaxProfit = strategy.maxReward;
+    const currentProfit = Number.isFinite(strategy.profitLoss) ? strategy.profitLoss : null;
+    const hasInfiniteMaxProfit = rawMaxProfit === Infinity;
+    const maxProfit = Number.isFinite(rawMaxProfit) && rawMaxProfit > 0 ? rawMaxProfit : null;
+    const remainingProfit = maxProfit != null && currentProfit != null ? Math.max(0, maxProfit - currentProfit) : null;
+    const profitRealizationPct =
+      maxProfit != null && currentProfit != null
+        ? Math.max(0, Math.min(100, (currentProfit / maxProfit) * 100))
+        : null;
+    return {
+      mode: 'pnl' as const,
+      maxProfit,
+      currentProfit,
+      remainingProfit,
+      profitRealizationPct,
+      hasInfiniteMaxProfit,
+      contractUnit: null,
+      comboCount: null,
+      currentLabel: '当前盈亏',
+      tickCount: null,
+      tickSize: null,
+      strikeDiff: null,
+      strikeScale: null,
+      calcStatus: hasVerticalCandidate && missingUnitForCandidate
+        ? 'missing_unit' as const
+        : hasUnknownTypeCandidate
+          ? 'unknown_type' as const
+          : 'not_vertical' as const,
+      calcStatusText: hasVerticalCandidate && missingUnitForCandidate
+        ? '合约乘数未就绪（等待合约详情 API）'
+        : hasUnknownTypeCandidate
+          ? '腿类型未识别（缺少 Call/Put 标记）'
+          : '仅支持标准两腿价差（一买一卖）',
+    };
+  }, [expiryStrikeLadder, getContractUnitForPosition, normalizeOptionType, resolveDisplayPosition, underlyingPrice]);
 
   // Calculate total margin for the group
   const totalMargin = useMemo(() => {
@@ -496,35 +797,104 @@ export function ExpiryGroupCard({
     [getCounterpartyTopPrice, resolvePriceUpdate]
   );
 
-  const currentSpreadSnapshot = useMemo(() => {
-    if (confirmData?.meta?.action === 'unwind_combo_selection') {
-      const strategies = confirmData.meta?.strategies || [];
-      if (strategies.length > 0) {
-        const item = strategies[0];
-        const strategy = item.strategy;
-        const qty = Math.max(1, Number(item?.qty || strategy.positions[0]?.quantity || 1));
+  const comboStrategyItems = useMemo(
+    () => (confirmData?.meta?.action === 'unwind_combo_selection' ? (confirmData.meta?.strategies || []) : []),
+    [confirmData]
+  );
 
-        const est = estimateCloseForStrategy(strategy);
-        if (est.perHedge != null) {
-          return { price: est.perHedge, ts: est.ts || Date.now() };
+  const comboStrategyIdsKey = useMemo(
+    () => comboStrategyItems.map((item) => item.strategy.id).join('|'),
+    [comboStrategyItems]
+  );
+
+  useEffect(() => {
+    const now = Date.now();
+    const retryAfterMs = 30_000;
+    const positions = [
+      ...comboStrategyItems.flatMap((item) => item.strategy?.positions || []),
+      ...(advisedModal
+        ? [advisedModal.combo.buy_position?.position, advisedModal.combo.sell_position?.position].filter(Boolean)
+        : []),
+    ].filter((position): position is OptionsPosition => !!position);
+
+    const requestTargets = positions
+      .map((position) => {
+        const contractCode = normalizeContractCodeKey(position.contract_code);
+        const fullCode = normalizeContractCodeKey(position.contract_code_full);
+        const baseFromFull = fullCode ? fullCode.split('.')[0] : '';
+        const candidates = [contractCode, baseFromFull].filter(Boolean);
+        return { candidates, contractCode, fullCode, baseFromFull };
+      })
+      .map((item) => {
+        const picked = item.candidates.find((c) => {
+          if (contractUnitMap[c]) return false;
+          const lastReqAt = requestedContractUnitRef.current[c] ?? 0;
+          if (lastReqAt && now - lastReqAt < retryAfterMs) return false;
+          return true;
+        }) || '';
+        return { requestCode: picked, contractCode: item.contractCode, fullCode: item.fullCode };
+      })
+      .filter((item) => !!item.requestCode)
+      .filter((item) => {
+        if (contractUnitMap[item.requestCode]) return false;
+        const lastReqAt = requestedContractUnitRef.current[item.requestCode] ?? 0;
+        if (lastReqAt && now - lastReqAt < retryAfterMs) return false;
+        return true;
+      });
+
+    requestTargets.forEach((item) => {
+      requestedContractUnitRef.current[item.requestCode] = now;
+      void optionsService.getOptionContractDetail(item.requestCode).then(({ data }) => {
+        const unit = Number(data?.contract_unit);
+        if (Number.isFinite(unit) && unit > 0) {
+          registerContractUnit(item.contractCode || item.requestCode, item.fullCode, unit);
         }
-        if (strategy.currentValue != null && Number.isFinite(strategy.currentValue)) {
-          return { price: strategy.currentValue / qty / 100, ts: Date.now() };
-        }
-      }
+      }).catch((error) => {
+        logger.warn('[ExpiryGroupCard] Failed to fetch contract unit', { code: item.requestCode, error });
+      });
+    });
+  }, [advisedModal, comboStrategyItems, contractUnitMap, normalizeContractCodeKey, registerContractUnit]);
+
+  const getStrategySpreadSnapshot = useCallback((item: { strategy: OptionsStrategy; qty: number }) => {
+    const strategy = item.strategy;
+    const qty = Math.max(1, Number(item?.qty || strategy.positions[0]?.quantity || 1));
+    const est = estimateCloseForStrategy(strategy);
+    if (est.perHedge != null) {
+      return { price: est.perHedge, ts: est.ts || Date.now() };
     }
+    if (strategy.currentValue != null && Number.isFinite(strategy.currentValue)) {
+      return { price: strategy.currentValue / qty / 100, ts: Date.now() };
+    }
+    return null;
+  }, [estimateCloseForStrategy]);
 
+  const comboStrategySnapshotMap = useMemo(() => {
+    const map: Record<string, { price: number; ts: number } | null> = {};
+    comboStrategyItems.forEach((item) => {
+      map[item.strategy.id] = getStrategySpreadSnapshot(item);
+    });
+    return map;
+  }, [comboStrategyItems, getStrategySpreadSnapshot]);
+
+  const comboStrategyItemsRef = useRef(comboStrategyItems);
+  comboStrategyItemsRef.current = comboStrategyItems;
+
+  const comboStrategySnapshotMapRef = useRef(comboStrategySnapshotMap);
+  comboStrategySnapshotMapRef.current = comboStrategySnapshotMap;
+
+  const currentSpreadSnapshot = useMemo(() => {
     if (advisedModal && advisedPricePreview?.perHedge != null) {
       return { price: advisedPricePreview.perHedge, ts: advisedPricePreview.ts || Date.now() };
     }
 
     return null;
-  }, [advisedModal, advisedPricePreview, confirmData, estimateCloseForStrategy]);
+  }, [advisedModal, advisedPricePreview]);
 
   const spreadSnapshotRef = useRef<{ price: number; ts: number } | null>(null);
   spreadSnapshotRef.current = currentSpreadSnapshot;
 
   const lastKnownSpreadPriceRef = useRef<number | null>(null);
+  const comboLastKnownSpreadPriceRef = useRef<Record<string, number>>({});
 
   const pushSpreadSample = useCallback((sampleTs: number) => {
     const snap = spreadSnapshotRef.current;
@@ -551,13 +921,79 @@ export function ExpiryGroupCard({
     setSpreadStatus({ ts: sampleTs, source });
   }, []);
 
+  const pushComboSpreadSamples = useCallback((sampleTs: number) => {
+    const items = comboStrategyItemsRef.current;
+    const snapshots = comboStrategySnapshotMapRef.current;
+    if (items.length === 0) return;
+
+    const time = format(new Date(sampleTs), 'HH:mm:ss');
+    const statusMap: Record<string, { ts: number; source: 'snapshot' | 'last_known' | 'empty' }> = {};
+
+    setComboSpreadHistories((prev) => {
+      const next: Record<string, { time: string; price: number | null; ts: number }[]> = {};
+      items.forEach((item) => {
+        const strategyId = item.strategy.id;
+        const snap = snapshots[strategyId];
+        let price: number | null = null;
+        let source: 'snapshot' | 'last_known' | 'empty' = 'empty';
+        if (snap && Number.isFinite(snap.price)) {
+          price = snap.price;
+          comboLastKnownSpreadPriceRef.current[strategyId] = snap.price;
+          source = 'snapshot';
+        } else if (typeof comboLastKnownSpreadPriceRef.current[strategyId] === 'number') {
+          price = comboLastKnownSpreadPriceRef.current[strategyId];
+          source = 'last_known';
+        }
+
+        const prevHistory = prev[strategyId] || [];
+        const last = prevHistory[prevHistory.length - 1];
+        next[strategyId] =
+          last && sampleTs - last.ts < 900
+            ? prevHistory
+            : [...prevHistory, { time, price, ts: sampleTs }].slice(-60);
+        statusMap[strategyId] = { ts: sampleTs, source };
+      });
+      return next;
+    });
+
+    setComboSpreadStatuses(statusMap);
+  }, []);
+
+  const getStrategyWatchCodes = useCallback((strategy: OptionsStrategy) => {
+    return normalizeCodeList((strategy.positions || []).map((p) => p.contract_code_full || p.contract_code || p.symbol));
+  }, [normalizeCodeList]);
+
+  const getSpreadWatchStatusText = useCallback((watchCodes: string[]) => {
+    if (watchCodes.length === 0) return '';
+    const parts = watchCodes.slice(0, 4).map((code) => {
+      const direct = prices[code];
+      if (direct) return `${code} OK`;
+      const base = code.split('.')[0];
+      const baseHit = base && prices[base];
+      if (baseHit) return `${code} OK(${base})`;
+      const indexedKey = base ? priceKeyIndex.get(base) : undefined;
+      if (indexedKey && prices[indexedKey]) return `${code} OK(${indexedKey})`;
+      return `${code} MISS`;
+    });
+    const extra = watchCodes.length > 4 ? ` +${watchCodes.length - 4}` : '';
+    return `订阅 ${watchCodes.length}: ${parts.join(' • ')}${extra}`;
+  }, [priceKeyIndex, prices]);
+
+  const getSpreadWatchQuoteText = useCallback((watchCodes: string[]) => {
+    if (watchCodes.length === 0) return '';
+    const parts = watchCodes.slice(0, 2).map((code) => {
+      const update = resolvePriceUpdate([code]);
+      const bid1 = update?.bid_price?.[0] ?? update?.bid;
+      const ask1 = update?.ask_price?.[0] ?? update?.ask;
+      const ts = update?.timestamp ? format(new Date(update.timestamp), 'HH:mm:ss') : '--';
+      const bidText = typeof bid1 === 'number' && Number.isFinite(bid1) ? bid1.toFixed(4) : '--';
+      const askText = typeof ask1 === 'number' && Number.isFinite(ask1) ? ask1.toFixed(4) : '--';
+      return `${code} BID1 ${bidText} ASK1 ${askText} @${ts}`;
+    });
+    return parts.join(' | ');
+  }, [resolvePriceUpdate]);
+
   const spreadWatchCodes = useMemo(() => {
-    if (confirmData?.meta?.action === 'unwind_combo_selection') {
-      const strategies = confirmData.meta?.strategies || [];
-      const first = strategies[0]?.strategy;
-      const legs = first?.positions || [];
-      return normalizeCodeList(legs.map((p) => p.contract_code_full || p.contract_code || p.symbol));
-    }
     if (advisedModal) {
       const buyPos = advisedModal.combo.buy_position?.position;
       const sellPos = advisedModal.combo.sell_position?.position;
@@ -569,57 +1005,56 @@ export function ExpiryGroupCard({
     return [];
   }, [advisedModal, confirmData, normalizeCodeList]);
 
-  const spreadWatchStatusText = useMemo(() => {
-    if (spreadWatchCodes.length === 0) return '';
-    const parts = spreadWatchCodes.slice(0, 4).map((code) => {
-      const direct = prices[code];
-      if (direct) return `${code} OK`;
-      const base = code.split('.')[0];
-      const baseHit = base && prices[base];
-      if (baseHit) return `${code} OK(${base})`;
-      const indexedKey = base ? priceKeyIndex.get(base) : undefined;
-      if (indexedKey && prices[indexedKey]) return `${code} OK(${indexedKey})`;
-      return `${code} MISS`;
-    });
-    const extra = spreadWatchCodes.length > 4 ? ` +${spreadWatchCodes.length - 4}` : '';
-    return `订阅 ${spreadWatchCodes.length}: ${parts.join(' • ')}${extra}`;
-  }, [priceKeyIndex, prices, spreadWatchCodes]);
+  const spreadWatchStatusText = useMemo(
+    () => getSpreadWatchStatusText(spreadWatchCodes),
+    [getSpreadWatchStatusText, spreadWatchCodes]
+  );
 
-  const spreadWatchQuoteText = useMemo(() => {
-    if (spreadWatchCodes.length === 0) return '';
-    const parts = spreadWatchCodes.slice(0, 2).map((code) => {
-      const update = resolvePriceUpdate([code]);
-      const bid1 = update?.bid_price?.[0] ?? update?.bid;
-      const ask1 = update?.ask_price?.[0] ?? update?.ask;
-      const ts = update?.timestamp ? format(new Date(update.timestamp), 'HH:mm:ss') : '--';
-      const bidText = typeof bid1 === 'number' && Number.isFinite(bid1) ? bid1.toFixed(4) : '--';
-      const askText = typeof ask1 === 'number' && Number.isFinite(ask1) ? ask1.toFixed(4) : '--';
-      return `${code} BID1 ${bidText} ASK1 ${askText} @${ts}`;
-    });
-    return parts.join(' | ');
-  }, [resolvePriceUpdate, spreadWatchCodes]);
+  const spreadWatchQuoteText = useMemo(
+    () => getSpreadWatchQuoteText(spreadWatchCodes),
+    [getSpreadWatchQuoteText, spreadWatchCodes]
+  );
 
   useEffect(() => {
-    if (!confirmData && !advisedModal) {
+    if (!advisedModal) {
       if (spreadHistory.length > 0) setSpreadHistory([]);
     }
-  }, [advisedModal, confirmData, spreadHistory.length]);
+  }, [advisedModal, spreadHistory.length]);
 
   useEffect(() => {
-    if (!confirmData && !advisedModal) return;
+    if (!advisedModal) return;
     const now = Date.now();
     pushSpreadSample(now);
     const timer = window.setInterval(() => {
       pushSpreadSample(Date.now());
     }, 1500);
     return () => window.clearInterval(timer);
-  }, [advisedModal, confirmData, pushSpreadSample]);
+  }, [advisedModal, pushSpreadSample]);
 
   useEffect(() => {
-    if (!confirmData && !advisedModal) return;
+    if (!advisedModal) return;
     if (!currentSpreadSnapshot) return;
     pushSpreadSample(Date.now());
-  }, [advisedModal, confirmData, currentSpreadSnapshot, pushSpreadSample]);
+  }, [advisedModal, currentSpreadSnapshot, pushSpreadSample]);
+
+  useEffect(() => {
+    if (!comboStrategyIdsKey) {
+      setComboSpreadHistories({});
+      setComboSpreadStatuses({});
+      comboLastKnownSpreadPriceRef.current = {};
+      return;
+    }
+    pushComboSpreadSamples(Date.now());
+    const timer = window.setInterval(() => {
+      pushComboSpreadSamples(Date.now());
+    }, 1500);
+    return () => window.clearInterval(timer);
+  }, [comboStrategyIdsKey, pushComboSpreadSamples]);
+
+  useEffect(() => {
+    if (!comboStrategyIdsKey) return;
+    pushComboSpreadSamples(Date.now());
+  }, [comboStrategyIdsKey, comboStrategySnapshotMap, pushComboSpreadSamples]);
 
   return (
     <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
@@ -2277,43 +2712,22 @@ export function ExpiryGroupCard({
         <div className="mt-4 overflow-y-auto min-h-0 flex-1 space-y-2">
           {confirmData.meta?.action === 'unwind_combo_selection' ? (
             <div className="space-y-4">
-              <div className={`${themes[theme].background} rounded-lg border ${themes[theme].border} p-3`}>
-                <div className={`mb-1 text-[11px] ${themes[theme].text} opacity-70 flex items-center justify-between`}>
-                  <span>点数 {spreadHistory.length}</span>
-                  <span>
-                    {spreadStatus
-                      ? `采样 ${format(new Date(spreadStatus.ts), 'HH:mm:ss')} • ${spreadStatus.source === 'snapshot' ? 'WS' : (spreadStatus.source === 'last_known' ? '沿用' : '等待')}`
-                      : '采样 --'}
-                  </span>
-                </div>
-                {spreadWatchStatusText ? (
-                  <div className={`mb-1 text-[11px] ${themes[theme].text} opacity-60`}>
-                    {spreadWatchStatusText}
-                  </div>
-                ) : null}
-                {spreadWatchQuoteText ? (
-                  <div className={`mb-1 text-[11px] ${themes[theme].text} opacity-60 font-mono`}>
-                    {spreadWatchQuoteText}
-                  </div>
-                ) : null}
-                <RealTimeSpreadChart theme={theme} data={spreadHistory} title="价差走势 (Per Combo)" />
-              </div>
               {(confirmData.meta.strategies || []).map((item, idx) => (
                 <div
                   key={`strat-select-${idx}`}
                   className={`p-3 rounded border ${themes[theme].border} flex flex-col md:flex-row md:items-start md:justify-between gap-3`}
                 >
                   <div className="min-w-0 flex-1">
-                    <div className={`font-semibold ${themes[theme].text}`}>
-                      {item.strategy.name}
-                      <span className="ml-2 text-xs font-normal opacity-50">{item.strategy.id}</span>
-                    </div>
-                    <div className={`text-sm opacity-75 ${themes[theme].text}`}>数量: {item.qty}</div>
-                    <div className={`text-xs opacity-50 ${themes[theme].text}`}>
-                      {item.strategy.positions.map(p => `${p.contract_code || p.symbol} x ${p.quantity}`).join(', ')}
-                    </div>
                     {(() => {
+                      const strikeGapSummary = getStrategyStrikeGapSummary(item.strategy);
                       const est = estimateCloseForStrategy(item.strategy);
+                      const strategyId = item.strategy.id;
+                      const strategyHistory = comboSpreadHistories[strategyId] || [];
+                      const strategyStatus = comboSpreadStatuses[strategyId];
+                      const strategyWatchCodes = getStrategyWatchCodes(item.strategy);
+                      const strategyWatchStatusText = getSpreadWatchStatusText(strategyWatchCodes);
+                      const strategyWatchQuoteText = getSpreadWatchQuoteText(strategyWatchCodes);
+                      const perf = getStrategyPerformanceMetrics(item.strategy, est);
                       const net = est.net;
                       const label = net == null ? '对手方一档价未就绪' : (net >= 0 ? '预计收到' : '预计支付');
                       const amountText = net == null ? '--' : formatCurrency(Math.abs(net), currencyConfig, 4);
@@ -2323,8 +2737,114 @@ export function ExpiryGroupCard({
                           : `${est.perHedge >= 0 ? '+' : '-'}${formatCurrency(Math.abs(est.perHedge), currencyConfig, 4)}`;
                       const tsText = est.ts ? format(new Date(est.ts), 'HH:mm:ss') : '--';
                       const pairedQty = est.pairedQty || 0;
+                      const maxProfitText = perf.hasInfiniteMaxProfit
+                        ? '无限'
+                        : perf.maxProfit == null
+                          ? '--'
+                          : formatCurrency(perf.maxProfit, currencyConfig, 4);
+                      const currentProfitText = perf.currentProfit == null
+                        ? '--'
+                        : `${perf.currentProfit >= 0 ? '+' : '-'}${formatCurrency(Math.abs(perf.currentProfit), currencyConfig, 4)}`;
+                      const remainingProfitText = perf.remainingProfit == null
+                        ? '--'
+                        : formatCurrency(perf.remainingProfit, currencyConfig, 4);
+                      const profitRealizationText = perf.profitRealizationPct == null
+                        ? '--'
+                        : `${perf.profitRealizationPct.toFixed(1)}%`;
+                      const chartData = perf.mode === 'spread_value' && perf.contractUnit != null && perf.comboCount != null
+                        ? strategyHistory.map((point) => ({
+                            ...point,
+                            price: point.price == null ? null : point.price * perf.contractUnit * perf.comboCount,
+                          }))
+                        : strategyHistory;
                       return (
-                        <div className={`mt-2 text-xs ${themes[theme].text} opacity-80`}>
+                        <>
+                          <div className={`font-semibold ${themes[theme].text}`}>
+                            {item.strategy.name}
+                            <span className="ml-2 text-xs font-normal opacity-50">{item.strategy.id}</span>
+                          </div>
+                          <div className={`text-sm opacity-75 ${themes[theme].text}`}>数量: {item.qty}</div>
+                          {strikeGapSummary.length > 0 ? (
+                            <div className={`mt-1 space-y-0.5 text-xs ${themes[theme].text} opacity-70`}>
+                              {strikeGapSummary.map((summary, summaryIdx) => (
+                                <div key={`strike-gap-${idx}-${summaryIdx}`}>{summary}</div>
+                              ))}
+                            </div>
+                          ) : null}
+                          <div className={`text-xs opacity-50 ${themes[theme].text}`}>
+                            {item.strategy.positions.map(p => `${getPositionContractLabel(p)} x ${p.quantity}`).join(', ')}
+                          </div>
+                          <div className="mt-3 grid grid-cols-2 gap-2 text-xs md:grid-cols-4">
+                            <div className={`${themes[theme].background} rounded border ${themes[theme].border} p-2`}>
+                              <div className={`opacity-60 ${themes[theme].text}`}>最大盈利</div>
+                              <div className={`mt-1 font-mono ${themes[theme].text}`}>{maxProfitText}</div>
+                              {perf.mode === 'spread_value' && perf.tickCount != null && perf.tickCount > 0 && perf.tickSize != null && perf.contractUnit != null ? (
+                                <div className={`mt-0.5 text-[10px] ${themes[theme].text} opacity-60 font-mono`}>
+                                  {`${perf.tickCount}档 × ${formatStrikeNumber(perf.tickSize)} × ${perf.contractUnit}${perf.strikeScale && perf.strikeScale !== 1 ? ` (÷${perf.strikeScale})` : ''}`}
+                                </div>
+                              ) : null}
+                            </div>
+                            <div className={`${themes[theme].background} rounded border ${themes[theme].border} p-2`}>
+                              <div className={`opacity-60 ${themes[theme].text}`}>{perf.currentLabel}</div>
+                              <div className={`mt-1 font-mono ${perf.currentProfit != null && perf.currentProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                                {currentProfitText}
+                              </div>
+                            </div>
+                            <div className={`${themes[theme].background} rounded border ${themes[theme].border} p-2`}>
+                              <div className={`opacity-60 ${themes[theme].text}`}>距最大盈利</div>
+                              <div className={`mt-1 font-mono ${themes[theme].text}`}>{remainingProfitText}</div>
+                            </div>
+                            <div className={`${themes[theme].background} rounded border ${themes[theme].border} p-2`}>
+                              <div className={`opacity-60 ${themes[theme].text}`}>利润实现率</div>
+                              <div className={`mt-1 font-mono ${themes[theme].text}`}>{profitRealizationText}</div>
+                            </div>
+                          </div>
+                          <div className={`mt-3 rounded border p-2 ${themes[theme].border} ${themes[theme].background}`}>
+                            {perf.calcStatus !== 'ok' ? (
+                              <div className={`mb-2 text-[11px] ${themes[theme].text} opacity-70`}>
+                                最大盈利线未显示：{perf.calcStatusText}
+                              </div>
+                            ) : null}
+                            <div className={`mb-1 text-[11px] ${themes[theme].text} opacity-70 flex items-center justify-between`}>
+                              <span>点数 {strategyHistory.length}</span>
+                              <span>
+                                {strategyStatus
+                                  ? `采样 ${format(new Date(strategyStatus.ts), 'HH:mm:ss')} • ${strategyStatus.source === 'snapshot' ? 'WS' : (strategyStatus.source === 'last_known' ? '沿用' : '等待')}`
+                                  : '采样 --'}
+                              </span>
+                            </div>
+                            {strategyWatchStatusText ? (
+                              <div className={`mb-1 text-[11px] ${themes[theme].text} opacity-60`}>
+                                {strategyWatchStatusText}
+                              </div>
+                            ) : null}
+                            {strategyWatchQuoteText ? (
+                              <div className={`mb-1 text-[11px] ${themes[theme].text} opacity-60 font-mono`}>
+                                {strategyWatchQuoteText}
+                              </div>
+                            ) : null}
+                            <RealTimeSpreadChart
+                              theme={theme}
+                              data={chartData}
+                              title={perf.mode === 'spread_value' ? '组合价值走势' : '组合价差走势'}
+                              height={150}
+                              referenceLines={
+                                perf.mode === 'spread_value' && perf.maxProfit != null
+                                  ? [{ value: perf.maxProfit, label: '最大盈利', color: '#ef4444', dashArray: '6 4' }]
+                                  : []
+                              }
+                              formatValue={(value) => {
+                                if (value == null) return '--';
+                                const abs = Math.abs(value);
+                                const decimals =
+                                  perf.mode === 'spread_value'
+                                    ? (abs < 100 ? 2 : 0)
+                                    : 4;
+                                return formatCurrency(value, currencyConfig, decimals);
+                              }}
+                            />
+                          </div>
+                          <div className={`mt-2 text-xs ${themes[theme].text} opacity-80`}>
                           <div className="flex items-center justify-between gap-3">
                             <span className="font-semibold whitespace-nowrap">{label}</span>
                             <div className="flex items-baseline gap-2 min-w-0">
@@ -2353,7 +2873,7 @@ export function ExpiryGroupCard({
                               return (
                               <div key={`leg-est-${idx}-${i}`} className="grid grid-cols-[minmax(0,1fr)_84px_minmax(0,140px)] items-center gap-3">
                                 <div className="truncate opacity-80">
-                                  {l.pos.contract_code || l.pos.contract_code_full || l.pos.symbol} • {l.closeSide === 'buy' ? '买入' : '卖出'} • x{l.qty}
+                                  {getPositionContractLabel(l.pos)} • {l.closeSide === 'buy' ? '买入' : '卖出'} • x{l.qty}
                                 </div>
                                 <div className="text-right font-mono">
                                   <AnimatedFlash value={l.px == null ? '--' : l.px.toFixed(4)} type="price" />
@@ -2366,7 +2886,8 @@ export function ExpiryGroupCard({
                               );
                             })}
                           </div>
-                        </div>
+                          </div>
+                        </>
                       );
                     })()}
                   </div>

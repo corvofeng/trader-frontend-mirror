@@ -378,7 +378,7 @@ export const optionsService: OptionsService = {
   },
   getOptionContractDetail: async (contractCode: string) => {
     try {
-      const response = await fetch(`/api/option-contract/detail/${contractCode}`);
+      const response = await fetch(`/api/option-contract/detail/${encodeURIComponent(contractCode)}`);
       if (!response.ok) {
         throw new Error('Failed to fetch option contract detail');
       }

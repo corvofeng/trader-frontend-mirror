@@ -6,9 +6,18 @@ interface RealTimeSpreadChartProps {
   data: { time: string; price: number | null }[];
   height?: number;
   title?: string;
+  referenceLines?: Array<{ value: number; label?: string; color?: string; dashArray?: string }>;
+  formatValue?: (value: number | null) => string;
 }
 
-export function RealTimeSpreadChart({ theme, data, height = 180, title }: RealTimeSpreadChartProps) {
+export function RealTimeSpreadChart({
+  theme,
+  data,
+  height = 180,
+  title,
+  referenceLines = [],
+  formatValue = (value) => (value == null ? '--' : value.toFixed(4)),
+}: RealTimeSpreadChartProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
 
@@ -41,19 +50,23 @@ export function RealTimeSpreadChart({ theme, data, height = 180, title }: RealTi
       filled.push(v ?? last);
     });
     const finite = filled.filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+    const referenceFinite = (referenceLines || [])
+      .map((line) => line?.value)
+      .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+    const allFinite = [...finite, ...referenceFinite];
     const lastFinite = finite.length > 0 ? finite[finite.length - 1] : null;
-    const min = finite.length > 0 ? Math.min(...finite) : 0;
-    const max = finite.length > 0 ? Math.max(...finite) : 1;
+    const min = allFinite.length > 0 ? Math.min(...allFinite) : 0;
+    const max = allFinite.length > 0 ? Math.max(...allFinite) : 1;
     const pad = (max - min) * 0.1 || 0.05;
     return {
       times,
       values: filled,
       hasValue: finite.length > 0,
-      lastText: lastFinite == null ? '--' : lastFinite.toFixed(4),
+      lastText: formatValue(lastFinite),
       yMin: min - pad,
       yMax: max + pad,
     };
-  }, [data]);
+  }, [data, formatValue, referenceLines]);
 
   const svg = useMemo(() => {
     const w = size.w || 0;
@@ -100,8 +113,8 @@ export function RealTimeSpreadChart({ theme, data, height = 180, title }: RealTi
 
     const firstLabel = model.times[0]?.split(':').slice(0, 2).join(':') || '';
     const lastLabel = (model.times[model.times.length - 1] || '').split(':').slice(0, 2).join(':');
-    const yMinText = Number.isFinite(model.yMin) ? model.yMin.toFixed(4) : '--';
-    const yMaxText = Number.isFinite(model.yMax) ? model.yMax.toFixed(4) : '--';
+    const yMinText = Number.isFinite(model.yMin) ? formatValue(model.yMin) : '--';
+    const yMaxText = Number.isFinite(model.yMax) ? formatValue(model.yMax) : '--';
 
     const gridLines = Array.from({ length: 4 }).map((_, i) => {
       const t = (i + 1) / 5;
@@ -151,6 +164,27 @@ export function RealTimeSpreadChart({ theme, data, height = 180, title }: RealTi
         </text>
 
         {gridLines}
+        {(referenceLines || []).map((referenceLine, index) => {
+          if (!Number.isFinite(referenceLine.value)) return null;
+          const y = top + (1 - (referenceLine.value - model.yMin) / yRange) * ph;
+          const label = referenceLine.label ? `${referenceLine.label} ${formatValue(referenceLine.value)}` : formatValue(referenceLine.value);
+          return (
+            <g key={`reference-line-${index}`}>
+              <line
+                x1={left}
+                y1={y}
+                x2={left + pw}
+                y2={y}
+                stroke={referenceLine.color || '#ef4444'}
+                strokeWidth={1.5}
+                strokeDasharray={referenceLine.dashArray || '6 4'}
+              />
+              <text x={left + pw - 4} y={Math.max(top + 10, y - 4)} textAnchor="end" fontSize={10} fill={referenceLine.color || '#ef4444'}>
+                {label}
+              </text>
+            </g>
+          );
+        })}
         <line x1={left} y1={top} x2={left} y2={top + ph} stroke={grid} strokeWidth={1} />
         <line x1={left} y1={top + ph} x2={left + pw} y2={top + ph} stroke={grid} strokeWidth={1} />
 
@@ -181,7 +215,7 @@ export function RealTimeSpreadChart({ theme, data, height = 180, title }: RealTi
             />
             <circle cx={pts[pts.length - 1].x} cy={pts[pts.length - 1].y} r={4} fill={line} />
             {(() => {
-              const text = pts[pts.length - 1].v.toFixed(4);
+              const text = formatValue(pts[pts.length - 1].v);
               const placement = placeValueLabel(pts[pts.length - 1].x, text);
               return (
                 <text
@@ -201,7 +235,7 @@ export function RealTimeSpreadChart({ theme, data, height = 180, title }: RealTi
             <circle className="rt-pulse" cx={pts[0].x} cy={pts[0].y} r={7} fill={line} />
             <circle cx={pts[0].x} cy={pts[0].y} r={5} fill={line} />
             {(() => {
-              const text = pts[0].v.toFixed(4);
+              const text = formatValue(pts[0].v);
               const placement = placeValueLabel(pts[0].x, text);
               return (
                 <text
@@ -225,7 +259,7 @@ export function RealTimeSpreadChart({ theme, data, height = 180, title }: RealTi
         ) : null}
       </svg>
     );
-  }, [model, size.h, size.w, theme, title]);
+  }, [formatValue, model, referenceLines, size.h, size.w, theme, title]);
 
   return (
     <div 
