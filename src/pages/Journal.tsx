@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { logger } from '../shared/utils/logger';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Briefcase, LayoutGrid, Settings, RefreshCw } from 'lucide-react';
@@ -22,6 +22,8 @@ type Tab = 'portfolio' | 'trades' | 'settings';
 
 const DEMO_USER_ID = 'mock-user-id';
 
+const isValidYyyyMmDd = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
+
 const getOrderStatusBadge = (raw?: string | null) => {
   const s = (raw || '').trim().toUpperCase();
   if (s.includes('FILLED') || s === 'ALLTRADED') return { label: raw || 'FILLED', className: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' };
@@ -37,6 +39,14 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const requestedAccountAlias = useMemo(() => getAccountAliasFromSearch(location.search) || '', [location.search]);
+  const requestedDateRange = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    const startDate = params.get('startDate')?.trim() || '';
+    const endDate = params.get('endDate')?.trim() || '';
+    if (!isValidYyyyMmDd(startDate) || !isValidYyyyMmDd(endDate)) return null;
+    if (startDate > endDate) return null;
+    return { startDate, endDate };
+  }, [location.search]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -58,8 +68,8 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
   const [isSnapshot, setIsSnapshot] = useState(false);
   const [recentTrades, setRecentTrades] = useState<Trade[]>([]);
   const [dateRange, setDateRange] = useState({
-    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0]
+    startDate: requestedDateRange?.startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    endDate: requestedDateRange?.endDate || new Date().toISOString().split('T')[0]
   });
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() => {
     return getPreferredAccountAlias({
@@ -84,6 +94,29 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
     if (nextQuery === currentQuery) return;
     navigate(nextQuery ? `/journal?${nextQuery}` : '/journal', { replace: true });
   }, [location.search, navigate, portfolioUuid, selectedAccountId]);
+
+  useEffect(() => {
+    if (!requestedDateRange) return;
+    if (requestedDateRange.startDate === dateRange.startDate && requestedDateRange.endDate === dateRange.endDate) return;
+    setDateRange(requestedDateRange);
+  }, [dateRange.endDate, dateRange.startDate, requestedDateRange]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const currentStart = params.get('startDate')?.trim() || '';
+    const currentEnd = params.get('endDate')?.trim() || '';
+    if (dateRange.startDate && dateRange.endDate) {
+      if (currentStart !== dateRange.startDate) params.set('startDate', dateRange.startDate);
+      if (currentEnd !== dateRange.endDate) params.set('endDate', dateRange.endDate);
+    } else {
+      params.delete('startDate');
+      params.delete('endDate');
+    }
+    const nextQuery = params.toString();
+    const currentQuery = location.search.startsWith('?') ? location.search.slice(1) : location.search;
+    if (nextQuery === currentQuery) return;
+    navigate(nextQuery ? `/journal?${nextQuery}` : '/journal', { replace: true });
+  }, [dateRange.endDate, dateRange.startDate, location.search, navigate]);
 
   const handleTabChange = (tabId: string) => {
     const newTab = (['portfolio', 'trades', 'settings'] as const).includes(tabId as Tab)
