@@ -96,6 +96,32 @@ export interface PortfolioKlinePoint {
   position_value?: number;
 }
 
+export interface PortfolioKlineMetrics {
+  startDate: string;
+  endDate: string;
+  days: number;
+  calculationStartDate: string;
+  calculationEndDate: string;
+  calculationDays: number;
+  observations: number;
+  tradingDays: number;
+  riskFreeRate: number;
+  totalReturn: number;
+  annualizedReturn: number;
+  annualizedMethod: 'period_return' | 'cagr';
+  annualizedCalculationStartDate: string;
+  annualizedCalculationEndDate: string;
+  annualizedCalculationDays: number;
+  annualizedTotalReturn: number;
+  annualizedVolatility: number;
+  sharpeRatio: number;
+  maxDrawdown: number;
+  calmarRatio: number;
+  bestDayReturn: number;
+  worstDayReturn: number;
+  positiveDayRatio: number;
+}
+
 export interface CurrencyConfig {
   symbol: string;
   position: 'before' | 'after';
@@ -106,6 +132,7 @@ export interface ServiceResponse<T> {
   data: T | null;
   error: Error | null;
   isSnapshot?: boolean;
+  meta?: unknown;
 }
 
 export interface Notice {
@@ -373,12 +400,14 @@ export interface PortfolioService {
   getRecentTrades: (userId: string, startDate: string, endDate: string, accountId?: string, stockCode?: string) => Promise<ServiceResponse<Trade[]>>;
   getTrendData: (userId: string, startDate: string, endDate: string, accountId?: string) => Promise<ServiceResponse<TrendData[]>>;
   getKlineData: (userId: string, startDate: string, endDate: string, accountId?: string) => Promise<ServiceResponse<PortfolioKlinePoint[]>>;
+  getMetrics: (userId: string, endDate: string, accountId?: string) => Promise<ServiceResponse<PortfolioKlineMetrics>>;
   getAccounts: (userId: string) => Promise<ServiceResponse<Account[]>>;
   // UUID-based methods for shared portfolios
   getHoldingsByUuid: (uuid: string) => Promise<ServiceResponse<Holding[]>>;
   getRecentTradesByUuid: (uuid: string, startDate: string, endDate: string) => Promise<ServiceResponse<Trade[]>>;
   getTrendDataByUuid: (uuid: string, startDate: string, endDate: string) => Promise<ServiceResponse<TrendData[]>>;
   getKlineDataByUuid: (uuid: string, startDate: string, endDate: string) => Promise<ServiceResponse<PortfolioKlinePoint[]>>;
+  getMetricsByUuid: (uuid: string, endDate: string) => Promise<ServiceResponse<PortfolioKlineMetrics>>;
 }
 
 export interface AccountPrompt {

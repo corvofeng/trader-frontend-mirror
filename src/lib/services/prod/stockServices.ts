@@ -21,7 +21,8 @@ import type {
   NoticeService,
   StockOrder,
   AdminAccountStatusItem,
-  PortfolioKlinePoint
+  PortfolioKlinePoint,
+  PortfolioKlineMetrics
 } from '../types';
 import type { Trade } from '../types';
 
@@ -557,6 +558,15 @@ export const stockConfigService: StockConfigService = {
 const trendCache = new Map<string, CacheEntry<unknown>>();
 const trendPending = new Map<string, Promise<unknown>>();
 
+const toFiniteNumber = (value: unknown) => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
+
 const normalizePortfolioKlineList = (payload: unknown): PortfolioKlinePoint[] => {
   const extractList = (value: unknown): Record<string, unknown>[] => {
     if (Array.isArray(value)) {
@@ -567,25 +577,17 @@ const normalizePortfolioKlineList = (payload: unknown): PortfolioKlinePoint[] =>
     if (Array.isArray(record.data)) return extractList(record.data);
     if (Array.isArray(record.items)) return extractList(record.items);
     if (Array.isArray(record.list)) return extractList(record.list);
+    if (Array.isArray(record.candles)) return extractList(record.candles);
     return [];
-  };
-
-  const toNumber = (value: unknown) => {
-    if (typeof value === 'number' && Number.isFinite(value)) return value;
-    if (typeof value === 'string' && value.trim()) {
-      const parsed = Number(value);
-      return Number.isFinite(parsed) ? parsed : null;
-    }
-    return null;
   };
 
   return extractList(payload)
     .map((item) => {
       const date = typeof item.date === 'string' ? item.date : '';
-      const open = toNumber(item.open);
-      const high = toNumber(item.high);
-      const low = toNumber(item.low);
-      const close = toNumber(item.close);
+      const open = toFiniteNumber(item.open);
+      const high = toFiniteNumber(item.high);
+      const low = toFiniteNumber(item.low);
+      const close = toFiniteNumber(item.close);
       if (!date || open === null || high === null || low === null || close === null) {
         return null;
       }
@@ -596,22 +598,22 @@ const normalizePortfolioKlineList = (payload: unknown): PortfolioKlinePoint[] =>
         low,
         close,
       };
-      const value = toNumber(item.value);
-      const adjustedOpen = toNumber(item.adjusted_open);
-      const adjustedHigh = toNumber(item.adjusted_high);
-      const adjustedLow = toNumber(item.adjusted_low);
-      const adjustedClose = toNumber(item.adjusted_close);
-      const adjustedValue = toNumber(item.adjusted_value);
-      const navOpen = toNumber(item.nav_open);
-      const navHigh = toNumber(item.nav_high);
-      const navLow = toNumber(item.nav_low);
-      const navClose = toNumber(item.nav_close);
-      const navValue = toNumber(item.nav_value);
-      const positionOpen = toNumber(item.position_open);
-      const positionHigh = toNumber(item.position_high);
-      const positionLow = toNumber(item.position_low);
-      const positionClose = toNumber(item.position_close);
-      const positionValue = toNumber(item.position_value);
+      const value = toFiniteNumber(item.value);
+      const adjustedOpen = toFiniteNumber(item.adjusted_open);
+      const adjustedHigh = toFiniteNumber(item.adjusted_high);
+      const adjustedLow = toFiniteNumber(item.adjusted_low);
+      const adjustedClose = toFiniteNumber(item.adjusted_close);
+      const adjustedValue = toFiniteNumber(item.adjusted_value);
+      const navOpen = toFiniteNumber(item.nav_open);
+      const navHigh = toFiniteNumber(item.nav_high);
+      const navLow = toFiniteNumber(item.nav_low);
+      const navClose = toFiniteNumber(item.nav_close);
+      const navValue = toFiniteNumber(item.nav_value);
+      const positionOpen = toFiniteNumber(item.position_open);
+      const positionHigh = toFiniteNumber(item.position_high);
+      const positionLow = toFiniteNumber(item.position_low);
+      const positionClose = toFiniteNumber(item.position_close);
+      const positionValue = toFiniteNumber(item.position_value);
       if (value !== null) point.value = value;
       if (adjustedOpen !== null) point.adjusted_open = adjustedOpen;
       if (adjustedHigh !== null) point.adjusted_high = adjustedHigh;
@@ -631,6 +633,117 @@ const normalizePortfolioKlineList = (payload: unknown): PortfolioKlinePoint[] =>
       return point;
     })
     .filter((item): item is PortfolioKlinePoint => item !== null);
+};
+
+const normalizePortfolioKlineMetrics = (value: unknown): PortfolioKlineMetrics | null => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+
+  const startDate = typeof record.startDate === 'string' ? record.startDate : null;
+  const endDate = typeof record.endDate === 'string' ? record.endDate : null;
+  const days = toFiniteNumber(record.days);
+  const calculationStartDate = typeof record.calculationStartDate === 'string'
+    ? record.calculationStartDate
+    : startDate;
+  const calculationEndDate = typeof record.calculationEndDate === 'string'
+    ? record.calculationEndDate
+    : endDate;
+  const calculationDays = toFiniteNumber(record.calculationDays) ?? days;
+  const observations = toFiniteNumber(record.observations);
+  const tradingDays = toFiniteNumber(record.tradingDays);
+  const riskFreeRate = toFiniteNumber(record.riskFreeRate);
+  const totalReturn = toFiniteNumber(record.totalReturn);
+  const annualizedReturn = toFiniteNumber(record.annualizedReturn);
+  const annualizedMethodRaw = typeof record.annualizedMethod === 'string' ? record.annualizedMethod : null;
+  const annualizedMethod: PortfolioKlineMetrics['annualizedMethod'] = annualizedMethodRaw === 'cagr'
+    ? 'cagr'
+    : annualizedMethodRaw === 'period_return'
+      ? 'period_return'
+      : (calculationDays !== null && calculationDays >= 365 ? 'cagr' : 'period_return');
+  const annualizedCalculationStartDate = typeof record.annualizedCalculationStartDate === 'string'
+    ? record.annualizedCalculationStartDate
+    : calculationStartDate;
+  const annualizedCalculationEndDate = typeof record.annualizedCalculationEndDate === 'string'
+    ? record.annualizedCalculationEndDate
+    : calculationEndDate;
+  const annualizedCalculationDays = toFiniteNumber(record.annualizedCalculationDays) ?? calculationDays;
+  const annualizedTotalReturn = toFiniteNumber(record.annualizedTotalReturn) ?? totalReturn;
+  const annualizedVolatility = toFiniteNumber(record.annualizedVolatility);
+  const sharpeRatio = toFiniteNumber(record.sharpeRatio);
+  const maxDrawdown = toFiniteNumber(record.maxDrawdown);
+  const calmarRatio = toFiniteNumber(record.calmarRatio);
+  const bestDayReturn = toFiniteNumber(record.bestDayReturn);
+  const worstDayReturn = toFiniteNumber(record.worstDayReturn);
+  const positiveDayRatio = toFiniteNumber(record.positiveDayRatio);
+
+  if (
+    !startDate ||
+    !endDate ||
+    days === null ||
+    !calculationStartDate ||
+    !calculationEndDate ||
+    calculationDays === null ||
+    !annualizedCalculationStartDate ||
+    !annualizedCalculationEndDate ||
+    annualizedCalculationDays === null ||
+    observations === null ||
+    tradingDays === null ||
+    riskFreeRate === null ||
+    totalReturn === null ||
+    annualizedReturn === null ||
+    annualizedTotalReturn === null ||
+    annualizedVolatility === null ||
+    sharpeRatio === null ||
+    maxDrawdown === null ||
+    calmarRatio === null ||
+    bestDayReturn === null ||
+    worstDayReturn === null ||
+    positiveDayRatio === null
+  ) {
+    return null;
+  }
+
+  return {
+    startDate,
+    endDate,
+    days,
+    calculationStartDate,
+    calculationEndDate,
+    calculationDays,
+    observations,
+    tradingDays,
+    riskFreeRate,
+    totalReturn,
+    annualizedReturn,
+    annualizedMethod,
+    annualizedCalculationStartDate,
+    annualizedCalculationEndDate,
+    annualizedCalculationDays,
+    annualizedTotalReturn,
+    annualizedVolatility,
+    sharpeRatio,
+    maxDrawdown,
+    calmarRatio,
+    bestDayReturn,
+    worstDayReturn,
+    positiveDayRatio,
+  };
+};
+
+const normalizePortfolioKlinePayload = (payload: unknown) => {
+  const record = payload && typeof payload === 'object' && !Array.isArray(payload)
+    ? (payload as Record<string, unknown>)
+    : null;
+  const candles = normalizePortfolioKlineList(record?.candles ?? payload);
+  const metrics = normalizePortfolioKlineMetrics(record?.metrics);
+  return { candles, metrics };
+};
+
+const normalizePortfolioMetricsPayload = (payload: unknown) => {
+  const record = payload && typeof payload === 'object' && !Array.isArray(payload)
+    ? (payload as Record<string, unknown>)
+    : null;
+  return normalizePortfolioKlineMetrics(record?.metrics ?? record?.data ?? payload);
 };
 
 export const portfolioService: PortfolioService = {
@@ -732,9 +845,32 @@ export const portfolioService: PortfolioService = {
       }
 
       const payload = await response.json();
-      return { data: normalizePortfolioKlineList(payload), error: null };
+      const { candles } = normalizePortfolioKlinePayload(payload);
+      return { data: candles, error: null };
     } catch (error) {
       console.error('Error fetching kline data:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  getMetrics: async (userId: string, endDate: string, accountId?: string) => {
+    try {
+      if (!accountId) return { data: null, error: new Error('Account ID is required') };
+
+      const params = new URLSearchParams();
+      if (endDate) params.set('endDate', endDate);
+      if (userId) params.set('userId', userId);
+      const response = await fetch(`/api/portfolio/${encodeURIComponent(accountId)}/metrics?${params.toString()}`);
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch portfolio metrics (${response.status})`);
+      }
+
+      const payload = await response.json();
+      const metrics = normalizePortfolioMetricsPayload(payload);
+      return { data: metrics, error: metrics ? null : new Error('Invalid portfolio metrics payload') };
+    } catch (error) {
+      console.error('Error fetching portfolio metrics:', error);
       return { data: null, error: error as Error };
     }
   },
@@ -844,9 +980,32 @@ export const portfolioService: PortfolioService = {
       }
 
       const payload = await response.json();
-      return { data: normalizePortfolioKlineList(payload), error: null };
+      const { candles } = normalizePortfolioKlinePayload(payload);
+      return { data: candles, error: null };
     } catch (error) {
       console.error('Error fetching shared portfolio kline data:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  getMetricsByUuid: async (uuid: string, endDate: string) => {
+    try {
+      const params = new URLSearchParams();
+      if (endDate) params.set('endDate', endDate);
+      const query = params.toString();
+      const response = await fetch(
+        `/api/portfolio/shared/${encodeURIComponent(uuid)}/metrics${query ? `?${query}` : ''}`
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch shared portfolio metrics (${response.status})`);
+      }
+
+      const payload = await response.json();
+      const metrics = normalizePortfolioMetricsPayload(payload);
+      return { data: metrics, error: metrics ? null : new Error('Invalid shared portfolio metrics payload') };
+    } catch (error) {
+      console.error('Error fetching shared portfolio metrics:', error);
       return { data: null, error: error as Error };
     }
   }

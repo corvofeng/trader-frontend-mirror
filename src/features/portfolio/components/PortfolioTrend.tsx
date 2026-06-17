@@ -6,7 +6,7 @@ import { Line } from 'react-chartjs-2';
 import type { Theme } from '../../../lib/theme';
 import { themes } from '../../../lib/theme';
 import { stockService } from '../../../lib/services';
-import type { PortfolioKlinePoint, TrendData } from '../../../lib/services/types';
+import type { PortfolioKlineMetrics, PortfolioKlinePoint, TrendData } from '../../../lib/services/types';
 import { formatCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { PortfolioKlineChart } from './PortfolioKlineChart';
@@ -14,6 +14,7 @@ import { PortfolioKlineChart } from './PortfolioKlineChart';
 interface PortfolioTrendProps {
   trendData: TrendData[];
   klineData: PortfolioKlinePoint[];
+  klineMetrics?: PortfolioKlineMetrics | null;
   theme: Theme;
   dateRange: {
     startDate: string;
@@ -27,7 +28,7 @@ interface SSEPoint {
   returnRate: number;
 }
 
-export function PortfolioTrend({ trendData, klineData, theme, dateRange }: PortfolioTrendProps) {
+export function PortfolioTrend({ trendData, klineData, klineMetrics, theme, dateRange }: PortfolioTrendProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { currencyConfig, getThemedColors } = useCurrency();
@@ -403,6 +404,36 @@ export function PortfolioTrend({ trendData, klineData, theme, dateRange }: Portf
     return '总资产 / 持仓双线';
   })();
 
+  const formatSignedPercent = React.useCallback((value: number, digits = 2) => {
+    if (!Number.isFinite(value)) return '--';
+    const percent = value * 100;
+    const sign = percent > 0 ? '+' : '';
+    return `${sign}${percent.toFixed(digits)}%`;
+  }, []);
+
+  const formatPercent = React.useCallback((value: number, digits = 2) => {
+    if (!Number.isFinite(value)) return '--';
+    return `${(value * 100).toFixed(digits)}%`;
+  }, []);
+
+  const formatMetricNumber = React.useCallback((value: number, digits = 2) => {
+    if (!Number.isFinite(value)) return '--';
+    return value.toFixed(digits);
+  }, []);
+
+  const metricsItems = React.useMemo(() => {
+    if (!klineMetrics) return [];
+    return [
+      { label: '年化收益', value: formatSignedPercent(klineMetrics.annualizedReturn) },
+      { label: '年化波动', value: formatPercent(klineMetrics.annualizedVolatility) },
+      { label: 'Sharpe', value: formatMetricNumber(klineMetrics.sharpeRatio) },
+      { label: 'Calmar', value: formatMetricNumber(klineMetrics.calmarRatio) },
+      { label: '区间收益', value: formatSignedPercent(klineMetrics.totalReturn) },
+      { label: '最大回撤', value: formatSignedPercent(klineMetrics.maxDrawdown) },
+      { label: '正收益日', value: formatPercent(klineMetrics.positiveDayRatio, 1) },
+    ];
+  }, [formatMetricNumber, formatPercent, formatSignedPercent, klineMetrics]);
+
   return (
     <>
       <div className="p-2 sm:p-3 md:p-6">
@@ -537,12 +568,56 @@ export function PortfolioTrend({ trendData, klineData, theme, dateRange }: Portf
           )}
         </div>
         {viewMode === 'kline' ? (
-          <PortfolioKlineChart
-            klineData={klineData}
-            theme={theme}
-            source={klineSource}
-            priceMode={klinePriceMode}
-          />
+          <div className="space-y-3">
+            <PortfolioKlineChart
+              klineData={klineData}
+              theme={theme}
+              source={klineSource}
+              priceMode={klinePriceMode}
+            />
+            {klineMetrics && metricsItems.length > 0 && (
+              <div className={`rounded-2xl border ${themes[theme].border} ${themes[theme].card} p-3 shadow-sm`}>
+                <div className="flex flex-wrap items-end justify-between gap-2">
+                  <div className={`text-sm font-semibold ${themes[theme].text}`}>组合表现指标</div>
+                  <div className={`text-[11px] ${themes[theme].text} opacity-60`}>
+                    {klineMetrics.calculationStartDate} ~ {klineMetrics.calculationEndDate}
+                    {' · '}
+                    {klineMetrics.calculationDays} 天
+                    {' · '}
+                    {klineMetrics.tradingDays} 交易日
+                    {' · '}
+                    {klineMetrics.observations} 点
+                    {(klineMetrics.calculationStartDate !== klineMetrics.startDate ||
+                      klineMetrics.calculationEndDate !== klineMetrics.endDate) && (
+                      <>
+                        {' · '}
+                        有效区间 {klineMetrics.startDate} ~ {klineMetrics.endDate}
+                      </>
+                    )}
+                    {(klineMetrics.annualizedCalculationStartDate !== klineMetrics.calculationStartDate ||
+                      klineMetrics.annualizedCalculationEndDate !== klineMetrics.calculationEndDate ||
+                      klineMetrics.annualizedCalculationDays !== klineMetrics.calculationDays) && (
+                      <>
+                        {' · '}
+                        年化窗口 {klineMetrics.annualizedCalculationStartDate} ~ {klineMetrics.annualizedCalculationEndDate}
+                      </>
+                    )}
+                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+                  {metricsItems.map((item) => (
+                    <div
+                      key={item.label}
+                      className={`rounded-xl border ${themes[theme].border} ${themes[theme].secondary} px-3 py-2`}
+                    >
+                      <div className={`text-[11px] ${themes[theme].text} opacity-60`}>{item.label}</div>
+                      <div className={`mt-1 text-sm font-semibold ${themes[theme].text}`}>{item.value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         ) : (
           <div className="h-[250px] md:h-[300px]">
             <Line data={lineChartData} options={lineChartOptions} />

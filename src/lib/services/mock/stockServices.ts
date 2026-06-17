@@ -27,7 +27,8 @@ import type {
   Notice,
   NoticeService,
   AdminAccountStatusItem,
-  PortfolioKlinePoint
+  PortfolioKlinePoint,
+  PortfolioKlineMetrics
 } from '../types';
 import { format, subDays, addMinutes, startOfDay, endOfDay, parseISO } from 'date-fns';
 
@@ -410,6 +411,105 @@ export const stockConfigService: StockConfigService = {
 };
 
 
+const calculatePortfolioKlineMetrics = (points: PortfolioKlinePoint[]): PortfolioKlineMetrics | null => {
+  const sorted = [...points]
+    .filter((point) => !!point?.date)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const hasAdjusted = sorted.some((point) => typeof point.adjusted_close === 'number' && Number.isFinite(point.adjusted_close));
+  const hasNav = sorted.some((point) => typeof point.nav_close === 'number' && Number.isFinite(point.nav_close));
+
+  const toValue = (point: PortfolioKlinePoint) => {
+    if (hasAdjusted) {
+      const value = point.adjusted_close;
+      return typeof value === 'number' && Number.isFinite(value) ? value : null;
+    }
+    if (hasNav) {
+      const value = point.nav_close;
+      return typeof value === 'number' && Number.isFinite(value) ? value : null;
+    }
+    const value = point.close;
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  };
+
+  const series = sorted
+    .map((point) => ({ date: point.date.slice(0, 10), value: toValue(point) }))
+    .filter((item): item is { date: string; value: number } => !!item.date && typeof item.value === 'number' && Number.isFinite(item.value) && item.value > 0);
+
+  if (series.length < 2) return null;
+
+  const startDate = series[0].date;
+  const endDate = series[series.length - 1].date;
+  const days = Math.round((parseISO(endDate).getTime() - parseISO(startDate).getTime()) / (24 * 60 * 60 * 1000));
+  const observations = series.length;
+
+  const dailyReturns: number[] = [];
+  for (let i = 1; i < series.length; i += 1) {
+    const prev = series[i - 1].value;
+    const curr = series[i].value;
+    dailyReturns.push(prev > 0 ? curr / prev - 1 : 0);
+  }
+
+  const tradingDays = dailyReturns.length;
+  const riskFreeRate = 0;
+  const totalReturn = series[series.length - 1].value / series[0].value - 1;
+
+  const annualizedMethod: PortfolioKlineMetrics['annualizedMethod'] = days >= 365 ? 'cagr' : 'period_return';
+  const annualizedReturn = annualizedMethod === 'period_return'
+    ? totalReturn
+    : (days > 0 ? Math.pow(series[series.length - 1].value / series[0].value, 365 / days) - 1 : 0);
+
+  const mean = dailyReturns.reduce((sum, value) => sum + value, 0) / dailyReturns.length;
+  const variance = dailyReturns.length > 1
+    ? dailyReturns.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / (dailyReturns.length - 1)
+    : 0;
+  const tradingDaysPerYear = 252;
+  const annualizedVolatility = Math.sqrt(variance) * Math.sqrt(tradingDaysPerYear);
+
+  const sharpeRatio = annualizedVolatility > 0
+    ? (annualizedReturn - riskFreeRate) / annualizedVolatility
+    : 0;
+
+  let peak = series[0].value;
+  let maxDrawdown = 0;
+  for (const item of series) {
+    if (item.value > peak) peak = item.value;
+    const drawdown = peak > 0 ? item.value / peak - 1 : 0;
+    if (drawdown < maxDrawdown) maxDrawdown = drawdown;
+  }
+
+  const calmarRatio = maxDrawdown < 0 ? annualizedReturn / Math.abs(maxDrawdown) : 0;
+  const bestDayReturn = Math.max(...dailyReturns);
+  const worstDayReturn = Math.min(...dailyReturns);
+  const positiveDayRatio = dailyReturns.length > 0 ? dailyReturns.filter((value) => value > 0).length / dailyReturns.length : 0;
+
+  return {
+    startDate,
+    endDate,
+    days,
+    calculationStartDate: startDate,
+    calculationEndDate: endDate,
+    calculationDays: days,
+    observations,
+    tradingDays,
+    riskFreeRate,
+    totalReturn,
+    annualizedReturn,
+    annualizedMethod,
+    annualizedCalculationStartDate: startDate,
+    annualizedCalculationEndDate: endDate,
+    annualizedCalculationDays: days,
+    annualizedTotalReturn: totalReturn,
+    annualizedVolatility,
+    sharpeRatio,
+    maxDrawdown,
+    calmarRatio,
+    bestDayReturn,
+    worstDayReturn,
+    positiveDayRatio,
+  };
+};
+
 export const portfolioService: PortfolioService = {
   getHoldings: async (userId: string, accountId?: string) => {
     await new Promise(resolve => setTimeout(resolve, 700));
@@ -551,7 +651,15 @@ export const portfolioService: PortfolioService = {
     if (!trendResponse.data) {
       return { data: null, error: trendResponse.error };
     }
-    return { data: toPortfolioKlineData(trendResponse.data), error: null };
+    const candles = toPortfolioKlineData(trendResponse.data);
+    return { data: candles, error: null };
+  },
+
+  getMetrics: async (userId: string, endDate: string, accountId?: string) => {
+    const anchorDate = endDate || new Date().toISOString().split('T')[0];
+    const klineResponse = await portfolioService.getKlineData(userId, '2026-01-01', anchorDate, accountId);
+    const metrics = klineResponse.data ? calculatePortfolioKlineMetrics(klineResponse.data) : null;
+    return { data: metrics, error: klineResponse.error };
   },
 
   getAccounts: async (userId: string) => {
@@ -700,7 +808,15 @@ export const portfolioService: PortfolioService = {
     if (!trendResponse.data) {
       return { data: null, error: trendResponse.error };
     }
-    return { data: toPortfolioKlineData(trendResponse.data), error: null };
+    const candles = toPortfolioKlineData(trendResponse.data);
+    return { data: candles, error: null };
+  },
+
+  getMetricsByUuid: async (uuid: string, endDate: string) => {
+    const anchorDate = endDate || new Date().toISOString().split('T')[0];
+    const klineResponse = await portfolioService.getKlineDataByUuid(uuid, '2026-01-01', anchorDate);
+    const metrics = klineResponse.data ? calculatePortfolioKlineMetrics(klineResponse.data) : null;
+    return { data: metrics, error: klineResponse.error };
   }
 };
 

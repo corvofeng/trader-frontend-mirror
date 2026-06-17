@@ -81,12 +81,16 @@ export function PortfolioKlineChart({ theme, klineData, source, priceMode }: Por
           }
           if (effectivePriceMode === 'nav') {
             const navKey = (`nav_${key}` as const);
-            const raw = point[navKey];
-            return raw ?? point.nav_value;
+            const candidate = point[navKey] ?? (key === 'close' ? point.nav_value : undefined);
+            return Number.isFinite(candidate) ? candidate : point[key];
           }
           if (effectivePriceMode === 'adjusted') {
             const adjKey = (`adjusted_${key}` as const);
-            return point[adjKey];
+            const candidate = point[adjKey];
+            if (Number.isFinite(candidate)) return candidate;
+            const navKey = (`nav_${key}` as const);
+            const navCandidate = point[navKey] ?? (key === 'close' ? point.nav_value : undefined);
+            return Number.isFinite(navCandidate) ? navCandidate : point[key];
           }
           return point[key];
         };

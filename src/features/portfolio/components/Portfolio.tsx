@@ -4,7 +4,7 @@ import { subDays } from 'date-fns';
 import { Filter, ExternalLink } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
-import type { Holding, PortfolioKlinePoint, Trade, TrendData } from '../../../lib/services/types';
+import type { Holding, PortfolioKlineMetrics, PortfolioKlinePoint, Trade, TrendData } from '../../../lib/services/types';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement } from 'chart.js';
 import type { LegendItem, TooltipItem } from 'chart.js';
 import { Pie } from 'react-chartjs-2';
@@ -74,6 +74,7 @@ export function Portfolio({
   const [tradesSort, setTradesSort] = useState<{ field: string; direction: 'asc' | 'desc' }>({ field: 'created_at', direction: 'desc' });
   const [trendData, setTrendData] = useState<TrendData[]>([]);
   const [klineData, setKlineData] = useState<PortfolioKlinePoint[]>([]);
+  const [klineMetrics, setKlineMetrics] = useState<PortfolioKlineMetrics | null>(null);
   const [selectedStockForAnalysis, setSelectedStockForAnalysis] = useState<{ code: string; name: string } | null>(null);
   const [showPortfolioAnalysis, setShowPortfolioAnalysis] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -110,9 +111,11 @@ export function Portfolio({
         const klineStartDate = shouldUseAssetKlineDefaultRange
           ? subDays(new Date(), DEFAULT_ASSET_KLINE_DAYS).toISOString().split('T')[0]
           : dateRange.startDate;
+        const metricsEndDate = dateRange.endDate;
 
         let trendPromise: Promise<Awaited<ReturnType<typeof portfolioService.getTrendData>> | Awaited<ReturnType<typeof portfolioService.getTrendDataByUuid>>> | null = null;
         let klinePromise: Promise<Awaited<ReturnType<typeof portfolioService.getKlineData>> | Awaited<ReturnType<typeof portfolioService.getKlineDataByUuid>>> | null = null;
+        let klineMetricsPromise: Promise<Awaited<ReturnType<typeof portfolioService.getMetrics>> | Awaited<ReturnType<typeof portfolioService.getMetricsByUuid>>> | null = null;
         if (portfolioUuid) {
           trendPromise = portfolioService.getTrendDataByUuid(
             portfolioUuid,
@@ -122,7 +125,11 @@ export function Portfolio({
           klinePromise = portfolioService.getKlineDataByUuid(
             portfolioUuid,
             klineStartDate,
-            shouldUseAssetKlineDefaultRange ? klineEndDate : dateRange.endDate
+            shouldUseAssetKlineDefaultRange ? klineEndDate : dateRange.endDate,
+          );
+          klineMetricsPromise = portfolioService.getMetricsByUuid(
+            portfolioUuid,
+            metricsEndDate,
           );
         } else if (!isSharedView) {
           // Fix null handling for accountId when calling services
@@ -143,11 +150,20 @@ export function Portfolio({
             shouldUseAssetKlineDefaultRange ? klineEndDate : dateRange.endDate,
             selectedAccountId,
           );
+          klineMetricsPromise = portfolioService.getMetrics(
+            userId,
+            metricsEndDate,
+            selectedAccountId,
+          );
         }
 
-        if (!trendPromise || !klinePromise) return;
+        if (!trendPromise || !klinePromise || !klineMetricsPromise) return;
 
-        const [trendResponse, klineResponse] = await Promise.allSettled([trendPromise, klinePromise]);
+        const [trendResponse, klineResponse, klineMetricsResponse] = await Promise.allSettled([
+          trendPromise,
+          klinePromise,
+          klineMetricsPromise,
+        ]);
         if (cancelled) return;
 
         if (trendResponse.status === 'fulfilled' && trendResponse.value?.data) {
@@ -157,6 +173,12 @@ export function Portfolio({
           setKlineData(klineResponse.value?.data || []);
         } else {
           setKlineData([]);
+        }
+
+        if (klineMetricsResponse.status === 'fulfilled') {
+          setKlineMetrics(klineMetricsResponse.value?.data ?? null);
+        } else {
+          setKlineMetrics(null);
         }
       } catch (error) {
         console.error('Error fetching trend data:', error);
@@ -506,6 +528,7 @@ export function Portfolio({
             <PortfolioTrend 
               trendData={trendData}
               klineData={klineData}
+            klineMetrics={klineMetrics}
               theme={theme}
               dateRange={dateRange}
             />
