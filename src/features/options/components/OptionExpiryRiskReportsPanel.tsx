@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Loader } from 'lucide-react';
 import { optionsService } from '../../../lib/services';
 import type { OptionExpiryRiskReport, OptionExpiryRiskReportItem, OptionExpiryRiskReportListItem } from '../../../lib/services/types';
@@ -102,6 +102,8 @@ export function OptionExpiryRiskReportsPanel({
   chartEngine = 'tradingview',
   onChartEngineChange,
 }: OptionExpiryRiskReportsPanelProps) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [expiryRiskHistory, setExpiryRiskHistory] = useState<OptionExpiryRiskReportListItem[]>([]);
   const [selectedRiskReportDate, setSelectedRiskReportDate] = useState<string>('');
   const [availableExpiries, setAvailableExpiries] = useState<ExpiryOption[]>([]);
@@ -111,6 +113,23 @@ export function OptionExpiryRiskReportsPanel({
   const [isRiskReportLoading, setIsRiskReportLoading] = useState(false);
   const [riskReportError, setRiskReportError] = useState<string | null>(null);
   const [riskReportReloadSeq, setRiskReportReloadSeq] = useState(0);
+  const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const requestedReportDate = searchParams.get('report')?.trim() || searchParams.get('report_date')?.trim() || '';
+  const requestedExpiryDate = searchParams.get('expiry_date')?.trim() || searchParams.get('expiry')?.trim() || '';
+  const updateExpiryRiskParams = useCallback((updates: Record<string, string | null>) => {
+    const nextParams = new URLSearchParams(location.search);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (!value) {
+        nextParams.delete(key);
+      } else {
+        nextParams.set(key, value);
+      }
+    });
+    const nextQuery = nextParams.toString();
+    const currentQuery = location.search.startsWith('?') ? location.search.slice(1) : location.search;
+    if (nextQuery === currentQuery) return;
+    navigate(`${location.pathname}${nextQuery ? `?${nextQuery}` : ''}`, { replace: true });
+  }, [location.pathname, location.search, navigate]);
 
   useEffect(() => {
     if (!selectedAccountId) return;
@@ -141,12 +160,6 @@ export function OptionExpiryRiskReportsPanel({
 
         normalized.sort((a, b) => new Date(b.report_date).getTime() - new Date(a.report_date).getTime());
         setExpiryRiskHistory(normalized);
-
-        const latestDate = normalized[0]?.report_date || '';
-        setSelectedRiskReportDate((prev) => {
-          if (prev && normalized.some((x) => x.report_date === prev)) return prev;
-          return latestDate;
-        });
       } catch (err) {
         if (cancelled) return;
         setRiskReportError(err instanceof Error ? err.message : 'Failed to load expiry risk reports');
@@ -160,6 +173,17 @@ export function OptionExpiryRiskReportsPanel({
       cancelled = true;
     };
   }, [selectedAccountId, riskReportReloadSeq]);
+
+  useEffect(() => {
+    const latestDate = expiryRiskHistory[0]?.report_date || '';
+    setSelectedRiskReportDate((prev) => {
+      if (requestedReportDate && expiryRiskHistory.some((x) => x.report_date === requestedReportDate)) {
+        return requestedReportDate;
+      }
+      if (prev && expiryRiskHistory.some((x) => x.report_date === prev)) return prev;
+      return latestDate;
+    });
+  }, [expiryRiskHistory, requestedReportDate]);
 
   useEffect(() => {
     if (!selectedAccountId || !selectedRiskReportDate) return;
@@ -198,8 +222,6 @@ export function OptionExpiryRiskReportsPanel({
 
         const list = Array.from(map.values()).sort((a, b) => sortExpiryAsc(a.expiry_date, b.expiry_date));
         setAvailableExpiries(list);
-        const nearest = pickNearestExpiry(selectedRiskReportDate, list);
-        setSelectedExpiryDate(nearest);
       } catch (err) {
         if (cancelled) return;
         setRiskReportError(err instanceof Error ? err.message : 'Failed to load expiry risk report');
@@ -213,6 +235,26 @@ export function OptionExpiryRiskReportsPanel({
       cancelled = true;
     };
   }, [selectedAccountId, selectedRiskReportDate, riskReportReloadSeq]);
+
+  useEffect(() => {
+    setSelectedExpiryDate((prev) => {
+      if (requestedExpiryDate && availableExpiries.some((x) => x.expiry_date === requestedExpiryDate)) {
+        return requestedExpiryDate;
+      }
+      if (prev && availableExpiries.some((x) => x.expiry_date === prev)) return prev;
+      return pickNearestExpiry(selectedRiskReportDate, availableExpiries);
+    });
+  }, [availableExpiries, requestedExpiryDate, selectedRiskReportDate]);
+
+  useEffect(() => {
+    if (!selectedAccountId) return;
+    updateExpiryRiskParams({
+      report: selectedRiskReportDate || null,
+      report_date: null,
+      expiry_date: selectedExpiryDate || null,
+      expiry: null,
+    });
+  }, [selectedAccountId, selectedExpiryDate, selectedRiskReportDate, updateExpiryRiskParams]);
 
   useEffect(() => {
     if (!selectedAccountId || !selectedRiskReportDate || !selectedExpiryDate) return;

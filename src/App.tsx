@@ -6,6 +6,7 @@ import { CurrencyProvider } from './lib/context/CurrencyContext';
 import analytics from './lib/analytics';
 import type { User, Stock } from './lib/services/types';
 import type { Theme } from './lib/theme';
+import { getAccountAliasFromSearch } from './shared/utils/accountSelection';
 
 // Lazy load pages
 const Landing = React.lazy(() => import('./pages/Landing').then(module => ({ default: module.Landing })));
@@ -64,6 +65,7 @@ function AppContent() {
     const getAccountKey = () => {
       try {
         return (
+          getAccountAliasFromSearch(typeof window !== 'undefined' ? window.location.search : '') ||
           localStorage.getItem('journalSelectedAccountAlias') ||
           localStorage.getItem('journalAccountId') ||
           localStorage.getItem('selectedAccountAlias') ||

@@ -24,6 +24,7 @@ import { OptionPriceWebSocketProvider } from '../features/options/context/Option
 import { useAutoRefresh, useOptionPriceWebSocket } from '../features/options/hooks/useOptionPriceWebSocket';
 import type { OptionsChartEngine } from '../features/options/utils/chartEngine';
 import { TabNavigation } from './Journal/components/TabNavigation';
+import { getAccountAliasFromSearch, getPreferredAccountAlias, withAccountAliasInSearch } from '../shared/utils/accountSelection';
 
 interface OptionsProps {
   theme: Theme;
@@ -34,6 +35,7 @@ type OptionsTab = 'data' | 'portfolio' | 'analysis' | 'trading' | 'management' |
 function OptionsContent({ theme }: OptionsProps) {
   const location = useLocation();
   const navigate = useNavigate();
+  const requestedAccountAlias = React.useMemo(() => getAccountAliasFromSearch(location.search) || '', [location.search]);
 
   React.useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -70,22 +72,11 @@ function OptionsContent({ theme }: OptionsProps) {
   const [error, setError] = useState<string | null>(null);
   const [showCalculatorModal, setShowCalculatorModal] = useState(false);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() => {
-    const alias = localStorage.getItem('optionsSelectedAccountAlias');
-    const legacyAlias = localStorage.getItem('selectedAccountAlias');
-    const legacyId = localStorage.getItem('selectedAccountId');
-    const ls = alias || legacyAlias || legacyId;
-    const cookie = typeof document !== 'undefined'
-      ? (document.cookie
-          ? (() => {
-              const parts = document.cookie.split(';').map(s => s.trim());
-              const current = parts.find(s => s.startsWith('optionsSelectedAccountId='))?.split('=')[1];
-              if (current) return current;
-              const legacy = parts.find(s => s.startsWith('selectedAccountId='))?.split('=')[1];
-              return legacy ?? null;
-            })()
-          : null)
-      : null;
-    return cookie || ls || null;
+    return getPreferredAccountAlias({
+      search: location.search,
+      localStorageKeys: ['optionsSelectedAccountAlias', 'selectedAccountAlias', 'selectedAccountId'],
+      cookieKeys: ['optionsSelectedAccountId', 'selectedAccountId'],
+    });
   });
   const [refreshKey, setRefreshKey] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
@@ -102,6 +93,18 @@ function OptionsContent({ theme }: OptionsProps) {
     const chart = params.get('marketChart');
     return chart === 'plotly' || chart === 'echarts' ? chart : 'tradingview';
   })();
+
+  React.useEffect(() => {
+    if (!requestedAccountAlias || requestedAccountAlias === selectedAccountId) return;
+    setSelectedAccountId(requestedAccountAlias);
+  }, [requestedAccountAlias, selectedAccountId]);
+
+  React.useEffect(() => {
+    const nextQuery = withAccountAliasInSearch(location.search, selectedAccountId);
+    const currentQuery = location.search.startsWith('?') ? location.search.slice(1) : location.search;
+    if (nextQuery === currentQuery) return;
+    navigate(nextQuery ? `/options?${nextQuery}` : '/options', { replace: true });
+  }, [location.search, navigate, selectedAccountId]);
 
   const handleTabChange = (newTab: string) => {
     const nextTab = newTab as OptionsTab;

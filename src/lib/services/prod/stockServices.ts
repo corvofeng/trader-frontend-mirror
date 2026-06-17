@@ -25,6 +25,7 @@ import type {
   PortfolioKlineMetrics
 } from '../types';
 import type { Trade } from '../types';
+import { getAccountAliasFromSearch } from '../../../shared/utils/accountSelection';
 
 let cachedUser: User | null = null;
 let pendingUserPromise: Promise<ServiceResponse<{ user: User | null }>> | null = null;
@@ -86,11 +87,12 @@ export const authService: AuthService = {
 
 const getCurrentAccountAlias = () => {
   try {
+    const fromUrl = getAccountAliasFromSearch(typeof window !== 'undefined' ? window.location.search : '');
     const fromLocalStorage =
       (typeof localStorage !== 'undefined' && localStorage.getItem('journalSelectedAccountAlias')) ||
       (typeof localStorage !== 'undefined' && localStorage.getItem('journalAccountId')) ||
       (typeof localStorage !== 'undefined' && localStorage.getItem('selectedAccountAlias'));
-    return fromLocalStorage || undefined;
+    return fromUrl || fromLocalStorage || undefined;
   } catch {
     return undefined;
   }

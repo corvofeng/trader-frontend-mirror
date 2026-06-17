@@ -10,6 +10,7 @@ import { portfolioService, accountService, stockService } from '../lib/services'
 import { AccountSelector } from '../shared/components/AccountSelector';
 import type { Stock, Holding, Trade, StockOrder } from '../lib/services/types';
 import { TabNavigation } from './Journal/components/TabNavigation';
+import { getAccountAliasFromSearch, getPreferredAccountAlias, withAccountAliasInSearch } from '../shared/utils/accountSelection';
 
 interface JournalProps {
   selectedStock: Stock | null;
@@ -35,6 +36,7 @@ const getOrderStatusBadge = (raw?: string | null) => {
 export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
   const location = useLocation();
   const navigate = useNavigate();
+  const requestedAccountAlias = useMemo(() => getAccountAliasFromSearch(location.search) || '', [location.search]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -60,19 +62,28 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
     endDate: new Date().toISOString().split('T')[0]
   });
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() => {
-    const alias =
-      localStorage.getItem('journalSelectedAccountAlias') ||
-      localStorage.getItem('selectedAccountAlias');
-    const cookie = typeof document !== 'undefined'
-      ? (document.cookie
-          ? (document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith('journalAccountId='))?.split('=')[1] ?? null)
-          : null)
-      : null;
-    return alias || cookie || localStorage.getItem('journalAccountId') || localStorage.getItem('selectedAccountId') || null;
+    return getPreferredAccountAlias({
+      search: location.search,
+      localStorageKeys: ['journalSelectedAccountAlias', 'selectedAccountAlias', 'journalAccountId', 'selectedAccountId'],
+      cookieKeys: ['journalAccountId'],
+    });
   });
 
   // Get UUID from URL params for portfolio sharing
   const portfolioUuid = new URLSearchParams(location.search).get('uuid');
+
+  useEffect(() => {
+    if (!requestedAccountAlias || requestedAccountAlias === selectedAccountId) return;
+    setSelectedAccountId(requestedAccountAlias);
+  }, [requestedAccountAlias, selectedAccountId]);
+
+  useEffect(() => {
+    if (portfolioUuid) return;
+    const nextQuery = withAccountAliasInSearch(location.search, selectedAccountId);
+    const currentQuery = location.search.startsWith('?') ? location.search.slice(1) : location.search;
+    if (nextQuery === currentQuery) return;
+    navigate(nextQuery ? `/journal?${nextQuery}` : '/journal', { replace: true });
+  }, [location.search, navigate, portfolioUuid, selectedAccountId]);
 
   const handleTabChange = (tabId: string) => {
     const newTab = (['portfolio', 'trades', 'settings'] as const).includes(tabId as Tab)

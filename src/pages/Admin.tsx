@@ -14,6 +14,7 @@ import { HistoryTradesChart } from '../features/trading/components/HistoryTrades
 import { DailyTradeHistory } from '../features/trading/components/DailyTradeHistory';
 import { SequentialTradeTasks } from '../features/options/components/SequentialTradeTasks';
 import { DataFreshnessStatus } from './Admin/components/DataFreshnessStatus';
+import { getAccountAliasFromSearch, getPreferredAccountAlias, withAccountAliasInSearch } from '../shared/utils/accountSelection';
 
 interface AdminProps {
   theme: Theme;
@@ -70,6 +71,7 @@ const adminNoticeBucketLabel: Record<AdminNoticeTimeBucket, string> = {
 export function Admin({ theme }: AdminProps) {
   const location = useLocation();
   const navigate = useNavigate();
+  const requestedAccountAlias = useMemo(() => getAccountAliasFromSearch(location.search) || '', [location.search]);
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab') as AdminTab;
@@ -77,22 +79,18 @@ export function Admin({ theme }: AdminProps) {
   });
 
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() => {
-    const alias =
-      localStorage.getItem('adminSelectedAccountAlias') ||
-      localStorage.getItem('adminAccountId') ||
-      localStorage.getItem('optionsSelectedAccountAlias') ||
-      localStorage.getItem('journalSelectedAccountAlias') ||
-      localStorage.getItem('selectedAccountAlias') ||
-      localStorage.getItem('selectedAccountId');
-    const cookie = typeof document !== 'undefined'
-      ? (document.cookie
-          ? (document.cookie
-              .split(';')
-              .map(s => s.trim())
-              .find(s => s.startsWith('adminAccountId='))?.split('=')[1] ?? null)
-          : null)
-      : null;
-    return cookie || alias || null;
+    return getPreferredAccountAlias({
+      search: location.search,
+      localStorageKeys: [
+        'adminSelectedAccountAlias',
+        'adminAccountId',
+        'optionsSelectedAccountAlias',
+        'journalSelectedAccountAlias',
+        'selectedAccountAlias',
+        'selectedAccountId',
+      ],
+      cookieKeys: ['adminAccountId'],
+    });
   });
 
   const [refreshKey, setRefreshKey] = useState(0);
@@ -120,6 +118,18 @@ export function Admin({ theme }: AdminProps) {
   const [accountsHeartbeatInFlight, setAccountsHeartbeatInFlight] = useState(false);
   const accountsHeartbeatAbortRef = React.useRef<AbortController | null>(null);
   const [activeAccountDetailKey, setActiveAccountDetailKey] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!requestedAccountAlias || requestedAccountAlias === selectedAccountId) return;
+    setSelectedAccountId(requestedAccountAlias);
+  }, [requestedAccountAlias, selectedAccountId]);
+
+  React.useEffect(() => {
+    const nextQuery = withAccountAliasInSearch(location.search, selectedAccountId);
+    const currentQuery = location.search.startsWith('?') ? location.search.slice(1) : location.search;
+    if (nextQuery === currentQuery) return;
+    navigate(nextQuery ? `/admin?${nextQuery}` : '/admin', { replace: true });
+  }, [location.search, navigate, selectedAccountId]);
 
   const accountsSnapshotMeta = useMemo(() => {
     const snapshotMsByKey = new Map<string, number | null>();
