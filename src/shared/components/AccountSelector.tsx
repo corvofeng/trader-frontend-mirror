@@ -36,21 +36,32 @@ export function AccountSelector({
   const [loading, setLoading] = useState(false);
   const resolvedMode: 'all' | 'options' | 'stocks' = mode ?? (preferOptions ? 'options' : 'stocks');
   const cacheKey = `${resolvedMode}:${userId}`;
+  const selectedAccountIdRef = React.useRef<string | null>(selectedAccountId);
+  const onAccountChangeRef = React.useRef(onAccountChange);
+
+  useEffect(() => {
+    selectedAccountIdRef.current = selectedAccountId;
+  }, [selectedAccountId]);
+
+  useEffect(() => {
+    onAccountChangeRef.current = onAccountChange;
+  }, [onAccountChange]);
 
   const loadAccounts = useCallback(async (forceRefresh: boolean = false) => {
     setLoading(true);
+    const currentSelectedAccountId = selectedAccountIdRef.current;
     const cached = accountsCache.get(cacheKey);
     if (!forceRefresh && cached && cached.length > 0) {
       setAccounts(cached);
       // Auto-select default if none provided or invalid
-      const isAccountValid = selectedAccountId && cached.some(a => (a.alias || a.id) === selectedAccountId);
+      const isAccountValid = currentSelectedAccountId && cached.some(a => (a.alias || a.id) === currentSelectedAccountId);
       
-      if (!selectedAccountId || !isAccountValid) {
+      if (!currentSelectedAccountId || !isAccountValid) {
         const def = cached.find(acc => acc.is_default) || cached[0];
         if (def) {
           const key = def.alias || def.id;
-          if (key !== selectedAccountId) {
-            onAccountChange(key);
+          if (key !== currentSelectedAccountId) {
+            onAccountChangeRef.current(key);
           }
         }
       }
@@ -104,18 +115,19 @@ export function AccountSelector({
       accountsCache.set(cacheKey, loadedAccounts);
       
       // Auto-select default if none provided or invalid
-      const isAccountValid = selectedAccountId && loadedAccounts.some(a => (a.alias || a.id) === selectedAccountId);
+      const freshSelectedAccountId = selectedAccountIdRef.current;
+      const isAccountValid = freshSelectedAccountId && loadedAccounts.some(a => (a.alias || a.id) === freshSelectedAccountId);
 
-      if ((!selectedAccountId || !isAccountValid) && loadedAccounts.length > 0) {
+      if ((!freshSelectedAccountId || !isAccountValid) && loadedAccounts.length > 0) {
         const defaultAccount = loadedAccounts.find(acc => acc.is_default) || loadedAccounts[0];
         const key = defaultAccount.alias || defaultAccount.id;
-        if (key !== selectedAccountId) {
-          onAccountChange(key);
+        if (key !== freshSelectedAccountId) {
+          onAccountChangeRef.current(key);
         }
       }
     }
     setLoading(false);
-  }, [userId, resolvedMode, cacheKey, selectedAccountId, onAccountChange]);
+  }, [userId, resolvedMode, cacheKey]);
 
   useEffect(() => {
     loadAccounts(false);
