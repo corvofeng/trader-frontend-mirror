@@ -152,11 +152,18 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
 
   useEffect(() => {
     if (portfolioUuid) return;
-    const nextParams = new URLSearchParams();
-    if (selectedAccountId) nextParams.set('account_alias', selectedAccountId);
-    const nextQuery = nextParams.toString();
-    const currentQuery = location.search.startsWith('?') ? location.search.slice(1) : location.search;
-    if (nextQuery === currentQuery) return;
+    const params = new URLSearchParams(location.search);
+    const currentAlias = params.get('account_alias');
+
+    if (selectedAccountId) {
+      if (currentAlias === selectedAccountId) return;
+      params.set('account_alias', selectedAccountId);
+    } else {
+      if (!currentAlias) return;
+      params.delete('account_alias');
+    }
+
+    const nextQuery = params.toString();
     navigate(nextQuery ? `/journal?${nextQuery}` : '/journal', { replace: true });
   }, [location.search, navigate, portfolioUuid, selectedAccountId]);
 
