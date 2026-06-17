@@ -196,7 +196,7 @@ function AppContent() {
         <Routes>
           <Route 
             path="/" 
-            element={<Landing theme={theme} onThemeChange={handleThemeChange} />} 
+            element={<Landing theme={theme} onThemeChange={handleThemeChange} user={user} />} 
           />
           <Route
             path="/journal"
@@ -205,6 +205,7 @@ function AppContent() {
                 selectedStock={selectedStock}
                 theme={theme}
                 onStockSelect={handleStockSelect}
+                user={user}
               />
             }
           />

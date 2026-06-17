@@ -16,6 +16,7 @@ interface RelatedLinksProps {
   theme: Theme;
   currentPath: string;
   maxItems?: number;
+  hideTradePlans?: boolean;
 }
 
 const ALL_LINKS: RelatedLink[] = [
@@ -63,8 +64,9 @@ const ALL_LINKS: RelatedLink[] = [
   }
 ];
 
-export function RelatedLinks({ theme, currentPath, maxItems = 3 }: RelatedLinksProps) {
+export function RelatedLinks({ theme, currentPath, maxItems = 3, hideTradePlans = false }: RelatedLinksProps) {
   const filteredLinks = ALL_LINKS
+    .filter(link => !hideTradePlans || link.path !== '/journal?tab=trades')
     .filter(link => link.path !== currentPath)
     .slice(0, maxItems);
 

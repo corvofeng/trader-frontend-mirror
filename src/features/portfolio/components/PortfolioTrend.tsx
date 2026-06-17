@@ -6,6 +6,7 @@ import { Line } from 'react-chartjs-2';
 import type { Theme } from '../../../lib/theme';
 import { themes } from '../../../lib/theme';
 import { stockService } from '../../../lib/services';
+import { InfoTooltip } from '../../../shared/components';
 import type { PortfolioKlineMetrics, PortfolioKlinePoint, TrendData } from '../../../lib/services/types';
 import { formatCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
@@ -424,13 +425,41 @@ export function PortfolioTrend({ trendData, klineData, klineMetrics, theme, date
   const metricsItems = React.useMemo(() => {
     if (!klineMetrics) return [];
     return [
-      { label: '年化收益', value: formatSignedPercent(klineMetrics.annualizedReturn) },
-      { label: '年化波动', value: formatPercent(klineMetrics.annualizedVolatility) },
-      { label: 'Sharpe', value: formatMetricNumber(klineMetrics.sharpeRatio) },
-      { label: 'Calmar', value: formatMetricNumber(klineMetrics.calmarRatio) },
-      { label: '区间收益', value: formatSignedPercent(klineMetrics.totalReturn) },
-      { label: '最大回撤', value: formatSignedPercent(klineMetrics.maxDrawdown) },
-      { label: '正收益日', value: formatPercent(klineMetrics.positiveDayRatio, 1) },
+      {
+        label: '年化收益',
+        value: formatSignedPercent(klineMetrics.annualizedReturn),
+        tooltip: '把当前统计区间的收益按全年口径折算后的预期收益率，便于和不同周期结果横向比较。',
+      },
+      {
+        label: '年化波动',
+        value: formatPercent(klineMetrics.annualizedVolatility),
+        tooltip: '收益率波动幅度按全年口径折算后的结果。数值越高，代表组合净值起伏越大。',
+      },
+      {
+        label: 'Sharpe',
+        value: formatMetricNumber(klineMetrics.sharpeRatio),
+        tooltip: '单位波动所获得的超额收益能力。一般越高越好，表示风险调整后的收益更优。',
+      },
+      {
+        label: 'Calmar',
+        value: formatMetricNumber(klineMetrics.calmarRatio),
+        tooltip: '年化收益与最大回撤的比值，用来衡量收益相对回撤的效率。一般越高越好。',
+      },
+      {
+        label: '区间收益',
+        value: formatSignedPercent(klineMetrics.totalReturn),
+        tooltip: '从统计起点到终点的累计收益率，直接反映当前观察区间内整体赚亏。',
+      },
+      {
+        label: '最大回撤',
+        value: formatSignedPercent(klineMetrics.maxDrawdown),
+        tooltip: '区间内从阶段高点回落到随后低点的最大跌幅，用来衡量最差回撤风险。',
+      },
+      {
+        label: '正收益日',
+        value: formatPercent(klineMetrics.positiveDayRatio, 1),
+        tooltip: '统计区间内收益为正的交易日占比，反映组合日度上涨天数的比例。',
+      },
     ];
   }, [formatMetricNumber, formatPercent, formatSignedPercent, klineMetrics]);
 
@@ -578,7 +607,14 @@ export function PortfolioTrend({ trendData, klineData, klineMetrics, theme, date
             {klineMetrics && metricsItems.length > 0 && (
               <div className={`rounded-2xl border ${themes[theme].border} ${themes[theme].card} p-3 shadow-sm`}>
                 <div className="flex flex-wrap items-end justify-between gap-2">
-                  <div className={`text-sm font-semibold ${themes[theme].text}`}>组合表现指标</div>
+                  <div className="flex items-center gap-1.5">
+                    <div className={`text-sm font-semibold ${themes[theme].text}`}>组合表现指标</div>
+                    <InfoTooltip
+                      theme={theme}
+                      align="left"
+                      content="这些指标基于当前 K 线统计窗口和有效交易日计算，用来帮助你从收益、波动和回撤几个角度评估组合表现。"
+                    />
+                  </div>
                   <div className={`text-[11px] ${themes[theme].text} opacity-60`}>
                     {klineMetrics.calculationStartDate} ~ {klineMetrics.calculationEndDate}
                     {' · '}
@@ -610,7 +646,10 @@ export function PortfolioTrend({ trendData, klineData, klineMetrics, theme, date
                       key={item.label}
                       className={`rounded-xl border ${themes[theme].border} ${themes[theme].secondary} px-3 py-2`}
                     >
-                      <div className={`text-[11px] ${themes[theme].text} opacity-60`}>{item.label}</div>
+                      <div className="flex items-center gap-1">
+                        <div className={`text-[11px] ${themes[theme].text} opacity-60`}>{item.label}</div>
+                        <InfoTooltip theme={theme} content={item.tooltip} align="left" className="shrink-0" />
+                      </div>
                       <div className={`mt-1 text-sm font-semibold ${themes[theme].text}`}>{item.value}</div>
                     </div>
                   ))}

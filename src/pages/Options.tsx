@@ -89,6 +89,7 @@ function OptionsContent({ theme }: OptionsProps) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
   const effectiveUserId = userId ?? 'demo';
+  const isAuthenticated = Boolean(userId);
   const [accountAccessError, setAccountAccessError] = useState<string | null>(null);
   const [accessibleAccountKeys, setAccessibleAccountKeys] = useState<string[] | null>(null);
   const [defaultAccountKey, setDefaultAccountKey] = useState<string | null>(null);
@@ -574,6 +575,7 @@ function OptionsContent({ theme }: OptionsProps) {
               theme={theme}
               currentPath="/options?tab=data" 
               maxItems={4}
+              hideTradePlans={!isAuthenticated}
             />
           </div>
         )}
@@ -585,6 +587,7 @@ function OptionsContent({ theme }: OptionsProps) {
               theme={theme}
               currentPath="/options?tab=portfolio" 
               maxItems={4}
+              hideTradePlans={!isAuthenticated}
             />
           </div>
         )}
@@ -596,6 +599,7 @@ function OptionsContent({ theme }: OptionsProps) {
               theme={theme}
               currentPath="/options?tab=analysis" 
               maxItems={4}
+              hideTradePlans={!isAuthenticated}
             />
           </div>
         )}
@@ -607,6 +611,7 @@ function OptionsContent({ theme }: OptionsProps) {
               theme={theme}
               currentPath="/options?tab=trading" 
               maxItems={4}
+              hideTradePlans={!isAuthenticated}
             />
           </div>
         )}
@@ -618,6 +623,7 @@ function OptionsContent({ theme }: OptionsProps) {
               theme={theme}
               currentPath="/options?tab=management" 
               maxItems={4}
+              hideTradePlans={!isAuthenticated}
             />
           </div>
         )}
@@ -633,6 +639,7 @@ function OptionsContent({ theme }: OptionsProps) {
               theme={theme}
               currentPath="/options?tab=whitelist" 
               maxItems={4}
+              hideTradePlans={!isAuthenticated}
             />
           </div>
         )}
@@ -649,6 +656,7 @@ function OptionsContent({ theme }: OptionsProps) {
               theme={theme}
               currentPath="/options?tab=expiry-risk"
               maxItems={4}
+              hideTradePlans={!isAuthenticated}
             />
           </div>
         )}
@@ -666,6 +674,7 @@ function OptionsContent({ theme }: OptionsProps) {
               theme={theme}
               currentPath="/options?tab=risk" 
               maxItems={4}
+              hideTradePlans={!isAuthenticated}
             />
           </div>
         )}

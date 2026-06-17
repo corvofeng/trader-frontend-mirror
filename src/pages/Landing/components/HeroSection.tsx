@@ -1,4 +1,3 @@
-import React from 'react';
 import { TrendingUp, Sigma, Sun, Moon } from 'lucide-react';
 import { Theme } from '../../../lib/theme';
 
@@ -7,7 +6,7 @@ interface HeroSectionProps {
   onThemeChange: (theme: Theme) => void;
   onNavigateToJournal: () => void;
   onNavigateToOptions: () => void;
-  onNavigateToAdmin: () => void;
+  onNavigateToAdmin?: () => void;
   onNavigateToAbout: () => void;
 }
 
@@ -34,14 +33,16 @@ export function HeroSection({
     >
       <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 flex justify-end">
         <div className="flex items-center gap-2">
-          <button
-            onClick={onNavigateToAdmin}
-            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors duration-200 ${
-              isDark ? 'bg-gray-800 text-gray-200 hover:bg-gray-700' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-            }`}
-          >
-            Admin
-          </button>
+          {onNavigateToAdmin && (
+            <button
+              onClick={onNavigateToAdmin}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors duration-200 ${
+                isDark ? 'bg-gray-800 text-gray-200 hover:bg-gray-700' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+              }`}
+            >
+              Admin
+            </button>
+          )}
           <button
             onClick={onNavigateToAbout}
             className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors duration-200 ${

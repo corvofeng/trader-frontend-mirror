@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { logger } from '../shared/utils/logger';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Briefcase, LayoutGrid, Settings, RefreshCw } from 'lucide-react';
+import { Briefcase, LayoutGrid, RefreshCw } from 'lucide-react';
 import { TradeForm, TradeList, StockSearch } from '../features/trading';
 import { Portfolio } from '../features/portfolio';
 
 import { Theme, themes } from '../lib/theme';
 import { portfolioService, accountService, stockService } from '../lib/services';
 import { AccountSelector } from '../shared/components/AccountSelector';
-import type { Account, Stock, Holding, Trade, StockOrder } from '../lib/services/types';
+import type { Account, Stock, Holding, Trade, StockOrder, User } from '../lib/services/types';
 import { TabNavigation } from './Journal/components/TabNavigation';
 import { getAccountAliasFromSearch, getPreferredAccountAlias } from '../shared/utils/accountSelection';
 
@@ -16,9 +16,10 @@ interface JournalProps {
   selectedStock: Stock | null;
   theme: Theme;
   onStockSelect: (stock: Stock) => void;
+  user: User | null;
 }
 
-type Tab = 'portfolio' | 'trades' | 'settings';
+type Tab = 'portfolio' | 'trades';
 
 const DEMO_USER_ID = 'mock-user-id';
 
@@ -33,9 +34,10 @@ const getOrderStatusBadge = (raw?: string | null) => {
   return { label: raw, className: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200' };
 };
 
-export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
+export function Journal({ selectedStock, theme, onStockSelect, user }: JournalProps) {
   const location = useLocation();
   const navigate = useNavigate();
+  const canViewTradePlans = Boolean(user);
   const requestedAccountAlias = useMemo(() => getAccountAliasFromSearch(location.search) || '', [location.search]);
 
   useEffect(() => {
@@ -50,7 +52,7 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab') as Tab;
-    return tab && ['portfolio', 'trades', 'settings'].includes(tab)
+    return tab && ['portfolio', 'trades'].includes(tab) && (tab !== 'trades' || canViewTradePlans)
       ? tab
       : 'portfolio';
   });
@@ -136,6 +138,14 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
   }, [accessibleAccountKeys, defaultAccountKey, portfolioUuid, requestedAccountAlias, selectedAccountId]);
 
   useEffect(() => {
+    if (canViewTradePlans) return;
+    const params = new URLSearchParams(location.search);
+    if (params.get('tab') !== 'trades') return;
+    params.delete('tab');
+    navigate(params.toString() ? `/journal?${params.toString()}` : '/journal', { replace: true });
+  }, [canViewTradePlans, location.search, navigate]);
+
+  useEffect(() => {
     if (!requestedAccountAlias || requestedAccountAlias === selectedAccountId) return;
     setSelectedAccountId(requestedAccountAlias);
   }, [requestedAccountAlias]);
@@ -151,7 +161,7 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
   }, [location.search, navigate, portfolioUuid, selectedAccountId]);
 
   const handleTabChange = (tabId: string) => {
-    const newTab = (['portfolio', 'trades', 'settings'] as const).includes(tabId as Tab)
+    const newTab = (['portfolio', 'trades'] as const).includes(tabId as Tab) && (tabId !== 'trades' || canViewTradePlans)
       ? (tabId as Tab)
       : 'portfolio';
     setActiveTab(newTab);
@@ -269,8 +279,7 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
 
   const tabs = [
     { id: 'portfolio' as Tab, name: 'Portfolio', icon: Briefcase },
-    { id: 'trades' as Tab, name: 'Trade Plans', icon: LayoutGrid },
-    { id: 'settings' as Tab, name: 'Settings', icon: Settings },
+    ...(canViewTradePlans ? [{ id: 'trades' as Tab, name: 'Trade Plans', icon: LayoutGrid }] : []),
   ];
 
   return (
@@ -323,7 +332,7 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
           theme={theme}
           onTabChange={handleTabChange}
         />
-        {activeTab === 'trades' && !portfolioUuid && (
+        {canViewTradePlans && activeTab === 'trades' && !portfolioUuid && (
           <div className="w-full">
             <StockSearch
               onSelect={onStockSelect}
@@ -360,7 +369,7 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
         />
       )}
 
-      {activeTab === 'trades' && !portfolioUuid && (
+      {canViewTradePlans && activeTab === 'trades' && !portfolioUuid && (
         <div className="flex flex-col gap-4 sm:gap-6">
           <TradeForm 
             selectedStock={selectedStock} 
@@ -460,18 +469,6 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
           />
         </div>
       )}
-
-
-
-      {activeTab === 'settings' && !portfolioUuid && (
-        <div className={`${themes[theme].card} rounded-lg p-3 sm:p-4 lg:p-6`}>
-          <h2 className={`text-lg sm:text-xl lg:text-2xl font-bold mb-3 sm:mb-4 ${themes[theme].text}`}>Account Settings</h2>
-          <p className={`${themes[theme].text} opacity-70 text-sm sm:text-base`}>
-            Account and preferences settings coming soon...
-          </p>
-        </div>
-      )}
-
       {/* Show message for restricted tabs in shared view */}
       {portfolioUuid && activeTab !== 'portfolio' && (
         <div className={`${themes[theme].card} rounded-lg p-8 text-center`}>

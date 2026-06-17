@@ -371,12 +371,14 @@ export function Navigation({
                 >
                   Options
                 </button>
-                <button
-                  onClick={() => navigate('/admin')}
-                  className={`px-3 py-2 rounded-md text-sm font-medium ${themes[theme].secondary}`}
-                >
-                  Admin
-                </button>
+                {user && (
+                  <button
+                    onClick={() => navigate('/admin')}
+                    className={`px-3 py-2 rounded-md text-sm font-medium ${themes[theme].secondary}`}
+                  >
+                    Admin
+                  </button>
+                )}
                 <button
                   onClick={() => navigate('/about')}
                   className={`px-3 py-2 rounded-md text-sm font-medium ${themes[theme].secondary}`}
@@ -503,15 +505,17 @@ export function Navigation({
                   >
                     Options
                   </button>
-                  <button
-                    onClick={() => {
-                      navigate('/admin');
-                      onMobileMenuToggle();
-                    }}
-                    className={`w-full px-4 py-2 rounded-md text-sm font-medium text-left ${themes[theme].secondary}`}
-                  >
-                    Admin
-                  </button>
+                  {user && (
+                    <button
+                      onClick={() => {
+                        navigate('/admin');
+                        onMobileMenuToggle();
+                      }}
+                      className={`w-full px-4 py-2 rounded-md text-sm font-medium text-left ${themes[theme].secondary}`}
+                    >
+                      Admin
+                    </button>
+                  )}
                   <button
                     onClick={() => {
                       navigate('/about');

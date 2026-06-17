@@ -1,13 +1,14 @@
-import React from 'react';
 import { CandlestickChart as ChartCandle, BarChart2, TrendingUp } from 'lucide-react';
 import { InternalLink } from '../../../shared/components';
 import { Theme } from '../../../lib/theme';
+import type { User } from '../../../lib/services/types';
 
 interface FeaturesGridProps {
   theme: Theme;
+  user: User | null;
 }
 
-export function FeaturesGrid({ theme }: FeaturesGridProps) {
+export function FeaturesGrid({ theme, user }: FeaturesGridProps) {
   const isDark = theme === 'dark';
 
   return (
@@ -50,15 +51,17 @@ export function FeaturesGrid({ theme }: FeaturesGridProps) {
         <p className={isDark ? 'text-gray-300' : 'text-gray-600'}>
           Keep detailed records of your trades with notes and analysis
         </p>
-        <div className="mt-4">
-          <InternalLink
-            to="/journal?tab=trades"
-            className="text-blue-500 hover:text-blue-600 text-sm font-medium"
-            title="Create and manage your trading plans"
-          >
-            Create Trade Plans →
-          </InternalLink>
-        </div>
+        {user && (
+          <div className="mt-4">
+            <InternalLink
+              to="/journal?tab=trades"
+              className="text-blue-500 hover:text-blue-600 text-sm font-medium"
+              title="Create and manage your trading plans"
+            >
+              Create Trade Plans →
+            </InternalLink>
+          </div>
+        )}
       </div>
     </div>
   );
