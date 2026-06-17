@@ -18,6 +18,14 @@ interface OptionExpiryRiskReportsPanelProps {
 
 type ExpiryOption = { expiry_date: string; phase?: string; days_to_expiry?: number };
 
+const normalizeIsoDateParam = (value: string | null | undefined) => {
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  if (!trimmed) return '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return '';
+  const ts = Date.parse(`${trimmed}T00:00:00Z`);
+  return Number.isFinite(ts) ? trimmed : '';
+};
+
 const getReportExpiryItems = (report: OptionExpiryRiskReport | null | undefined): OptionExpiryRiskReportItem[] => {
   if (!report) return [];
   if (Array.isArray(report.items) && report.items.length > 0) return report.items;
@@ -114,8 +122,10 @@ export function OptionExpiryRiskReportsPanel({
   const [riskReportError, setRiskReportError] = useState<string | null>(null);
   const [riskReportReloadSeq, setRiskReportReloadSeq] = useState(0);
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
-  const requestedReportDate = searchParams.get('report')?.trim() || searchParams.get('report_date')?.trim() || '';
-  const requestedExpiryDate = searchParams.get('expiry_date')?.trim() || searchParams.get('expiry')?.trim() || '';
+  const requestedReportDate =
+    normalizeIsoDateParam(searchParams.get('report')) || normalizeIsoDateParam(searchParams.get('report_date'));
+  const requestedExpiryDate =
+    normalizeIsoDateParam(searchParams.get('expiry_date')) || normalizeIsoDateParam(searchParams.get('expiry'));
   const updateExpiryRiskParams = useCallback((updates: Record<string, string | null>) => {
     const nextParams = new URLSearchParams(location.search);
     Object.entries(updates).forEach(([key, value]) => {

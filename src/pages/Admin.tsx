@@ -8,7 +8,7 @@ import { AccountSelector } from '../shared/components/AccountSelector';
 import { TabNavigation } from './Journal/components/TabNavigation';
 import { OperationsView, UploadPage } from './Journal/features';
 import { accountService, authService, optionsService, stockService } from '../lib/services';
-import type { AdminAccountStatusItem, AdminOrdersDailyStats, OptionOrder } from '../lib/services/types';
+import type { Account, AdminAccountStatusItem, AdminOrdersDailyStats, OptionOrder } from '../lib/services/types';
 import { AnalysisTab } from './Journal/components/AnalysisTab';
 import { HistoryTradesChart } from '../features/trading/components/HistoryTradesChart';
 import { DailyTradeHistory } from '../features/trading/components/DailyTradeHistory';
@@ -96,6 +96,9 @@ export function Admin({ theme }: AdminProps) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
   const effectiveUserId = userId ?? 'demo';
+  const [accountAccessError, setAccountAccessError] = useState<string | null>(null);
+  const [accessibleAccountKeys, setAccessibleAccountKeys] = useState<string[] | null>(null);
+  const [defaultAccountKey, setDefaultAccountKey] = useState<string | null>(null);
   const [historyDateRange] = useState(() => ({
     startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0]
@@ -201,6 +204,90 @@ export function Admin({ theme }: AdminProps) {
       setUserId(u?.id || null);
     }).catch(() => setUserId(null));
   }, []);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const mergeAccounts = (lists: Account[][]) => {
+      const map = new Map<string, Account>();
+      for (const list of lists) {
+        for (const account of list) {
+          const key = account.alias || account.id;
+          if (!key) continue;
+          const existing = map.get(key);
+          if (!existing) {
+            map.set(key, account);
+            continue;
+          }
+          if (!existing.is_default && account.is_default) {
+            map.set(key, account);
+          }
+        }
+      }
+      return Array.from(map.values());
+    };
+
+    const load = async () => {
+      setAccessibleAccountKeys(null);
+      setDefaultAccountKey(null);
+      try {
+        const [stocksResponse, optionsResponse] = await Promise.all([
+          accountService.getAccounts(effectiveUserId),
+          accountService.getOptionsAccounts(effectiveUserId),
+        ]);
+        const accounts = mergeAccounts([
+          ((stocksResponse.data || []) as Account[]),
+          ((optionsResponse.data || []) as Account[]),
+        ]);
+        if (cancelled) return;
+
+        const keys = accounts
+          .map((acc) => acc.alias || acc.id)
+          .filter((v): v is string => typeof v === 'string' && v.trim().length > 0);
+        const def = accounts.find((acc) => acc.is_default) || accounts[0];
+        setAccessibleAccountKeys(keys);
+        setDefaultAccountKey((def?.alias || def?.id || null) ?? null);
+      } catch (err) {
+        if (cancelled) return;
+        setAccessibleAccountKeys(null);
+        setDefaultAccountKey(null);
+        setAccountAccessError(err instanceof Error ? err.message : '账户列表加载失败，无法校验 account_alias');
+      }
+    };
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveUserId]);
+
+  React.useEffect(() => {
+    if (!accessibleAccountKeys) return;
+    const allowed = new Set(accessibleAccountKeys);
+    const requested = requestedAccountAlias;
+
+    if (requested && !allowed.has(requested)) {
+      setAccountAccessError(`无权访问账户: ${requested}，已切换到默认账户`);
+      if (defaultAccountKey && defaultAccountKey !== selectedAccountId) {
+        setSelectedAccountId(defaultAccountKey);
+      } else if (!defaultAccountKey && selectedAccountId !== null) {
+        setSelectedAccountId(null);
+      }
+      return;
+    }
+
+    if (selectedAccountId && !allowed.has(selectedAccountId)) {
+      setAccountAccessError(`无权访问账户: ${selectedAccountId}，已切换到默认账户`);
+      if (defaultAccountKey && defaultAccountKey !== selectedAccountId) {
+        setSelectedAccountId(defaultAccountKey);
+      } else if (!defaultAccountKey) {
+        setSelectedAccountId(null);
+      }
+      return;
+    }
+
+    setAccountAccessError(null);
+  }, [accessibleAccountKeys, defaultAccountKey, requestedAccountAlias, selectedAccountId]);
 
   React.useEffect(() => {
     if (noticeUserScope !== 'current') return;
@@ -633,6 +720,11 @@ export function Admin({ theme }: AdminProps) {
             </div>
           </div>
         </div>
+        {accountAccessError && (
+          <div className="text-sm text-red-600 dark:text-red-400">
+            {accountAccessError}
+          </div>
+        )}
 
         <TabNavigation
           tabs={tabs}

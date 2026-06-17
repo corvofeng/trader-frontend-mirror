@@ -15,11 +15,11 @@ import { OptionsCalculatorCard } from '../features/options/components/OptionsCal
 import type { PayoffChartEngine } from '../features/options/components/OptionPayoffCalculatorChart';
 import { OptionsCalculatorModal } from './options/OptionsCalculatorModal';
 import { RelatedLinks, AccountSelector } from '../shared/components';
-import { optionsService, authService } from '../lib/services';
+import { optionsService, authService, accountService } from '../lib/services';
 import { OptionsPortfolioManagement } from '../features/options/components/OptionsPortfolioManagement';
 import { OptionWhitelistManager } from '../features/options/components/OptionWhitelistManager';
 import { OptionsAnalysisTab } from './Options/components/OptionsAnalysisTab';
-import type { OptionsData } from '../lib/services/types';
+import type { Account, OptionsData } from '../lib/services/types';
 import { OptionPriceWebSocketProvider } from '../features/options/context/OptionPriceWebSocketContext';
 import { useAutoRefresh, useOptionPriceWebSocket } from '../features/options/hooks/useOptionPriceWebSocket';
 import type { OptionsChartEngine } from '../features/options/utils/chartEngine';
@@ -31,6 +31,14 @@ interface OptionsProps {
 }
 
 type OptionsTab = 'data' | 'portfolio' | 'analysis' | 'trading' | 'management' | 'whitelist' | 'expiry-risk' | 'risk';
+
+const normalizeIsoDateParam = (value: string | null | undefined) => {
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  if (!trimmed) return '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return '';
+  const ts = Date.parse(`${trimmed}T00:00:00Z`);
+  return Number.isFinite(ts) ? trimmed : '';
+};
 
 function OptionsContent({ theme }: OptionsProps) {
   const location = useLocation();
@@ -81,6 +89,9 @@ function OptionsContent({ theme }: OptionsProps) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
   const effectiveUserId = userId ?? 'demo';
+  const [accountAccessError, setAccountAccessError] = useState<string | null>(null);
+  const [accessibleAccountKeys, setAccessibleAccountKeys] = useState<string[] | null>(null);
+  const [defaultAccountKey, setDefaultAccountKey] = useState<string | null>(null);
   const { isConnected, queryOptionsData, optionsDataSnapshots } = useOptionPriceWebSocket();
   const pendingFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [payoffChartEngine, setPayoffChartEngine] = useState<PayoffChartEngine>(() => {
@@ -115,8 +126,8 @@ function OptionsContent({ theme }: OptionsProps) {
 
     if (isExpiryRisk) {
       nextParams.set('tab', 'expiry-risk');
-      const report = (currentParams.get('report') || currentParams.get('report_date') || '').trim();
-      const expiryDate = (currentParams.get('expiry_date') || currentParams.get('expiry') || '').trim();
+      const report = normalizeIsoDateParam(currentParams.get('report')) || normalizeIsoDateParam(currentParams.get('report_date'));
+      const expiryDate = normalizeIsoDateParam(currentParams.get('expiry_date')) || normalizeIsoDateParam(currentParams.get('expiry'));
       if (report) nextParams.set('report', report);
       if (expiryDate) nextParams.set('expiry_date', expiryDate);
     }
@@ -199,6 +210,69 @@ function OptionsContent({ theme }: OptionsProps) {
       setUserId(u?.id || null);
     }).catch(() => setUserId(null));
   }, []);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      setAccessibleAccountKeys(null);
+      setDefaultAccountKey(null);
+      try {
+        const response = await accountService.getOptionsAccounts(effectiveUserId);
+        let accounts = (response.data || []) as Account[];
+        if (accounts.length === 0) {
+          const fallback = await accountService.getAccounts(effectiveUserId);
+          accounts = (fallback.data || []) as Account[];
+        }
+        if (cancelled) return;
+
+        const keys = accounts
+          .map((acc) => acc.alias || acc.id)
+          .filter((v): v is string => typeof v === 'string' && v.trim().length > 0);
+        const def = accounts.find((acc) => acc.is_default) || accounts[0];
+        setAccessibleAccountKeys(keys);
+        setDefaultAccountKey((def?.alias || def?.id || null) ?? null);
+      } catch (err) {
+        if (cancelled) return;
+        setAccessibleAccountKeys(null);
+        setDefaultAccountKey(null);
+        setAccountAccessError(err instanceof Error ? err.message : '账户列表加载失败，无法校验 account_alias');
+      }
+    };
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveUserId]);
+
+  React.useEffect(() => {
+    if (!accessibleAccountKeys) return;
+    const allowed = new Set(accessibleAccountKeys);
+    const requested = requestedAccountAlias;
+
+    if (requested && !allowed.has(requested)) {
+      setAccountAccessError(`无权访问账户: ${requested}，已切换到默认账户`);
+      if (defaultAccountKey && defaultAccountKey !== selectedAccountId) {
+        setSelectedAccountId(defaultAccountKey);
+      } else if (!defaultAccountKey && selectedAccountId !== null) {
+        setSelectedAccountId(null);
+      }
+      return;
+    }
+
+    if (selectedAccountId && !allowed.has(selectedAccountId)) {
+      setAccountAccessError(`无权访问账户: ${selectedAccountId}，已切换到默认账户`);
+      if (defaultAccountKey && defaultAccountKey !== selectedAccountId) {
+        setSelectedAccountId(defaultAccountKey);
+      } else if (!defaultAccountKey) {
+        setSelectedAccountId(null);
+      }
+      return;
+    }
+
+    setAccountAccessError(null);
+  }, [accessibleAccountKeys, defaultAccountKey, requestedAccountAlias, selectedAccountId]);
 
   const applyOptionsData = useCallback((data: OptionsData) => {
     setOptionsData(data);
@@ -413,6 +487,12 @@ function OptionsContent({ theme }: OptionsProps) {
             </div>
           </div>
         </div>
+
+        {accountAccessError && (
+          <div className="text-sm text-red-600 dark:text-red-400">
+            {accountAccessError}
+          </div>
+        )}
 
         <TabNavigation
           tabs={tabs}
