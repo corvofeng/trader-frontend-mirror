@@ -36,10 +36,6 @@ function OptionsContent({ theme }: OptionsProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const requestedAccountAlias = React.useMemo(() => getAccountAliasFromSearch(location.search) || '', [location.search]);
-  const requestedSymbol = React.useMemo(() => {
-    const params = new URLSearchParams(location.search);
-    return params.get('symbol')?.trim() || '';
-  }, [location.search]);
 
   React.useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -104,32 +100,11 @@ function OptionsContent({ theme }: OptionsProps) {
   }, [requestedAccountAlias, selectedAccountId]);
 
   React.useEffect(() => {
-    if (!requestedSymbol || requestedSymbol === selectedSymbol) return;
-    if (availableSymbols.length > 0 && !availableSymbols.includes(requestedSymbol)) return;
-    setSelectedSymbol(requestedSymbol);
-  }, [availableSymbols, requestedSymbol, selectedSymbol]);
-
-  React.useEffect(() => {
     const nextQuery = withAccountAliasInSearch(location.search, selectedAccountId);
     const currentQuery = location.search.startsWith('?') ? location.search.slice(1) : location.search;
     if (nextQuery === currentQuery) return;
     navigate(nextQuery ? `/options?${nextQuery}` : '/options', { replace: true });
   }, [location.search, navigate, selectedAccountId]);
-
-  React.useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const current = params.get('symbol')?.trim() || '';
-    if (selectedSymbol && selectedSymbol !== current) {
-      params.set('symbol', selectedSymbol);
-    }
-    if (!selectedSymbol && current) {
-      params.delete('symbol');
-    }
-    const nextQuery = params.toString();
-    const currentQuery = location.search.startsWith('?') ? location.search.slice(1) : location.search;
-    if (nextQuery === currentQuery) return;
-    navigate(nextQuery ? `/options?${nextQuery}` : '/options', { replace: true });
-  }, [location.search, navigate, selectedSymbol]);
 
   const handleTabChange = (newTab: string) => {
     const nextTab = newTab as OptionsTab;

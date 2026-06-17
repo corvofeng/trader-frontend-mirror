@@ -63,7 +63,10 @@ export const withAccountAliasInSearch = (search: string, accountAlias: string | 
   const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
   const normalized = normalizeValue(accountAlias);
   if (normalized) {
-    params.set('account_alias', normalized);
+    const current = normalizeValue(params.get('account_alias'));
+    if (current !== normalized) {
+      params.set('account_alias', normalized);
+    }
   } else {
     params.delete('account_alias');
   }

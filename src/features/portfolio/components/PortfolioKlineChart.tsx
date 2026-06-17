@@ -50,13 +50,6 @@ const toTimestamp = (date: string) => {
   return Math.floor(ts / 1000) as UTCTimestamp;
 };
 
-const toLocalYyyyMmDd = (date: Date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
 const formatCompactNumber = (value: number) => {
   const abs = Math.abs(value);
   if (abs >= 1e8) return `${(value / 1e8).toFixed(2)}亿`;
@@ -79,25 +72,8 @@ export function PortfolioKlineChart({ theme, klineData, source, priceMode }: Por
   const effectivePriceMode = source === 'position' ? 'raw' : (priceMode ?? 'adjusted');
 
   const preparedData = React.useMemo<PreparedPoint[]>(() => {
-    const today = toLocalYyyyMmDd(new Date());
     return klineData
       .map((point) => {
-        const isToday = typeof point?.date === 'string' && point.date.slice(0, 10) === today;
-        if (source !== 'position' && effectivePriceMode === 'adjusted' && isToday) {
-          const open = point.adjusted_open;
-          const high = point.adjusted_high;
-          const low = point.adjusted_low;
-          const close = point.adjusted_close;
-          if (
-            !Number.isFinite(open) ||
-            !Number.isFinite(high) ||
-            !Number.isFinite(low) ||
-            !Number.isFinite(close)
-          ) {
-            return null;
-          }
-        }
-
         const selectValue = (key: 'open' | 'high' | 'low' | 'close') => {
           if (source === 'position') {
             const positionKey = (`position_${key}` as const);
@@ -111,10 +87,7 @@ export function PortfolioKlineChart({ theme, klineData, source, priceMode }: Por
           if (effectivePriceMode === 'adjusted') {
             const adjKey = (`adjusted_${key}` as const);
             const candidate = point[adjKey];
-            if (Number.isFinite(candidate)) return candidate;
-            const navKey = (`nav_${key}` as const);
-            const navCandidate = point[navKey] ?? (key === 'close' ? point.nav_value : undefined);
-            return Number.isFinite(navCandidate) ? navCandidate : point[key];
+            return Number.isFinite(candidate) ? candidate : Number.NaN;
           }
           return point[key];
         };
