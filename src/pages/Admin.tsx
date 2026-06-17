@@ -122,7 +122,7 @@ export function Admin({ theme }: AdminProps) {
   React.useEffect(() => {
     if (!requestedAccountAlias || requestedAccountAlias === selectedAccountId) return;
     setSelectedAccountId(requestedAccountAlias);
-  }, [requestedAccountAlias, selectedAccountId]);
+  }, [requestedAccountAlias]);
 
   React.useEffect(() => {
     const nextQuery = withAccountAliasInSearch(location.search, selectedAccountId);

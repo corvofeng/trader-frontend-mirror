@@ -24,7 +24,7 @@ import { OptionPriceWebSocketProvider } from '../features/options/context/Option
 import { useAutoRefresh, useOptionPriceWebSocket } from '../features/options/hooks/useOptionPriceWebSocket';
 import type { OptionsChartEngine } from '../features/options/utils/chartEngine';
 import { TabNavigation } from './Journal/components/TabNavigation';
-import { getAccountAliasFromSearch, getPreferredAccountAlias, withAccountAliasInSearch } from '../shared/utils/accountSelection';
+import { getAccountAliasFromSearch, getPreferredAccountAlias } from '../shared/utils/accountSelection';
 
 interface OptionsProps {
   theme: Theme;
@@ -83,48 +83,79 @@ function OptionsContent({ theme }: OptionsProps) {
   const effectiveUserId = userId ?? 'demo';
   const { isConnected, queryOptionsData, optionsDataSnapshots } = useOptionPriceWebSocket();
   const pendingFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const payoffChartEngine: PayoffChartEngine = (() => {
-    const params = new URLSearchParams(location.search);
-    const chart = params.get('chart');
-    return chart === 'plotly' || chart === 'echarts' ? chart : 'tradingview';
-  })();
-  const marketChartEngine: OptionsChartEngine = (() => {
-    const params = new URLSearchParams(location.search);
-    const chart = params.get('marketChart');
-    return chart === 'plotly' || chart === 'echarts' ? chart : 'tradingview';
-  })();
+  const [payoffChartEngine, setPayoffChartEngine] = useState<PayoffChartEngine>(() => {
+    try {
+      const raw = localStorage.getItem('optionsPayoffChartEngine') || '';
+      return raw === 'plotly' || raw === 'echarts' ? raw : 'tradingview';
+    } catch {
+      return 'tradingview';
+    }
+  });
+  const [marketChartEngine, setMarketChartEngine] = useState<OptionsChartEngine>(() => {
+    try {
+      const raw = localStorage.getItem('optionsMarketChartEngine') || '';
+      return raw === 'plotly' || raw === 'echarts' ? raw : 'tradingview';
+    } catch {
+      return 'tradingview';
+    }
+  });
 
   React.useEffect(() => {
     if (!requestedAccountAlias || requestedAccountAlias === selectedAccountId) return;
     setSelectedAccountId(requestedAccountAlias);
-  }, [requestedAccountAlias, selectedAccountId]);
+  }, [requestedAccountAlias]);
 
   React.useEffect(() => {
-    const nextQuery = withAccountAliasInSearch(location.search, selectedAccountId);
+    const currentParams = new URLSearchParams(location.search);
+    const tabFromUrl = currentParams.get('tab');
+    const isExpiryRisk = tabFromUrl === 'expiry-risk' || activeTab === 'expiry-risk';
+    const nextParams = new URLSearchParams();
+
+    if (selectedAccountId) nextParams.set('account_alias', selectedAccountId);
+
+    if (isExpiryRisk) {
+      nextParams.set('tab', 'expiry-risk');
+      const report = (currentParams.get('report') || currentParams.get('report_date') || '').trim();
+      const expiryDate = (currentParams.get('expiry_date') || currentParams.get('expiry') || '').trim();
+      if (report) nextParams.set('report', report);
+      if (expiryDate) nextParams.set('expiry_date', expiryDate);
+    }
+
+    const nextQuery = nextParams.toString();
     const currentQuery = location.search.startsWith('?') ? location.search.slice(1) : location.search;
     if (nextQuery === currentQuery) return;
     navigate(nextQuery ? `/options?${nextQuery}` : '/options', { replace: true });
-  }, [location.search, navigate, selectedAccountId]);
+  }, [activeTab, location.search, navigate, selectedAccountId]);
 
   const handleTabChange = (newTab: string) => {
     const nextTab = newTab as OptionsTab;
     setActiveTab(nextTab);
-    const params = new URLSearchParams(location.search);
-    params.set('tab', nextTab);
-    navigate(`/options?${params.toString()}`, { replace: true });
+    if (nextTab === 'expiry-risk') {
+      const params = new URLSearchParams();
+      params.set('tab', 'expiry-risk');
+      if (selectedAccountId) params.set('account_alias', selectedAccountId);
+      navigate(`/options?${params.toString()}`, { replace: true });
+      return;
+    }
+    const params = new URLSearchParams();
+    if (selectedAccountId) params.set('account_alias', selectedAccountId);
+    const qs = params.toString();
+    navigate(qs ? `/options?${qs}` : '/options', { replace: true });
   };
 
   const handlePayoffChartEngineChange = useCallback((engine: PayoffChartEngine) => {
-    const params = new URLSearchParams(location.search);
-    params.set('chart', engine);
-    navigate(`/options?${params.toString()}`, { replace: true });
-  }, [location.search, navigate]);
+    setPayoffChartEngine(engine);
+    try {
+      localStorage.setItem('optionsPayoffChartEngine', engine);
+    } catch {}
+  }, []);
 
   const handleMarketChartEngineChange = useCallback((engine: OptionsChartEngine) => {
-    const params = new URLSearchParams(location.search);
-    params.set('marketChart', engine);
-    navigate(`/options?${params.toString()}`, { replace: true });
-  }, [location.search, navigate]);
+    setMarketChartEngine(engine);
+    try {
+      localStorage.setItem('optionsMarketChartEngine', engine);
+    } catch {}
+  }, []);
 
   // Fetch available symbols on component mount
   React.useEffect(() => {

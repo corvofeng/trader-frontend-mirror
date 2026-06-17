@@ -10,7 +10,7 @@ import { portfolioService, accountService, stockService } from '../lib/services'
 import { AccountSelector } from '../shared/components/AccountSelector';
 import type { Stock, Holding, Trade, StockOrder } from '../lib/services/types';
 import { TabNavigation } from './Journal/components/TabNavigation';
-import { getAccountAliasFromSearch, getPreferredAccountAlias, withAccountAliasInSearch } from '../shared/utils/accountSelection';
+import { getAccountAliasFromSearch, getPreferredAccountAlias } from '../shared/utils/accountSelection';
 
 interface JournalProps {
   selectedStock: Stock | null;
@@ -75,11 +75,13 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
   useEffect(() => {
     if (!requestedAccountAlias || requestedAccountAlias === selectedAccountId) return;
     setSelectedAccountId(requestedAccountAlias);
-  }, [requestedAccountAlias, selectedAccountId]);
+  }, [requestedAccountAlias]);
 
   useEffect(() => {
     if (portfolioUuid) return;
-    const nextQuery = withAccountAliasInSearch(location.search, selectedAccountId);
+    const nextParams = new URLSearchParams();
+    if (selectedAccountId) nextParams.set('account_alias', selectedAccountId);
+    const nextQuery = nextParams.toString();
     const currentQuery = location.search.startsWith('?') ? location.search.slice(1) : location.search;
     if (nextQuery === currentQuery) return;
     navigate(nextQuery ? `/journal?${nextQuery}` : '/journal', { replace: true });
@@ -90,9 +92,6 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
       ? (tabId as Tab)
       : 'portfolio';
     setActiveTab(newTab);
-    const params = new URLSearchParams(location.search);
-    params.set('tab', newTab);
-    navigate(`/journal?${params.toString()}`, { replace: true });
   };
 
   const [todayOrders, setTodayOrders] = useState<StockOrder[]>([]);

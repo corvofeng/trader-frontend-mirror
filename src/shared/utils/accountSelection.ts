@@ -72,3 +72,13 @@ export const withAccountAliasInSearch = (search: string, accountAlias: string | 
   }
   return params.toString();
 };
+
+export const pickSearchParams = (search: string, allowedKeys: string[]) => {
+  const src = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
+  const dst = new URLSearchParams();
+  for (const key of allowedKeys) {
+    const value = normalizeValue(src.get(key));
+    if (value) dst.set(key, value);
+  }
+  return dst.toString();
+};
