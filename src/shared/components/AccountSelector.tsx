@@ -169,12 +169,34 @@ export function AccountSelector({
   const selectedAccount = accounts.find(
     acc => acc.alias === selectedAccountId || acc.id === selectedAccountId
   );
+  const isDark = theme === 'dark';
+  const triggerClass = isDark
+    ? 'bg-slate-800 text-slate-100 border border-slate-600 hover:bg-slate-700 shadow-sm'
+    : `${themes[theme].primary}`;
+  const panelClass = isDark
+    ? 'bg-slate-800/95 border-slate-700 shadow-2xl shadow-black/45 backdrop-blur-md'
+    : `${themes[theme].card} ${themes[theme].border} shadow-lg`;
+  const iconButtonClass = isDark
+    ? 'p-1 rounded-full bg-slate-700/60 hover:bg-slate-600 text-slate-100 transition-colors duration-200'
+    : `p-1 rounded-full ${themes[theme].secondary} transition-colors duration-200`;
+  const selectedRowClass = isDark
+    ? 'bg-blue-500/14 ring-1 ring-blue-400/40 border border-blue-400/25'
+    : 'bg-blue-50 border-l-4 border-blue-500';
+  const rowClass = isDark
+    ? 'hover:bg-slate-700/80 border border-transparent'
+    : 'hover:bg-gray-100';
+  const defaultBadgeClass = isDark
+    ? 'text-xs px-2 py-0.5 rounded-full bg-blue-500/18 text-blue-200 border border-blue-400/25'
+    : 'text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800';
+  const setDefaultClass = isDark
+    ? 'text-xs px-2 py-1 rounded-full bg-slate-700/70 text-slate-100 hover:bg-blue-500/20 hover:text-blue-200 transition-colors duration-200'
+    : `text-xs px-2 py-1 rounded-full transition-colors duration-200 hover:bg-blue-100 ${themes[theme].secondary}`;
 
   return (
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors duration-200 max-w-full min-w-0 ${themes[theme].primary} ${themes[theme].text}`}
+        className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors duration-200 max-w-full min-w-0 ${triggerClass}`}
       >
         <Briefcase className="w-4 h-4" />
         <span className="font-medium truncate max-w-[12rem] sm:max-w-[16rem]">
@@ -188,14 +210,14 @@ export function AccountSelector({
             className="fixed inset-0 z-10"
             onClick={() => setIsOpen(false)}
           />
-          <div className={`absolute top-full mt-2 right-0 w-80 rounded-lg shadow-lg border ${themes[theme].card} ${themes[theme].border} z-20 overflow-hidden`}>
+          <div className={`absolute top-full mt-2 right-0 w-80 rounded-lg border z-20 overflow-hidden ${panelClass}`}>
             <div className="p-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className={`text-lg font-semibold ${themes[theme].text}`}>账户管理</h3>
                 {showCreate && resolvedMode !== 'all' && (
                   <button
                     onClick={() => setShowAddForm(!showAddForm)}
-                    className={`p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200`}
+                    className={iconButtonClass}
                     title="添加新账户"
                   >
                     <Plus className="w-5 h-5" />
@@ -256,8 +278,8 @@ export function AccountSelector({
                   accounts.map(account => (
                     <div
                       key={account.id}
-                      className={`flex items-center justify-between p-3 rounded-md cursor-pointer transition-colors duration-200 hover:bg-gray-100 dark:hover:bg-gray-700 ${
-                        selectedAccountId === (account.alias || account.id) ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500' : ''
+                      className={`flex items-center justify-between p-3 rounded-md cursor-pointer transition-colors duration-200 ${rowClass} ${
+                        selectedAccountId === (account.alias || account.id) ? selectedRowClass : ''
                       }`}
                       onClick={() => {
                         onAccountChange(account.alias || account.id);
@@ -270,7 +292,7 @@ export function AccountSelector({
                             {account.name}
                           </span>
                           {account.is_default && (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                            <span className={defaultBadgeClass}>
                               默认
                             </span>
                           )}
@@ -288,7 +310,7 @@ export function AccountSelector({
                               e.stopPropagation();
                               handleSetDefault(account.alias || account.id);
                             }}
-                            className={`text-xs px-2 py-1 rounded-full transition-colors duration-200 hover:bg-blue-100 dark:hover:bg-blue-900 ${themes[theme].secondary}`}
+                            className={setDefaultClass}
                           >
                             设为默认
                           </button>

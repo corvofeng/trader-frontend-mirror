@@ -450,13 +450,13 @@ export function Portfolio({
   return (
     <div className="space-y-6 printable-content" ref={journalRef}>
       {isSnapshot && (
-        <div className="bg-amber-50 border-l-4 border-amber-500 p-4 mb-4 dark:bg-amber-900/30">
+        <div className={`p-4 mb-4 ${themes[theme].semantic.snapshotBanner}`}>
           <div className="flex">
             <div className="flex-shrink-0">
-              <Activity className="h-5 w-5 text-amber-400" aria-hidden="true" />
+              <Activity className={`h-5 w-5 ${themes[theme].semantic.snapshotIcon}`} aria-hidden="true" />
             </div>
             <div className="ml-3 flex-1 min-w-0">
-              <p className="text-sm text-amber-700 dark:text-amber-200 sm:whitespace-nowrap">
+              <p className={`text-sm sm:whitespace-nowrap ${themes[theme].semantic.snapshotText}`}>
                 当前显示的数据为快照数据，可能与实时市场状态存在延迟。
               </p>
             </div>

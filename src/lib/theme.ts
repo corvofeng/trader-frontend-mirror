@@ -11,6 +11,11 @@ export interface ThemeColors {
   cardHover: string;
   input: string;
   border: string;
+  semantic: {
+    snapshotBanner: string;
+    snapshotIcon: string;
+    snapshotText: string;
+  };
   chart: {
     upColor: string;
     downColor: string;
@@ -42,6 +47,11 @@ function getBaseTheme(theme: Theme): ThemeColors {
       cardHover: 'hover:bg-gray-50',
       input: 'bg-white border-gray-300',
       border: 'border-gray-200',
+      semantic: {
+        snapshotBanner: 'bg-amber-50 border-l-4 border-amber-500',
+        snapshotIcon: 'text-amber-400',
+        snapshotText: 'text-amber-700',
+      },
       chart: {
         upColor: '#26a69a',
         downColor: '#ef5350',
@@ -58,6 +68,11 @@ function getBaseTheme(theme: Theme): ThemeColors {
       cardHover: 'hover:bg-gray-700',
       input: 'bg-gray-800 border-gray-600',
       border: 'border-gray-700',
+      semantic: {
+        snapshotBanner: 'bg-slate-950/80 border-l-4 border-amber-400/60',
+        snapshotIcon: 'text-amber-300/80',
+        snapshotText: 'text-amber-100/80',
+      },
       chart: {
         upColor: '#4caf50',
         downColor: '#f44336',
@@ -74,6 +89,11 @@ function getBaseTheme(theme: Theme): ThemeColors {
       cardHover: 'hover:bg-blue-50',
       input: 'bg-white border-blue-200',
       border: 'border-blue-100',
+      semantic: {
+        snapshotBanner: 'bg-amber-50 border-l-4 border-amber-500',
+        snapshotIcon: 'text-amber-400',
+        snapshotText: 'text-amber-700',
+      },
       chart: {
         upColor: '#3b82f6',
         downColor: '#f43f5e',

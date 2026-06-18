@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { format } from 'date-fns';
 import { ArrowUpCircle, ArrowDownCircle, BarChart2, Check, X, Clock, Edit2, Save, ListFilter, ChevronDown, RefreshCw } from 'lucide-react';
 import { authService, tradeService, stockConfigService } from '../../../lib/services';
@@ -150,15 +150,15 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
     switch (status) {
       case 'completed':
         return theme === 'dark' 
-          ? 'bg-green-900 text-green-100' 
+          ? 'bg-emerald-950/55 text-emerald-100 ring-1 ring-inset ring-emerald-400/15'
           : 'bg-green-100 text-green-800';
       case 'cancelled':
         return theme === 'dark'
-          ? 'bg-red-900 text-red-100'
+          ? 'bg-rose-950/55 text-rose-100 ring-1 ring-inset ring-rose-400/15'
           : 'bg-red-100 text-red-800';
       default:
         return theme === 'dark'
-          ? 'bg-yellow-900 text-yellow-100'
+          ? 'bg-amber-950/50 text-amber-100/90 ring-1 ring-inset ring-amber-400/15'
           : 'bg-yellow-100 text-yellow-800';
     }
   };
@@ -169,7 +169,7 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
         icon: ArrowUpCircle,
         label: 'Buy',
         className: theme === 'dark' 
-          ? 'bg-green-900 text-green-100' 
+          ? 'bg-emerald-950/50 text-emerald-100 ring-1 ring-inset ring-emerald-400/15'
           : 'bg-green-100 text-green-600'
       };
     }
@@ -177,7 +177,7 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
       icon: ArrowDownCircle,
       label: 'Sell',
       className: theme === 'dark' 
-        ? 'bg-red-900 text-red-100' 
+        ? 'bg-rose-950/50 text-rose-100 ring-1 ring-inset ring-rose-400/15'
         : 'bg-red-100 text-red-600'
     };
   };
@@ -292,7 +292,9 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
             onClick={() => handleStatusChange(trade.id, 'completed')}
             disabled={isLoading}
             className={`inline-flex items-center px-3 py-1.5 text-xs font-medium rounded ${
-              theme === 'dark' ? 'bg-green-800 text-green-100 hover:bg-green-700' : 'bg-green-100 text-green-800 hover:bg-green-200'
+              theme === 'dark'
+                ? 'bg-emerald-950/55 text-emerald-100 ring-1 ring-inset ring-emerald-400/15 hover:bg-emerald-900/45'
+                : 'bg-green-100 text-green-800 hover:bg-green-200'
             } transition-colors duration-150 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             <Check className="w-3 h-3 mr-1" />
@@ -302,7 +304,9 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
             onClick={() => handleStatusChange(trade.id, 'cancelled')}
             disabled={isLoading}
             className={`inline-flex items-center px-3 py-1.5 text-xs font-medium rounded ${
-              theme === 'dark' ? 'bg-red-800 text-red-100 hover:bg-red-700' : 'bg-red-100 text-red-800 hover:bg-red-200'
+              theme === 'dark'
+                ? 'bg-rose-950/55 text-rose-100 ring-1 ring-inset ring-rose-400/15 hover:bg-rose-900/45'
+                : 'bg-red-100 text-red-800 hover:bg-red-200'
             } transition-colors duration-150 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             <X className="w-3 h-3 mr-1" />
@@ -317,7 +321,9 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
             onClick={() => handleStatusChange(trade.id, 'pending')}
             disabled={isLoading}
             className={`inline-flex items-center px-3 py-1.5 text-xs font-medium rounded ${
-              theme === 'dark' ? 'bg-yellow-800 text-yellow-100 hover:bg-yellow-700' : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
+              theme === 'dark'
+                ? 'bg-amber-950/50 text-amber-100/90 ring-1 ring-inset ring-amber-400/15 hover:bg-amber-900/40'
+                : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
             } transition-colors duration-150 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             <Clock className="w-3 h-3 mr-1" />
@@ -452,14 +458,18 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
                         <div className="flex flex-wrap gap-2 text-xs sm:text-sm">
                           {pendingCount > 0 && (
                             <span className={`px-2 py-0.5 rounded-full font-medium ${
-                              theme === 'dark' ? 'bg-yellow-900/50 text-yellow-200' : 'bg-yellow-100 text-yellow-800'
+                              theme === 'dark'
+                                ? 'bg-amber-950/45 text-amber-100/85 ring-1 ring-inset ring-amber-400/12'
+                                : 'bg-yellow-100 text-yellow-800'
                             }`}>
                               {pendingCount} Pending
                             </span>
                           )}
                           {completedCount > 0 && (
                             <span className={`px-2 py-0.5 rounded-full font-medium ${
-                              theme === 'dark' ? 'bg-green-900/50 text-green-200' : 'bg-green-100 text-green-800'
+                              theme === 'dark'
+                                ? 'bg-emerald-950/45 text-emerald-100 ring-1 ring-inset ring-emerald-400/12'
+                                : 'bg-green-100 text-green-800'
                             }`}>
                               {completedCount} Completed
                             </span>
@@ -619,14 +629,18 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
                     <div className="flex flex-wrap gap-2 text-xs sm:text-sm">
                       {pendingCount > 0 && (
                         <span className={`px-2 py-0.5 rounded-full font-medium ${
-                          theme === 'dark' ? 'bg-yellow-900/50 text-yellow-200' : 'bg-yellow-100 text-yellow-800'
+                          theme === 'dark'
+                            ? 'bg-amber-950/45 text-amber-100/85 ring-1 ring-inset ring-amber-400/12'
+                            : 'bg-yellow-100 text-yellow-800'
                         }`}>
                           {pendingCount} Pending
                         </span>
                       )}
                       {completedCount > 0 && (
                         <span className={`px-2 py-0.5 rounded-full font-medium ${
-                          theme === 'dark' ? 'bg-green-900/50 text-green-200' : 'bg-green-100 text-green-800'
+                          theme === 'dark'
+                            ? 'bg-emerald-950/45 text-emerald-100 ring-1 ring-inset ring-emerald-400/12'
+                            : 'bg-green-100 text-green-800'
                         }`}>
                           {completedCount} Completed
                         </span>
