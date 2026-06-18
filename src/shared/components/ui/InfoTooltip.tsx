@@ -16,10 +16,10 @@ export function InfoTooltip({
   className = '',
 }: InfoTooltipProps) {
   const alignmentClass = align === 'left'
-    ? 'left-0'
+    ? 'sm:left-0'
     : align === 'right'
-    ? 'right-0'
-    : 'left-1/2 -translate-x-1/2';
+    ? 'sm:right-0'
+    : 'sm:left-1/2 sm:-translate-x-1/2';
 
   const tooltipThemeClass = theme === 'dark'
     ? 'bg-gray-950/95 text-gray-100 border-gray-700'
@@ -39,7 +39,7 @@ export function InfoTooltip({
       </span>
       <span
         role="tooltip"
-        className={`pointer-events-none absolute bottom-full z-30 mb-2 w-56 rounded-lg border px-3 py-2 text-left text-xs leading-5 shadow-lg transition duration-150 ease-out whitespace-pre-line opacity-0 invisible group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 ${alignmentClass} ${tooltipThemeClass}`}
+        className={`pointer-events-none fixed bottom-4 left-4 right-4 z-30 rounded-lg border px-3 py-2 text-left text-xs leading-5 shadow-lg transition duration-150 ease-out whitespace-pre-line opacity-0 invisible group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 sm:absolute sm:bottom-full sm:left-auto sm:right-auto sm:mb-2 sm:w-56 ${alignmentClass} ${tooltipThemeClass}`}
       >
         {content}
       </span>
