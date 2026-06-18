@@ -21,6 +21,39 @@ const ANON_ACCOUNT_ALIAS_STORAGE_KEY = 'anon_account_alias';
 const ANON_TAB_STORAGE_KEY = 'anon_tab';
 const ANON_TS_STORAGE_KEY = 'anon_ts';
 
+const sanitizeString = (value: string | null, maxLen: number) => {
+  if (typeof value !== 'string') return null;
+  const s = value.trim();
+  if (!s) return null;
+  return s.length > maxLen ? s.slice(0, maxLen) : s;
+};
+
+const sanitizeAccountAlias = (value: string | null) => {
+  const s = sanitizeString(value, 64);
+  if (!s) return null;
+  return /^[A-Za-z0-9_-]{1,64}$/.test(s) ? s : null;
+};
+
+const pickAllowedTab = (pathname: string, tabRaw: string | null) => {
+  const s = sanitizeString(tabRaw, 32);
+  if (!s) return null;
+
+  if (pathname.startsWith('/options')) {
+    const allowed = new Set(['data', 'portfolio', 'analysis', 'trading', 'management', 'whitelist', 'expiry-risk', 'risk']);
+    return allowed.has(s) ? s : null;
+  }
+  if (pathname.startsWith('/admin')) {
+    const allowed = new Set(['operations', 'calendar', 'analysis', 'history', 'tasks', 'notices', 'accounts', 'upload']);
+    return allowed.has(s) ? s : null;
+  }
+  if (pathname.startsWith('/journal')) {
+    const allowed = new Set(['portfolio', 'trades']);
+    return allowed.has(s) ? s : null;
+  }
+
+  return null;
+};
+
 const readLocalStorage = (key: string) => {
   try {
     return localStorage.getItem(key);
@@ -68,8 +101,9 @@ export const updateAnonPresence = (input: { pathname: string; search: string }) 
   const anonId = getOrCreateAnonId();
   const fullPath = `${input.pathname}${input.search || ''}`;
   const params = new URLSearchParams(input.search.startsWith('?') ? input.search.slice(1) : input.search);
-  const pageTitle = typeof document !== 'undefined' ? (document.title || '') : '';
-  const accountAlias = params.get('account_alias') || getFirstLocalStorageValue([
+  const pageTitle = sanitizeString(typeof document !== 'undefined' ? (document.title || '') : '', 200) || '';
+  const accountAlias = sanitizeAccountAlias(
+    params.get('account_alias') || getFirstLocalStorageValue([
     'adminSelectedAccountAlias',
     'adminAccountId',
     'journalSelectedAccountAlias',
@@ -77,8 +111,9 @@ export const updateAnonPresence = (input: { pathname: string; search: string }) 
     'optionsSelectedAccountAlias',
     'selectedAccountAlias',
     'selectedAccountId',
-  ]);
-  const tab = params.get('tab');
+  ])
+  );
+  const tab = pickAllowedTab(input.pathname, params.get('tab'));
   const ts = Date.now();
 
   const snapshot: AnonPresenceSnapshot = {
