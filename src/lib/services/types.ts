@@ -752,6 +752,9 @@ export interface OptionsPortfolioData {
   is_snapshot?: boolean;
   subject_positions?: SubjectPosition[];
   expiry_analysis?: Record<string, ExpiryAnalysisReport>;
+  expiry_risk_report?: {
+    expiries?: OptionExpiryRiskReportItem[];
+  } | OptionExpiryRiskReport;
 }
 
 export interface ExerciseAnalysis {
@@ -784,6 +787,7 @@ export interface ExpiryAnalysisReport {
   strategies_count: number;
   exercise_analysis?: ExerciseAnalysis;
   report: string;
+  underlyings?: OptionExpiryRiskReportItem[];
 }
 
 export interface OptionWhitelist {
@@ -904,6 +908,8 @@ export interface OptionExpiryRiskReportListItem {
 
 export interface OptionExpiryRiskReportItem {
   expiry_date: string;
+  underlying_code?: string;
+  underlying_name?: string;
   phase?: string;
   days_to_expiry?: number;
   calendar_days_to_expiry?: number;
@@ -913,6 +919,7 @@ export interface OptionExpiryRiskReportItem {
   report?: string;
   exercise_analysis?: ExerciseAnalysis;
   payoff_calculator?: unknown;
+  surface?: unknown;
 }
 
 export interface OptionExpiryRiskReport {
@@ -932,13 +939,20 @@ export interface OptionExpiryRiskReport {
   expiries?: OptionExpiryRiskReportItem[];
 }
 
+export interface OptionsPortfolioAnalysisData {
+  expiry_risk_report?: {
+    expiries?: OptionExpiryRiskReportItem[];
+  } | OptionExpiryRiskReport;
+  expiry_analysis?: Record<string, ExpiryAnalysisReport>;
+}
+
 export interface OptionsService {
   getOptionsData: (symbol?: string) => Promise<ServiceResponse<OptionsData>>;
   refreshOptionsData: (symbol?: string) => Promise<ServiceResponse<OptionsData>>;
   getOptionContractDetail: (contractCode: string) => Promise<ServiceResponse<OptionContractDetail>>;
   getAvailableSymbols: () => Promise<ServiceResponse<string[]>>;
   getOptionsPortfolio: (userId: string, accountId?: string | null, options?: { symbol?: string }) => Promise<ServiceResponse<OptionsPortfolioData>>;
-  getPortfolioAnalysis: (userId: string, accountId?: string | null) => Promise<ServiceResponse<Record<string, ExpiryAnalysisReport>>>;
+  getPortfolioAnalysis: (userId: string, accountId?: string | null) => Promise<ServiceResponse<OptionsPortfolioAnalysisData>>;
   getPayoffSurface: (accountId: string, symbol?: string) => Promise<ServiceResponse<PayoffSurfaceData>>;
   getMarginStress: (accountId: string, symbol?: string) => Promise<ServiceResponse<MarginStressData>>;
   listOptionExpiryRiskReports: (accountAlias: string, options?: { limit?: number }) => Promise<ServiceResponse<OptionExpiryRiskReportListItem[]>>;

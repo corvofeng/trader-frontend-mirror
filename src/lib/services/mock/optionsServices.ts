@@ -1693,8 +1693,81 @@ export const optionsService: OptionsService = {
       }
     };
 
+    const buildPayoffCalculatorV2 = (payload: {
+      expiry_date: string;
+      calendar_days_to_expiry: number;
+      day_offsets: number[];
+      underlying_price: number;
+      underlying_code: string;
+    }) => {
+      const shock_pcts = Array.from({ length: 81 }, (_, i) => (i - 40) / 100);
+      const spot = payload.underlying_price;
+      const prices = shock_pcts.map((pct) => Number((spot * (1 + pct)).toFixed(2)));
+      const points = payload.day_offsets.map((offset) => ({
+        eval_day_offset: offset,
+        remaining_days: Math.max(payload.calendar_days_to_expiry - offset, 0),
+        prices,
+        values: prices.map((price) => Number((price - spot).toFixed(2))),
+      }));
+
+      return {
+        schema_version: 2,
+        calculation: 'mock',
+        value_semantics: 'pnl',
+        expiry_date: payload.expiry_date,
+        calendar_days_to_expiry: payload.calendar_days_to_expiry,
+        underlying: {
+          code: payload.underlying_code,
+          price: payload.underlying_price,
+        },
+        surface: {
+          x_axis: 'underlying_price',
+          y_axis: 'eval_day_offset',
+          value_semantics: 'pnl',
+          day_offsets: payload.day_offsets,
+          shock_pcts,
+          points,
+        },
+        legs: [],
+      };
+    };
+
+    const expiries = Object.entries(mockAnalysis)
+      .map(([expiry, value]) => {
+        const record = value as Record<string, any>;
+        return {
+          expiry_date: record.expiry_date || expiry,
+          underlying_code: record.underlying_code || 'MOCK',
+          phase: record.phase,
+          days_to_expiry: record.days_to_expiry,
+          risk_positions_count: record.risk_positions_count,
+          safe_positions_count: record.safe_positions_count,
+          strategies_count: record.strategies_count,
+          report: record.report,
+          exercise_analysis: record.exercise_analysis,
+          payoff_calculator: buildPayoffCalculatorV2({
+            expiry_date: record.expiry_date || expiry,
+            calendar_days_to_expiry: typeof record.days_to_expiry === 'number' ? record.days_to_expiry : 30,
+            day_offsets: [0, 7, 14, 30],
+            underlying_price: 100,
+            underlying_code: record.underlying_code || 'MOCK',
+          }),
+        };
+      })
+      .sort((a, b) => String(a.expiry_date).localeCompare(String(b.expiry_date)));
+
     return {
-      data: mockAnalysis,
+      data: {
+        expiry_risk_report: {
+          expiries,
+        },
+        expiry_analysis: Object.fromEntries(
+          Object.entries(mockAnalysis).map(([expiry, value]) => {
+            const slice = expiries.find((x) => x.expiry_date === expiry);
+            return [expiry, { ...(value as any), underlyings: slice ? [slice] : [] }];
+          })
+        ),
+      },
       error: null
     };
   },

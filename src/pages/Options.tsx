@@ -668,8 +668,6 @@ function OptionsContent({ theme }: OptionsProps) {
               theme={theme}
               selectedAccountId={selectedAccountId}
               selectedSymbol={selectedSymbol}
-              payoffChartEngine={payoffChartEngine}
-              onPayoffChartEngineChange={handlePayoffChartEngineChange}
             />
             <RelatedLinks 
               theme={theme}

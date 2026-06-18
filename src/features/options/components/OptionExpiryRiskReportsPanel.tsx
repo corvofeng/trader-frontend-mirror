@@ -441,7 +441,7 @@ export function OptionExpiryRiskReportsPanel({
                 ) : null}
 
                 {selectedMarkdown.trim() ? (
-                  <div className="prose prose-sm max-w-none">
+                  <div className="prose prose-sm max-w-none overflow-x-auto prose-table:w-max prose-table:max-w-none prose-th:whitespace-nowrap prose-td:whitespace-nowrap">
                     <div
                       dangerouslySetInnerHTML={{
                         __html: renderMarkdown(selectedMarkdown, theme),

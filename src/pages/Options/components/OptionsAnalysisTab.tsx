@@ -54,9 +54,8 @@ export function OptionsAnalysisTab({ theme, selectedSymbol, selectedAccountId }:
 
         if (portfolioRes.data) {
           const data = portfolioRes.data;
-          if (analysisRes.data) {
-            data.expiry_analysis = analysisRes.data;
-          }
+          if (analysisRes.data?.expiry_analysis) data.expiry_analysis = analysisRes.data.expiry_analysis;
+          if (analysisRes.data?.expiry_risk_report) data.expiry_risk_report = analysisRes.data.expiry_risk_report as any;
           setPortfolioData(data);
         }
       } catch (error) {
@@ -96,15 +95,12 @@ export function OptionsAnalysisTab({ theme, selectedSymbol, selectedAccountId }:
     if (!portfolioSnapshot) return;
 
     setPortfolioData(prev => {
-      // Preserve expiry_analysis if missing in snapshot but present in previous data
-      // (Snapshot might not include analysis if it's a partial update or different endpoint)
-      // Actually query_options_portfolio usually returns full portfolio structure, 
-      // but maybe not the heavy analysis part if it's calculated separately?
-      // In OptionsPortfolio.tsx, it preserves it.
       const analysis = portfolioSnapshot.expiry_analysis || prev?.expiry_analysis;
+      const riskReport = (portfolioSnapshot as any).expiry_risk_report || prev?.expiry_risk_report;
       return {
         ...portfolioSnapshot,
-        expiry_analysis: analysis
+        expiry_analysis: analysis,
+        expiry_risk_report: riskReport,
       };
     });
   }, [portfolioSnapshot]);

@@ -462,10 +462,21 @@ export const optionsService: OptionsService = {
       if (!response.ok) {
         throw new Error('Failed to fetch portfolio analysis');
       }
-      const data = await response.json();
-      console.log('[[OptionsService Debug]] Analysis Response:', data);
-      // Backend might return { expiry_analysis: ... } or just the map
-      return { data: data.expiry_analysis || data, error: null };
+      const json = await response.json();
+      const isRecord = (value: unknown): value is Record<string, unknown> =>
+        typeof value === 'object' && value !== null && !Array.isArray(value);
+
+      if (isRecord(json) && (json.expiry_risk_report || json.expiry_analysis)) {
+        return {
+          data: {
+            expiry_risk_report: (json.expiry_risk_report ?? undefined) as any,
+            expiry_analysis: (json.expiry_analysis ?? undefined) as any,
+          },
+          error: null,
+        };
+      }
+
+      return { data: { expiry_analysis: json as any }, error: null };
     } catch (error) {
       console.error('Error fetching portfolio analysis:', error);
       return { data: null, error: error as Error };
