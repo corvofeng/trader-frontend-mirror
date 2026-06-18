@@ -15,12 +15,11 @@ import { DailyTradeHistory } from '../features/trading/components/DailyTradeHist
 import { SequentialTradeTasks } from '../features/options/components/SequentialTradeTasks';
 import { DataFreshnessStatus } from './Admin/components/DataFreshnessStatus';
 import { getAccountAliasFromSearch, getPreferredAccountAlias, withAccountAliasInSearch } from '../shared/utils/accountSelection';
+import { ADMIN_DEFAULT_TAB, ADMIN_TABS, type AdminTab, normalizeTab } from '../shared/utils/tabRouting';
 
 interface AdminProps {
   theme: Theme;
 }
-
-type AdminTab = 'operations' | 'calendar' | 'analysis' | 'history' | 'tasks' | 'notices' | 'accounts' | 'upload';
 
 type AdminNoticeTimeBucket = 'today' | 'recent3days' | 'older' | 'unknown';
 
@@ -74,8 +73,7 @@ export function Admin({ theme }: AdminProps) {
   const requestedAccountAlias = useMemo(() => getAccountAliasFromSearch(location.search) || '', [location.search]);
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     const params = new URLSearchParams(location.search);
-    const tab = params.get('tab') as AdminTab;
-    return tab && ['operations', 'calendar', 'analysis', 'history', 'tasks', 'notices', 'accounts'].includes(tab) ? tab : 'operations';
+    return normalizeTab(ADMIN_TABS, ADMIN_DEFAULT_TAB, params.get('tab'));
   });
 
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() => {
@@ -133,6 +131,25 @@ export function Admin({ theme }: AdminProps) {
     if (nextQuery === currentQuery) return;
     navigate(nextQuery ? `/admin?${nextQuery}` : '/admin', { replace: true });
   }, [location.search, navigate, selectedAccountId]);
+
+  React.useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tabRaw = params.get('tab');
+    const nextTab = normalizeTab(ADMIN_TABS, ADMIN_DEFAULT_TAB, tabRaw);
+
+    if (nextTab !== activeTab) {
+      setActiveTab(nextTab);
+    }
+
+    if (tabRaw !== nextTab) {
+      params.set('tab', nextTab);
+      const nextQuery = params.toString();
+      const currentQuery = location.search.startsWith('?') ? location.search.slice(1) : location.search;
+      if (nextQuery !== currentQuery) {
+        navigate(nextQuery ? `/admin?${nextQuery}` : '/admin', { replace: true });
+      }
+    }
+  }, [activeTab, location.search, navigate]);
 
   const accountsSnapshotMeta = useMemo(() => {
     const snapshotMsByKey = new Map<string, number | null>();

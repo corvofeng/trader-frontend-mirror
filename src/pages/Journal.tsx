@@ -11,6 +11,7 @@ import { AccountSelector } from '../shared/components/AccountSelector';
 import type { Account, Stock, Holding, Trade, StockOrder, User } from '../lib/services/types';
 import { TabNavigation } from './Journal/components/TabNavigation';
 import { getAccountAliasFromSearch, getPreferredAccountAlias } from '../shared/utils/accountSelection';
+import { JOURNAL_ANON_TABS, JOURNAL_DEFAULT_TAB, JOURNAL_TABS, type JournalTab, normalizeTab } from '../shared/utils/tabRouting';
 
 interface JournalProps {
   selectedStock: Stock | null;
@@ -18,8 +19,6 @@ interface JournalProps {
   onStockSelect: (stock: Stock) => void;
   user: User | null;
 }
-
-type Tab = 'portfolio' | 'trades';
 
 const DEMO_USER_ID = 'mock-user-id';
 
@@ -39,6 +38,7 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
   const navigate = useNavigate();
   const canViewTradePlans = Boolean(user);
   const requestedAccountAlias = useMemo(() => getAccountAliasFromSearch(location.search) || '', [location.search]);
+  const allowedTabs = useMemo(() => (canViewTradePlans ? JOURNAL_TABS : JOURNAL_ANON_TABS), [canViewTradePlans]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -49,12 +49,9 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
     }
   }, [location.search, navigate]);
 
-  const [activeTab, setActiveTab] = useState<Tab>(() => {
+  const [activeTab, setActiveTab] = useState<JournalTab>(() => {
     const params = new URLSearchParams(location.search);
-    const tab = params.get('tab') as Tab;
-    return tab && ['portfolio', 'trades'].includes(tab) && (tab !== 'trades' || canViewTradePlans)
-      ? tab
-      : 'portfolio';
+    return normalizeTab(allowedTabs, JOURNAL_DEFAULT_TAB, params.get('tab'));
   });
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [isSnapshot, setIsSnapshot] = useState(false);
@@ -138,39 +135,40 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
   }, [accessibleAccountKeys, defaultAccountKey, portfolioUuid, requestedAccountAlias, selectedAccountId]);
 
   useEffect(() => {
-    if (canViewTradePlans) return;
-    const params = new URLSearchParams(location.search);
-    if (params.get('tab') !== 'trades') return;
-    params.delete('tab');
-    navigate(params.toString() ? `/journal?${params.toString()}` : '/journal', { replace: true });
-  }, [canViewTradePlans, location.search, navigate]);
-
-  useEffect(() => {
     if (!requestedAccountAlias || requestedAccountAlias === selectedAccountId) return;
     setSelectedAccountId(requestedAccountAlias);
   }, [requestedAccountAlias]);
 
   useEffect(() => {
-    if (portfolioUuid) return;
     const params = new URLSearchParams(location.search);
-    const currentAlias = params.get('account_alias');
+    const tabRaw = params.get('tab');
+    const tabFromUrl = tabRaw ? normalizeTab(allowedTabs, JOURNAL_DEFAULT_TAB, tabRaw) : null;
+    const nextTab = tabFromUrl ?? normalizeTab(allowedTabs, JOURNAL_DEFAULT_TAB, activeTab);
+    if (nextTab !== activeTab) {
+      setActiveTab(nextTab);
+    }
+    if (params.get('tab') !== nextTab) {
+      params.set('tab', nextTab);
+    }
 
-    if (selectedAccountId) {
-      if (currentAlias === selectedAccountId) return;
-      params.set('account_alias', selectedAccountId);
-    } else {
-      if (!currentAlias) return;
-      params.delete('account_alias');
+    if (!portfolioUuid) {
+      const currentAlias = params.get('account_alias');
+
+      if (selectedAccountId) {
+        if (currentAlias !== selectedAccountId) params.set('account_alias', selectedAccountId);
+      } else if (currentAlias) {
+        params.delete('account_alias');
+      }
     }
 
     const nextQuery = params.toString();
+    const currentQuery = location.search.startsWith('?') ? location.search.slice(1) : location.search;
+    if (nextQuery === currentQuery) return;
     navigate(nextQuery ? `/journal?${nextQuery}` : '/journal', { replace: true });
-  }, [location.search, navigate, portfolioUuid, selectedAccountId]);
+  }, [activeTab, allowedTabs, location.search, navigate, portfolioUuid, selectedAccountId]);
 
   const handleTabChange = (tabId: string) => {
-    const newTab = (['portfolio', 'trades'] as const).includes(tabId as Tab) && (tabId !== 'trades' || canViewTradePlans)
-      ? (tabId as Tab)
-      : 'portfolio';
+    const newTab = normalizeTab(allowedTabs, JOURNAL_DEFAULT_TAB, tabId);
     setActiveTab(newTab);
   };
 
@@ -285,8 +283,8 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
   }, [activeTab, fetchTodayOrders, portfolioUuid]);
 
   const tabs = [
-    { id: 'portfolio' as Tab, name: 'Portfolio', icon: Briefcase },
-    ...(canViewTradePlans ? [{ id: 'trades' as Tab, name: 'Trade Plans', icon: LayoutGrid }] : []),
+    { id: 'portfolio' as JournalTab, name: 'Portfolio', icon: Briefcase },
+    ...(canViewTradePlans ? [{ id: 'trades' as JournalTab, name: 'Trade Plans', icon: LayoutGrid }] : []),
   ];
 
   return (

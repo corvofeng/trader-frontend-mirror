@@ -25,12 +25,11 @@ import { useAutoRefresh, useOptionPriceWebSocket } from '../features/options/hoo
 import type { OptionsChartEngine } from '../features/options/utils/chartEngine';
 import { TabNavigation } from './Journal/components/TabNavigation';
 import { getAccountAliasFromSearch, getPreferredAccountAlias } from '../shared/utils/accountSelection';
+import { OPTIONS_DEFAULT_TAB, OPTIONS_TABS, type OptionsTab, normalizeTab } from '../shared/utils/tabRouting';
 
 interface OptionsProps {
   theme: Theme;
 }
-
-type OptionsTab = 'data' | 'portfolio' | 'analysis' | 'trading' | 'management' | 'whitelist' | 'expiry-risk' | 'risk';
 
 const normalizeIsoDateParam = (value: string | null | undefined) => {
   const trimmed = typeof value === 'string' ? value.trim() : '';
@@ -61,8 +60,7 @@ function OptionsContent({ theme }: OptionsProps) {
 
   const [activeTab, setActiveTab] = useState<OptionsTab>(() => {
     const params = new URLSearchParams(location.search);
-    const tab = params.get('tab') as OptionsTab;
-    return tab && ['data', 'portfolio', 'analysis', 'trading', 'management', 'whitelist', 'expiry-risk', 'risk'].includes(tab) ? tab : 'data';
+    return normalizeTab(OPTIONS_TABS, OPTIONS_DEFAULT_TAB, params.get('tab'));
   });
 
   const [availableSymbols, setAvailableSymbols] = useState<string[]>([]);

@@ -1,4 +1,5 @@
 import { getFirstLocalStorageValue } from './accountSelection';
+import { ADMIN_DEFAULT_TAB, ADMIN_TABS, JOURNAL_DEFAULT_TAB, JOURNAL_TABS, OPTIONS_DEFAULT_TAB, OPTIONS_TABS, normalizeTab } from './tabRouting';
 
 type AnonPresenceSnapshot = {
   anon_id: string;
@@ -7,7 +8,7 @@ type AnonPresenceSnapshot = {
   search: string;
   page_title: string;
   account_alias: string | null;
-  tab: string | null;
+  tab: string;
   ts: number;
 };
 
@@ -34,24 +35,18 @@ const sanitizeAccountAlias = (value: string | null) => {
   return /^[A-Za-z0-9_-]{1,64}$/.test(s) ? s : null;
 };
 
-const pickAllowedTab = (pathname: string, tabRaw: string | null) => {
-  const s = sanitizeString(tabRaw, 32);
-  if (!s) return null;
-
+const resolveTab = (pathname: string, tabRaw: string | null) => {
   if (pathname.startsWith('/options')) {
-    const allowed = new Set(['data', 'portfolio', 'analysis', 'trading', 'management', 'whitelist', 'expiry-risk', 'risk']);
-    return allowed.has(s) ? s : null;
+    return normalizeTab(OPTIONS_TABS, OPTIONS_DEFAULT_TAB, tabRaw);
   }
   if (pathname.startsWith('/admin')) {
-    const allowed = new Set(['operations', 'calendar', 'analysis', 'history', 'tasks', 'notices', 'accounts', 'upload']);
-    return allowed.has(s) ? s : null;
+    return normalizeTab(ADMIN_TABS, ADMIN_DEFAULT_TAB, tabRaw);
   }
   if (pathname.startsWith('/journal')) {
-    const allowed = new Set(['portfolio', 'trades']);
-    return allowed.has(s) ? s : null;
+    return normalizeTab(JOURNAL_TABS, JOURNAL_DEFAULT_TAB, tabRaw);
   }
 
-  return null;
+  return sanitizeString(tabRaw, 32) || '';
 };
 
 const readLocalStorage = (key: string) => {
@@ -113,7 +108,7 @@ export const updateAnonPresence = (input: { pathname: string; search: string }) 
     'selectedAccountId',
   ])
   );
-  const tab = pickAllowedTab(input.pathname, params.get('tab'));
+  const tab = resolveTab(input.pathname, params.get('tab'));
   const ts = Date.now();
 
   const snapshot: AnonPresenceSnapshot = {
@@ -132,7 +127,7 @@ export const updateAnonPresence = (input: { pathname: string; search: string }) 
   writeLocalStorage(ANON_SEARCH_STORAGE_KEY, snapshot.search);
   writeLocalStorage(ANON_PAGE_TITLE_STORAGE_KEY, snapshot.page_title);
   writeLocalStorage(ANON_ACCOUNT_ALIAS_STORAGE_KEY, snapshot.account_alias || '');
-  writeLocalStorage(ANON_TAB_STORAGE_KEY, snapshot.tab || '');
+  writeLocalStorage(ANON_TAB_STORAGE_KEY, snapshot.tab);
   writeLocalStorage(ANON_TS_STORAGE_KEY, String(snapshot.ts));
 };
 
