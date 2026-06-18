@@ -131,6 +131,8 @@ function OptionsContent({ theme }: OptionsProps) {
       const expiryDate = normalizeIsoDateParam(currentParams.get('expiry_date')) || normalizeIsoDateParam(currentParams.get('expiry'));
       if (report) nextParams.set('report', report);
       if (expiryDate) nextParams.set('expiry_date', expiryDate);
+    } else {
+      nextParams.set('tab', activeTab);
     }
 
     const nextQuery = nextParams.toString();
@@ -151,6 +153,7 @@ function OptionsContent({ theme }: OptionsProps) {
     }
     const params = new URLSearchParams();
     if (selectedAccountId) params.set('account_alias', selectedAccountId);
+    params.set('tab', nextTab);
     const qs = params.toString();
     navigate(qs ? `/options?${qs}` : '/options', { replace: true });
   };

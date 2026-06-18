@@ -7,6 +7,7 @@ import analytics from './lib/analytics';
 import type { User, Stock } from './lib/services/types';
 import type { Theme } from './lib/theme';
 import { getAccountAliasFromSearch } from './shared/utils/accountSelection';
+import { updateAnonPresenceWithTitleRetry } from './shared/utils/anonPresence';
 
 // Lazy load pages
 const Landing = React.lazy(() => import('./pages/Landing').then(module => ({ default: module.Landing })));
@@ -26,6 +27,7 @@ function RouteTracker() {
 
   useEffect(() => {
     analytics.pageView(location.pathname + location.search);
+    updateAnonPresenceWithTitleRetry({ pathname: location.pathname, search: location.search });
   }, [location]);
 
   return null;
