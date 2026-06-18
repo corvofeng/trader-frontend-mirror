@@ -640,17 +640,19 @@ export function PortfolioTrend({ trendData, klineData, klineMetrics, theme, date
                     )}
                   </div>
                 </div>
-                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
                   {metricsItems.map((item) => (
                     <div
                       key={item.label}
-                      className={`rounded-xl border ${themes[theme].border} ${themes[theme].secondary} px-3 py-2`}
+                      className={`min-w-0 rounded-xl border ${themes[theme].border} ${themes[theme].secondary} px-3 py-2`}
                     >
-                      <div className="flex items-center gap-1">
-                        <div className={`text-[11px] ${themes[theme].text} opacity-60`}>{item.label}</div>
+                      <div className="flex items-start gap-1">
+                        <div className={`min-w-0 flex-1 text-[11px] leading-tight whitespace-normal break-words ${themes[theme].text} opacity-60`}>
+                          {item.label}
+                        </div>
                         <InfoTooltip theme={theme} content={item.tooltip} align="left" className="shrink-0" />
                       </div>
-                      <div className={`mt-1 text-sm font-semibold ${themes[theme].text}`}>{item.value}</div>
+                      <div className={`mt-1 break-words text-sm font-semibold ${themes[theme].text}`}>{item.value}</div>
                     </div>
                   ))}
                 </div>

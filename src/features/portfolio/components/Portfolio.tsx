@@ -385,11 +385,11 @@ export function Portfolio({
         }
       };
 
-      const padding = 40; // 增加内边距
-      const originalWidth = node.scrollWidth;
-      const originalHeight = node.scrollHeight;
-      const width = originalWidth + padding * 2;
-      const height = originalHeight + padding * 2;
+      // Use the rendered box width instead of scrollWidth so hidden overflow
+      // does not create extra whitespace on the right side of the screenshot.
+      const rect = node.getBoundingClientRect();
+      const width = Math.ceil(rect.width);
+      const height = Math.ceil(Math.max(node.scrollHeight, rect.height));
 
       const dataUrl = await toPng(node, {
         cacheBust: true,
@@ -398,12 +398,12 @@ export function Portfolio({
         width: width,
         height: height,
         style: {
-          padding: `${padding}px`,
           backgroundColor: getBackgroundColor(theme),
           boxSizing: 'border-box',
           width: `${width}px`,
           height: `${height}px`,
-          margin: '0', // 确保没有外边距干扰
+          margin: '0',
+          overflow: 'hidden',
         },
       });
       

@@ -13,11 +13,22 @@ export async function captureElement(
   const { backgroundColor = '#ffffff' } = options;
 
   try {
+    const rect = element.getBoundingClientRect();
+    const width = Math.ceil(rect.width);
+    const height = Math.ceil(Math.max(element.scrollHeight, rect.height));
+
     const dataUrl = await htmlToImage.toPng(element, {
-      canvasWidth: element.scrollWidth,
-      canvasHeight: element.scrollHeight,
+      canvasWidth: width,
+      canvasHeight: height,
+      width,
+      height,
       backgroundColor,
       pixelRatio: 2,
+      style: {
+        width: `${width}px`,
+        height: `${height}px`,
+        overflow: 'hidden',
+      },
       filter: (node) => !(node instanceof HTMLElement && node.classList.contains('screenshot-ignore'))
     });
     return dataUrl;
