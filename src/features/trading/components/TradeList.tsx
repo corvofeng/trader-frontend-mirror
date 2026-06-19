@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { format } from 'date-fns';
 import { ArrowUpCircle, ArrowDownCircle, BarChart2, Check, X, Clock, Edit2, Save, ListFilter, ChevronDown, RefreshCw } from 'lucide-react';
 import { authService, tradeService, stockConfigService } from '../../../lib/services';
@@ -14,8 +14,27 @@ interface TradeListProps {
   selectedAccountId?: string | null;
 }
 
+const areTradesEquivalent = (left: Trade[], right: Trade[]) => {
+  if (left === right) return true;
+  if (left.length !== right.length) return false;
+
+  return left.every((trade, index) => {
+    const candidate = right[index];
+    return (
+      trade.id === candidate?.id &&
+      trade.updated_at === candidate?.updated_at &&
+      trade.created_at === candidate?.created_at &&
+      trade.status === candidate?.status &&
+      trade.quantity === candidate?.quantity &&
+      trade.target_price === candidate?.target_price
+    );
+  });
+};
+
 export function TradeList({ selectedStockCode, theme, showCompleted = false, selectedAccountId }: TradeListProps) {
   const [trades, setTrades] = useState<Trade[]>([]);
+  const [historyTradesByStock, setHistoryTradesByStock] = useState<Record<string, Trade[]>>({});
+  const historyTradesHandlersRef = useRef<Record<string, (loadedTrades: Trade[]) => void>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [filter, setFilter] = useState<'all' | 'pending' | 'completed' | 'cancelled'>(showCompleted ? 'completed' : 'all');
@@ -145,6 +164,32 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
   useEffect(() => {
     setShowAllTrades(false);
   }, [selectedStockCode, selectedAccountId]);
+
+  useEffect(() => {
+    historyTradesHandlersRef.current = {};
+    setHistoryTradesByStock({});
+  }, [selectedAccountId]);
+
+  const handleHistoryTradesLoaded = useCallback((stockCode: string, loadedTrades: Trade[]) => {
+    setHistoryTradesByStock((prev) => {
+      const currentTrades = prev[stockCode] || [];
+      if (areTradesEquivalent(currentTrades, loadedTrades)) {
+        return prev;
+      }
+      return { ...prev, [stockCode]: loadedTrades };
+    });
+  }, []);
+
+  const getHistoryTradesHandler = useCallback((stockCode: string) => {
+    const existing = historyTradesHandlersRef.current[stockCode];
+    if (existing) return existing;
+
+    const handler = (loadedTrades: Trade[]) => {
+      handleHistoryTradesLoaded(stockCode, loadedTrades);
+    };
+    historyTradesHandlersRef.current[stockCode] = handler;
+    return handler;
+  }, [handleHistoryTradesLoaded]);
 
   const getStatusColor = (status: Trade['status']) => {
     switch (status) {
@@ -354,6 +399,56 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
     }
   `;
 
+  const renderHistoryTradesTable = (historyTrades: Trade[]) => {
+    if (historyTrades.length === 0) return null;
+
+    return (
+      <div className="px-4 pb-4">
+        <h4 className={`text-sm font-semibold mb-3 ${themes[theme].text}`}>历史买卖记录</h4>
+        <div className={`overflow-auto rounded-lg border ${themes[theme].border}`}>
+          <table className="w-full text-sm">
+            <thead className={`sticky top-0 ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-50'} z-10 border-b ${themes[theme].border}`}>
+              <tr className={`text-left text-xs uppercase tracking-wider ${themes[theme].text} opacity-70 font-medium`}>
+                <th className="px-4 py-3 whitespace-nowrap">时间</th>
+                <th className="px-4 py-3 whitespace-nowrap">操作</th>
+                <th className="px-4 py-3 text-right whitespace-nowrap">价格</th>
+                <th className="px-4 py-3 text-right whitespace-nowrap">数量</th>
+                <th className="px-4 py-3 text-right whitespace-nowrap">总额</th>
+              </tr>
+            </thead>
+            <tbody className={`divide-y ${themes[theme].border} ${themes[theme].text}`}>
+              {historyTrades.map((trade) => (
+                <tr key={trade.id}>
+                  <td className="px-4 py-3 whitespace-nowrap font-medium">
+                    {format(new Date(trade.created_at), 'yyyy-MM-dd HH:mm')}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                      trade.operation === 'buy'
+                        ? 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800'
+                        : 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800'
+                    }`}>
+                      {trade.operation === 'buy' ? '买入' : '卖出'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right whitespace-nowrap font-mono">
+                    {trade.target_price.toFixed(2)}
+                  </td>
+                  <td className="px-4 py-3 text-right whitespace-nowrap font-mono">
+                    {trade.quantity.toLocaleString()}
+                  </td>
+                  <td className="px-4 py-3 text-right whitespace-nowrap font-mono opacity-75">
+                    {(trade.target_price * trade.quantity).toFixed(2)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden transition-colors duration-200`}>
       <style>{animations}</style>
@@ -436,6 +531,7 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
               {group.stocks.map(([stockCode, stockTrades], index) => {
                 const pendingCount = stockTrades.filter(t => t.status === 'pending').length;
                 const completedCount = stockTrades.filter(t => t.status === 'completed').length;
+                const historyTrades = historyTradesByStock[stockCode] || [];
                 const isStockExpanded = expandedStocks.includes(stockCode);
                 const stockName = stockTrades[0]?.stock_name || '';
 
@@ -491,8 +587,11 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
                             stockCode={stockCode} 
                             theme={theme} 
                             pendingTrades={stockTrades.filter(t => t.status === 'pending')}
+                            accountId={selectedAccountId}
+                            onTradesLoaded={getHistoryTradesHandler(stockCode)}
                           />
                         </div>
+                        {renderHistoryTradesTable(historyTrades)}
                         {stockTrades.map((trade) => {
                           const isExpanded = expandedTrades.includes(trade.id);
                           const operationStyle = getOperationStyle(trade.operation);
@@ -607,6 +706,7 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
           groupedTrades.map(([stockCode, stockTrades], index) => {
             const pendingCount = stockTrades.filter(t => t.status === 'pending').length;
             const completedCount = stockTrades.filter(t => t.status === 'completed').length;
+            const historyTrades = historyTradesByStock[stockCode] || [];
             const isStockExpanded = expandedStocks.includes(stockCode);
             const stockName = stockTrades[0]?.stock_name || '';
             
@@ -662,8 +762,11 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
                         stockCode={stockCode} 
                         theme={theme} 
                         pendingTrades={stockTrades.filter(t => t.status === 'pending')}
+                        accountId={selectedAccountId}
+                        onTradesLoaded={getHistoryTradesHandler(stockCode)}
                       />
                     </div>
+                    {renderHistoryTradesTable(historyTrades)}
                     {stockTrades.map((trade) => {
                       const isExpanded = expandedTrades.includes(trade.id);
                       const operationStyle = getOperationStyle(trade.operation);

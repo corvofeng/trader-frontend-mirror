@@ -87,6 +87,7 @@ const getChartVisualPalette = (theme: Theme, fallback: { upColor: string; downCo
 export function StockChart({ stockCode, theme, pendingTrades, userId, accountId, onTradesLoaded, className, fillContainer = false }: StockChartProps) {
   const chartViewportRef = useRef<HTMLDivElement>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
+  const onTradesLoadedRef = useRef<typeof onTradesLoaded>(onTradesLoaded);
   const chartRef = useRef<IChartApi | null>(null);
   const candlestickSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
@@ -157,6 +158,10 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
       chartRef.current = null;
     }
   };
+
+  useEffect(() => {
+    onTradesLoadedRef.current = onTradesLoaded;
+  }, [onTradesLoaded]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -621,7 +626,6 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
               if (candlestickSeriesRef.current && !isDisposed.current) {
                 addTradeMarkers(candlestickSeriesRef.current, trades, chartColors);
               }
-              onTradesLoaded?.(trades);
               costBasisPoints = calculateCostBasis(trades);
               
               if (costBasisPoints.length > 0 && showCostBasis && !isDisposed.current && costBasisSeriesRef.current) {
@@ -639,6 +643,7 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
         }
 
         if (!isDisposed.current) {
+          onTradesLoadedRef.current?.(trades);
           setChartData({
             candlestick: candlestickData,
             volume: volumeData,
@@ -695,7 +700,7 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
       disposeChart();
       isInitializing.current = false;
     };
-  }, [stockCode, theme, currencyConfig, showCostBasis, showGrid, showVolume, isLocked, autoScale, getThemedColors, addTradeMarkers, userId, accountId, onTradesLoaded]);
+  }, [stockCode, theme, currencyConfig, showCostBasis, showGrid, showVolume, isLocked, autoScale, getThemedColors, addTradeMarkers, userId, accountId]);
 
   useEffect(() => {
     if (volumeSeriesRef.current && !isDisposed.current) {

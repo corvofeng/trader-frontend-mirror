@@ -559,6 +559,8 @@ export const stockConfigService: StockConfigService = {
 
 const trendCache = new Map<string, CacheEntry<unknown>>();
 const trendPending = new Map<string, Promise<unknown>>();
+const recentTradesCache = new Map<string, CacheEntry<Trade[]>>();
+const recentTradesPending = new Map<string, Promise<Trade[]>>();
 
 const toFiniteNumber = (value: unknown) => {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -776,16 +778,37 @@ export const portfolioService: PortfolioService = {
     try {
       if (!accountId) return { data: [], error: null };
 
+      const cacheKey = `${accountId}|${userId}|${startDate}|${endDate}|${stockCode || '__all__'}`;
+      const cached = getCached(recentTradesCache, cacheKey);
+      if (cached) return { data: cached, error: null };
+
+      const pending = recentTradesPending.get(cacheKey);
+      if (pending) {
+        const data = await pending;
+        return { data, error: null };
+      }
+
       let url = `/api/portfolio/${accountId}/recent-trades?startDate=${startDate}&endDate=${endDate}&userId=${userId}`;
       if (stockCode) {
         url += `&stockCode=${encodeURIComponent(stockCode)}`;
       }
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error('Failed to fetch recent trades');
+      const promise = (async () => {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error('Failed to fetch recent trades');
+        }
+        const data = await response.json();
+        setCached(recentTradesCache, cacheKey, data, 15_000);
+        return data as Trade[];
+      })();
+
+      recentTradesPending.set(cacheKey, promise);
+      try {
+        const data = await promise;
+        return { data, error: null };
+      } finally {
+        recentTradesPending.delete(cacheKey);
       }
-      const data = await response.json();
-      return { data, error: null };
     } catch (error) {
       console.error('Error fetching recent trades:', error);
       return { data: null, error: error as Error };

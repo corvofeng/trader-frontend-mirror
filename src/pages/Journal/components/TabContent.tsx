@@ -247,7 +247,12 @@ export function TabContent({
       <div className="space-y-6">
         <div className={`${themes[theme].card} rounded-lg p-4 sm:p-6`}>
           <h2 className={`text-xl sm:text-2xl font-bold mb-4 ${themes[theme].text}`}>Completed Trades</h2>
-          <TradeList selectedStockCode={selectedStock?.stock_code} theme={theme} showCompleted={true} />
+          <TradeList
+            selectedStockCode={selectedStock?.stock_code}
+            theme={theme}
+            showCompleted={true}
+            selectedAccountId={selectedAccountId}
+          />
         </div>
         <RelatedLinks 
           theme={theme} 
