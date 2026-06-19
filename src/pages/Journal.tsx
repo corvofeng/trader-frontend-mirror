@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { logger } from '../shared/utils/logger';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Briefcase, LayoutGrid, RefreshCw } from 'lucide-react';
-import { TradeForm, TradeList, StockSearch } from '../features/trading';
-import { Portfolio } from '../features/portfolio';
+import { Briefcase } from 'lucide-react';
 
 import { Theme, themes } from '../lib/theme';
 import { portfolioService, accountService, stockService } from '../lib/services';
@@ -11,7 +9,11 @@ import { AccountSelector } from '../shared/components/AccountSelector';
 import type { Account, Stock, Holding, Trade, StockOrder, User } from '../lib/services/types';
 import { TabNavigation } from './Journal/components/TabNavigation';
 import { getAccountAliasFromSearch, getPreferredAccountAlias } from '../shared/utils/accountSelection';
-import { JOURNAL_ANON_TABS, JOURNAL_DEFAULT_TAB, JOURNAL_TABS, type JournalTab, normalizeTab } from '../shared/utils/tabRouting';
+import {
+  buildJournalSearch,
+  getJournalTabDefinitions,
+  resolveJournalTab,
+} from './Journal/tabConfig';
 
 interface JournalProps {
   selectedStock: Stock | null;
@@ -22,23 +24,12 @@ interface JournalProps {
 
 const DEMO_USER_ID = 'mock-user-id';
 
-const getOrderStatusBadge = (raw?: string | null) => {
-  const s = (raw || '').trim().toUpperCase();
-  if (s.includes('FILLED') || s === 'ALLTRADED') return { label: raw || 'FILLED', className: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' };
-  if (s.includes('PART') || s.includes('PARTTRADED')) return { label: raw || 'PART', className: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200' };
-  if (s.includes('CANCEL') || s.includes('CANCELED') || s.includes('CANCELLED')) return { label: raw || 'CANCELED', className: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200' };
-  if (s.includes('REJECT') || s.includes('ERROR') || s.includes('FAIL')) return { label: raw || 'REJECTED', className: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200' };
-  if (s.includes('REPORT') || s.includes('SUBMIT')) return { label: raw || 'REPORTED', className: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200' };
-  if (!raw) return { label: '-', className: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200' };
-  return { label: raw, className: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200' };
-};
-
 export function Journal({ selectedStock, theme, onStockSelect, user }: JournalProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const canViewTradePlans = Boolean(user);
   const requestedAccountAlias = useMemo(() => getAccountAliasFromSearch(location.search) || '', [location.search]);
-  const allowedTabs = useMemo(() => (canViewTradePlans ? JOURNAL_TABS : JOURNAL_ANON_TABS), [canViewTradePlans]);
+  const tabs = useMemo(() => getJournalTabDefinitions({ canViewTradePlans }), [canViewTradePlans]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -49,10 +40,6 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
     }
   }, [location.search, navigate]);
 
-  const [activeTab, setActiveTab] = useState<JournalTab>(() => {
-    const params = new URLSearchParams(location.search);
-    return normalizeTab(allowedTabs, JOURNAL_DEFAULT_TAB, params.get('tab'));
-  });
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [isSnapshot, setIsSnapshot] = useState(false);
   const [recentTrades, setRecentTrades] = useState<Trade[]>([]);
@@ -73,6 +60,14 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
 
   // Get UUID from URL params for portfolio sharing
   const portfolioUuid = new URLSearchParams(location.search).get('uuid');
+  const activeTab = useMemo(
+    () => resolveJournalTab(new URLSearchParams(location.search).get('tab'), { canViewTradePlans }),
+    [canViewTradePlans, location.search]
+  );
+  const activeTabConfig = useMemo(
+    () => tabs.find((tab) => tab.id === activeTab) ?? tabs[0],
+    [activeTab, tabs]
+  );
 
   useEffect(() => {
     if (portfolioUuid) return;
@@ -137,58 +132,36 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
   useEffect(() => {
     if (!requestedAccountAlias || requestedAccountAlias === selectedAccountId) return;
     setSelectedAccountId(requestedAccountAlias);
-  }, [requestedAccountAlias]);
+  }, [requestedAccountAlias, selectedAccountId]);
 
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const tabRaw = params.get('tab');
-    const tabFromUrl = tabRaw ? normalizeTab(allowedTabs, JOURNAL_DEFAULT_TAB, tabRaw) : null;
-    const nextTab = tabFromUrl ?? normalizeTab(allowedTabs, JOURNAL_DEFAULT_TAB, activeTab);
-    if (nextTab !== activeTab) {
-      setActiveTab(nextTab);
-    }
-    if (params.get('tab') !== nextTab) {
-      params.set('tab', nextTab);
-    }
-
-    if (!portfolioUuid) {
-      const currentAlias = params.get('account_alias');
-
-      if (selectedAccountId) {
-        if (currentAlias !== selectedAccountId) params.set('account_alias', selectedAccountId);
-      } else if (currentAlias) {
-        params.delete('account_alias');
-      }
-    }
-
-    const nextQuery = params.toString();
+    const nextQuery = buildJournalSearch({
+      currentSearch: location.search,
+      activeTab,
+      selectedAccountId,
+      portfolioUuid,
+      canViewTradePlans,
+    });
     const currentQuery = location.search.startsWith('?') ? location.search.slice(1) : location.search;
     if (nextQuery === currentQuery) return;
     navigate(nextQuery ? `/journal?${nextQuery}` : '/journal', { replace: true });
-  }, [activeTab, allowedTabs, location.search, navigate, portfolioUuid, selectedAccountId]);
+  }, [activeTab, canViewTradePlans, location.search, navigate, portfolioUuid, selectedAccountId]);
 
   const handleTabChange = (tabId: string) => {
-    const newTab = normalizeTab(allowedTabs, JOURNAL_DEFAULT_TAB, tabId);
-    setActiveTab(newTab);
+    const nextQuery = buildJournalSearch({
+      currentSearch: location.search,
+      activeTab: tabId,
+      selectedAccountId,
+      portfolioUuid,
+      canViewTradePlans,
+    });
+    navigate(nextQuery ? `/journal?${nextQuery}` : '/journal', { replace: true });
   };
 
   const [todayOrders, setTodayOrders] = useState<StockOrder[]>([]);
   const [todayOrdersLoading, setTodayOrdersLoading] = useState(false);
   const [todayOrdersError, setTodayOrdersError] = useState<string | null>(null);
   const [todayOrdersLastUpdatedAt, setTodayOrdersLastUpdatedAt] = useState<number | null>(null);
-
-  const sortedTodayOrders = useMemo(() => {
-    const next = [...todayOrders];
-    next.sort((a, b) => {
-      const at = a.order_time ? Date.parse(a.order_time.replace(' ', 'T')) : NaN;
-      const bt = b.order_time ? Date.parse(b.order_time.replace(' ', 'T')) : NaN;
-      if (Number.isFinite(at) && Number.isFinite(bt)) return bt - at;
-      if (Number.isFinite(bt)) return 1;
-      if (Number.isFinite(at)) return -1;
-      return String(b.order_time || '').localeCompare(String(a.order_time || ''));
-    });
-    return next;
-  }, [todayOrders]);
 
   const fetchTodayOrders = useCallback(async () => {
     const accountAlias = selectedAccountId || undefined;
@@ -282,11 +255,6 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
     fetchTodayOrders();
   }, [activeTab, fetchTodayOrders, portfolioUuid]);
 
-  const tabs = [
-    { id: 'portfolio' as JournalTab, name: 'Portfolio', icon: Briefcase },
-    ...(canViewTradePlans ? [{ id: 'trades' as JournalTab, name: 'Trade Plans', icon: LayoutGrid }] : []),
-  ];
-
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
       <div className="space-y-6 mb-6">
@@ -337,14 +305,27 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
           theme={theme}
           onTabChange={handleTabChange}
         />
-        {canViewTradePlans && activeTab === 'trades' && !portfolioUuid && (
-          <div className="w-full">
-            <StockSearch
-              onSelect={onStockSelect}
-              selectedStockCode={selectedStock?.stock_code}
-            />
-          </div>
-        )}
+        {activeTabConfig?.renderToolbar?.({
+          activeTab,
+          selectedStock,
+          theme,
+          onStockSelect,
+          user,
+          holdings,
+          recentTrades,
+          dateRange,
+          onDateRangeChange: setDateRange,
+          portfolioUuid,
+          userId: DEMO_USER_ID,
+          selectedAccountId,
+          onAccountChange: setSelectedAccountId,
+          isSnapshot,
+          todayOrders,
+          todayOrdersLoading,
+          todayOrdersError,
+          todayOrdersLastUpdatedAt,
+          onRefreshTodayOrders: fetchTodayOrders,
+        })}
       </div>
 
       {/* Show portfolio UUID info if viewing shared portfolio */}
@@ -359,131 +340,27 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
         </div>
       )}
 
-      {activeTab === 'portfolio' && (
-        <Portfolio 
-          holdings={holdings} 
-          theme={theme} 
-          recentTrades={recentTrades}
-          dateRange={dateRange}
-          onDateRangeChange={setDateRange}
-          isSharedView={!!portfolioUuid}
-          userId={DEMO_USER_ID}
-          selectedAccountId={selectedAccountId}
-          onAccountChange={setSelectedAccountId}
-          isSnapshot={isSnapshot}
-        />
-      )}
-
-      {canViewTradePlans && activeTab === 'trades' && !portfolioUuid && (
-        <div className="flex flex-col gap-4 sm:gap-6">
-          <TradeForm 
-            selectedStock={selectedStock} 
-            theme={theme} 
-            accountAlias={selectedAccountId}
-          />
-          <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden transition-colors duration-200`}>
-            <div className={`px-4 sm:px-6 py-4 border-b ${themes[theme].border}`}>
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className={`text-lg sm:text-xl font-semibold ${themes[theme].text}`}>当日订单</div>
-                  <div className={`text-xs ${themes[theme].text} opacity-60 mt-1`}>
-                    {todayOrdersLastUpdatedAt ? `更新于 ${new Date(todayOrdersLastUpdatedAt).toLocaleTimeString()}` : ' '}
-                  </div>
-                </div>
-                <button
-                  onClick={fetchTodayOrders}
-                  disabled={todayOrdersLoading}
-                  className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded ${themes[theme].secondary} ${
-                    todayOrdersLoading ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
-                >
-                  <RefreshCw className={`w-3 h-3 mr-1 ${todayOrdersLoading ? 'animate-spin' : ''}`} />
-                  刷新
-                </button>
-              </div>
-            </div>
-            <div className="p-4 sm:p-6">
-              {todayOrdersLoading && (
-                <div className={`text-sm ${themes[theme].text} opacity-75`}>正在加载当日订单…</div>
-              )}
-              {!todayOrdersLoading && todayOrdersError && (
-                <div className="text-sm text-red-500 break-words">{todayOrdersError}</div>
-              )}
-              {!todayOrdersLoading && !todayOrdersError && sortedTodayOrders.length === 0 && (
-                <div className={`text-sm ${themes[theme].text} opacity-75`}>当日暂无订单。</div>
-              )}
-              {!todayOrdersLoading && !todayOrdersError && sortedTodayOrders.length > 0 && (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                    <thead className="bg-gray-50 dark:bg-gray-900/50">
-                      <tr>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">时间</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">标的</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">动作</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">价格(成/限)</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">数量(成/委)</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">系统号</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">备注/错误</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                      {sortedTodayOrders.map((order, idx) => {
-                        const status = getOrderStatusBadge(order.order_status_name);
-                        const timeText = order.order_time?.includes(' ')
-                          ? order.order_time.split(' ')[1]?.slice(0, 8)
-                          : (order.order_time || '-');
-                        const symbol = order.contract_code_full || order.instrument_id || '-';
-                        const name = order.instrument_name || '';
-                        const traded = Number.isFinite(order.traded_price) ? order.traded_price : null;
-                        const limit = Number.isFinite(order.limit_price) ? order.limit_price : null;
-                        const priceText = `${traded != null ? traded.toFixed(4) : '-'} / ${limit != null ? limit.toFixed(4) : '-'}`;
-                        const qtyText = `${order.volume_traded ?? 0}/${order.volume_total_original ?? 0}`;
-                        const note = order.error_msg || order.remark || '-';
-
-                        return (
-                          <tr key={`${order.order_sys_id || symbol || order.order_time || 'na'}-${idx}`}>
-                            <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{timeText}</td>
-                            <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
-                              <div className="font-mono">{symbol}</div>
-                              {name ? <div className="opacity-75">{name}</div> : null}
-                            </td>
-                            <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">{order.op_type_name_zh || order.op_type_name || '-'}</td>
-                            <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${status.className}`} title={order.order_status_name || undefined}>
-                                {status.label}
-                              </span>
-                            </td>
-                            <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{priceText}</td>
-                            <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{qtyText}</td>
-                            <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{order.order_sys_id || '-'}</td>
-                            <td className="px-3 py-2 text-xs text-gray-700 dark:text-gray-200 break-words">{note}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-          <TradeList
-            selectedStockCode={selectedStock?.stock_code}
-            theme={theme}
-            selectedAccountId={selectedAccountId}
-          />
-        </div>
-      )}
-      {/* Show message for restricted tabs in shared view */}
-      {portfolioUuid && activeTab !== 'portfolio' && (
-        <div className={`${themes[theme].card} rounded-lg p-8 text-center`}>
-          <div className={`${themes[theme].text} opacity-70`}>
-            <Briefcase className="w-12 h-12 mx-auto mb-4 opacity-40" />
-            <p className="text-lg font-medium">This feature is not available in shared portfolio view</p>
-            <p className="text-sm">Switch to Portfolio tab to view shared data</p>
-          </div>
-        </div>
-      )}
+      {activeTabConfig?.renderContent({
+        activeTab,
+        selectedStock,
+        theme,
+        onStockSelect,
+        user,
+        holdings,
+        recentTrades,
+        dateRange,
+        onDateRangeChange: setDateRange,
+        portfolioUuid,
+        userId: DEMO_USER_ID,
+        selectedAccountId,
+        onAccountChange: setSelectedAccountId,
+        isSnapshot,
+        todayOrders,
+        todayOrdersLoading,
+        todayOrdersError,
+        todayOrdersLastUpdatedAt,
+        onRefreshTodayOrders: fetchTodayOrders,
+      })}
     </main>
   );
 }

@@ -1,5 +1,6 @@
 import { getFirstLocalStorageValue } from './accountSelection';
-import { ADMIN_DEFAULT_TAB, ADMIN_TABS, JOURNAL_DEFAULT_TAB, JOURNAL_TABS, OPTIONS_DEFAULT_TAB, OPTIONS_TABS, normalizeTab } from './tabRouting';
+import { ADMIN_DEFAULT_TAB, ADMIN_TABS, OPTIONS_DEFAULT_TAB, OPTIONS_TABS, normalizeTab } from './tabRouting';
+import { resolveJournalTab } from '../../pages/Journal/tabConfig';
 
 type AnonPresenceSnapshot = {
   anon_id: string;
@@ -43,7 +44,7 @@ const resolveTab = (pathname: string, tabRaw: string | null) => {
     return normalizeTab(ADMIN_TABS, ADMIN_DEFAULT_TAB, tabRaw);
   }
   if (pathname.startsWith('/journal')) {
-    return normalizeTab(JOURNAL_TABS, JOURNAL_DEFAULT_TAB, tabRaw);
+    return resolveJournalTab(tabRaw, { canViewTradePlans: true });
   }
 
   return sanitizeString(tabRaw, 32) || '';
