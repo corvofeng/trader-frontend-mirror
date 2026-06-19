@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { logger } from '../../../shared/utils/logger';
-import { subDays } from 'date-fns';
 import { Filter, ExternalLink } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
@@ -23,6 +22,12 @@ import { OverviewControls } from './OverviewControls';
 import { PortfolioHeader } from './PortfolioHeader';
 import { StatsGrid } from './StatsGrid';
 import { FadeIn } from '../../../shared/components/FadeIn';
+import {
+  calculatePortfolioSummary,
+  resolvePortfolioKlineRequestDates,
+  sortPortfolioHoldings,
+  sortPortfolioTrades,
+} from './portfolioUtils';
 
 ChartJS.register(
   ArcElement, 
@@ -64,7 +69,6 @@ export function Portfolio({
   onAccountChange,
   isSnapshot = false,
 }: PortfolioProps) {
-  const DEFAULT_ASSET_KLINE_DAYS = 180;
   const [showRecentTrades, setShowRecentTrades] = useState(true);
   const [holdingsPage, setHoldingsPage] = useState(1);
   const [holdingsPerPage, setHoldingsPerPage] = useState(5);
@@ -85,14 +89,12 @@ export function Portfolio({
   const [, setIsRefreshing] = useState(false);
   
   // Calculate portfolio metrics
-  const totalHoldingsValue = holdings.reduce((sum, holding) => sum + holding.total_value, 0);
-  const totalProfitLoss = holdings.reduce((sum, holding) => sum + holding.profit_loss, 0);
-  
-  // Get latest trend value for total market value
-  const latestTrendValue = trendData.length > 0 ? trendData[trendData.length - 1].value : totalHoldingsValue;
-  
-  // Calculate position ratio
-  const positionRatio = latestTrendValue > 0 ? (totalHoldingsValue / latestTrendValue) * 100 : 0;
+  const {
+    totalHoldingsValue,
+    totalProfitLoss,
+    latestTrendValue,
+    positionRatio,
+  } = calculatePortfolioSummary(holdings, trendData);
 
   // Get UUID from URL params for portfolio sharing
   const portfolioUuid = new URLSearchParams(window.location.search).get('uuid');
@@ -101,17 +103,12 @@ export function Portfolio({
     let cancelled = false;
     const fetchTrendData = async () => {
       try {
-        const searchParams = new URLSearchParams(window.location.search);
-        const trendView = searchParams.get('trendView');
-        const trendSource = searchParams.get('trendSource');
-        const shouldUseAssetKlineDefaultRange =
-          (trendView === null || trendView === 'kline') &&
-          (trendSource === null || trendSource === 'asset');
-        const klineEndDate = new Date().toISOString().split('T')[0];
-        const klineStartDate = shouldUseAssetKlineDefaultRange
-          ? subDays(new Date(), DEFAULT_ASSET_KLINE_DAYS).toISOString().split('T')[0]
-          : dateRange.startDate;
-        const metricsEndDate = dateRange.endDate;
+        const {
+          shouldUseAssetKlineDefaultRange,
+          klineStartDate,
+          klineEndDate,
+          metricsEndDate,
+        } = resolvePortfolioKlineRequestDates(dateRange, window.location.search);
 
         let trendPromise: Promise<Awaited<ReturnType<typeof portfolioService.getTrendData>> | Awaited<ReturnType<typeof portfolioService.getTrendDataByUuid>>> | null = null;
         let klinePromise: Promise<Awaited<ReturnType<typeof portfolioService.getKlineData>> | Awaited<ReturnType<typeof portfolioService.getKlineDataByUuid>>> | null = null;
@@ -215,45 +212,18 @@ export function Portfolio({
 
   const setQuickDateRange = (days: number) => {
     if (isSharedView && !portfolioUuid) return; // Disable date range changes in shared view without UUID
-    
+
     const endDate = new Date();
-    const startDate = subDays(endDate, days);
+    const startDate = new Date(endDate);
+    startDate.setDate(endDate.getDate() - days);
     onDateRangeChange({
       startDate: startDate.toISOString().split('T')[0],
       endDate: endDate.toISOString().split('T')[0]
     });
   };
 
-  const sortHoldings = (holdings: Holding[]) => {
-    return [...holdings].sort((a, b) => {
-      const multiplier = holdingsSort.direction === 'asc' ? 1 : -1;
-      switch (holdingsSort.field) {
-        case 'stock_code':
-          return multiplier * a.stock_code.localeCompare(b.stock_code);
-        case 'total_value':
-          return multiplier * (a.total_value - b.total_value);
-        case 'profit_loss_percentage':
-          return multiplier * (a.profit_loss_percentage - b.profit_loss_percentage);
-        default:
-          return 0;
-      }
-    });
-  };
-
-  const sortTrades = (trades: Trade[]) => {
-    return [...trades].sort((a, b) => {
-      const multiplier = tradesSort.direction === 'asc' ? 1 : -1;
-      switch (tradesSort.field) {
-        case 'created_at':
-          return multiplier * (new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-        default:
-          return multiplier * (new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-      }
-    });
-  };
-
-  const sortedHoldings = sortHoldings(holdings);
-  const sortedTrades = sortTrades(recentTrades);
+  const sortedHoldings = sortPortfolioHoldings(holdings, holdingsSort);
+  const sortedTrades = sortPortfolioTrades(recentTrades, tradesSort);
 
   const paginatedHoldings = sortedHoldings.slice(
     (holdingsPage - 1) * holdingsPerPage,
