@@ -44,11 +44,6 @@ interface VolumePoint {
   color?: string;
 }
 
-interface AreaPoint {
-  time: UTCTimestamp;
-  value: number;
-}
-
 type PriceLineHandle = ReturnType<ISeriesApi<'Candlestick'>['createPriceLine']>;
 
 const isValidDataPoint = (item: StockData) => {
@@ -66,56 +61,37 @@ const isValidDataPoint = (item: StockData) => {
 const getChartVisualPalette = (theme: Theme, fallback: { upColor: string; downColor: string }) => {
   if (theme === 'dark') {
     return {
-      background: '#222222',
-      textColor: '#C3BCDB',
-      gridColor: '#444444',
-      scaleBorderColor: '#71649C',
-      crosshairBandColor: '#C3BCDB44',
-      crosshairLabelColor: '#9B7DFF',
-      areaTopColor: 'rgba(56, 33, 110, 0.60)',
-      areaBottomColor: 'rgba(56, 33, 110, 0.10)',
-      areaLineColor: 'transparent',
-      upColor: 'rgb(54, 116, 217)',
-      downColor: 'rgb(225, 50, 85)',
-      highlightUpColor: 'rgba(155, 125, 255, 0.28)',
-      highlightDownColor: 'rgba(155, 125, 255, 0.28)',
-      highlightBorderColor: '#c4b5fd',
+      background: '#1f2937',
+      textColor: '#d1d5db',
+      gridColor: '#363c4e',
+      scaleBorderColor: '#4b5563',
+      crosshairLineColor: '#758696',
+      crosshairLabelColor: '#4b5563',
+      upColor: fallback.upColor,
+      downColor: fallback.downColor,
     };
   }
 
   return {
     background: '#ffffff',
-    textColor: '#475569',
-    gridColor: '#e2e8f0',
-    scaleBorderColor: '#cbd5e1',
-    crosshairBandColor: 'rgba(148, 163, 184, 0.20)',
-    crosshairLabelColor: '#8b5cf6',
-    areaTopColor: 'rgba(99, 102, 241, 0.18)',
-    areaBottomColor: 'rgba(99, 102, 241, 0.03)',
-    areaLineColor: 'transparent',
+    textColor: '#191919',
+    gridColor: '#e1e5eb',
+    scaleBorderColor: '#d1d4dc',
+    crosshairLineColor: '#9ca3af',
+    crosshairLabelColor: '#9ca3af',
     upColor: fallback.upColor,
     downColor: fallback.downColor,
-    highlightUpColor: 'rgba(139, 92, 246, 0.18)',
-    highlightDownColor: 'rgba(139, 92, 246, 0.18)',
-    highlightBorderColor: '#8b5cf6',
   };
 };
 
 export function StockChart({ stockCode, theme, pendingTrades, userId, accountId, onTradesLoaded, className, fillContainer = false }: StockChartProps) {
   const chartViewportRef = useRef<HTMLDivElement>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
-  const highlightBandRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const areaSeriesRef = useRef<ISeriesApi<"Area"> | null>(null);
   const candlestickSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
-  const highlightSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const costBasisSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const priceLinesRef = useRef<PriceLineHandle[]>([]);
-  const chartDataByTimeRef = useRef<Map<UTCTimestamp, CandlestickPoint>>(new Map());
-  const chartTimesRef = useRef<UTCTimestamp[]>([]);
-  const highlightedTimeRef = useRef<UTCTimestamp | null>(null);
-  const defaultHighlightedTimeRef = useRef<UTCTimestamp | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showCostBasis, setShowCostBasis] = useState(true);
   const { currencyConfig, getThemedColors } = useCurrency();
@@ -132,18 +108,14 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
   const [autoScale, setAutoScale] = useState(true);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [chartData, setChartData] = useState<{
-    area: AreaPoint[];
     candlestick: CandlestickPoint[];
     volume: VolumePoint[];
     trades: Trade[];
     costBasis: CostBasisPoint[];
-  }>({ area: [], candlestick: [], volume: [], trades: [], costBasis: [] });
+  }>({ candlestick: [], volume: [], trades: [], costBasis: [] });
 
   const disposeChart = () => {
     isDisposed.current = true;
-    highlightedTimeRef.current = null;
-    defaultHighlightedTimeRef.current = null;
-    chartDataByTimeRef.current = new Map();
 
     if (resizeObserverRef.current) {
       resizeObserverRef.current.disconnect();
@@ -152,14 +124,6 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
 
     if (chartRef.current) {
       // Clear all series references before removing the chart
-      if (areaSeriesRef.current) {
-        try {
-          chartRef.current.removeSeries(areaSeriesRef.current);
-        } catch (error) {
-          logger.debug('[StockChart] Error removing area series during dispose', { error });
-        }
-        areaSeriesRef.current = null;
-      }
       if (candlestickSeriesRef.current) {
         try {
           chartRef.current.removeSeries(candlestickSeriesRef.current);
@@ -167,14 +131,6 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
           logger.debug('[StockChart] Error removing candlestick series during dispose', { error });
         }
         candlestickSeriesRef.current = null;
-      }
-      if (highlightSeriesRef.current) {
-        try {
-          chartRef.current.removeSeries(highlightSeriesRef.current);
-        } catch (error) {
-          logger.debug('[StockChart] Error removing highlight series during dispose', { error });
-        }
-        highlightSeriesRef.current = null;
       }
       if (volumeSeriesRef.current) {
         try {
@@ -201,106 +157,6 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
       chartRef.current = null;
     }
   };
-
-  const createHighlightSeries = useCallback((chart: IChartApi, palette: ReturnType<typeof getChartVisualPalette>) => {
-    return chart.addCandlestickSeries({
-      upColor: palette.highlightUpColor,
-      downColor: palette.highlightDownColor,
-      borderVisible: true,
-      borderUpColor: palette.highlightBorderColor,
-      borderDownColor: palette.highlightBorderColor,
-      wickUpColor: palette.highlightBorderColor,
-      wickDownColor: palette.highlightBorderColor,
-      priceLineVisible: false,
-      lastValueVisible: false,
-    });
-  }, []);
-
-  const clearHighlightedCandle = useCallback(() => {
-    const fallbackTime = defaultHighlightedTimeRef.current;
-    if (!highlightSeriesRef.current || isDisposed.current) return;
-    if (!fallbackTime) {
-      highlightedTimeRef.current = null;
-      highlightSeriesRef.current.setData([]);
-      return;
-    }
-    const fallbackPoint = chartDataByTimeRef.current.get(fallbackTime);
-    if (!fallbackPoint) {
-      highlightedTimeRef.current = null;
-      highlightSeriesRef.current.setData([]);
-      return;
-    }
-    highlightedTimeRef.current = fallbackTime;
-    highlightSeriesRef.current.setData([fallbackPoint]);
-  }, []);
-
-  const hideHighlightBand = useCallback(() => {
-    if (!highlightBandRef.current) return;
-    highlightBandRef.current.style.opacity = '0';
-  }, []);
-
-  const updateHighlightBand = useCallback((time: UTCTimestamp | null | undefined) => {
-    if (!highlightBandRef.current || !chartRef.current || chartType !== 'candlestick') {
-      hideHighlightBand();
-      return;
-    }
-    if (time == null) {
-      hideHighlightBand();
-      return;
-    }
-
-    const timeScale = chartRef.current.timeScale();
-    const coordinate = timeScale.timeToCoordinate(time);
-    if (coordinate == null || !Number.isFinite(coordinate)) {
-      hideHighlightBand();
-      return;
-    }
-
-    const times = chartTimesRef.current;
-    const timeIndex = times.indexOf(time);
-    const previousCoordinate = timeIndex > 0 ? timeScale.timeToCoordinate(times[timeIndex - 1]) : null;
-    const nextCoordinate = timeIndex >= 0 && timeIndex < times.length - 1 ? timeScale.timeToCoordinate(times[timeIndex + 1]) : null;
-    const distanceToPrev = previousCoordinate != null ? Math.abs(coordinate - previousCoordinate) : null;
-    const distanceToNext = nextCoordinate != null ? Math.abs(nextCoordinate - coordinate) : null;
-    const baseSpacing = distanceToPrev && distanceToNext
-      ? Math.min(distanceToPrev, distanceToNext)
-      : distanceToPrev ?? distanceToNext ?? 24;
-    const width = Math.max(8, Math.min(24, baseSpacing * 0.48));
-
-    highlightBandRef.current.style.width = `${width}px`;
-    highlightBandRef.current.style.transform = `translateX(${coordinate - width / 2}px)`;
-    highlightBandRef.current.style.opacity = '1';
-  }, [chartType, hideHighlightBand]);
-
-  const updateHighlightedCandle = useCallback((time: UTCTimestamp | null | undefined) => {
-    if (!highlightSeriesRef.current || isDisposed.current) return;
-    if (time == null) {
-      clearHighlightedCandle();
-      updateHighlightBand(defaultHighlightedTimeRef.current);
-      return;
-    }
-
-    const point = chartDataByTimeRef.current.get(time);
-    if (!point) {
-      clearHighlightedCandle();
-      updateHighlightBand(defaultHighlightedTimeRef.current);
-      return;
-    }
-    if (highlightedTimeRef.current === time) return;
-
-    highlightedTimeRef.current = time;
-    highlightSeriesRef.current.setData([point]);
-    updateHighlightBand(time);
-  }, [clearHighlightedCandle, updateHighlightBand]);
-
-  const getParamTime = useCallback((time?: number | string | { year: number; month: number; day: number }) => {
-    if (typeof time === 'number') return time as UTCTimestamp;
-    if (typeof time === 'string') return Math.floor(Date.parse(`${time}T00:00:00`) / 1000) as UTCTimestamp;
-    if (time && typeof time === 'object') {
-      return Math.floor(Date.UTC(time.year, time.month - 1, time.day) / 1000) as UTCTimestamp;
-    }
-    return null;
-  }, []);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -374,9 +230,6 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
     setZoomLevel(newZoom);
     
     timeScale.applyOptions({ barSpacing: 12 * newZoom });
-    requestAnimationFrame(() => {
-      updateHighlightBand(highlightedTimeRef.current ?? defaultHighlightedTimeRef.current);
-    });
   };
 
   const updateChartType = (type: ChartType) => {
@@ -395,26 +248,15 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
     // Remove existing series
     try {
       chart.removeSeries(candlestickSeriesRef.current);
-      if (areaSeriesRef.current) {
-        chart.removeSeries(areaSeriesRef.current);
-        areaSeriesRef.current = null;
-      }
-      if (highlightSeriesRef.current) {
-        chart.removeSeries(highlightSeriesRef.current);
-        highlightSeriesRef.current = null;
-      }
     } catch {
       return;
     }
     candlestickSeriesRef.current = null;
-    highlightedTimeRef.current = null;
-    hideHighlightBand();
     
     let newSeries: any;
     try {
       switch (type) {
         case 'line': {
-          hideHighlightBand();
           newSeries = chartRef.current.addLineSeries({
             color: themes[theme].chart.upColor,
             lineWidth: 2,
@@ -430,7 +272,6 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
         }
         
         case 'bar': {
-          hideHighlightBand();
           newSeries = chartRef.current.addBarSeries({
             upColor: themes[theme].chart.upColor,
             downColor: themes[theme].chart.downColor,
@@ -442,16 +283,6 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
         
         default: {
           const nextPalette = getChartVisualPalette(theme, themes[theme].chart);
-          areaSeriesRef.current = chartRef.current.addAreaSeries({
-            lineColor: nextPalette.areaLineColor,
-            topColor: nextPalette.areaTopColor,
-            bottomColor: nextPalette.areaBottomColor,
-            lineWidth: 1,
-            priceLineVisible: false,
-            lastValueVisible: false,
-            crosshairMarkerVisible: false,
-          });
-          areaSeriesRef.current.setData(chartData.area);
           newSeries = chartRef.current.addCandlestickSeries({
             upColor: nextPalette.upColor,
             downColor: nextPalette.downColor,
@@ -466,12 +297,8 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
               bottom: showVolume ? 0.2 : 0.08,
             },
           });
-          highlightSeriesRef.current = createHighlightSeries(chartRef.current, nextPalette);
           const sortedCandlestickData = [...chartData.candlestick].sort((a, b) => a.time - b.time);
           newSeries.setData(sortedCandlestickData);
-          requestAnimationFrame(() => {
-            updateHighlightBand(highlightedTimeRef.current ?? defaultHighlightedTimeRef.current);
-          });
         }
       }
       
@@ -638,13 +465,13 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
       crosshair: {
         mode: CrosshairMode.Normal,
         vertLine: {
-          color: visualPalette.crosshairBandColor,
-          width: 4,
+          color: visualPalette.crosshairLineColor,
+          width: 1,
           style: LineStyle.Solid,
           labelBackgroundColor: visualPalette.crosshairLabelColor,
         },
         horzLine: {
-          color: visualPalette.crosshairLabelColor,
+          color: visualPalette.crosshairLineColor,
           width: 1,
           style: LineStyle.Solid,
           labelBackgroundColor: visualPalette.crosshairLabelColor,
@@ -681,18 +508,6 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
 
     chartRef.current = chart;
 
-    const areaSeries = chart.addAreaSeries({
-      lineColor: visualPalette.areaLineColor,
-      topColor: visualPalette.areaTopColor,
-      bottomColor: visualPalette.areaBottomColor,
-      lineWidth: 1,
-      priceLineVisible: false,
-      lastValueVisible: false,
-      crosshairMarkerVisible: false,
-    });
-
-    areaSeriesRef.current = areaSeries;
-
     const candlestickSeries = chart.addCandlestickSeries({
       upColor: visualPalette.upColor,
       downColor: visualPalette.downColor,
@@ -710,7 +525,6 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
     });
 
     candlestickSeriesRef.current = candlestickSeries;
-    highlightSeriesRef.current = createHighlightSeries(chart, visualPalette);
 
     const volumeSeries = chart.addHistogramSeries({
       color: chartColors.upColor,
@@ -740,12 +554,6 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
     });
 
     costBasisSeriesRef.current = costBasisSeries;
-
-    const handleCrosshairMove = (param: { time?: number | string | { year: number; month: number; day: number } }) => {
-      updateHighlightedCandle(getParamTime(param.time));
-    };
-
-    chart.subscribeCrosshairMove(handleCrosshairMove);
 
     const loadChartData = async () => {
       if (isDisposed.current) return;
@@ -779,13 +587,6 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
             close: item.close,
           }))
           .sort((a, b) => a.time - b.time);
-        chartDataByTimeRef.current = new Map(candlestickData.map((point) => [point.time, point]));
-        chartTimesRef.current = candlestickData.map((point) => point.time);
-        const areaData = candlestickData.map((point) => ({
-          time: point.time,
-          value: (point.open + point.close) / 2,
-        }));
-        defaultHighlightedTimeRef.current = candlestickData[candlestickData.length - 1]?.time ?? null;
 
         const volumeData = validStockData
           .map((item) => ({
@@ -839,7 +640,6 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
 
         if (!isDisposed.current) {
           setChartData({
-            area: areaData,
             candlestick: candlestickData,
             volume: volumeData,
             trades,
@@ -847,22 +647,15 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
           });
 
           try {
-            if (areaSeriesRef.current && !isDisposed.current) {
-              areaSeriesRef.current.setData(areaData);
-            }
             if (candlestickSeriesRef.current && !isDisposed.current) {
               candlestickSeriesRef.current.setData(candlestickData);
             }
-            clearHighlightedCandle();
             if (volumeSeriesRef.current && !isDisposed.current) {
               volumeSeriesRef.current.setData(volumeData);
             }
             if (chartRef.current && !isDisposed.current) {
               chartRef.current.timeScale().fitContent();
             }
-            requestAnimationFrame(() => {
-              updateHighlightBand(defaultHighlightedTimeRef.current);
-            });
           } catch (e) {
             console.error('Error setting chart data:', e);
           }
@@ -889,9 +682,6 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
               width: entries[0].contentRect.width,
               height: entries[0].contentRect.height,
             });
-            requestAnimationFrame(() => {
-              updateHighlightBand(highlightedTimeRef.current ?? defaultHighlightedTimeRef.current);
-            });
           } catch (e) {
             console.error('Error resizing chart:', e);
           }
@@ -902,11 +692,10 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
     }
 
     return () => {
-      chart.unsubscribeCrosshairMove(handleCrosshairMove);
       disposeChart();
       isInitializing.current = false;
     };
-  }, [stockCode, theme, currencyConfig, showCostBasis, showGrid, showVolume, isLocked, autoScale, getThemedColors, addTradeMarkers, userId, accountId, onTradesLoaded, clearHighlightedCandle, createHighlightSeries, getParamTime, hideHighlightBand, updateHighlightBand, updateHighlightedCandle]);
+  }, [stockCode, theme, currencyConfig, showCostBasis, showGrid, showVolume, isLocked, autoScale, getThemedColors, addTradeMarkers, userId, accountId, onTradesLoaded]);
 
   useEffect(() => {
     if (volumeSeriesRef.current && !isDisposed.current) {
@@ -1034,15 +823,6 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
         }`} 
         ref={chartViewportRef}
       >
-        <div
-          ref={highlightBandRef}
-          className={`pointer-events-none absolute inset-y-0 z-[1] rounded-md transition-opacity duration-150 ${
-            theme === 'dark'
-              ? 'bg-[rgba(195,188,219,0.26)] border-x border-[rgba(195,188,219,0.18)] shadow-[0_0_18px_rgba(155,125,255,0.16)]'
-              : 'bg-[rgba(148,163,184,0.18)] border-x border-[rgba(148,163,184,0.14)] shadow-[0_0_16px_rgba(148,163,184,0.12)]'
-          }`}
-          style={{ opacity: 0, width: '24px', transform: 'translateX(-9999px)' }}
-        />
         <div
           className="absolute inset-0 z-0"
           ref={chartContainerRef}
