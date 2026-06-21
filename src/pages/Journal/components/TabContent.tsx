@@ -7,6 +7,7 @@ import { RelatedLinks } from '../../../shared/components';
 import { stockService } from '../../../lib/services';
 import { themes, Theme } from '../../../lib/theme';
 import type { Stock, Holding, Trade, StockOrder } from '../../../lib/services/types';
+import { JOURNAL_ACCOUNT_STORAGE, persistAccountAlias } from '../../../shared/utils/accountSelection';
 import { AnalysisTab } from './AnalysisTab';
 
 const getOrderStatusBadge = (raw?: string | null) => {
@@ -113,10 +114,7 @@ export function TabContent({
         isLoading={portfolioLoading}
         onAccountChange={(accountId) => {
           onAccountChange?.(accountId);
-          if (accountId) {
-            localStorage.setItem('journalAccountId', accountId);
-            localStorage.setItem('journalSelectedAccountAlias', accountId);
-          }
+          persistAccountAlias(accountId, { storage: JOURNAL_ACCOUNT_STORAGE });
         }}
       />
     );

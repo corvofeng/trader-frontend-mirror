@@ -6,7 +6,11 @@ import { CurrencyProvider } from './lib/context/CurrencyContext';
 import analytics from './lib/analytics';
 import type { User, Stock } from './lib/services/types';
 import type { Theme } from './lib/theme';
-import { getAccountAliasFromSearch } from './shared/utils/accountSelection';
+import {
+  JOURNAL_ACCOUNT_STORAGE,
+  persistAccountAlias,
+  resolveCurrentAccountAlias,
+} from './shared/utils/accountSelection';
 import { updateAnonPresenceWithTitleRetry } from './shared/utils/anonPresence';
 
 // Lazy load pages
@@ -64,20 +68,11 @@ function AppContent() {
       setTimeout(fn, 0);
     };
 
-    const getAccountKey = () => {
-      try {
-        return (
-          getAccountAliasFromSearch(typeof window !== 'undefined' ? window.location.search : '') ||
-          localStorage.getItem('journalSelectedAccountAlias') ||
-          localStorage.getItem('journalAccountId') ||
-          localStorage.getItem('selectedAccountAlias') ||
-          localStorage.getItem('selectedAccountId') ||
-          ''
-        );
-      } catch {
-        return '';
-      }
-    };
+    const getAccountKey = () =>
+      resolveCurrentAccountAlias({
+        search: typeof window !== 'undefined' ? window.location.search : '',
+        storage: JOURNAL_ACCOUNT_STORAGE,
+      }) || '';
 
     const shouldSkipByTtl = (key: string, ttlMs: number) => {
       try {
@@ -106,12 +101,10 @@ function AppContent() {
           const key = defaultAccount ? (defaultAccount.alias || defaultAccount.id) : '';
           if (key) {
             accountAlias = key;
-            try {
-              localStorage.setItem('journalSelectedAccountAlias', key);
-              localStorage.setItem('journalAccountId', key);
-              localStorage.setItem('selectedAccountAlias', key);
-              localStorage.setItem('selectedAccountId', key);
-            } catch {}
+            persistAccountAlias(key, {
+              storage: JOURNAL_ACCOUNT_STORAGE,
+              localStorageKeys: [...JOURNAL_ACCOUNT_STORAGE.persistLocalStorageKeys, 'selectedAccountAlias', 'selectedAccountId'],
+            });
           }
         } catch {}
       }

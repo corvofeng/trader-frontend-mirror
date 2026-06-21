@@ -8,7 +8,12 @@ import { portfolioService, accountService, stockService } from '../lib/services'
 import { AccountSelector } from '../shared/components/AccountSelector';
 import type { Account, Stock, Holding, Trade, StockOrder, User } from '../lib/services/types';
 import { TabNavigation } from './Journal/components/TabNavigation';
-import { getAccountAliasFromSearch, getPreferredAccountAlias } from '../shared/utils/accountSelection';
+import {
+  getAccountAliasFromSearch,
+  JOURNAL_ACCOUNT_STORAGE,
+  persistAccountAlias,
+  resolveCurrentAccountAlias,
+} from '../shared/utils/accountSelection';
 import {
   buildJournalSearch,
   getJournalTabDefinitions,
@@ -48,10 +53,9 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
     endDate: new Date().toISOString().split('T')[0]
   });
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() => {
-    return getPreferredAccountAlias({
+    return resolveCurrentAccountAlias({
       search: location.search,
-      localStorageKeys: ['journalSelectedAccountAlias', 'selectedAccountAlias', 'journalAccountId', 'selectedAccountId'],
-      cookieKeys: ['journalAccountId'],
+      storage: JOURNAL_ACCOUNT_STORAGE,
     });
   });
   const [accountAccessError, setAccountAccessError] = useState<string | null>(null);
@@ -135,6 +139,9 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
   }, [requestedAccountAlias, selectedAccountId]);
 
   useEffect(() => {
+    if (!portfolioUuid && requestedAccountAlias && requestedAccountAlias !== selectedAccountId) {
+      return;
+    }
     const nextQuery = buildJournalSearch({
       currentSearch: location.search,
       activeTab,
@@ -145,7 +152,7 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
     const currentQuery = location.search.startsWith('?') ? location.search.slice(1) : location.search;
     if (nextQuery === currentQuery) return;
     navigate(nextQuery ? `/journal?${nextQuery}` : '/journal', { replace: true });
-  }, [activeTab, canViewTradePlans, location.search, navigate, portfolioUuid, selectedAccountId]);
+  }, [activeTab, canViewTradePlans, location.search, navigate, portfolioUuid, requestedAccountAlias, selectedAccountId]);
 
   const handleTabChange = (tabId: string) => {
     const nextQuery = buildJournalSearch({
@@ -162,6 +169,26 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
   const [todayOrdersLoading, setTodayOrdersLoading] = useState(false);
   const [todayOrdersError, setTodayOrdersError] = useState<string | null>(null);
   const [todayOrdersLastUpdatedAt, setTodayOrdersLastUpdatedAt] = useState<number | null>(null);
+
+  const persistSelectedAccount = useCallback((accountId: string) => {
+    persistAccountAlias(accountId, { storage: JOURNAL_ACCOUNT_STORAGE });
+  }, []);
+
+  const handleAccountChange = useCallback((accountId: string) => {
+    setSelectedAccountId(accountId);
+    persistSelectedAccount(accountId);
+
+    const nextQuery = buildJournalSearch({
+      currentSearch: location.search,
+      activeTab,
+      selectedAccountId: accountId,
+      portfolioUuid,
+      canViewTradePlans,
+    });
+    const currentQuery = location.search.startsWith('?') ? location.search.slice(1) : location.search;
+    if (nextQuery === currentQuery) return;
+    navigate(nextQuery ? `/journal?${nextQuery}` : '/journal', { replace: true });
+  }, [activeTab, canViewTradePlans, location.search, navigate, persistSelectedAccount, portfolioUuid]);
 
   const fetchTodayOrders = useCallback(async () => {
     const accountAlias = selectedAccountId || undefined;
@@ -228,19 +255,7 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
             
             if (key !== selectedAccountId) {
               setSelectedAccountId(key);
-              try {
-                localStorage.setItem('journalAccountId', key);
-                localStorage.setItem('journalSelectedAccountAlias', key);
-              } catch {
-                logger.debug('[Journal] Failed to persist journalAccountId to localStorage');
-              }
-              try {
-                const expiryDate = new Date();
-                expiryDate.setDate(expiryDate.getDate() + 30);
-                document.cookie = `journalAccountId=${encodeURIComponent(key)}; expires=${expiryDate.toUTCString()}; path=/`;
-              } catch {
-                logger.debug('[Journal] Failed to persist journalAccountId to cookie');
-              }
+              persistSelectedAccount(key);
             }
           }
         }
@@ -248,7 +263,7 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
     };
 
     fetchData();
-  }, [activeTab, dateRange, portfolioUuid, selectedAccountId]);
+  }, [activeTab, dateRange, persistSelectedAccount, portfolioUuid, selectedAccountId]);
 
   useEffect(() => {
     if (activeTab !== 'trades' || portfolioUuid) return;
@@ -273,22 +288,7 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
                 userId={DEMO_USER_ID}
                 theme={theme}
                 selectedAccountId={selectedAccountId}
-                onAccountChange={(accountId) => {
-                  setSelectedAccountId(accountId);
-                  try {
-                    localStorage.setItem('journalAccountId', accountId);
-                      localStorage.setItem('journalSelectedAccountAlias', accountId);
-                  } catch {
-                    logger.debug('[Journal] Failed to persist journalAccountId to localStorage from header');
-                  }
-                  try {
-                    const expiryDate = new Date();
-                    expiryDate.setDate(expiryDate.getDate() + 30);
-                    document.cookie = `journalAccountId=${encodeURIComponent(accountId)}; expires=${expiryDate.toUTCString()}; path=/`;
-                  } catch {
-                    logger.debug('[Journal] Failed to persist journalAccountId to cookie from header');
-                  }
-                }}
+                onAccountChange={handleAccountChange}
                 preferOptions={false}
               />
             )}
@@ -318,7 +318,7 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
           portfolioUuid,
           userId: DEMO_USER_ID,
           selectedAccountId,
-          onAccountChange: setSelectedAccountId,
+          onAccountChange: handleAccountChange,
           isSnapshot,
           todayOrders,
           todayOrdersLoading,
@@ -353,7 +353,7 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
         portfolioUuid,
         userId: DEMO_USER_ID,
         selectedAccountId,
-        onAccountChange: setSelectedAccountId,
+        onAccountChange: handleAccountChange,
         isSnapshot,
         todayOrders,
         todayOrdersLoading,

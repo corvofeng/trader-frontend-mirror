@@ -24,7 +24,12 @@ import { OptionPriceWebSocketProvider } from '../features/options/context/Option
 import { useAutoRefresh, useOptionPriceWebSocket } from '../features/options/hooks/useOptionPriceWebSocket';
 import type { OptionsChartEngine } from '../features/options/utils/chartEngine';
 import { TabNavigation } from './Journal/components/TabNavigation';
-import { getAccountAliasFromSearch, getPreferredAccountAlias } from '../shared/utils/accountSelection';
+import {
+  getAccountAliasFromSearch,
+  OPTIONS_ACCOUNT_STORAGE,
+  persistAccountAlias,
+  resolveCurrentAccountAlias,
+} from '../shared/utils/accountSelection';
 import { OPTIONS_DEFAULT_TAB, OPTIONS_TABS, type OptionsTab, normalizeTab } from '../shared/utils/tabRouting';
 
 interface OptionsProps {
@@ -78,10 +83,9 @@ function OptionsContent({ theme }: OptionsProps) {
   const [error, setError] = useState<string | null>(null);
   const [showCalculatorModal, setShowCalculatorModal] = useState(false);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() => {
-    return getPreferredAccountAlias({
+    return resolveCurrentAccountAlias({
       search: location.search,
-      localStorageKeys: ['optionsSelectedAccountAlias', 'selectedAccountAlias', 'selectedAccountId'],
-      cookieKeys: ['optionsSelectedAccountId', 'selectedAccountId'],
+      storage: OPTIONS_ACCOUNT_STORAGE,
     });
   });
   const [refreshKey, setRefreshKey] = useState(0);
@@ -168,6 +172,12 @@ function OptionsContent({ theme }: OptionsProps) {
     try {
       localStorage.setItem('optionsMarketChartEngine', engine);
     } catch {}
+  }, []);
+
+  const handleAccountChange = useCallback((accountId: string) => {
+    setSelectedAccountId(accountId);
+    persistAccountAlias(accountId, { storage: OPTIONS_ACCOUNT_STORAGE });
+    setRefreshKey((k) => k + 1);
   }, []);
 
   // Fetch available symbols on component mount
@@ -395,23 +405,7 @@ function OptionsContent({ theme }: OptionsProps) {
                   userId={effectiveUserId}
                   theme={theme}
                   selectedAccountId={selectedAccountId}
-                  onAccountChange={(id) => {
-                    setSelectedAccountId(id);
-                    try {
-                      localStorage.setItem('optionsSelectedAccountId', id);
-                      localStorage.setItem('optionsSelectedAccountAlias', id);
-                    } catch {
-                      logger.debug('[Pages/Options] Failed to persist selectedAccountId to localStorage');
-                    } 
-                    try {
-                      const expiryDate = new Date();
-                      expiryDate.setDate(expiryDate.getDate() + 30);
-                      document.cookie = `optionsSelectedAccountId=${encodeURIComponent(id)}; expires=${expiryDate.toUTCString()}; path=/`;
-                    } catch {
-                      logger.debug('[Pages/Options] Failed to persist selectedAccountId to cookie');
-                    } 
-                    setRefreshKey((k) => k + 1);
-                  }}
+                  onAccountChange={handleAccountChange}
                   refreshKey={refreshKey}
                 />
                 <button

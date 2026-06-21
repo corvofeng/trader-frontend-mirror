@@ -4,6 +4,47 @@ const normalizeValue = (value: string | null | undefined) => {
   return trimmed || null;
 };
 
+export type AccountSelectionStorage = {
+  resolveLocalStorageKeys: string[];
+  resolveCookieKeys: string[];
+  persistLocalStorageKeys: string[];
+  persistCookieKey?: string;
+};
+
+export type ResolvedAccountAlias = {
+  value: string | null;
+  source: 'search' | 'localStorage' | 'cookie' | null;
+  key: string | null;
+};
+
+export const JOURNAL_ACCOUNT_STORAGE: AccountSelectionStorage = {
+  resolveLocalStorageKeys: ['journalSelectedAccountAlias', 'selectedAccountAlias', 'journalAccountId', 'selectedAccountId'],
+  resolveCookieKeys: ['journalAccountId'],
+  persistLocalStorageKeys: ['journalSelectedAccountAlias', 'journalAccountId'],
+  persistCookieKey: 'journalAccountId',
+};
+
+export const OPTIONS_ACCOUNT_STORAGE: AccountSelectionStorage = {
+  resolveLocalStorageKeys: ['optionsSelectedAccountAlias', 'optionsSelectedAccountId', 'selectedAccountAlias', 'selectedAccountId'],
+  resolveCookieKeys: ['optionsSelectedAccountId', 'selectedAccountId'],
+  persistLocalStorageKeys: ['optionsSelectedAccountAlias', 'optionsSelectedAccountId'],
+  persistCookieKey: 'optionsSelectedAccountId',
+};
+
+export const ADMIN_ACCOUNT_STORAGE: AccountSelectionStorage = {
+  resolveLocalStorageKeys: [
+    'adminSelectedAccountAlias',
+    'adminAccountId',
+    'optionsSelectedAccountAlias',
+    'journalSelectedAccountAlias',
+    'selectedAccountAlias',
+    'selectedAccountId',
+  ],
+  resolveCookieKeys: ['adminAccountId'],
+  persistLocalStorageKeys: ['adminSelectedAccountAlias', 'adminAccountId'],
+  persistCookieKey: 'adminAccountId',
+};
+
 const getCookieValue = (key: string) => {
   if (typeof document === 'undefined' || !document.cookie) return null;
   const match = document.cookie
@@ -40,6 +81,23 @@ export const getFirstLocalStorageValue = (keys: string[]) => {
   return null;
 };
 
+const inspectFirstLocalStorageValue = (keys: string[]): ResolvedAccountAlias => {
+  if (typeof localStorage === 'undefined') {
+    return { value: null, source: null, key: null };
+  }
+  try {
+    for (const key of keys) {
+      const value = normalizeValue(localStorage.getItem(key));
+      if (value) {
+        return { value, source: 'localStorage', key };
+      }
+    }
+  } catch {
+    return { value: null, source: null, key: null };
+  }
+  return { value: null, source: null, key: null };
+};
+
 export const getFirstCookieValue = (keys: string[]) => {
   for (const key of keys) {
     const value = getCookieValue(key);
@@ -48,15 +106,94 @@ export const getFirstCookieValue = (keys: string[]) => {
   return null;
 };
 
+const inspectFirstCookieValue = (keys: string[]): ResolvedAccountAlias => {
+  for (const key of keys) {
+    const value = getCookieValue(key);
+    if (value) {
+      return { value, source: 'cookie', key };
+    }
+  }
+  return { value: null, source: null, key: null };
+};
+
+const resolveStorage = (options: {
+  localStorageKeys?: string[];
+  cookieKeys?: string[];
+  storage?: AccountSelectionStorage;
+}) => ({
+  localStorageKeys: options.localStorageKeys ?? options.storage?.resolveLocalStorageKeys ?? [],
+  cookieKeys: options.cookieKeys ?? options.storage?.resolveCookieKeys ?? [],
+});
+
+export const inspectCurrentAccountAlias = (options: {
+  search?: string;
+  localStorageKeys?: string[];
+  cookieKeys?: string[];
+  storage?: AccountSelectionStorage;
+}): ResolvedAccountAlias => {
+  const fromSearch = getAccountAliasFromSearch(options.search);
+  if (fromSearch) {
+    return { value: fromSearch, source: 'search', key: 'account_alias' };
+  }
+
+  const storage = resolveStorage(options);
+  const fromLocalStorage = inspectFirstLocalStorageValue(storage.localStorageKeys);
+  if (fromLocalStorage.value) {
+    return fromLocalStorage;
+  }
+
+  return inspectFirstCookieValue(storage.cookieKeys);
+};
+
+export const resolveCurrentAccountAlias = (options: {
+  search?: string;
+  localStorageKeys?: string[];
+  cookieKeys?: string[];
+  storage?: AccountSelectionStorage;
+}) => inspectCurrentAccountAlias(options).value;
+
 export const getPreferredAccountAlias = (options: {
   search?: string;
   localStorageKeys?: string[];
   cookieKeys?: string[];
+  storage?: AccountSelectionStorage;
 }) => {
-  return getAccountAliasFromSearch(options.search)
-    || getFirstLocalStorageValue(options.localStorageKeys || [])
-    || getFirstCookieValue(options.cookieKeys || [])
-    || null;
+  return resolveCurrentAccountAlias(options);
+};
+
+export const persistAccountAlias = (
+  accountAlias: string | null | undefined,
+  options: {
+    localStorageKeys?: string[];
+    cookieKey?: string;
+    storage?: AccountSelectionStorage;
+    cookieDays?: number;
+  }
+) => {
+  const normalized = normalizeValue(accountAlias);
+  const localStorageKeys = options.localStorageKeys ?? options.storage?.persistLocalStorageKeys ?? [];
+  const cookieKey = options.cookieKey ?? options.storage?.persistCookieKey;
+
+  if (typeof localStorage !== 'undefined') {
+    try {
+      for (const key of localStorageKeys) {
+        if (normalized) {
+          localStorage.setItem(key, normalized);
+        } else {
+          localStorage.removeItem(key);
+        }
+      }
+    } catch {}
+  }
+
+  if (!cookieKey || typeof document === 'undefined') return;
+
+  try {
+    const cookieValue = normalized ? encodeURIComponent(normalized) : '';
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + (options.cookieDays ?? 30));
+    document.cookie = `${cookieKey}=${cookieValue}; expires=${expiryDate.toUTCString()}; path=/`;
+  } catch {}
 };
 
 export const withAccountAliasInSearch = (search: string, accountAlias: string | null | undefined) => {

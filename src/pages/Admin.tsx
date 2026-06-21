@@ -14,7 +14,13 @@ import { HistoryTradesChart } from '../features/trading/components/HistoryTrades
 import { DailyTradeHistory } from '../features/trading/components/DailyTradeHistory';
 import { SequentialTradeTasks } from '../features/options/components/SequentialTradeTasks';
 import { DataFreshnessStatus } from './Admin/components/DataFreshnessStatus';
-import { getAccountAliasFromSearch, getPreferredAccountAlias, withAccountAliasInSearch } from '../shared/utils/accountSelection';
+import {
+  ADMIN_ACCOUNT_STORAGE,
+  getAccountAliasFromSearch,
+  persistAccountAlias,
+  resolveCurrentAccountAlias,
+  withAccountAliasInSearch,
+} from '../shared/utils/accountSelection';
 import { ADMIN_DEFAULT_TAB, ADMIN_TABS, type AdminTab, normalizeTab } from '../shared/utils/tabRouting';
 
 interface AdminProps {
@@ -77,17 +83,9 @@ export function Admin({ theme }: AdminProps) {
   });
 
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() => {
-    return getPreferredAccountAlias({
+    return resolveCurrentAccountAlias({
       search: location.search,
-      localStorageKeys: [
-        'adminSelectedAccountAlias',
-        'adminAccountId',
-        'optionsSelectedAccountAlias',
-        'journalSelectedAccountAlias',
-        'selectedAccountAlias',
-        'selectedAccountId',
-      ],
-      cookieKeys: ['adminAccountId'],
+      storage: ADMIN_ACCOUNT_STORAGE,
     });
   });
 
@@ -708,19 +706,7 @@ export function Admin({ theme }: AdminProps) {
                 selectedAccountId={selectedAccountId}
                 onAccountChange={(accountId) => {
                   setSelectedAccountId(accountId);
-                  try {
-                    localStorage.setItem('adminAccountId', accountId);
-                    localStorage.setItem('adminSelectedAccountAlias', accountId);
-                  } catch {
-                    logger.debug('[Pages/Admin] Failed to persist adminAccountId to localStorage');
-                  }
-                  try {
-                    const expiryDate = new Date();
-                    expiryDate.setDate(expiryDate.getDate() + 30);
-                    document.cookie = `adminAccountId=${encodeURIComponent(accountId)}; expires=${expiryDate.toUTCString()}; path=/`;
-                  } catch {
-                    logger.debug('[Pages/Admin] Failed to persist adminAccountId to cookie');
-                  }
+                  persistAccountAlias(accountId, { storage: ADMIN_ACCOUNT_STORAGE });
                   setRefreshKey(k => k + 1);
                 }}
                 mode="all"

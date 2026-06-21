@@ -1,10 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { TrendingUp, TrendingDown, Target, FileText, Calendar, RefreshCw, X } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { optionsService, stockService } from '../../../lib/services';
 import type { RatioSpreadPlanResult } from '../../../lib/services/types';
+import {
+  OPTIONS_ACCOUNT_STORAGE,
+  resolveCurrentAccountAlias,
+} from '../../../shared/utils/accountSelection';
 
 interface OptionsTradePlansProps {
   theme: Theme;
@@ -24,30 +28,9 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
   const [optionTypeFilter, setOptionTypeFilter] = useState<'all' | 'call' | 'put'>('all');
   const [savedFilter, setSavedFilter] = useState<'all' | 'saved' | 'unsaved'>('all');
   const [sortKey, setSortKey] = useState<'leverage' | 'net' | 'buy' | 'sell'>('buy');
-  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() => {
-    const cookie = typeof document !== 'undefined'
-      ? (document.cookie
-          ? (() => {
-              const parts = document.cookie.split(';').map(s => s.trim());
-              const current = parts.find(s => s.startsWith('optionsSelectedAccountId='))?.split('=')[1];
-              if (current) return current;
-              const legacy = parts.find(s => s.startsWith('selectedAccountId='))?.split('=')[1];
-              return legacy ?? null;
-            })()
-          : null)
-      : null;
-    let ls: string | null = null;
-    try {
-      ls =
-        localStorage.getItem('optionsSelectedAccountAlias') ||
-        localStorage.getItem('optionsSelectedAccountId') ||
-        localStorage.getItem('selectedAccountAlias') ||
-        localStorage.getItem('selectedAccountId');
-    } catch {
-      ls = null;
-    }
-    return selectedAccountIdProp ?? cookie ?? ls ?? null;
-  });
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() =>
+    selectedAccountIdProp ?? resolveCurrentAccountAlias({ storage: OPTIONS_ACCOUNT_STORAGE })
+  );
   const [expandedPlanId, setExpandedPlanId] = useState<string | null>(null);
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
   const [editedConfig, setEditedConfig] = useState<{
@@ -207,6 +190,12 @@ export function OptionsTradePlans({ theme, selectedSymbol, selectedAccountId: se
       setSavingIds(prev => ({ ...prev, [id]: false }));
     }
   };
+
+  useEffect(() => {
+    setSelectedAccountId(
+      selectedAccountIdProp ?? resolveCurrentAccountAlias({ storage: OPTIONS_ACCOUNT_STORAGE })
+    );
+  }, [selectedAccountIdProp]);
 
   useEffect(() => {
     const fetchRatioPlans = async () => {

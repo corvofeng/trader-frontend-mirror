@@ -6,6 +6,10 @@ import { Theme, themes } from '../../../../lib/theme';
 import { useCurrency } from '../../../../lib/context/CurrencyContext';
 import type { Stock } from '../../../../lib/services/types';
 import { formatCurrency } from '../../../../shared/utils/format';
+import {
+  JOURNAL_ACCOUNT_STORAGE,
+  resolveCurrentAccountAlias,
+} from '../../../../shared/utils/accountSelection';
 import { StockConfigEditor } from '../StockConfigEditor';
 
 interface TradeFormProps {
@@ -39,7 +43,8 @@ export function TradeForm({ selectedStock, theme, accountAlias }: TradeFormProps
     e.preventDefault();
     
     try {
-      const { data: { user } } = await authService.getUser();
+      const authResponse = await authService.getUser();
+      const user = authResponse.data?.user ?? null;
       
       if (!user) {
         toast.error('Please sign in to add trades');
@@ -49,14 +54,7 @@ export function TradeForm({ selectedStock, theme, accountAlias }: TradeFormProps
       let targetAccountAlias = accountAlias;
       
       if (!targetAccountAlias) {
-        try {
-          targetAccountAlias =
-            localStorage.getItem('journalSelectedAccountAlias') ||
-            localStorage.getItem('journalAccountId') ||
-            localStorage.getItem('selectedAccountAlias');
-        } catch {
-          targetAccountAlias = null;
-        }
+        targetAccountAlias = resolveCurrentAccountAlias({ storage: JOURNAL_ACCOUNT_STORAGE });
       }
 
       const { error } = await tradeService.createTrade({

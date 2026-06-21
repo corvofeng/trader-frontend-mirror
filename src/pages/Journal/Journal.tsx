@@ -8,6 +8,11 @@ import { TabContent } from './components/TabContent';
 import { portfolioService, accountService, stockConfigService, tradeService, stockService, operationService } from '../../lib/services';
 import type { Stock, Holding, Trade } from '../../lib/services/types';
 import type { Theme } from '../../lib/theme';
+import {
+  JOURNAL_ACCOUNT_STORAGE,
+  persistAccountAlias,
+  resolveCurrentAccountAlias,
+} from '../../shared/utils/accountSelection';
 
 interface JournalProps {
   selectedStock: Stock | null;
@@ -19,6 +24,8 @@ type Tab = 'portfolio' | 'trades' | 'history' | 'analysis' | 'settings' | 'opera
 
 const DEMO_USER_ID = 'mock-user-id';
 const DEFAULT_RANGE_DAYS = 30;
+const getCurrentJournalAccountKey = (search?: string) =>
+  resolveCurrentAccountAlias({ search, storage: JOURNAL_ACCOUNT_STORAGE }) || '';
 
 export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
   const location = useLocation();
@@ -35,10 +42,7 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
       const uuid = new URLSearchParams(window.location.search).get('uuid');
       const key =
         (uuid && `uuid:${uuid}`) ||
-        localStorage.getItem('journalSelectedAccountAlias') ||
-        localStorage.getItem('journalAccountId') ||
-        localStorage.getItem('selectedAccountAlias') ||
-        localStorage.getItem('selectedAccountId') ||
+        getCurrentJournalAccountKey(window.location.search) ||
         '';
       if (!key) return [];
       const raw = localStorage.getItem(`journal:holdings:${key}`);
@@ -55,10 +59,7 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
       const uuid = new URLSearchParams(window.location.search).get('uuid');
       const key =
         (uuid && `uuid:${uuid}`) ||
-        localStorage.getItem('journalSelectedAccountAlias') ||
-        localStorage.getItem('journalAccountId') ||
-        localStorage.getItem('selectedAccountAlias') ||
-        localStorage.getItem('selectedAccountId') ||
+        getCurrentJournalAccountKey(window.location.search) ||
         '';
       if (!key) return [];
       const startDate = new Date(Date.now() - DEFAULT_RANGE_DAYS * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -73,12 +74,10 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
     }
   });
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() => {
-    const alias =
-      localStorage.getItem('journalSelectedAccountAlias') ||
-      localStorage.getItem('journalAccountId') ||
-      localStorage.getItem('selectedAccountAlias');
-    const legacy = localStorage.getItem('selectedAccountId');
-    return alias || legacy || null;
+    return resolveCurrentAccountAlias({
+      search: location.search,
+      storage: JOURNAL_ACCOUNT_STORAGE,
+    });
   });
   const [dateRange, setDateRange] = useState({
     startDate: new Date(Date.now() - DEFAULT_RANGE_DAYS * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -124,7 +123,10 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
       if (!portfolioUuid) {
         const resp = await accountService.getAccounts(DEMO_USER_ID);
         if (resp?.data) {
-          const stored = localStorage.getItem('selectedAccountAlias') || localStorage.getItem('selectedAccountId');
+          const stored = resolveCurrentAccountAlias({
+            search: location.search,
+            storage: JOURNAL_ACCOUNT_STORAGE,
+          });
           const storedExists = stored && resp.data.some(acc => (acc.alias || acc.id) === stored);
           if (storedExists) {
             setSelectedAccountId(stored);
@@ -133,15 +135,17 @@ export function Journal({ selectedStock, theme, onStockSelect }: JournalProps) {
             if (defaultAccount) {
               const key = defaultAccount.alias || defaultAccount.id;
               setSelectedAccountId(key);
-              localStorage.setItem('selectedAccountId', key);
-              localStorage.setItem('selectedAccountAlias', key);
+              persistAccountAlias(key, {
+                storage: JOURNAL_ACCOUNT_STORAGE,
+                localStorageKeys: [...JOURNAL_ACCOUNT_STORAGE.persistLocalStorageKeys, 'selectedAccountAlias', 'selectedAccountId'],
+              });
             }
           }
         }
       }
     };
     fetchAccounts();
-  }, [portfolioUuid]);
+  }, [location.search, portfolioUuid]);
 
   useEffect(() => {
     const fetchData = async () => {

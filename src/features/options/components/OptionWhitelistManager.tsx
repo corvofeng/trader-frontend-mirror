@@ -2,6 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Trash2, Plus, RefreshCw, Shield, AlertCircle, Edit2, X, Save } from 'lucide-react';
 import { optionsService } from '../../../lib/services';
 import type { OptionWhitelist } from '../../../lib/services/types';
+import {
+  OPTIONS_ACCOUNT_STORAGE,
+  resolveCurrentAccountAlias,
+} from '../../../shared/utils/accountSelection';
 
 interface OptionWhitelistManagerProps {
   theme: string; // Changed to string to match parent component
@@ -10,35 +14,14 @@ interface OptionWhitelistManagerProps {
 }
 
 export function OptionWhitelistManager({ theme, userId, accountId }: OptionWhitelistManagerProps) {
-  const [effectiveAccountId, setEffectiveAccountId] = useState<string | null>(() => {
-    const cookie = typeof document !== 'undefined'
-      ? (document.cookie
-          ? (() => {
-              const parts = document.cookie.split(';').map(s => s.trim());
-              const current = parts.find(s => s.startsWith('optionsSelectedAccountId='))?.split('=')[1];
-              if (current) return current;
-              const legacy = parts.find(s => s.startsWith('selectedAccountId='))?.split('=')[1];
-              return legacy ?? null;
-            })()
-          : null)
-      : null;
-    let ls: string | null = null;
-    try {
-      ls =
-        localStorage.getItem('optionsSelectedAccountAlias') ||
-        localStorage.getItem('optionsSelectedAccountId') ||
-        localStorage.getItem('selectedAccountAlias') ||
-        localStorage.getItem('selectedAccountId');
-    } catch {
-      ls = null;
-    }
-    return accountId ?? cookie ?? ls ?? null;
-  });
+  const [effectiveAccountId, setEffectiveAccountId] = useState<string | null>(() =>
+    accountId ?? resolveCurrentAccountAlias({ storage: OPTIONS_ACCOUNT_STORAGE })
+  );
 
   useEffect(() => {
-    if (accountId) {
-      setEffectiveAccountId(accountId);
-    }
+    setEffectiveAccountId(
+      accountId ?? resolveCurrentAccountAlias({ storage: OPTIONS_ACCOUNT_STORAGE })
+    );
   }, [accountId]);
 
   const [whitelists, setWhitelists] = useState<OptionWhitelist[]>([]);
