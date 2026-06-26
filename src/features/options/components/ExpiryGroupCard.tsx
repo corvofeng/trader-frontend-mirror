@@ -3466,6 +3466,7 @@ export function ExpiryGroupCard({
               ids: confirmData?.ids || [],
               meta: confirmData?.meta || {},
               overrides: qtyOverrides,
+              syncPrice,
               positions
             };
             return (
@@ -3509,7 +3510,7 @@ export function ExpiryGroupCard({
                   if (typeof qv === 'number' && Number.isFinite(qv)) return qv;
                   return undefined;
                 })();
-                const resp = await optionsService.updatePositions({ updates: [{ type: p.type, position_type: p.position_type, strike, expiry: String(confirmData.meta?.expiry || group.expiry), quantity: sum, option_type: p.type, strike_price: String(strike), price: syncPrice != null ? syncPrice : undefined, last_price_refer: lastPriceRefer }], accountId: selectedAccountId || null, userId: userId || null });
+                const resp = await optionsService.updatePositions({ updates: [{ type: p.type, position_type: p.position_type, strike, expiry: String(confirmData.meta?.expiry || group.expiry), quantity: sum, option_type: p.type, strike_price: String(strike), price: syncPrice != null ? syncPrice : undefined, limit_price: syncPrice != null ? syncPrice : undefined, last_price_refer: lastPriceRefer }], accountId: selectedAccountId || null, userId: userId || null });
                 if (resp.error) {
                   toast.error('同步失败');
                 } else {
@@ -3681,7 +3682,7 @@ export function ExpiryGroupCard({
                   };
                 });
 
-                const resp = await optionsService.updatePositions({ updates: [{ type: p.type, position_type: p.position_type, strike, expiry: String(confirmData.meta?.expiry || group.expiry), quantity: q, original_quantity: origAvailSum, change_quantity: change, is_covered: category === 'call_covered' || category === 'put_covered', symbol: foundSymbol, option_type: p.type, strike_price: String(strike), price: syncPrice != null ? syncPrice : undefined, last_price_refer: lastPriceRefer }], positions: positionsToSend, accountId: selectedAccountId || null, userId: userId || null });
+                const resp = await optionsService.updatePositions({ updates: [{ type: p.type, position_type: p.position_type, strike, expiry: String(confirmData.meta?.expiry || group.expiry), quantity: q, original_quantity: origAvailSum, change_quantity: change, is_covered: category === 'call_covered' || category === 'put_covered', symbol: foundSymbol, option_type: p.type, strike_price: String(strike), price: syncPrice != null ? syncPrice : undefined, limit_price: syncPrice != null ? syncPrice : undefined, last_price_refer: lastPriceRefer }], positions: positionsToSend, accountId: selectedAccountId || null, userId: userId || null });
                 if (resp.error) {
                   toast.error(resp.error.message || '同步失败');
                 } else {
