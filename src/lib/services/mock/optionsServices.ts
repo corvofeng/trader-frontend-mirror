@@ -1282,6 +1282,12 @@ export const optionsService: OptionsService = {
     };
   },
 
+  cancelOptionOrderByRemark: async (accountId: string, remark: string, userId?: string | null): Promise<ServiceResponse<unknown>> => {
+    console.log('Mock cancelOptionOrderByRemark called', accountId, remark, userId);
+    await new Promise(resolve => setTimeout(resolve, 400));
+    return { data: { ok: true }, error: null };
+  },
+
   getOptionOrdersStats: async (accountId: string, month: string): Promise<ServiceResponse<Record<string, { completed_count: number; pending_count: number; junk_count: number; total_count: number }>>> => {
     console.log('Mock getOptionOrdersStats called', accountId, month);
     

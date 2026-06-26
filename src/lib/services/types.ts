@@ -1002,6 +1002,7 @@ export interface OptionsService {
   updateWhitelist: (id: string | number, whitelist: Partial<OptionWhitelist>, userId: string, accountId?: string | null) => Promise<ServiceResponse<OptionWhitelist>>;
   deleteWhitelist: (id: string | number, userId: string, accountId?: string | null) => Promise<ServiceResponse<void>>;
   getOptionOrders: (accountId: string, userId?: string | null, options?: { only_today?: boolean; date?: string }) => Promise<ServiceResponse<OptionOrder[]>>;
+  cancelOptionOrderByRemark: (accountId: string, remark: string, userId?: string | null) => Promise<ServiceResponse<unknown>>;
   getOptionOrdersStats: (accountId: string, month: string) => Promise<ServiceResponse<Record<string, { completed_count: number; pending_count: number; junk_count: number; total_count: number }>>>;
   getAdminOrders: (accountId: string, options?: { date?: string; only_today?: boolean }) => Promise<ServiceResponse<OptionOrder[]>>;
   getAdminOrdersStats: (accountId: string, month: string) => Promise<ServiceResponse<Record<string, AdminOrdersDailyStats>>>;

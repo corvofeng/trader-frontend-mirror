@@ -5,6 +5,7 @@ import { Theme, themes } from '../../../lib/theme';
 import { optionsService } from '../../../lib/services';
 import type { OptionOrder, SequentialTradeTask } from '../../../lib/services/types';
 import { logger } from '../../../shared/utils/logger';
+import toast from 'react-hot-toast';
 
 function normalizeToken(value: unknown): string {
   if (value == null) return '';
@@ -87,6 +88,7 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
   const [orders, setOrders] = useState<OptionOrder[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [ordersError, setOrdersError] = useState<string | null>(null);
+  const [cancelLoadingRemark, setCancelLoadingRemark] = useState<string | null>(null);
 
   const [ordersDisplayMode, setOrdersDisplayMode] = useState<'merged' | 'split'>(() => {
     try {
@@ -360,6 +362,44 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
     fetchTodayComboTrades();
     refreshOrders();
   }, [fetchTodayComboTrades, refreshOrders]);
+
+  const handleCancelByRemark = useCallback(
+    async (remark: string) => {
+      if (!selectedAccountId) {
+        toast.error('请选择账户后再撤单');
+        return;
+      }
+      if (!userId) {
+        toast.error('缺少 userId，无法撤单');
+        return;
+      }
+      if (!remark.trim()) {
+        toast.error('缺少 remark，无法撤单');
+        return;
+      }
+      if (!window.confirm(`确认撤单？\nremark: ${remark}`)) return;
+
+      try {
+        setCancelLoadingRemark(remark);
+        setOrdersError(null);
+        const { error: serviceError } = await optionsService.cancelOptionOrderByRemark(selectedAccountId, remark, userId);
+        if (serviceError) throw serviceError;
+        toast.success('已提交撤单');
+        refreshAll();
+        if (selectedTaskId != null) {
+          fetchDetail(selectedTaskId);
+          fetchOrdersForTask(selectedTaskId);
+        }        
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : '撤单失败';
+        setOrdersError(msg);
+        toast.error(msg);
+      } finally {
+        setCancelLoadingRemark(current => (current === remark ? null : current));
+      }
+    },
+    [fetchDetail, fetchOrdersForTask, refreshAll, selectedAccountId, selectedTaskId, userId]
+  );
 
   const openDetail = useCallback(
     (taskId: number) => {
@@ -754,10 +794,24 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
               <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">数量</th>
               <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">协议号</th>
               <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">备注/原因</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-            {merged.map((order, idx) => (
+            {merged.map((order, idx) => {
+              const remark = (order.remark || '').trim();
+              const statusKey = normalizeOrderStatus(order.order_status_name);
+              const isTerminal =
+                statusKey === 'JUNK' ||
+                statusKey.includes('CANCEL') ||
+                statusKey.includes('FILLED') ||
+                statusKey.includes('REJECT') ||
+                statusKey.includes('DONE') ||
+                statusKey.includes('SUCCESS') ||
+                (order.volume_total_original > 0 && order.volume_traded >= order.volume_total_original);
+              const canCancel = !!remark && !!selectedAccountId && !!userId && !isTerminal;
+              const isLoadingCancel = !!remark && cancelLoadingRemark === remark;
+              return (
               <tr
                 key={`today-orders-merged-${order.is_combination ? 'combo' : 'real'}-${order.compact_no || order.contract_code_full || order.instrument_id || order.submitted_at || order.order_time || 'na'}-${idx}`}
                 className={order.is_combination ? 'bg-gray-50 dark:bg-gray-900/30' : undefined}
@@ -817,8 +871,34 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
                 </td>
                 <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{order.compact_no || '-'}</td>
                 <td className="px-3 py-2 text-xs text-gray-700 dark:text-gray-200">{order.cancel_info || order.remark || '-'}</td>
+                <td className="px-3 py-2 whitespace-nowrap text-right text-xs">
+                  <button
+                    type="button"
+                    className={`px-2 py-1 rounded border text-[11px] font-medium ${
+                      canCancel
+                        ? 'border-red-400 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/40 dark:border-red-500 dark:text-red-100'
+                        : 'border-slate-200 text-slate-400 dark:border-slate-700 dark:text-slate-500 cursor-not-allowed'
+                    }`}
+                    disabled={!canCancel || isLoadingCancel}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!remark) return;
+                      handleCancelByRemark(remark);
+                    }}
+                    title={
+                      !remark
+                        ? '该订单缺少 remark，无法撤单'
+                        : isTerminal
+                          ? '该订单状态已终态，无法撤单'
+                          : `撤单：${remark}`
+                    }
+                  >
+                    {isLoadingCancel ? '撤单中…' : '撤单'}
+                  </button>
+                </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

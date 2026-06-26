@@ -1039,6 +1039,34 @@ export const optionsService: OptionsService = {
     }
   },
 
+  cancelOptionOrderByRemark: async (accountId: string, remark: string, userId?: string | null) => {
+    try {
+      const params = new URLSearchParams();
+      if (userId) params.set('userId', userId);
+      const queryString = params.toString() ? `?${params.toString()}` : '';
+
+      const response = await fetch(`/api/options/orders/${encodeURIComponent(accountId)}/remark-cancel${queryString}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ remark })
+      });
+      if (!response.ok) {
+        const raw = await safeParseJson(response);
+        const msg =
+          raw && typeof raw === 'object' && raw && 'message' in raw && typeof (raw as { message?: unknown }).message === 'string'
+            ? String((raw as { message?: unknown }).message)
+            : 'Failed to cancel option order by remark';
+        throw new Error(msg);
+      }
+
+      const data = await safeParseJson(response);
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error cancelling option order by remark:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
   getOptionOrdersStats: async (accountId: string, month: string) => {
     try {
       const params = new URLSearchParams();
