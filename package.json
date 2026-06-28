@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "dev:prod": "cross-env VITE_ENV=production vite",
+    "dev": "bash ./scripts/dev.sh",
+    "dev:prod": "cross-env VITE_ENV=production bash ./scripts/dev.sh",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",

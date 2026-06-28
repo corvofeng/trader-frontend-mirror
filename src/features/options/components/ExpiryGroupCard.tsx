@@ -12,6 +12,19 @@ import { useAutoRefresh, useOptionPriceWebSocket } from '../hooks/useOptionPrice
 import { AnimatedFlash } from './AnimatedFlash';
 import { RealTimeSpreadChart } from './RealTimeSpreadChart';
 
+const STANDARD_ETF_OPTION_CONTRACT_UNIT = 10000;
+const STANDARD_ETF_OPTION_UNDERLYINGS = new Set([
+  '510050',
+  '510300',
+  '510500',
+  '588000',
+  '588080',
+  '159919',
+  '159922',
+  '159915',
+  '159901',
+]);
+
 
 
 interface ExpiryGroupCardProps {
@@ -170,23 +183,33 @@ export function ExpiryGroupCard({
 
   const resolveDisplayPosition = useCallback((position?: OptionsPosition | null) => {
     if (!position) return null;
-    return (
+    const matchByContract = (item: OptionsPosition) =>
+      (position.contract_code_full && item.contract_code_full === position.contract_code_full) ||
+      (position.contract_code && item.contract_code === position.contract_code) ||
+      (position.contract_code_full && item.contract_code === position.contract_code_full) ||
+      (position.contract_code && item.contract_code_full === position.contract_code) ||
+      ((position.contract_name || position.symbol) &&
+        (item.contract_name === position.contract_name ||
+          item.symbol === position.symbol ||
+          item.contract_name === position.symbol ||
+          item.symbol === position.contract_name) &&
+        Math.abs(Number(item.contract_strike_price ?? item.strike) - Number(position.contract_strike_price ?? position.strike)) < 1e-8);
+
+    const matched =
+      allSinglePositions.find(matchByContract) ||
+      filteredPositions.find(matchByContract) ||
       allSinglePositions.find((item) => item.id === position.id) ||
-      filteredPositions.find((item) => item.id === position.id) ||
-      allSinglePositions.find((item) =>
-        (position.contract_code_full && item.contract_code_full === position.contract_code_full) ||
-        (position.contract_code && item.contract_code === position.contract_code) ||
-        (position.contract_code_full && item.contract_code === position.contract_code_full) ||
-        (position.contract_code && item.contract_code_full === position.contract_code)
-      ) ||
-      filteredPositions.find((item) =>
-        (position.contract_code_full && item.contract_code_full === position.contract_code_full) ||
-        (position.contract_code && item.contract_code === position.contract_code) ||
-        (position.contract_code_full && item.contract_code === position.contract_code_full) ||
-        (position.contract_code && item.contract_code_full === position.contract_code)
-      ) ||
-      position
-    );
+      filteredPositions.find((item) => item.id === position.id);
+
+    if (!matched) return position;
+
+    const merged: Record<string, unknown> = { ...matched };
+    Object.entries(position).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        merged[key] = value;
+      }
+    });
+    return merged as unknown as OptionsPosition;
   }, [allSinglePositions, filteredPositions]);
 
   const getPositionContractLabel = useCallback((position?: OptionsPosition | null) => {
@@ -197,6 +220,11 @@ export function ExpiryGroupCard({
 
   const normalizeContractCodeKey = useCallback((code?: string | null) => {
     return typeof code === 'string' ? code.trim() : '';
+  }, []);
+
+  const normalizeUnderlyingCodeKey = useCallback((code?: string | null) => {
+    if (typeof code !== 'string') return '';
+    return code.trim().toUpperCase().split('.')[0];
   }, []);
 
   const registerContractUnit = useCallback((code: string | undefined | null, fullCode: string | undefined | null, unit: number) => {
@@ -234,20 +262,66 @@ export function ExpiryGroupCard({
     return null;
   }, [contractUnitMap, normalizeContractCodeKey]);
 
+  const getEffectiveContractUnitForPosition = useCallback((position?: OptionsPosition | null) => {
+    if (!position) {
+      return {
+        effectiveUnit: null as number | null,
+        rawUnit: null as number | null,
+        usedStandardUnit: false,
+      };
+    }
+
+    const rawUnit = getContractUnitForPosition(position);
+    const underlyingKey = normalizeUnderlyingCodeKey(position.opt_undl_code_full);
+    const isStandardEtfOption = STANDARD_ETF_OPTION_UNDERLYINGS.has(underlyingKey);
+
+    const codeCandidates = [position.contract_code_full, position.symbol]
+      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      .map((value) => value.trim().toUpperCase());
+    const codeFlag = codeCandidates
+      .map((value) => value.match(/[CP]\d{4}([A-Z])\d{4,5}$/)?.[1] ?? null)
+      .find((flag): flag is string => !!flag);
+    const nameSuffix = (position.contract_name || '').trim().slice(-1).toUpperCase();
+    const isAdjustedContract =
+      (typeof codeFlag === 'string' && codeFlag !== 'M') ||
+      (!!nameSuffix && ['A', 'B', 'C', 'D'].includes(nameSuffix));
+
+    if (isStandardEtfOption && !isAdjustedContract) {
+      return {
+        effectiveUnit: STANDARD_ETF_OPTION_CONTRACT_UNIT,
+        rawUnit,
+        usedStandardUnit: rawUnit !== STANDARD_ETF_OPTION_CONTRACT_UNIT,
+      };
+    }
+
+    return {
+      effectiveUnit: rawUnit,
+      rawUnit,
+      usedStandardUnit: false,
+    };
+  }, [getContractUnitForPosition, normalizeUnderlyingCodeKey]);
+
   const normalizeOptionType = useCallback((position?: OptionsPosition | null): 'call' | 'put' | null => {
     if (!position) return null;
-    const typeRaw = String(position.type || '').toLowerCase();
-    const altRaw = String(
-      position.option_type ||
-        position.contract_type_zh ||
-        position.contract_type ||
-        position.contract_name ||
-        position.symbol ||
-        ''
-    ).toLowerCase();
-    const raw = typeRaw === 'call' || typeRaw === 'put' ? typeRaw : altRaw;
-    if (raw === 'call' || raw.includes('call') || raw.includes('认购') || raw.includes('购')) return 'call';
-    if (raw === 'put' || raw.includes('put') || raw.includes('认沽') || raw.includes('沽')) return 'put';
+    const candidates = [
+      position.type,
+      position.option_type,
+      position.contract_type_zh,
+      position.contract_type,
+      position.contract_name,
+      position.symbol,
+    ]
+      .map((value) => String(value || '').trim().toLowerCase())
+      .filter(Boolean);
+
+    for (const raw of candidates) {
+      if (raw === 'call' || raw === 'c' || raw.includes('call') || raw.includes('认购') || raw.includes('购')) {
+        return 'call';
+      }
+      if (raw === 'put' || raw === 'p' || raw.includes('put') || raw.includes('认沽') || raw.includes('沽')) {
+        return 'put';
+      }
+    }
     return null;
   }, []);
 
@@ -371,7 +445,11 @@ export function ExpiryGroupCard({
       const spreadWidth = Math.abs(sellStrike - buyStrike);
       if (!Number.isFinite(spreadWidth) || spreadWidth <= 0) continue;
 
-      const contractUnit = getContractUnitForPosition(buyLeg) ?? getContractUnitForPosition(sellLeg);
+      const buyLegUnitInfo = getEffectiveContractUnitForPosition(buyLeg);
+      const sellLegUnitInfo = getEffectiveContractUnitForPosition(sellLeg);
+      const contractUnit = buyLegUnitInfo.effectiveUnit ?? sellLegUnitInfo.effectiveUnit;
+      const rawContractUnit = buyLegUnitInfo.rawUnit ?? sellLegUnitInfo.rawUnit;
+      const usedStandardContractUnit = buyLegUnitInfo.usedStandardUnit || sellLegUnitInfo.usedStandardUnit;
       if (!contractUnit) {
         missingUnitForCandidate = true;
         continue;
@@ -401,8 +479,9 @@ export function ExpiryGroupCard({
       const normalizedSpreadWidth = spreadWidth / strikeScale;
       const normalizedTickSize = tickSize != null ? tickSize / strikeScale : null;
 
-      const maxProfit = normalizedSpreadWidth * contractUnit * comboCount;
-      const currentSpreadValue = est?.net != null ? Math.max(0, est.net * contractUnit) : null;
+      // Keep the dialog on a normalized "single combo" basis.
+      const maxProfit = normalizedSpreadWidth * contractUnit;
+      const currentSpreadValue = est?.perHedge != null ? Math.max(0, est.perHedge * contractUnit) : null;
       const remainingProfit = currentSpreadValue != null ? Math.max(0, maxProfit - currentSpreadValue) : null;
       const profitRealizationPct =
         currentSpreadValue != null && maxProfit > 0
@@ -417,6 +496,8 @@ export function ExpiryGroupCard({
         profitRealizationPct,
         hasInfiniteMaxProfit: false,
         contractUnit,
+        rawContractUnit,
+        usedStandardContractUnit,
         comboCount,
         currentLabel: '当前价差价值',
         tickCount,
@@ -462,7 +543,7 @@ export function ExpiryGroupCard({
           ? '腿类型未识别（缺少 Call/Put 标记）'
           : '仅支持标准两腿价差（一买一卖）',
     };
-  }, [expiryStrikeLadder, getContractUnitForPosition, normalizeOptionType, resolveDisplayPosition, underlyingPrice]);
+  }, [expiryStrikeLadder, getEffectiveContractUnitForPosition, normalizeOptionType, resolveDisplayPosition, underlyingPrice]);
 
   // Calculate total margin for the group
   const totalMargin = useMemo(() => {
@@ -2751,10 +2832,15 @@ export function ExpiryGroupCard({
                       const profitRealizationText = perf.profitRealizationPct == null
                         ? '--'
                         : `${perf.profitRealizationPct.toFixed(1)}%`;
-                      const chartData = perf.mode === 'spread_value' && perf.contractUnit != null && perf.comboCount != null
+                      const contractUnitText = perf.contractUnit == null
+                        ? '--'
+                        : perf.rawContractUnit != null && perf.rawContractUnit !== perf.contractUnit
+                          ? `${perf.contractUnit}（原始 ${perf.rawContractUnit}）`
+                          : String(perf.contractUnit);
+                      const chartData = perf.mode === 'spread_value' && perf.contractUnit != null
                         ? strategyHistory.map((point) => ({
                             ...point,
-                            price: point.price == null ? null : point.price * perf.contractUnit * perf.comboCount,
+                            price: point.price == null ? null : point.price * perf.contractUnit,
                           }))
                         : strategyHistory;
                       return (
@@ -2774,6 +2860,12 @@ export function ExpiryGroupCard({
                           <div className={`text-xs opacity-50 ${themes[theme].text}`}>
                             {item.strategy.positions.map(p => `${getPositionContractLabel(p)} x ${p.quantity}`).join(', ')}
                           </div>
+                          {perf.mode === 'spread_value' && perf.contractUnit != null ? (
+                            <div className={`mt-1 text-xs ${themes[theme].text} opacity-70`}>
+                              合约单位: <span className="font-mono">{contractUnitText}</span>
+                              {perf.usedStandardContractUnit ? '（标准 ETF 合约按 10000 计算）' : ''}
+                            </div>
+                          ) : null}
                           <div className="mt-3 grid grid-cols-2 gap-2 text-xs md:grid-cols-4">
                             <div className={`${themes[theme].background} rounded border ${themes[theme].border} p-2`}>
                               <div className={`opacity-60 ${themes[theme].text}`}>最大盈利</div>
