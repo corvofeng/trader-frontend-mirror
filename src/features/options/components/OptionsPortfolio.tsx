@@ -6,8 +6,7 @@ import { setCookie, getCookie } from '../../../shared/utils/cookie';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { optionsService, authService, stockService } from '../../../lib/services';
 import { emitAddLegToStrategy } from '../events/strategySelection';
-import { logger } from '../../../shared/utils/logger';
-import type { OptionsPortfolioData, CustomOptionsStrategy, OptionsPosition, OptionsStrategy, AdvisedCombination, OptionsData, OptionWhitelist } from '../../../lib/services/types';
+import type { OptionsPortfolioData, OptionsPosition, OptionsStrategy, AdvisedCombination, OptionsData, OptionWhitelist } from '../../../lib/services/types';
 import { computeCombosForPositions as computeCombosForStrategy } from '../utils/strategyCombos';
 import toast from 'react-hot-toast';
 import { ExpiryGroupCard } from './ExpiryGroupCard';
@@ -17,14 +16,10 @@ import { useSaveStrategyModal } from '../hooks/useSaveStrategyModal';
 import { UnderlyingPriceMonitor } from './UnderlyingPriceMonitor';
 import { PortfolioOverview } from './PortfolioOverview';
 import { SubjectPositionsPanel } from './SubjectPositionsPanel';
-import { ViewModeTabs, type OptionsViewMode } from './ViewModeTabs';
 import { ExpiryFastNav } from './ExpiryFastNav';
-import { GroupedPositionsView } from './GroupedPositionsView';
 import { SaveStrategyModal } from './SaveStrategyModal';
 import { TodayOrderFlowPanel } from './TodayComboPanel';
-import { CustomStrategiesPanel } from './CustomStrategiesPanel';
-import { OptionsPortfolioStrategyView } from './OptionsPortfolioStrategyView';
-import { getDaysToExpiryColor, getMoneynessTagForPrice, getPositionTypeInfo2, getRowHighlightClassForTag, getStatusColorClass, getTypeIcon, inferStrategyFromLegsWithSelection, type InferredStrategyResult } from '../utils/portfolioUi';
+import { getDaysToExpiryColor, getPositionTypeInfo2, getStatusColorClass, getTypeIcon, inferStrategyFromLegsWithSelection, type InferredStrategyResult } from '../utils/portfolioUi';
 
 interface OptionsPortfolioProps {
   theme: Theme;
@@ -38,24 +33,15 @@ const DEMO_USER_ID = 'mock-user-id';
 
   
 
-// 扩展OptionsPosition类型以包含策略ID
-interface ExtendedOptionsPosition extends OptionsPosition {
-  strategy_id?: string;
-  is_single_leg?: boolean;
-}
-
 export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdProp, refreshKey = 0, optionsData, selectedSymbol }: OptionsPortfolioProps) {
   const [portfolioData, setPortfolioData] = useState<OptionsPortfolioData | null>(null);
   const [whitelists, setWhitelists] = useState<OptionWhitelist[]>([]);
-  const [customStrategies, setCustomStrategies] = useState<CustomOptionsStrategy[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   // Use prop directly to avoid stale state during refresh
   // 已不在界面使用策略加载状态，避免未使用变量
-  const [viewMode, setViewMode] = useState<OptionsViewMode>('expiry');
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'closed' | 'expired'>('all');
   const [sortBy, setSortBy] = useState<'expiry' | 'profitLoss' | 'symbol'>('expiry');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
-  const [expandedStrategies, setExpandedStrategies] = useState<string[]>([]);
   const [underlyingCache, setUnderlyingCache] = useState<Record<string, number | null>>({});
   const [internalOptionsDataMap, setInternalOptionsDataMap] = useState<Record<string, OptionsData>>({});
   void setStatusFilter;
@@ -569,59 +555,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     return underlyingCache[sanitized] ?? null;
   };
 
-  const getMoneynessTag = (p: OptionsPosition) => {
-    const full = p.opt_undl_code_full;
-    const price = getCurrentUnderlyingPrice(full || activeSymbol);
-
-    return getMoneynessTagForPrice(p, price);
-  };
-
-  
-
   // 本页面不订阅外部“打开编辑器”事件，保持弹窗一致
-
-  useEffect(() => {
-    const fetchCustomStrategies = async () => {
-      try {
-        
-        let userId = DEMO_USER_ID;
-        try {
-          const authRes = await authService.getUser();
-          const user = authRes?.data?.user;
-          userId = user?.id || DEMO_USER_ID;
-        } catch {
-          // ignore and fallback
-        }
-        const { data, error } = await optionsService.getCustomStrategies(userId, selectedAccountIdProp || null);
-        
-        if (error) throw error;
-        if (data) {
-          setCustomStrategies(data);
-        }
-      } catch (error) {
-        console.error('Error fetching custom strategies:', error as Error);
-      }
-    };
-
-    fetchCustomStrategies();
-  }, [selectedAccountIdProp]);
-
-
-  const toggleStrategyExpansion = (strategyId: string) => {
-    setExpandedStrategies(prev => 
-      prev.includes(strategyId) 
-        ? prev.filter(id => id !== strategyId)
-        : [...prev, strategyId]
-    );
-  };
-
-  const isSelectedPosition = (p: OptionsPosition) => {
-    return !!activeSymbol && (p.opt_undl_code_full === activeSymbol);
-  };
-  const getRowHighlightClass = (p: OptionsPosition) => {
-    const tag = getMoneynessTag(p);
-    return getRowHighlightClassForTag(isSelectedPosition(p), tag);
-  };
 
   // 开关指定到期日的选择模式
   const toggleExpirySelection = (expiry: string) => {
@@ -678,34 +612,6 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     }
   };
 
-  // 生成策略ID的逻辑
-  const getStrategyId = (position: OptionsPosition, index: number): string => {
-    // 规范化策略名，兼容 snake_case/大小写
-    const normalized = (position.strategy || '')
-      .replace(/_/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .toUpperCase();
-
-    if (normalized.includes('SPREAD') || normalized.includes('CONDOR') || normalized.includes('BUTTERFLY')) {
-      return `STR-${normalized.replace(/\s+/g, '')}-${Math.floor(index / 2) + 1}`;
-    } else if (normalized.includes('STRADDLE') || normalized.includes('STRANGLE')) {
-      return `VOL-${normalized.replace(/\s+/g, '')}-${Math.floor(index / 2) + 1}`;
-    } else {
-      return `SINGLE-${(position.type || 'unknown').toUpperCase()}-${index + 1}`;
-    }
-  };
-
-  // 判断是否为单腿期权
-  const isSingleLegPosition = (position: OptionsPosition): boolean => {
-    return position.strategy === 'Long Call' || 
-           position.strategy === 'Long Put' || 
-           position.strategy === 'Covered Call' || 
-           position.strategy === 'Protective Put';
-  };
-
-  
-
   const getStatusColor = useCallback(
     (status: OptionsPosition['status']) => getStatusColorClass(theme, status),
     [theme]
@@ -760,89 +666,6 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       </div>
     );
   }
-
-  const allPositionsSource = (portfolioData?.expiryBuckets && portfolioData.expiryBuckets.length > 0)
-    ? portfolioData.expiryBuckets.map(b => ({ expiry: b.expiry, positions: b.single }))
-    : [];
-  const allPositions = allPositionsSource
-    .flatMap(group => group.positions)
-    .filter(position => statusFilter === 'all' || position.status === statusFilter)
-    .map((position, index) => {
-      // 为缺失id生成稳定ID
-      const safeId = position.id ?? `pos-${index}-${(position.symbol || 'SYM')}-${(position.expiry || 'EXP')}`;
-      const extendedPosition: ExtendedOptionsPosition = {
-        ...position,
-        id: safeId,
-        strategy_id: getStrategyId(position, index),
-        is_single_leg: isSingleLegPosition(position)
-      };
-      return extendedPosition;
-    });
-
-  let groupedStrategies = new Map<string, ExtendedOptionsPosition[]>();
-  let singleLegs: ExtendedOptionsPosition[] = [];
-
-  if (Array.isArray(portfolioData.expiryBuckets) && portfolioData.expiryBuckets.length > 0) {
-    singleLegs = portfolioData.expiryBuckets.flatMap(b => b.single)
-      .filter(position => statusFilter === 'all' || position.status === statusFilter)
-      .map((position, index) => {
-        const safeId = position.id ?? `pos-single-${index}-${(position.symbol || 'SYM')}-${(position.expiry || 'EXP')}`;
-        return {
-          ...position,
-          id: safeId,
-          strategy_id: getStrategyId(position, index),
-          is_single_leg: true,
-        } as ExtendedOptionsPosition;
-      });
-  }
-
-  if (Array.isArray(portfolioData.expiryBuckets) && portfolioData.expiryBuckets.length > 0) {
-    groupedStrategies = new Map<string, ExtendedOptionsPosition[]>();
-    portfolioData.expiryBuckets.forEach(bucket => {
-      bucket.complex.forEach(strategy => {
-        const positions = filterAndSortPositions(strategy.positions)
-          .filter(position => statusFilter === 'all' || position.status === statusFilter)
-          .map((position, index) => {
-            const safeId = position.id ?? `pos-strategy-${index}-${(position.symbol || 'SYM')}-${(position.expiry || 'EXP')}`;
-            return {
-              ...position,
-              id: safeId,
-              strategy_id: strategy.id || getStrategyId(position, index),
-              is_single_leg: false,
-            } as ExtendedOptionsPosition;
-          });
-        if (positions.length > 0 && strategy.id) groupedStrategies.set(strategy.id, positions);
-      });
-    });
-  }
-
-  // 根据复杂仓位打开保存弹窗（预选同策略ID且同到期日的腿）
-  const openEditForComplexPosition = (position: ExtendedOptionsPosition) => {
-    const strategyId = position.strategy_id;
-    if (!strategyId) {
-      logger.debug('[OptionsPortfolio] Missing strategy_id for position, skip edit', {
-        positionId: position.id,
-        symbol: position.symbol,
-        expiry: position.expiry,
-        strategy: position.strategy,
-        type: position.type,
-      });
-      return;
-    }
-    const expiry = position.expiry;
-
-    const legs = allPositions.filter(p => p.strategy_id === strategyId && p.expiry === expiry);
-
-    setSelectedLegs(prev => {
-      const next = { ...prev };
-      legs.forEach(l => {
-        next[l.id] = Math.max(1, l.selectedQuantity || l.quantity || 1);
-      });
-      return next;
-    });
-
-    openSaveModal(expiry);
-  };
 
   const loadAdvisedCombination = (combo: AdvisedCombination) => {
     if (!combo || !combo.expiry) return;
@@ -911,125 +734,75 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       {portfolioData.subject_positions && portfolioData.subject_positions.length > 0 && (
         <SubjectPositionsPanel theme={theme} positions={portfolioData.subject_positions} currencyConfig={currencyConfig} />
       )}
+      <div className="space-y-6">
+        {(() => {
+          const groups = (portfolioData.expiryBuckets && portfolioData.expiryBuckets.length > 0
+            ? portfolioData.expiryBuckets
+            : (portfolioData.expiryGroups || []).map(g => ({
+                expiry: g.expiry,
+                daysToExpiry: g.daysToExpiry,
+                single: g.positions,
+                complex: []
+              }))
+          );
 
+          return (
+            <>
+              <ExpiryFastNav
+                theme={theme}
+                groups={groups}
+                currencyConfig={currencyConfig}
+                activeExpiry={activeExpiry}
+                expandedExpiryGroups={expandedExpiryGroups}
+              />
 
-
-      <ViewModeTabs viewMode={viewMode} onChange={setViewMode} />
-
-      {/* Portfolio Content */}
-      {viewMode === 'grouped' && (
-        <div className="space-y-8">
-          <GroupedPositionsView
-            theme={theme}
-            currencyConfig={currencyConfig}
-            groupedStrategies={groupedStrategies}
-            singleLegs={singleLegs}
-            getPositionTypeInfo2={getPositionTypeInfo2}
-            getStatusColor={getStatusColor}
-          />
-
-          <CustomStrategiesPanel
-            theme={theme}
-            currencyConfig={currencyConfig}
-            strategies={customStrategies}
-            expandedStrategyIds={expandedStrategies}
-            onToggleExpanded={toggleStrategyExpansion}
-            getTypeIcon={getTypeIcon}
-            getPositionTypeInfo2={getPositionTypeInfo2}
-          />
-        </div>
-      )}
-
-      {viewMode === 'expiry' && (
-        <div className="space-y-6">
-          {(() => {
-            const groups = (portfolioData.expiryBuckets && portfolioData.expiryBuckets.length > 0
-              ? portfolioData.expiryBuckets
-              : (portfolioData.expiryGroups || []).map(g => ({
-                  expiry: g.expiry,
-                  daysToExpiry: g.daysToExpiry,
-                  single: g.positions,
-                  complex: []
-                }))
-            );
-
-            return (
-              <>
-                <ExpiryFastNav
-                  theme={theme}
-                  groups={groups}
-                  currencyConfig={currencyConfig}
-                  activeExpiry={activeExpiry}
-                  expandedExpiryGroups={expandedExpiryGroups}
-                />
-
-                {groups.map((group) => {
-                  return (
-                  <div key={group.expiry} id={`expiry-group-${group.expiry}`}>
-                    <ExpiryGroupCard
-                      theme={theme}
-                      whitelists={whitelists}
-                      group={group}
-                      statusFilter={statusFilter}
-                      filterAndSortPositions={filterAndSortPositions}
-                      isSelectingExpiry={isSelectingExpiry}
-                      toggleExpirySelection={toggleExpirySelection}
-                      openSaveModal={openSaveModal}
-                      selectedLegs={selectedLegs}
-                      setPositionSelected={setPositionSelected}
-                      updateSelectedQuantity={updateSelectedQuantity}
-                      currencyConfig={currencyConfig}
-                      getDaysToExpiryColor={getDaysToExpiryColor}
-                      getTypeIcon={getTypeIcon}
-                      getStatusColor={getStatusColor}
-                      getPositionTypeInfo2={getPositionTypeInfo2}
-                      computeCombosForPositions={computeCombosForPositions}
-                      allExpiryBuckets={portfolioData.expiryBuckets || []}
-                      selectedSymbol={activeSymbol}
-                      underlyingPrice={getCurrentUnderlyingPrice(activeSymbol)}
-                      onClosePositions={handleClosePositions}
-                      isRefreshing={isLoading}
-                      advisedCombinations={(portfolioData.advised_combinations || []).filter(c => c.expiry === group.expiry)}
-                      onLoadAdvised={loadAdvisedCombination}
-                      onExecuteAdvised={executeAdvisedCombination}
-                      selectedAccountId={selectedAccountIdProp || null}
-                      userId={currentUserId || null}
-                      optionsData={optionsData}
-                      optionsDataMap={internalOptionsDataMap}
-                      isExpanded={!!expandedExpiryGroups[group.expiry]}
-                      onToggleExpand={() => toggleExpiryGroup(group.expiry)}
-                      isTBoardExpanded={tBoardExpandedGroups[group.expiry] !== false}
-                      onToggleTBoard={() => toggleTBoardGroup(group.expiry)}
-                      onRefresh={fetchPortfolio}
-                      wsRefreshNonce={wsRefreshNonce}
-                    />
-                  </div>
-                );
-                })}
-              </>
-            );
-          })()}
-        </div>
-      )}
-
-      {viewMode === 'strategy' && (
-        <OptionsPortfolioStrategyView
-          theme={theme}
-          currencyConfig={currencyConfig}
-          strategies={portfolioData.complexStrategies || []}
-          filterAndSortPositions={filterAndSortPositions}
-          getTypeIcon={getTypeIcon}
-          getStatusColor={getStatusColor}
-          getRowHighlightClass={getRowHighlightClass}
-          getMoneynessTag={getMoneynessTag}
-          isSelectingExpiry={isSelectingExpiry}
-          selectedLegs={selectedLegs}
-          setPositionSelected={setPositionSelected}
-          updateSelectedQuantity={updateSelectedQuantity}
-          getPositionTypeInfo2={getPositionTypeInfo2}
-          onEditComplexPosition={openEditForComplexPosition}
-        />
-      )}
+              {groups.map((group) => {
+                return (
+                <div key={group.expiry} id={`expiry-group-${group.expiry}`}>
+                  <ExpiryGroupCard
+                    theme={theme}
+                    whitelists={whitelists}
+                    group={group}
+                    statusFilter={statusFilter}
+                    filterAndSortPositions={filterAndSortPositions}
+                    isSelectingExpiry={isSelectingExpiry}
+                    toggleExpirySelection={toggleExpirySelection}
+                    openSaveModal={openSaveModal}
+                    selectedLegs={selectedLegs}
+                    setPositionSelected={setPositionSelected}
+                    updateSelectedQuantity={updateSelectedQuantity}
+                    currencyConfig={currencyConfig}
+                    getDaysToExpiryColor={getDaysToExpiryColor}
+                    getTypeIcon={getTypeIcon}
+                    getStatusColor={getStatusColor}
+                    getPositionTypeInfo2={getPositionTypeInfo2}
+                    computeCombosForPositions={computeCombosForPositions}
+                    allExpiryBuckets={portfolioData.expiryBuckets || []}
+                    selectedSymbol={activeSymbol}
+                    underlyingPrice={getCurrentUnderlyingPrice(activeSymbol)}
+                    onClosePositions={handleClosePositions}
+                    isRefreshing={isLoading}
+                    advisedCombinations={(portfolioData.advised_combinations || []).filter(c => c.expiry === group.expiry)}
+                    onLoadAdvised={loadAdvisedCombination}
+                    onExecuteAdvised={executeAdvisedCombination}
+                    selectedAccountId={selectedAccountIdProp || null}
+                    userId={currentUserId || null}
+                    optionsData={optionsData}
+                    optionsDataMap={internalOptionsDataMap}
+                    isExpanded={!!expandedExpiryGroups[group.expiry]}
+                    onToggleExpand={() => toggleExpiryGroup(group.expiry)}
+                    isTBoardExpanded={tBoardExpandedGroups[group.expiry] !== false}
+                    onToggleTBoard={() => toggleTBoardGroup(group.expiry)}
+                    onRefresh={fetchPortfolio}
+                    wsRefreshNonce={wsRefreshNonce}
+                  />
+                </div>
+              );
+              })}
+            </>
+          );
+        })()}
+      </div>
 
       <SaveStrategyModal
         theme={theme}
@@ -1053,7 +826,6 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
 
       <TodayOrderFlowPanel
         theme={theme}
-        viewMode={viewMode}
         selectedAccountId={selectedAccountIdProp || null}
         userId={currentUserId || null}
         refreshKey={refreshKey}

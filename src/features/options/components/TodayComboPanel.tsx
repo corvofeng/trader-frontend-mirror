@@ -65,13 +65,12 @@ function filterOrdersForTask(allOrders: OptionOrder[], task: SequentialTradeTask
 
 interface TodayOrderFlowPanelProps {
   theme: Theme;
-  viewMode: 'expiry' | 'strategy' | 'grouped';
   selectedAccountId: string | null;
   userId?: string | null;
   refreshKey?: number;
 }
 
-export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId = null, refreshKey = 0 }: TodayOrderFlowPanelProps) {
+export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, refreshKey = 0 }: TodayOrderFlowPanelProps) {
   const [tasks, setTasks] = useState<SequentialTradeTask[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -594,15 +593,13 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
   }, [clampPos, getDims, panelPos]);
 
   useEffect(() => {
-    if (viewMode !== 'expiry') return;
     if (!isOpen) return;
     fetchTodayComboTrades();
-  }, [fetchTodayComboTrades, isOpen, refreshKey, viewMode]);
+  }, [fetchTodayComboTrades, isOpen, refreshKey]);
 
   useEffect(() => {
-    if (viewMode !== 'expiry') return;
     fetchTodayOrders();
-  }, [fetchTodayOrders, refreshKey, viewMode]);
+  }, [fetchTodayOrders, refreshKey]);
 
   useEffect(() => {
     setSelectedTaskId(null);
@@ -615,8 +612,6 @@ export function TodayOrderFlowPanel({ theme, viewMode, selectedAccountId, userId
     setOrdersLoading(false);
     setOrdersError(null);
   }, [selectedAccountId]);
-
-  if (viewMode !== 'expiry') return null;
 
   const dims = getDims();
   const viewport = getViewportSize();
