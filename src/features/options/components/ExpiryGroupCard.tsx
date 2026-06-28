@@ -71,6 +71,17 @@ type ComboDraftState = {
   mode: 'advised' | 't_board_create';
 };
 
+type StrategyStrikeGapItem = {
+  key: string;
+  optionTypeLabel: string;
+  buyStrikeText: string | null;
+  sellStrikeText: string | null;
+  startStrikeText: string;
+  endStrikeText: string;
+  tickCount: number | null;
+  priceDiffText: string;
+};
+
 
 
 export function ExpiryGroupCard({
@@ -409,28 +420,13 @@ export function ExpiryGroupCard({
     return Array.from(new Set([...quoteStrikes, ...positionStrikes])).sort((a, b) => a - b);
   }, [allSinglePositions, getQuoteStrike, group.expiry, localOptionsData, optionsData, optionsDataMap, selectedSymbol]);
 
-  const describeStrikeGap = useCallback((strikeA: number, strikeB: number) => {
-    const diff = Math.abs(strikeA - strikeB);
-    const idxA = expiryStrikeLadder.indexOf(strikeA);
-    const idxB = expiryStrikeLadder.indexOf(strikeB);
-    const ticks = idxA >= 0 && idxB >= 0 ? Math.abs(idxA - idxB) : null;
-    const priceDiffText = formatStrikeNumber(diff);
-    if (ticks != null && ticks > 0) {
-      return `相差 ${ticks} 档，行权价差 ${priceDiffText}`;
-    }
-    if (diff > 0) {
-      return `行权价差 ${priceDiffText}`;
-    }
-    return '同行权价';
-  }, [expiryStrikeLadder, formatStrikeNumber]);
-
-  const getStrategyStrikeGapSummary = useCallback((strategy: OptionsStrategy) => {
+  const getStrategyStrikeGapSummary = useCallback((strategy: OptionsStrategy): StrategyStrikeGapItem[] => {
     const legs = (strategy.positions || [])
       .map((position) => resolveDisplayPosition(position))
       .filter((position): position is OptionsPosition => !!position);
     if (legs.length < 2) return [];
 
-    const summaries: string[] = [];
+    const summaries: StrategyStrikeGapItem[] = [];
     (['call', 'put'] as const).forEach((optionType) => {
       const typedLegs = legs.filter((position) => normalizeOptionType(position) === optionType);
       if (typedLegs.length < 2) return;
@@ -443,9 +439,18 @@ export function ExpiryGroupCard({
         const buyStrike = Number(buys[0].contract_strike_price ?? buys[0].strike);
         const sellStrike = Number(sells[0].contract_strike_price ?? sells[0].strike);
         if (Number.isFinite(buyStrike) && Number.isFinite(sellStrike)) {
-          summaries.push(
-            `${optionTypeLabel}: 买 ${formatStrikeNumber(buyStrike)} / 卖 ${formatStrikeNumber(sellStrike)}，${describeStrikeGap(buyStrike, sellStrike)}`
-          );
+          const idxA = expiryStrikeLadder.indexOf(buyStrike);
+          const idxB = expiryStrikeLadder.indexOf(sellStrike);
+          summaries.push({
+            key: `${optionType}-${buyStrike}-${sellStrike}`,
+            optionTypeLabel,
+            buyStrikeText: formatStrikeNumber(buyStrike),
+            sellStrikeText: formatStrikeNumber(sellStrike),
+            startStrikeText: formatStrikeNumber(Math.min(buyStrike, sellStrike)),
+            endStrikeText: formatStrikeNumber(Math.max(buyStrike, sellStrike)),
+            tickCount: idxA >= 0 && idxB >= 0 ? Math.abs(idxA - idxB) : null,
+            priceDiffText: formatStrikeNumber(Math.abs(buyStrike - sellStrike)),
+          });
           return;
         }
       }
@@ -459,14 +464,23 @@ export function ExpiryGroupCard({
       if (uniqueStrikes.length >= 2) {
         const firstStrike = uniqueStrikes[0];
         const lastStrike = uniqueStrikes[uniqueStrikes.length - 1];
-        summaries.push(
-          `${optionTypeLabel}: ${formatStrikeNumber(firstStrike)} -> ${formatStrikeNumber(lastStrike)}，${describeStrikeGap(firstStrike, lastStrike)}`
-        );
+        const idxA = expiryStrikeLadder.indexOf(firstStrike);
+        const idxB = expiryStrikeLadder.indexOf(lastStrike);
+        summaries.push({
+          key: `${optionType}-${firstStrike}-${lastStrike}`,
+          optionTypeLabel,
+          buyStrikeText: null,
+          sellStrikeText: null,
+          startStrikeText: formatStrikeNumber(firstStrike),
+          endStrikeText: formatStrikeNumber(lastStrike),
+          tickCount: idxA >= 0 && idxB >= 0 ? Math.abs(idxA - idxB) : null,
+          priceDiffText: formatStrikeNumber(Math.abs(firstStrike - lastStrike)),
+        });
       }
     });
 
     return summaries;
-  }, [describeStrikeGap, formatStrikeNumber, normalizeOptionType, resolveDisplayPosition]);
+  }, [expiryStrikeLadder, formatStrikeNumber, normalizeOptionType, resolveDisplayPosition]);
 
   const getStrategyPerformanceMetrics = useCallback((
     strategy: OptionsStrategy,
@@ -2929,46 +2943,110 @@ export function ExpiryGroupCard({
                                   >解除组合</button>
                                 </div>
                               </div>
-                              <div className={`text-sm opacity-75 ${themes[theme].text}`}>数量: {item.qty}</div>
-                              {strikeGapSummary.length > 0 ? (
-                                <div className={`mt-1 space-y-0.5 text-xs ${themes[theme].text} opacity-70`}>
-                                  {strikeGapSummary.map((summary, summaryIdx) => (
-                                    <div key={`strike-gap-${idx}-${summaryIdx}`}>{summary}</div>
-                                  ))}
-                                </div>
-                              ) : null}
-                              <div className={`text-xs opacity-50 ${themes[theme].text}`}>
+                              <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+                                <span className={`inline-flex items-center rounded-full border px-2.5 py-1 font-medium ${themes[theme].border} ${themes[theme].text}`}>
+                                  数量 {item.qty}
+                                </span>
+                                {strikeGapSummary.map((summary) => (
+                                  <div key={`strike-gap-${idx}-${summary.key}`} className="contents">
+                                    <span className={`inline-flex items-center rounded-full border px-2.5 py-1 ${themes[theme].border} ${themes[theme].text}`}>
+                                      <span className="font-semibold">{summary.optionTypeLabel}</span>
+                                      <span className="ml-1 opacity-80">
+                                        {summary.buyStrikeText && summary.sellStrikeText
+                                          ? `买 ${summary.buyStrikeText} / 卖 ${summary.sellStrikeText}`
+                                          : `${summary.startStrikeText} -> ${summary.endStrikeText}`}
+                                      </span>
+                                    </span>
+                                    {summary.tickCount != null && summary.tickCount > 0 ? (
+                                      <span className="inline-flex items-center rounded-full bg-rose-500/12 px-2.5 py-1 font-semibold text-rose-600 dark:text-rose-300">
+                                        跨 {summary.tickCount} 档
+                                      </span>
+                                    ) : null}
+                                    <span className={`inline-flex items-center rounded-full border px-2.5 py-1 ${themes[theme].border} ${themes[theme].text}`}>
+                                      行权价差 {summary.priceDiffText}
+                                    </span>
+                                  </div>
+                                ))}
+                                {perf.mode === 'spread_value' && perf.contractUnit != null ? (
+                                  <span className={`inline-flex items-center rounded-full border px-2.5 py-1 ${themes[theme].border} ${themes[theme].text}`}>
+                                    合约单位 {contractUnitText}
+                                  </span>
+                                ) : null}
+                              </div>
+                              <div className={`mt-2 text-xs opacity-50 ${themes[theme].text}`}>
                                 {item.strategy.positions.map(p => `${getPositionContractLabel(p)} x ${p.quantity}`).join(', ')}
                               </div>
-                              {perf.mode === 'spread_value' && perf.contractUnit != null ? (
-                                <div className={`mt-1 text-xs ${themes[theme].text} opacity-70`}>
-                                  合约单位: <span className="font-mono">{contractUnitText}</span>
-                                  {perf.usedStandardContractUnit ? '（标准 ETF 合约按 10000 计算）' : ''}
+                              {perf.mode === 'spread_value' && perf.usedStandardContractUnit ? (
+                                <div className={`mt-1 text-[11px] ${themes[theme].text} opacity-60`}>
+                                  标准 ETF 合约按 10000 计算
                                 </div>
                               ) : null}
-                              <div className="mt-3 grid grid-cols-2 gap-2 text-xs md:grid-cols-4">
+                              <div className="mt-3 grid grid-cols-1 gap-2 text-xs md:grid-cols-[minmax(0,1.05fr)_minmax(0,1.95fr)]">
                                 <div className={`${themes[theme].background} rounded border ${themes[theme].border} p-2`}>
                                   <div className={`opacity-60 ${themes[theme].text}`}>最大盈利</div>
                                   <div className={`mt-1 font-mono ${themes[theme].text}`}>{maxProfitText}</div>
                                   {perf.mode === 'spread_value' && perf.tickCount != null && perf.tickCount > 0 && perf.tickSize != null && perf.contractUnit != null ? (
-                                    <div className={`mt-0.5 text-[10px] ${themes[theme].text} opacity-60 font-mono`}>
-                                      {`${perf.tickCount}档 × ${formatStrikeNumber(perf.tickSize)} × ${perf.contractUnit}${perf.strikeScale && perf.strikeScale !== 1 ? ` (÷${perf.strikeScale})` : ''}`}
-                                    </div>
+                                    <>
+                                      <div className="mt-2 flex flex-wrap gap-1.5 text-[10px]">
+                                        <span className="inline-flex items-center rounded-full bg-rose-500/12 px-2 py-0.5 font-semibold text-rose-600 dark:text-rose-300">
+                                          {perf.tickCount} 档
+                                        </span>
+                                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 ${themes[theme].border} ${themes[theme].text}`}>
+                                          每档 {formatStrikeNumber(perf.tickSize)}
+                                        </span>
+                                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 ${themes[theme].border} ${themes[theme].text}`}>
+                                          合约单位 {contractUnitText}
+                                        </span>
+                                      </div>
+                                      <div className={`mt-1 text-[10px] ${themes[theme].text} opacity-60 font-mono`}>
+                                        {`${perf.tickCount} 档 × ${formatStrikeNumber(perf.tickSize)} × ${perf.contractUnit}${perf.strikeScale && perf.strikeScale !== 1 ? ` (÷${perf.strikeScale})` : ''}`}
+                                      </div>
+                                    </>
                                   ) : null}
                                 </div>
-                                <div className={`${themes[theme].background} rounded border ${themes[theme].border} p-2`}>
-                                  <div className={`opacity-60 ${themes[theme].text}`}>{perf.currentLabel}</div>
-                                  <div className={`mt-1 font-mono ${perf.currentProfit != null && perf.currentProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                                    {currentProfitText}
+                                <div className={`${themes[theme].background} rounded border ${themes[theme].border} p-3`}>
+                                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                    <div className="min-w-0">
+                                      <div className={`opacity-60 ${themes[theme].text}`}>收益进度</div>
+                                      <div className={`mt-1 font-mono text-lg ${perf.currentProfit != null && perf.currentProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                                        {currentProfitText}
+                                      </div>
+                                      <div className={`mt-1 text-[11px] ${themes[theme].text} opacity-60`}>
+                                        {perf.currentLabel}
+                                      </div>
+                                    </div>
+                                    <div className="shrink-0">
+                                      <div className={`text-[11px] ${themes[theme].text} opacity-60`}>利润实现率</div>
+                                      <div className={`mt-1 font-mono text-base ${themes[theme].text}`}>{profitRealizationText}</div>
+                                    </div>
                                   </div>
-                                </div>
-                                <div className={`${themes[theme].background} rounded border ${themes[theme].border} p-2`}>
-                                  <div className={`opacity-60 ${themes[theme].text}`}>距最大盈利</div>
-                                  <div className={`mt-1 font-mono ${themes[theme].text}`}>{remainingProfitText}</div>
-                                </div>
-                                <div className={`${themes[theme].background} rounded border ${themes[theme].border} p-2`}>
-                                  <div className={`opacity-60 ${themes[theme].text}`}>利润实现率</div>
-                                  <div className={`mt-1 font-mono ${themes[theme].text}`}>{profitRealizationText}</div>
+                                  <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+                                    <div className={`rounded border px-3 py-2 ${themes[theme].card} ${themes[theme].border}`}>
+                                      <div className={`text-[11px] ${themes[theme].text} opacity-60`}>距最大盈利</div>
+                                      <div className={`mt-1 font-mono ${themes[theme].text}`}>{remainingProfitText}</div>
+                                    </div>
+                                    <div className={`rounded border px-3 py-2 ${themes[theme].card} ${themes[theme].border}`}>
+                                      <div className={`text-[11px] ${themes[theme].text} opacity-60`}>盈利空间</div>
+                                      <div className={`mt-1 font-mono ${themes[theme].text}`}>
+                                        {maxProfitText}
+                                        <span className="ml-2 text-[11px] opacity-60">上限</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  {perf.profitRealizationPct != null ? (
+                                    <div className="mt-3">
+                                      <div className={`mb-1 flex items-center justify-between text-[11px] ${themes[theme].text} opacity-60`}>
+                                        <span>进度</span>
+                                        <span>{profitRealizationText}</span>
+                                      </div>
+                                      <div className={`h-2 overflow-hidden rounded-full ${themes[theme].border} border ${themes[theme].card}`}>
+                                        <div
+                                          className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-blue-500"
+                                          style={{ width: `${Math.max(0, Math.min(100, perf.profitRealizationPct))}%` }}
+                                        />
+                                      </div>
+                                    </div>
+                                  ) : null}
                                 </div>
                               </div>
                               <div className={`mt-3 rounded border p-2 ${themes[theme].border} ${themes[theme].background}`}>
@@ -3004,7 +3082,7 @@ export function ExpiryGroupCard({
                                   theme={theme}
                                   data={chartData}
                                   title={perf.mode === 'spread_value' ? '组合价值走势' : '组合价差走势'}
-                                  height={150}
+                                  height={164}
                                   referenceLines={
                                     perf.mode === 'spread_value' && perf.maxProfit != null
                                       ? [{ value: perf.maxProfit, label: '最大盈利', color: '#ef4444', dashArray: '6 4' }]

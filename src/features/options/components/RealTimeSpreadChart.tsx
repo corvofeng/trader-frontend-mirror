@@ -20,6 +20,9 @@ export function RealTimeSpreadChart({
 }: RealTimeSpreadChartProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+  const showHeader = true;
+  const headerHeight = showHeader ? 24 : 0;
+  const plotHeight = Math.max(96, height - headerHeight);
 
   useEffect(() => {
     if (!wrapperRef.current) return;
@@ -81,13 +84,13 @@ export function RealTimeSpreadChart({
     const fillTop = 'rgba(99, 102, 241, 0.28)';
     const fillBottom = 'rgba(99, 102, 241, 0.0)';
 
-    const left = 42;
+    const left = 34;
     const approxCharWidth = 7;
     const lastValueText = model.lastText === '--' ? '' : model.lastText;
-    const reservedRight = lastValueText ? Math.max(24, Math.min(160, lastValueText.length * approxCharWidth + 18)) : 24;
-    const right = Math.min(reservedRight, Math.max(24, w - left - 8));
-    const top = title ? 26 : 16;
-    const bottom = 22;
+    const reservedRight = lastValueText ? Math.max(18, Math.min(112, lastValueText.length * approxCharWidth + 14)) : 18;
+    const right = Math.min(reservedRight, Math.max(18, w - left - 8));
+    const top = 8;
+    const bottom = 18;
     const pw = Math.max(1, w - left - right);
     const ph = Math.max(1, h - top - bottom);
 
@@ -152,16 +155,6 @@ export function RealTimeSpreadChart({
             }
           `}</style>
         </defs>
-
-        {title ? (
-          <text x={w / 2} y={16} textAnchor="middle" fontSize={12} fill={textColor}>
-            {title}
-          </text>
-        ) : null}
-
-        <text x={8} y={14} fontSize={11} fill={muted}>
-          最新: {model.lastText}
-        </text>
 
         {gridLines}
         {(referenceLines || []).map((referenceLine, index) => {
@@ -263,9 +256,17 @@ export function RealTimeSpreadChart({
 
   return (
     <div 
-      className={`rounded-xl border ${theme === 'dark' ? 'border-gray-800 bg-gray-900/50' : 'border-gray-100 bg-white/50'} p-2 backdrop-blur-sm shadow-sm transition-all`}
+      className={`rounded-lg border ${theme === 'dark' ? 'border-gray-800 bg-gray-900/50' : 'border-gray-100 bg-white/50'} p-1.5 backdrop-blur-sm shadow-sm transition-all`}
     >
-      <div ref={wrapperRef} style={{ width: '100%', height: `${height}px` }}>
+      <div className="mb-1 flex items-center justify-between gap-3 px-1">
+        <div className={`truncate text-[11px] font-medium ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
+          {title || '价差走势'}
+        </div>
+        <div className={`shrink-0 text-[11px] ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+          最新: {model.lastText}
+        </div>
+      </div>
+      <div ref={wrapperRef} style={{ width: '100%', height: `${plotHeight}px` }}>
         {svg}
       </div>
     </div>
