@@ -172,8 +172,16 @@ export function ExpiryGroupCard({
   const [comboSpreadStatuses, setComboSpreadStatuses] = useState<Record<string, { ts: number; source: 'snapshot' | 'last_known' | 'empty' }>>({});
   const [contractUnitMap, setContractUnitMap] = useState<Record<string, number>>({});
   const [isPageLocked, setIsPageLocked] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(() => (
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  ));
+  const [mobileTBoardScale, setMobileTBoardScale] = useState(0.85);
   const pageLockRef = useRef(false);
   const requestedContractUnitRef = useRef<Record<string, number>>({});
+  const tBoardScrollRef = useRef<HTMLDivElement | null>(null);
+  const strikeHeaderRef = useRef<HTMLTableCellElement | null>(null);
+  const hasUserAdjustedTBoardRef = useRef(false);
+  const isProgrammaticTBoardScrollRef = useRef(false);
   const allSinglePositions = useMemo(() => (allExpiryBuckets || []).flatMap(bucket => bucket.single), [allExpiryBuckets]);
   const basePositions = useMemo(() => filterAndSortPositions(group.single), [filterAndSortPositions, group.single]);
 
@@ -1137,70 +1145,136 @@ export function ExpiryGroupCard({
     pushComboSpreadSamples(Date.now());
   }, [comboStrategyIdsKey, comboStrategySnapshotMap, pushComboSpreadSamples]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleViewportChange = () => setIsMobileViewport(window.innerWidth < 768);
+    handleViewportChange();
+    window.addEventListener('resize', handleViewportChange);
+    return () => window.removeEventListener('resize', handleViewportChange);
+  }, []);
+
+  useEffect(() => {
+    if (!isMobileViewport || !isTBoardExpanded) return;
+    if (hasUserAdjustedTBoardRef.current) return;
+
+    const container = tBoardScrollRef.current;
+    const strikeHeader = strikeHeaderRef.current;
+    if (!container || !strikeHeader) return;
+
+    const centerStrikeColumn = () => {
+      const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth);
+      const desiredScrollLeft = Math.max(
+        0,
+        Math.min(
+          strikeHeader.offsetLeft + strikeHeader.offsetWidth / 2 - container.clientWidth / 2,
+          maxScrollLeft
+        )
+      );
+
+      isProgrammaticTBoardScrollRef.current = true;
+      container.scrollLeft = desiredScrollLeft;
+      window.setTimeout(() => {
+        isProgrammaticTBoardScrollRef.current = false;
+      }, 80);
+    };
+
+    const frameId = window.requestAnimationFrame(centerStrikeColumn);
+    return () => window.cancelAnimationFrame(frameId);
+  }, [isMobileViewport, isTBoardExpanded, mobileTBoardScale, filteredPositions.length, group.expiry]);
+
+  const handleTBoardScroll = useCallback(() => {
+    if (isProgrammaticTBoardScrollRef.current) return;
+    hasUserAdjustedTBoardRef.current = true;
+  }, []);
+
+  const actionButtonClass = `rounded-xl px-3 py-2 text-xs sm:text-sm font-medium transition-colors ${themes[theme].secondary}`;
+  const tBoardValueTextClass = `inline-flex items-center justify-center text-[13px] font-semibold leading-tight ${themes[theme].text}`;
+  const tBoardComboValueClass = `inline-flex min-w-[2.5rem] items-center justify-center text-[13px] font-semibold leading-tight ${themes[theme].text}`;
+  const tBoardComboHintClass = 'decoration-dotted underline-offset-2 hover:opacity-80';
+  const tBoardActionStackClass = 'flex flex-col items-center gap-1.5';
+  const getTBoardActionButtonClass = (variant: 'adjust' | 'release' = 'adjust') => (
+    variant === 'adjust'
+      ? 'inline-flex min-w-[3.6rem] items-center justify-center rounded-full border border-blue-200/90 bg-white/88 px-2.5 py-1 text-[11px] font-semibold text-blue-700 shadow-sm backdrop-blur transition-all hover:-translate-y-[1px] hover:border-blue-300 hover:bg-blue-50 dark:border-blue-500/30 dark:bg-slate-900/80 dark:text-blue-300 dark:hover:bg-blue-950/70'
+      : 'inline-flex min-w-[3.6rem] items-center justify-center rounded-full border border-rose-200/90 bg-white/88 px-2.5 py-1 text-[11px] font-semibold text-rose-700 shadow-sm backdrop-blur transition-all hover:-translate-y-[1px] hover:border-rose-300 hover:bg-rose-50 dark:border-rose-500/30 dark:bg-slate-900/80 dark:text-rose-300 dark:hover:bg-rose-950/70'
+  );
+
   return (
-    <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
-      <div className="p-6 border-b border-gray-200">
-        <div className="flex justify-between items-center">
-          <div>
-            <h3 className={`text-lg font-semibold ${themes[theme].text}`}>
-              到期日: {format(new Date(group.expiry), 'yyyy年MM月dd日')}
+    <div className={`${themes[theme].card} ${themes[theme].border} rounded-2xl border shadow-md overflow-hidden`}>
+      <div className={`p-4 sm:p-6 border-b ${themes[theme].border}`}>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <div className={`text-[11px] sm:text-xs font-medium uppercase tracking-[0.18em] ${themes[theme].text} opacity-45`}>
+              到期日
+            </div>
+            <h3 className={`mt-1 text-2xl sm:text-3xl font-semibold leading-tight ${themes[theme].text}`}>
+              {format(new Date(group.expiry), 'yyyy年MM月dd日')}
             </h3>
-            <div className="flex items-center gap-4 mt-2">
-              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getDaysToExpiryColor(group.daysToExpiry)}`}>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className={`px-3 py-1.5 rounded-full text-xs font-medium ${getDaysToExpiryColor(group.daysToExpiry)}`}>
                 {group.daysToExpiry > 0 ? `${group.daysToExpiry}天后到期` : '已到期'}
               </span>
-              <span className={`text-sm ${themes[theme].text} opacity-75`}>
+              <span className={`px-3 py-1.5 rounded-full text-xs font-medium ${themes[theme].background} ${themes[theme].text}`}>
                 {filteredPositions.length} 个持仓
               </span>
               {totalMargin > 0 && (
-                <span className={`text-sm opacity-75 text-amber-600 dark:text-amber-400 font-mono`}>
-                  保证金: {formatCurrency(totalMargin, currencyConfig, 0)}
+                <span className="px-3 py-1.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-600 dark:text-amber-300 font-mono">
+                  保证金 {formatCurrency(totalMargin, currencyConfig, 0)}
                 </span>
               )}
             </div>
           </div>
-          <div className="text-right">
-            <div className="mt-2 flex items-center justify-end gap-2">
+
+          <div className="flex flex-col gap-3 lg:min-w-[320px] lg:max-w-[360px]">
+            <div className="grid gap-2 sm:grid-cols-2">
               {selectedSymbol && underlyingPrice != null && (
-                <div className={`text-sm ${themes[theme].text}`}>标的价 {underlyingPrice.toFixed(4)}</div>
+                <div className={`${themes[theme].background} rounded-2xl px-4 py-3`}>
+                  <div className={`text-[11px] ${themes[theme].text} opacity-55`}>标的价格</div>
+                  <div className={`mt-1 text-xl font-semibold ${themes[theme].text}`}>
+                    {underlyingPrice.toFixed(4)}
+                  </div>
+                </div>
               )}
 
-              <div className="flex items-center gap-1">
-                <Hourglass className={`w-4 h-4 ${themes[theme].text} opacity-60`} />
-                <div className="w-16 h-1 rounded bg-gray-200 dark:bg-gray-700 overflow-hidden">
-                  <div className="h-1 bg-blue-500" style={{ width: `${Math.round(quoteProgress * 100)}%` }} />
+              <div className={`${themes[theme].background} rounded-2xl px-4 py-3`}>
+                <div className="flex items-center justify-between gap-2">
+                  <div className={`text-[11px] ${themes[theme].text} opacity-55`}>行情刷新</div>
+                  <div className={`text-[11px] ${themes[theme].text} opacity-60`}>
+                    {isConnected && codes.length > 0 ? `${Math.ceil(quoteRemainingMs / 1000)}s` : '--'}
+                  </div>
                 </div>
-                <div className={`text-[10px] ${themes[theme].text} opacity-60 w-8 text-right`}>
-                  {isConnected && codes.length > 0 ? `${Math.ceil(quoteRemainingMs / 1000)}s` : '--'}
+                <div className="mt-2 flex items-center gap-2">
+                  <Hourglass className={`w-4 h-4 ${themes[theme].text} opacity-55`} />
+                  <div className="flex-1 h-1.5 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+                    <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.round(quoteProgress * 100)}%` }} />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={triggerQuoteNow}
+                    disabled={!isConnected || codes.length === 0}
+                    className={`${themes[theme].secondary} rounded-lg p-1.5 disabled:opacity-50 disabled:cursor-not-allowed`}
+                    title="刷新行情"
+                    aria-label="刷新行情"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={triggerQuoteNow}
-                  disabled={!isConnected || codes.length === 0}
-                  className={`${themes[theme].secondary} rounded-md p-1 disabled:opacity-50 disabled:cursor-not-allowed`}
-                  title="刷新行情"
-                  aria-label="刷新行情"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                </button>
               </div>
+            </div>
 
-              <button
-                onClick={onToggleExpand}
-                className={`px-3 py-1 rounded text-xs ${themes[theme].secondary}`}
-              >
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
+              <button onClick={onToggleExpand} className={actionButtonClass}>
                 {isExpanded ? '收起详情' : '展开详情'}
               </button>
               <button
                 onClick={() => toggleExpirySelection(group.expiry)}
-                className={`px-3 py-1 rounded text-xs ${themes[theme].secondary}`}
+                className={actionButtonClass}
               >
                 {isSelectingExpiry(group.expiry) ? '退出选择' : '选择此到期日'}
               </button>
               {isSelectingExpiry(group.expiry) && (
                 <button
                   onClick={() => openSaveModal(group.expiry)}
-                  className="px-3 py-1 rounded text-xs bg-blue-600 text-white hover:bg-blue-700"
+                  className="col-span-2 rounded-xl px-3 py-2 text-xs sm:text-sm font-medium bg-blue-600 text-white hover:bg-blue-700"
                 >
                   构建组合并保存
                 </button>
@@ -1212,14 +1286,14 @@ export function ExpiryGroupCard({
 
 
 
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <div className="space-y-4">
           {(() => {
             const callPositions = filteredPositions.filter(pos => (pos.type === 'call' || pos.contract_type_zh === 'call'));
             const putPositions = filteredPositions.filter(pos => (pos.type === 'put' || pos.contract_type_zh === 'put'));
 
             return (
-              <div className="space-y-6">
+              <div className="space-y-5 sm:space-y-6">
                 <div className="mt-0">
                     <div 
                       className="flex items-center gap-2 mb-3 cursor-pointer select-none hover:opacity-80 transition-opacity"
@@ -1371,8 +1445,31 @@ export function ExpiryGroupCard({
                         };
                         return (
                           <div className="space-y-3">
-                          <div className="overflow-x-auto hidden md:block">
-                            <table className="w-full text-xs min-w-[980px]">
+                          <div className="md:hidden flex items-center justify-between gap-3">
+                            <label className={`flex items-center gap-2 text-xs ${themes[theme].text} opacity-75`}>
+                              <span>表格大小</span>
+                              <span className="font-mono">{Math.round(mobileTBoardScale * 100)}%</span>
+                            </label>
+                            <input
+                              type="range"
+                              min={70}
+                              max={110}
+                              step={5}
+                              value={Math.round(mobileTBoardScale * 100)}
+                              onChange={(event) => setMobileTBoardScale(Number(event.target.value) / 100)}
+                              className="w-32 accent-blue-600"
+                              aria-label="调整T型持仓列表大小"
+                            />
+                          </div>
+                          <div
+                            ref={tBoardScrollRef}
+                            className="overflow-x-auto"
+                            onScroll={handleTBoardScroll}
+                          >
+                            <table
+                              className="w-full text-xs min-w-[980px]"
+                              style={isMobileViewport ? { zoom: mobileTBoardScale } : undefined}
+                            >
                               <thead>
                                 <tr className={`${themes[theme].text} opacity-75`}>
                                   <th className="text-center py-2" colSpan={7}>Calls</th>
@@ -1387,7 +1484,7 @@ export function ExpiryGroupCard({
                                   <th className="text-center py-2 px-2">Call 保证金</th>
                                   <th className="text-center py-2 px-2">Call 时间价值</th>
                                   <th className={`text-center py-2 px-2 border-r ${themes[theme].border}`}>Call 现价</th>
-                                  <th className="text-center py-2 px-3">行权价</th>
+                                  <th ref={strikeHeaderRef} className="text-center py-2 px-3">行权价</th>
                                   <th className={`text-center py-2 px-2 border-l ${themes[theme].border}`}>Put 现价</th>
                                   <th className="text-center py-2 px-2">Put 时间价值</th>
                                   <th className="text-center py-2 px-2">Put 保证金</th>
@@ -1825,38 +1922,40 @@ export function ExpiryGroupCard({
 
                                   return (
                                       <tr key={`trow-top-${group.expiry}-${m.s}`} className={themes[theme].cardHover} style={{ backgroundImage: rowBg }}>
-                                        <td className={`text-center py-2 ${themes[theme].text}`}>
-                                          <div className="flex flex-col items-center gap-1">
+                                        <td className={`align-top text-center py-2 ${themes[theme].text}`}>
+                                          <div className="flex flex-col items-center gap-1.5">
                                             {m.comboCallStrategies.length > 0 ? (
                                               <>
                                                 <span
-                                                  className={`inline-flex items-center justify-center min-w-[2rem] px-1.5 py-0.5 rounded bg-gray-100/80 dark:bg-gray-800/60 text-xs font-semibold ${themes[theme].text} cursor-help`}
+                                                  className={`${tBoardComboValueClass} ${tBoardComboHintClass} cursor-help`}
                                                   title={m.comboCallStrategies.map(s => `${s.strategy.name} (${s.qty})`).join('\n')}
                                                 >
                                                   {m.comboCallStrategies.reduce((sum, s) => sum + s.qty, 0)}
                                                 </span>
-                                                <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                                                <div className={tBoardActionStackClass}>
                                                   <button
-                                                    className={`px-2 py-0.5 rounded text-xs whitespace-nowrap shrink-0 ${themes[theme].secondary}`}
+                                                    type="button"
+                                                    className={`${getTBoardActionButtonClass('adjust')} whitespace-nowrap shrink-0`}
                                                     onClick={() => openComboAdjustModal('call')}
                                                   >
                                                     调整
                                                   </button>
                                                   <button
-                                                    className={`px-2 py-0.5 rounded text-xs whitespace-nowrap shrink-0 ${themes[theme].secondary}`}
+                                                    type="button"
+                                                    className={`${getTBoardActionButtonClass('release')} whitespace-nowrap shrink-0`}
                                                     onClick={() => {
                                                       setConfirmData({
                                                         ids: m.comboCallStrategies.flatMap(s => s.strategy.positions.map(p => p.id)),
-                                                        meta: { 
-                                                          action: 'unwind_combo_selection', 
-                                                          comboType: 'call', 
-                                                          strike: m.s, 
-                                                          expiry: group.expiry, 
+                                                        meta: {
+                                                          action: 'unwind_combo_selection',
+                                                          comboType: 'call',
+                                                          strike: m.s,
+                                                          expiry: group.expiry,
                                                           strategies: m.comboCallStrategies,
                                                           strategyIds: m.comboCallStrategies.map(s => s.strategy.id),
-                                                          quote, 
-                                                          contract_code: quote?.call_contract_code, 
-                                                          contract_code_full: quote?.call_contract_code_full 
+                                                          quote,
+                                                          contract_code: quote?.call_contract_code,
+                                                          contract_code_full: quote?.call_contract_code_full
                                                         },
                                                         title: '组合操作',
                                                         description: `管理 ${m.s} ${group.expiry} 的 Call 组合`
@@ -1869,12 +1968,13 @@ export function ExpiryGroupCard({
                                               </>
                                             ) : (
                                               <>
-                                                <span className={`inline-flex items-center justify-center min-w-[2rem] px-1.5 py-0.5 rounded bg-gray-100/80 dark:bg-gray-800/60 text-xs font-semibold ${themes[theme].text}`}>
+                                                <span className={tBoardComboValueClass}>
                                                   0
                                                 </span>
-                                                <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                                                <div className={tBoardActionStackClass}>
                                                   <button
-                                                    className={`px-2 py-0.5 rounded text-xs whitespace-nowrap shrink-0 ${themes[theme].secondary}`}
+                                                    type="button"
+                                                    className={`${getTBoardActionButtonClass('adjust')} whitespace-nowrap shrink-0`}
                                                     onClick={() => openComboAdjustModal('call')}
                                                   >
                                                     调整
@@ -1884,43 +1984,46 @@ export function ExpiryGroupCard({
                                             )}
                                           </div>
                                         </td>
-                                        <td className={`text-center py-2 ${themes[theme].text}`}>
+                                        <td className={`align-top text-center py-2 ${themes[theme].text}`}>
                                           <div className="flex items-center justify-center gap-1">
-                                            <div className="flex flex-col items-center gap-1">
-                                              <span className={`${themes[theme].text}`}>
+                                            <div className="flex flex-col items-center gap-1.5">
+                                              <span className={tBoardValueTextClass}>
                                                 {displayVal('call_covered', m.s, m.callCovered)}
                                                 {m.callCoveredAvail !== m.callCovered ? `（${m.callCoveredAvail}）` : ''}
                                               </span>
                                               <button
-                                                className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
+                                                type="button"
+                                                className={getTBoardActionButtonClass('adjust')}
                                                 onClick={() => openAdjustConfirm('call_covered', m.s)}
                                               >调整</button>
                                             </div>
                                           </div>
                                         </td>
-                                        <td className={`text-center py-2 ${themes[theme].text}`}>
+                                        <td className={`align-top text-center py-2 ${themes[theme].text}`}>
                                           <div className="flex items-center justify-center gap-1">
-                                            <div className="flex flex-col items-center gap-1">
-                                              <span className={`${themes[theme].text}`}>
+                                            <div className="flex flex-col items-center gap-1.5">
+                                              <span className={tBoardValueTextClass}>
                                                 {displayVal('call_obligation', m.s, m.callObligation)}
                                                 {m.callObligationAvail !== m.callObligation ? `（${m.callObligationAvail}）` : ''}
                                               </span>
                                               <button
-                                                className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
+                                                type="button"
+                                                className={getTBoardActionButtonClass('adjust')}
                                                 onClick={() => openAdjustConfirm('call_obligation', m.s)}
                                               >调整</button>
                                             </div>
                                           </div>
                                         </td>
-                                        <td className={`text-center py-2 px-3 w-20 ${themes[theme].text}`}>
+                                        <td className={`align-top text-center py-2 px-3 w-20 ${themes[theme].text}`}>
                                           <div className="flex items-center justify-center gap-1">
-                                            <div className="flex flex-col items-center gap-1">
-                                              <span className={`${themes[theme].text}`}>
+                                            <div className="flex flex-col items-center gap-1.5">
+                                              <span className={tBoardValueTextClass}>
                                                 {displayVal('call_right', m.s, m.callRight)}
                                                 {m.callRightAvail !== m.callRight ? `（${m.callRightAvail}）` : ''}
                                               </span>
                                               <button
-                                                className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
+                                                type="button"
+                                                className={getTBoardActionButtonClass('adjust')}
                                                 onClick={() => openAdjustConfirm('call_right', m.s)}
                                               >调整</button>
                                             </div>
@@ -1949,80 +2052,85 @@ export function ExpiryGroupCard({
                                         <td className={`text-center py-1.5 px-2 w-20 ${themes[theme].text} text-xs leading-tight`}>
                                             <AnimatedFlash value={putMarginText} className="font-mono text-xs text-gray-500" type="price" />
                                         </td>
-                                        <td className={`text-center py-2 px-3 w-20 ${themes[theme].text}`}>
+                                        <td className={`align-top text-center py-2 px-3 w-20 ${themes[theme].text}`}>
                                           <div className="flex items-center justify-center gap-1">
-                                            <div className="flex flex-col items-center gap-1">
-                                              <span className={`${themes[theme].text}`}>
+                                            <div className="flex flex-col items-center gap-1.5">
+                                              <span className={tBoardValueTextClass}>
                                                 {displayVal('put_right', m.s, m.putRight)}
                                                 {m.putRightAvail !== m.putRight ? `（${m.putRightAvail}）` : ''}
                                               </span>
                                               <button
-                                                className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
+                                                type="button"
+                                                className={getTBoardActionButtonClass('adjust')}
                                                 onClick={() => openAdjustConfirm('put_right', m.s)}
                                               >调整</button>
                                             </div>
                                           </div>
                                         </td>
-                                        <td className={`text-center py-2 ${themes[theme].text}`}>
+                                        <td className={`align-top text-center py-2 ${themes[theme].text}`}>
                                           <div className="flex items-center justify-center gap-1">
-                                            <div className="flex flex-col items-center gap-1">
-                                              <span className={`${themes[theme].text}`}>
+                                            <div className="flex flex-col items-center gap-1.5">
+                                              <span className={tBoardValueTextClass}>
                                                 {displayVal('put_obligation', m.s, m.putObligation)}
                                                 {m.putObligationAvail !== m.putObligation ? `（${m.putObligationAvail}）` : ''}
                                               </span>
                                               <button
-                                                className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
+                                                type="button"
+                                                className={getTBoardActionButtonClass('adjust')}
                                                 onClick={() => openAdjustConfirm('put_obligation', m.s)}
                                               >调整</button>
                                             </div>
                                           </div>
                                         </td>
-                                        <td className={`text-center py-2 ${themes[theme].text}`}>
+                                        <td className={`align-top text-center py-2 ${themes[theme].text}`}>
                                           <div className="flex items-center justify-center gap-1">
-                                            <div className="flex flex-col items-center gap-1">
-                                              <span className={`${themes[theme].text}`}>
+                                            <div className="flex flex-col items-center gap-1.5">
+                                              <span className={tBoardValueTextClass}>
                                                 {displayVal('put_covered', m.s, m.putCovered)}
                                                 {m.putCoveredAvail !== m.putCovered ? `（${m.putCoveredAvail}）` : ''}
                                               </span>
                                               <button
-                                                className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`}
+                                                type="button"
+                                                className={getTBoardActionButtonClass('adjust')}
                                                 onClick={() => openAdjustConfirm('put_covered', m.s)}
                                               >调整</button>
                                             </div>
                                           </div>
                                         </td>
-                                        <td className={`text-center py-2 ${themes[theme].text}`}>
-                                          <div className="flex flex-col items-center gap-1">
+                                        <td className={`align-top text-center py-2 ${themes[theme].text}`}>
+                                          <div className="flex flex-col items-center gap-1.5">
                                             {m.comboPutStrategies.length > 0 ? (
                                               <>
                                                 <span
-                                                  className={`inline-flex items-center justify-center min-w-[2rem] px-1.5 py-0.5 rounded bg-gray-100/80 dark:bg-gray-800/60 text-xs font-semibold ${themes[theme].text} cursor-help`}
+                                                  className={`${tBoardComboValueClass} ${tBoardComboHintClass} cursor-help`}
                                                   title={m.comboPutStrategies.map(s => `${s.strategy.name} (${s.qty})`).join('\n')}
                                                 >
                                                   {m.comboPutStrategies.reduce((sum, s) => sum + s.qty, 0)}
                                                 </span>
-                                                <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                                                <div className={tBoardActionStackClass}>
                                                   <button
-                                                    className={`px-2 py-0.5 rounded text-xs whitespace-nowrap shrink-0 ${themes[theme].secondary}`}
+                                                    type="button"
+                                                    className={`${getTBoardActionButtonClass('adjust')} whitespace-nowrap shrink-0`}
                                                     onClick={() => openComboAdjustModal('put')}
                                                   >
                                                     调整
                                                   </button>
                                                   <button
-                                                    className={`px-2 py-0.5 rounded text-xs whitespace-nowrap shrink-0 ${themes[theme].secondary}`}
+                                                    type="button"
+                                                    className={`${getTBoardActionButtonClass('release')} whitespace-nowrap shrink-0`}
                                                     onClick={() => {
                                                       setConfirmData({
                                                         ids: m.comboPutStrategies.flatMap(s => s.strategy.positions.map(p => p.id)),
-                                                        meta: { 
-                                                          action: 'unwind_combo_selection', 
-                                                          comboType: 'put', 
-                                                          strike: m.s, 
-                                                          expiry: group.expiry, 
+                                                        meta: {
+                                                          action: 'unwind_combo_selection',
+                                                          comboType: 'put',
+                                                          strike: m.s,
+                                                          expiry: group.expiry,
                                                           strategies: m.comboPutStrategies,
                                                           strategyIds: m.comboPutStrategies.map(s => s.strategy.id),
-                                                          quote, 
-                                                          contract_code: quote?.put_contract_code, 
-                                                          contract_code_full: quote?.put_contract_code_full 
+                                                          quote,
+                                                          contract_code: quote?.put_contract_code,
+                                                          contract_code_full: quote?.put_contract_code_full
                                                         },
                                                         title: '组合操作',
                                                         description: `管理 ${m.s} ${group.expiry} 的 Put 组合`
@@ -2035,12 +2143,13 @@ export function ExpiryGroupCard({
                                               </>
                                             ) : (
                                               <>
-                                                <span className={`inline-flex items-center justify-center min-w-[2rem] px-1.5 py-0.5 rounded bg-gray-100/80 dark:bg-gray-800/60 text-xs font-semibold ${themes[theme].text}`}>
+                                                <span className={tBoardComboValueClass}>
                                                   0
                                                 </span>
-                                                <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                                                <div className={tBoardActionStackClass}>
                                                   <button
-                                                    className={`px-2 py-0.5 rounded text-xs whitespace-nowrap shrink-0 ${themes[theme].secondary}`}
+                                                    type="button"
+                                                    className={`${getTBoardActionButtonClass('adjust')} whitespace-nowrap shrink-0`}
                                                     onClick={() => openComboAdjustModal('put')}
                                                   >
                                                     调整
@@ -2056,382 +2165,6 @@ export function ExpiryGroupCard({
                                 })()}
                               </tbody>
                             </table>
-                          </div>
-                          <div className="md:hidden space-y-3">
-                            {(() => {
-                              const callStrategiesMap = new Map<number, { strategy: OptionsStrategy, qty: number }[]>();
-                              const putStrategiesMap = new Map<number, { strategy: OptionsStrategy, qty: number }[]>();
-
-                              (allExpiryBuckets || []).forEach(bucket => {
-                                bucket.complex.forEach(s => {
-                                  if (s.positions.some(p => p.expiry === group.expiry)) {
-                                    const c = computeCombosForPositions(s, 'call');
-                                    const p = computeCombosForPositions(s, 'put');
-
-                                    const relevantPositions = s.positions.filter(pos => pos.expiry === group.expiry);
-                                    const strategyQty = relevantPositions.find(pos => pos.position_type === 'buy')?.quantity || relevantPositions[0]?.quantity || 0;
-
-                                    c.forEach((_, k) => {
-                                      const list = callStrategiesMap.get(k) || [];
-                                      list.push({ strategy: s, qty: strategyQty });
-                                      callStrategiesMap.set(k, list);
-                                    });
-                                    p.forEach((_, k) => {
-                                      const list = putStrategiesMap.get(k) || [];
-                                      list.push({ strategy: s, qty: strategyQty });
-                                      putStrategiesMap.set(k, list);
-                                    });
-                                  }
-                                });
-                              });
-
-                              const metrics = rows.map(row => {
-                                const s = row.strike;
-                                const getM = () => {
-                                  if (underlyingPrice == null) return '';
-                                  const thr = 0.005;
-                                  const diffRatio = Math.abs(underlyingPrice - s) / Math.max(s, 1);
-                                  if (diffRatio <= thr) return 'ATM';
-                                  const isCallITM = underlyingPrice > s;
-                                  const isPutITM = underlyingPrice < s;
-                                  return `${isCallITM ? 'Call:ITM' : 'Call:OTM'} | ${isPutITM ? 'Put:ITM' : 'Put:OTM'}`;
-                                };
-
-                                const callRight = filteredPositions
-                                  .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'buy')
-                                  .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
-                                const callRightAvail = filteredPositions
-                                  .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'buy')
-                                  .reduce((sum, p) => {
-                                    const base = p.selectedQuantity ?? p.quantity;
-                                    const avail = Number(p.available ?? base) || 0;
-                                    return sum + avail;
-                                  }, 0);
-                                const callCovered = filteredPositions
-                                  .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh === '备兑')
-                                  .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
-                                const callCoveredAvail = filteredPositions
-                                  .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh === '备兑')
-                                  .reduce((sum, p) => {
-                                    const base = p.selectedQuantity ?? p.quantity;
-                                    const avail = Number(p.available ?? base) || 0;
-                                    return sum + avail;
-                                  }, 0);
-                                const callObligation = filteredPositions
-                                  .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh !== '备兑')
-                                  .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
-                                const callObligationAvail = filteredPositions
-                                  .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh !== '备兑')
-                                  .reduce((sum, p) => {
-                                    const base = p.selectedQuantity ?? p.quantity;
-                                    const avail = Number(p.available ?? base) || 0;
-                                    return sum + avail;
-                                  }, 0);
-
-                                const putRight = filteredPositions
-                                  .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'buy')
-                                  .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
-                                const putRightAvail = filteredPositions
-                                  .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'buy')
-                                  .reduce((sum, p) => {
-                                    const base = p.selectedQuantity ?? p.quantity;
-                                    const avail = Number(p.available ?? base) || 0;
-                                    return sum + avail;
-                                  }, 0);
-                                const putCovered = filteredPositions
-                                  .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'sell' && p.position_type_zh === '备兑')
-                                  .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
-                                const putCoveredAvail = filteredPositions
-                                  .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'sell' && p.position_type_zh === '备兑')
-                                  .reduce((sum, p) => {
-                                    const base = p.selectedQuantity ?? p.quantity;
-                                    const avail = Number(p.available ?? base) || 0;
-                                    return sum + avail;
-                                  }, 0);
-                                const putObligation = filteredPositions
-                                  .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'sell' && p.position_type_zh !== '备兑')
-                                  .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
-                                const putObligationAvail = filteredPositions
-                                  .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'sell' && p.position_type_zh !== '备兑')
-                                  .reduce((sum, p) => {
-                                    const base = p.selectedQuantity ?? p.quantity;
-                                    const avail = Number(p.available ?? base) || 0;
-                                    return sum + avail;
-                                  }, 0);
-
-                                const comboCallStrategies = callStrategiesMap.get(s) || [];
-                                const comboPutStrategies = putStrategiesMap.get(s) || [];
-                                const comboCallQty = comboCallStrategies.reduce((acc, item) => acc + item.qty, 0);
-                                const comboPutQty = comboPutStrategies.reduce((acc, item) => acc + item.qty, 0);
-
-                                let risk = 0;
-                                if (underlyingPrice != null) {
-                                  const up = underlyingPrice;
-                                  const cr = Math.max(0, (up - s) / Math.max(s, 1));
-                                  const pr = Math.max(0, (s - up) / Math.max(s, 1));
-                                  const wCovered = 0.3;
-                                  const wCombo = 0.2;
-                                  const shortCall = callObligation + callCovered * wCovered + comboCallQty * wCombo;
-                                  const shortPut = putObligation + putCovered * wCovered + comboPutQty * wCombo;
-                                  risk = shortCall * cr + shortPut * pr;
-                                  const near = Math.max(0, 0.02 - Math.abs(up - s) / Math.max(s, 1)) / 0.02;
-                                  risk += near * (callObligation + putObligation) * 0.5;
-                                }
-
-                                return {
-                                  s,
-                                  getM,
-                                  callRight,
-                                  callRightAvail,
-                                  callCovered,
-                                  callCoveredAvail,
-                                  callObligation,
-                                  callObligationAvail,
-                                  putRight,
-                                  putRightAvail,
-                                  putCovered,
-                                  putCoveredAvail,
-                                  putObligation,
-                                  putObligationAvail,
-                                  comboCallQty,
-                                  comboPutQty,
-                                  risk
-                                };
-                              });
-
-                              const maxRisk = Math.max(1, ...metrics.map(m => m.risk));
-                              const resolveQuoteForStrike = (strike: number): OptionQuote | undefined => {
-                                const findQuote = (data?: OptionsData | null) => {
-                                  return data?.quotes?.find(q => q.expiry === group.expiry && getQuoteStrike(q) === strike);
-                                };
-
-                                const activeData = optionsData || localOptionsData;
-                                let quote: OptionQuote | undefined;
-                                if (activeData) quote = findQuote(activeData);
-                                if (!quote && optionsDataMap) {
-                                  for (const data of Object.values(optionsDataMap)) {
-                                    quote = findQuote(data);
-                                    if (quote) break;
-                                  }
-                                }
-                                return quote;
-                              };
-
-                              const resolveMaxTimeValueForStrike = (strike: number): number => {
-                                const quote = resolveQuoteForStrike(strike);
-                                if (!quote) return 0;
-
-                                let callTV: number | null = null;
-                                let putTV: number | null = null;
-
-                                const qCallTV = quote.callTimeValue;
-                                const qPutTV = quote.putTimeValue;
-                                if (typeof qCallTV === 'number' && Number.isFinite(qCallTV)) callTV = qCallTV;
-                                if (typeof qPutTV === 'number' && Number.isFinite(qPutTV)) putTV = qPutTV;
-
-                                if ((callTV == null || putTV == null) && underlyingPrice != null) {
-                                  const callCode = quote.call_contract_code || '';
-                                  const callFullCode = quote.call_contract_code_full || '';
-                                  const putCode = quote.put_contract_code || '';
-                                  const putFullCode = quote.put_contract_code_full || '';
-
-                                  const callPrice = (callCode && prices[callCode]?.price) || (callFullCode && prices[callFullCode]?.price) || quote.call_last_price;
-                                  const putPrice = (putCode && prices[putCode]?.price) || (putFullCode && prices[putFullCode]?.price) || quote.put_last_price;
-
-                                  if (callTV == null && typeof callPrice === 'number' && Number.isFinite(callPrice)) {
-                                    callTV = callPrice - Math.max(0, underlyingPrice - strike);
-                                  }
-                                  if (putTV == null && typeof putPrice === 'number' && Number.isFinite(putPrice)) {
-                                    putTV = putPrice - Math.max(0, strike - underlyingPrice);
-                                  }
-                                }
-
-                                return Math.max(0, callTV ?? 0, putTV ?? 0);
-                              };
-
-                              const maxTimeValue = Math.max(0, ...metrics.map(m => resolveMaxTimeValueForStrike(m.s)));
-
-                              return metrics.map(m => {
-                                const intensity = Math.min(1, m.risk / maxRisk);
-                                const h = Math.round(0 + 120 * (1 - intensity));
-                                const c = theme === 'dark' ? `hsla(${h},70%,30%,0.35)` : `hsla(${h},85%,85%,0.65)`;
-                                const bg = `linear-gradient(to right, ${c} 0%, transparent 100%)`;
-
-                                const activeData = optionsData || localOptionsData;
-                                let callPrice = '';
-                                let putPrice = '';
-                                let callMarginText = '-';
-                                let putMarginText = '-';
-                                let quote: OptionQuote | undefined;
-
-                                const findQuote = (data: OptionsData) => {
-                                  return data.quotes?.find(q => q.expiry === group.expiry && getQuoteStrike(q) === m.s);
-                                };
-
-                                if (activeData) {
-                                  quote = findQuote(activeData);
-                                }
-
-                                if (!quote && optionsDataMap) {
-                                  for (const data of Object.values(optionsDataMap)) {
-                                    quote = findQuote(data);
-                                    if (quote) break;
-                                  }
-                                }
-
-                                if (quote) {
-                                  const callCode = quote.call_contract_code || '';
-                                  const callFullCode = quote.call_contract_code_full || '';
-                                  const putCode = quote.put_contract_code || '';
-                                  const putFullCode = quote.put_contract_code_full || '';
-                                  const callMargin = quote.callMargin ?? quote.call_margin;
-                                  const putMargin = quote.putMargin ?? quote.put_margin;
-
-                                  const getPrice = (code: string, fullCode: string, last?: number) => {
-                                    const p = (code && prices[code]) || (fullCode && prices[fullCode]);
-                                    if (p) return p.price.toFixed(4);
-                                    return typeof last === 'number' && last ? last.toFixed(4) : '-';
-                                  };
-
-                                  callPrice = getPrice(callCode, callFullCode, quote.call_last_price);
-                                  putPrice = getPrice(putCode, putFullCode, quote.put_last_price);
-
-                                  if (typeof callMargin === 'number' && Number.isFinite(callMargin)) {
-                                    callMarginText = formatCurrency(callMargin, currencyConfig, Number.isInteger(callMargin) ? 0 : 2);
-                                  }
-                                  if (typeof putMargin === 'number' && Number.isFinite(putMargin)) {
-                                    putMarginText = formatCurrency(putMargin, currencyConfig, Number.isInteger(putMargin) ? 0 : 2);
-                                  }
-                                }
-
-                                let timeValueColor = 'transparent';
-                                let displayCallTV = '-';
-                                let displayPutTV = '-';
-
-                                let callTV: number | null = null;
-                                let putTV: number | null = null;
-                                if (quote) {
-                                  const qCallTV = quote.callTimeValue;
-                                  const qPutTV = quote.putTimeValue;
-                                  if (typeof qCallTV === 'number' && Number.isFinite(qCallTV)) callTV = qCallTV;
-                                  if (typeof qPutTV === 'number' && Number.isFinite(qPutTV)) putTV = qPutTV;
-                                }
-
-                                if ((callTV == null || putTV == null) && underlyingPrice != null) {
-                                  const cp = parseFloat(callPrice);
-                                  const pp = parseFloat(putPrice);
-                                  if (callTV == null && !isNaN(cp)) callTV = cp - Math.max(0, underlyingPrice - m.s);
-                                  if (putTV == null && !isNaN(pp)) putTV = pp - Math.max(0, m.s - underlyingPrice);
-                                }
-
-                                if (callTV != null) displayCallTV = callTV.toFixed(4);
-                                if (putTV != null) displayPutTV = putTV.toFixed(4);
-
-                                const strikeMaxTV = Math.max(0, callTV ?? 0, putTV ?? 0);
-                                const tvIntensity = maxTimeValue > 0 ? Math.min(1, strikeMaxTV / maxTimeValue) : 0;
-                                if (tvIntensity > 0.01) {
-                                  const alpha = theme === 'dark' ? 0.3 : 0.5;
-                                  timeValueColor = `rgba(255, 170, 0, ${tvIntensity * alpha})`;
-                                }
-                                const timeValueBg = timeValueColor !== 'transparent'
-                                  ? `linear-gradient(0deg, ${timeValueColor}, ${timeValueColor})`
-                                  : 'none';
-                                const cardBg = timeValueBg === 'none' ? bg : `${timeValueBg}, ${bg}`;
-
-                                return (
-                                  <div
-                                    key={`tcard-${group.expiry}-${m.s}`}
-                                    className={`${themes[theme].background} rounded-lg p-3 border ${themes[theme].border}`}
-                                    style={{ backgroundImage: cardBg }}
-                                  >
-                                    <div className="flex items-start justify-between gap-3">
-                                      <div className="min-w-0">
-                                        <div className={`text-base font-semibold ${themes[theme].text}`}>行权价 {m.s}</div>
-                                        {underlyingPrice != null && (
-                                          <div className={`text-xs ${themes[theme].text} opacity-70 mt-0.5`}>{m.getM()}</div>
-                                        )}
-                                      </div>
-                                      <div className="text-right shrink-0">
-                                        <div className={`text-xs ${themes[theme].text} opacity-70`}>Call / Put</div>
-                                        <div className={`text-[11px] ${themes[theme].text} font-mono`}>
-                                          <AnimatedFlash value={callPrice || '-'} type="price" /> / <AnimatedFlash value={putPrice || '-'} type="price" />
-                                        </div>
-                                        <div className={`text-[10px] ${themes[theme].text} opacity-70 font-mono`}>
-                                          TV <AnimatedFlash value={displayCallTV} /> / <AnimatedFlash value={displayPutTV} />
-                                        </div>
-                                        <div className={`text-[10px] ${themes[theme].text} opacity-70 font-mono`}>
-                                          保证金 <AnimatedFlash value={callMarginText} type="price" /> / <AnimatedFlash value={putMarginText} type="price" />
-                                        </div>
-                                      </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-                                      <div className={`${themes[theme].card} rounded-lg p-2`}>
-                                        <div className={`text-xs font-semibold ${themes[theme].text} opacity-80 mb-2`}>Calls</div>
-                                        <div className="space-y-2">
-                                          <div className="flex items-center justify-between gap-2">
-                                            <span className={`text-xs ${themes[theme].text} opacity-75`}>组合</span>
-                                            <span className={`text-xs ${themes[theme].text}`}>{m.comboCallQty}</span>
-                                          </div>
-                                          <div className="flex items-center justify-between gap-2">
-                                            <span className={`text-xs ${themes[theme].text} opacity-75`}>备兑</span>
-                                            <div className="flex items-center gap-2">
-                                              <span className={`text-xs ${themes[theme].text}`}>{m.callCovered}{m.callCoveredAvail !== m.callCovered ? `（${m.callCoveredAvail}）` : ''}</span>
-                                              <button className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`} onClick={() => openAdjustConfirm('call_covered', m.s)}>调整</button>
-                                            </div>
-                                          </div>
-                                          <div className="flex items-center justify-between gap-2">
-                                            <span className={`text-xs ${themes[theme].text} opacity-75`}>义务</span>
-                                            <div className="flex items-center gap-2">
-                                              <span className={`text-xs ${themes[theme].text}`}>{m.callObligation}{m.callObligationAvail !== m.callObligation ? `（${m.callObligationAvail}）` : ''}</span>
-                                              <button className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`} onClick={() => openAdjustConfirm('call_obligation', m.s)}>调整</button>
-                                            </div>
-                                          </div>
-                                          <div className="flex items-center justify-between gap-2">
-                                            <span className={`text-xs ${themes[theme].text} opacity-75`}>权利</span>
-                                            <div className="flex items-center gap-2">
-                                              <span className={`text-xs ${themes[theme].text}`}>{m.callRight}{m.callRightAvail !== m.callRight ? `（${m.callRightAvail}）` : ''}</span>
-                                              <button className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`} onClick={() => openAdjustConfirm('call_right', m.s)}>调整</button>
-                                            </div>
-                                          </div>
-                                        </div>
-                                      </div>
-
-                                      <div className={`${themes[theme].card} rounded-lg p-2`}>
-                                        <div className={`text-xs font-semibold ${themes[theme].text} opacity-80 mb-2`}>Puts</div>
-                                        <div className="space-y-2">
-                                          <div className="flex items-center justify-between gap-2">
-                                            <span className={`text-xs ${themes[theme].text} opacity-75`}>权利</span>
-                                            <div className="flex items-center gap-2">
-                                              <span className={`text-xs ${themes[theme].text}`}>{m.putRight}{m.putRightAvail !== m.putRight ? `（${m.putRightAvail}）` : ''}</span>
-                                              <button className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`} onClick={() => openAdjustConfirm('put_right', m.s)}>调整</button>
-                                            </div>
-                                          </div>
-                                          <div className="flex items-center justify-between gap-2">
-                                            <span className={`text-xs ${themes[theme].text} opacity-75`}>义务</span>
-                                            <div className="flex items-center gap-2">
-                                              <span className={`text-xs ${themes[theme].text}`}>{m.putObligation}{m.putObligationAvail !== m.putObligation ? `（${m.putObligationAvail}）` : ''}</span>
-                                              <button className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`} onClick={() => openAdjustConfirm('put_obligation', m.s)}>调整</button>
-                                            </div>
-                                          </div>
-                                          <div className="flex items-center justify-between gap-2">
-                                            <span className={`text-xs ${themes[theme].text} opacity-75`}>备兑</span>
-                                            <div className="flex items-center gap-2">
-                                              <span className={`text-xs ${themes[theme].text}`}>{m.putCovered}{m.putCoveredAvail !== m.putCovered ? `（${m.putCoveredAvail}）` : ''}</span>
-                                              <button className={`px-2 py-0.5 rounded text-xs ${themes[theme].secondary}`} onClick={() => openAdjustConfirm('put_covered', m.s)}>调整</button>
-                                            </div>
-                                          </div>
-                                          <div className="flex items-center justify-between gap-2">
-                                            <span className={`text-xs ${themes[theme].text} opacity-75`}>组合</span>
-                                            <span className={`text-xs ${themes[theme].text}`}>{m.comboPutQty}</span>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              });
-                            })()}
                           </div>
                           </div>
                         );
