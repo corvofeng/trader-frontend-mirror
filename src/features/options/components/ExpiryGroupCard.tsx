@@ -1147,20 +1147,29 @@ export function ExpiryGroupCard({
     return positions
       .filter(Boolean)
       .slice(0, 4)
-      .map((position) => {
-        const update = resolvePriceUpdate([position.contract_code_full, position.contract_code, position.symbol]);
+      .map((position, index) => {
+        const resolved = resolveDisplayPosition(position) ?? position;
+        const update = resolvePriceUpdate([resolved.contract_code_full, resolved.contract_code, resolved.symbol]);
         const bid1 = update?.bid_price?.[0] ?? update?.bid;
         const ask1 = update?.ask_price?.[0] ?? update?.ask;
         const ts = update?.timestamp ? format(new Date(update.timestamp), 'HH:mm:ss') : '--';
         const bidText = typeof bid1 === 'number' && Number.isFinite(bid1) ? bid1.toFixed(4) : '--';
         const askText = typeof ask1 === 'number' && Number.isFinite(ask1) ? ask1.toFixed(4) : '--';
+        const keyParts = [
+          resolved.position_type || 'unknown',
+          resolved.id || 'noid',
+          resolved.contract_code_full || resolved.contract_code || resolved.symbol || 'nocode',
+          resolved.contract_strike_price ?? resolved.strike ?? 'nostrike',
+          resolved.expiry || 'noexpiry',
+          index,
+        ];
         return {
-          key: position.id || position.contract_code_full || position.contract_code || position.symbol || ts,
-          contractName: getContractNameForPosition(position) || getPositionContractLabel(position) || '未知合约',
-          quoteText: `${position.contract_code_full || position.contract_code || position.symbol || '--'} BID1 ${bidText} ASK1 ${askText} @${ts}`,
+          key: keyParts.join('-'),
+          contractName: getContractNameForPosition(resolved) || getPositionContractLabel(resolved) || '未知合约',
+          quoteText: `${resolved.contract_code_full || resolved.contract_code || resolved.symbol || '--'} BID1 ${bidText} ASK1 ${askText} @${ts}`,
         };
       });
-  }, [getContractNameForPosition, getPositionContractLabel, resolvePriceUpdate]);
+  }, [getContractNameForPosition, getPositionContractLabel, resolveDisplayPosition, resolvePriceUpdate]);
 
   const spreadWatchPositions = useMemo(() => {
     if (activeComboDraft) {
@@ -2490,11 +2499,11 @@ export function ExpiryGroupCard({
                         </h4>
                       </div>
                       <div className="space-y-3">
-                        {callPositions.map((position) => {
+                        {callPositions.map((position, index) => {
                           const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh, position.is_covered);
                           return (
                             <div 
-                              key={position.id}
+                              key={`${position.id ?? 'noid'}-${position.symbol}-${position.strike}-${position.type}-${position.expiry}-${index}`}
                               className={`${themes[theme].background} rounded-lg p-4 border ${themes[theme].border} border-l-4 ${positionInfo.borderColor} ${getHighlightClass(position)}`}
                             >
                               <div className="flex justify-between items-start">
@@ -2600,11 +2609,11 @@ export function ExpiryGroupCard({
                         </h4>
                       </div>
                       <div className="space-y-3">
-                        {putPositions.map((position) => {
+                        {putPositions.map((position, index) => {
                           const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh, position.is_covered);
                           return (
                             <div 
-                              key={position.id}
+                              key={`${position.id ?? 'noid'}-${position.symbol}-${position.strike}-${position.type}-${position.expiry}-${index}`}
                               className={`${themes[theme].background} rounded-lg p-4 border ${themes[theme].border} border-l-4 ${positionInfo.borderColor} ${getHighlightClass(position)}`}
                             >
                               <div className="flex justify-between items-start">
@@ -2713,7 +2722,7 @@ export function ExpiryGroupCard({
                       </h4>
                     </div>
                     <div className="space-y-3">
-                      {group.complex.map((strategy) => {
+                      {group.complex.map((strategy, strategyIndex) => {
                         const positions = filterAndSortPositions(strategy.positions)
                           .filter(position => statusFilter === 'all' || position.status === statusFilter);
                         if (positions.length === 0) return null;
@@ -2723,7 +2732,7 @@ export function ExpiryGroupCard({
                         const comboCount = Array.from(callCombosByStrike.values()).reduce((sum, v) => sum + v, 0) +
                           Array.from(putCombosByStrike.values()).reduce((sum, v) => sum + v, 0);
                         return (
-                          <div key={strategy.id} className={`${themes[theme].background} rounded-lg p-4 border-l-4 border-purple-500`}>
+                          <div key={`${strategy.id ?? 'nostrategy'}-${strategyIndex}`} className={`${themes[theme].background} rounded-lg p-4 border-l-4 border-purple-500`}>
                             <div className="flex items-center justify-between mb-3">
                               <div className={`text-sm ${themes[theme].text} opacity-75`}>
                                 {strategy.name} （{legCount} 腿，组合数 {comboCount}）
