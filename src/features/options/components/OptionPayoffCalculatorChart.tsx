@@ -14,6 +14,7 @@ import { Maximize2, Minimize2 } from 'lucide-react';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
+import { getBreakevens } from '../utils/payoffBreakevens';
 
 interface OptionPayoffCalculatorChartProps {
   theme: Theme;
@@ -283,22 +284,6 @@ const buildCurveForOffsetFromSurface = (calculator: PayoffCalculator, offset: nu
       remaining_days: toFiniteNumber(point.remaining_days, Number.NaN),
     },
   };
-};
-
-const getBreakevens = (points: CurvePoint[]) => {
-  const result: number[] = [];
-
-  for (let index = 1; index < points.length; index += 1) {
-    const previous = points[index - 1];
-    const current = points[index];
-    if ((previous.pnl <= 0 && current.pnl >= 0) || (previous.pnl >= 0 && current.pnl <= 0)) {
-      const denominator = Math.abs(previous.pnl) + Math.abs(current.pnl);
-      const ratio = denominator > 0 ? Math.abs(previous.pnl) / denominator : 0;
-      result.push(previous.price + (current.price - previous.price) * ratio);
-    }
-  }
-
-  return result;
 };
 
 const formatPrice = (value: number) => {
