@@ -210,8 +210,9 @@ export function TimeValueChart({
       type: 'line' as const,
       data: item.data,
       smooth: true,
-      symbol: item.isAtm ? 'circle' : 'none',
-      symbolSize: item.isAtm ? 6 : 3,
+      symbol: 'circle',
+      symbolSize: item.isAtm ? 6 : 4,
+      triggerLineEvent: true,
       lineStyle: {
         width: item.isAtm ? 3 : 1.5,
         opacity: item.isAtm ? 1 : 0.7,
@@ -243,30 +244,26 @@ export function TimeValueChart({
         },
       },
       tooltip: {
-        trigger: 'axis',
+        trigger: 'item',
         backgroundColor: isDark ? '#374151' : '#ffffff',
         borderColor: isDark ? '#4b5563' : '#e5e7eb',
         textStyle: {
           color: isDark ? '#e5e7eb' : '#111827',
         },
         formatter: (params: unknown) => {
-          const normalized = Array.isArray(params) ? params : [params];
-          const paramsArray = normalized as Array<{ dataIndex?: number; data?: unknown; seriesName?: string }>;
-          const dataIndex = paramsArray[0]?.dataIndex ?? 0;
+          const itemParam = params as { dataIndex?: number; data?: unknown; value?: unknown; seriesName?: string };
+          const dataIndex = itemParam.dataIndex ?? 0;
           const item = prepared.metaData[dataIndex];
           if (!item) return '';
-          const lines = paramsArray
-            .filter((line) => line.data != null)
-            .sort((a, b) => Number(b.data || 0) - Number(a.data || 0))
-            .map((line) => `<div>${line.seriesName}: ${formatCurrency(Number(line.data || 0), currencyConfig)}</div>`)
-            .join('');
+          const rawValue = itemParam.value ?? itemParam.data;
+          if (rawValue == null) return '';
           return `
             <div>
+              <div style="font-weight: bold; margin-bottom: 4px;">${itemParam.seriesName ?? ''}</div>
               <div style="font-weight: bold; margin-bottom: 4px;">到期日: ${format(new Date(item.expiry), 'yyyy-MM-dd')}</div>
               <div>剩余天数: ${item.daysToExpiry}天</div>
               <div>时间比例: ${item.timePercentage.toFixed(1)}%</div>
-              <div>展示范围: 平值附近 ${prepared.series.length} 个 strike</div>
-              ${lines}
+              <div>时间价值: ${formatCurrency(Number(rawValue), currencyConfig)}</div>
             </div>
           `;
         },
@@ -425,25 +422,34 @@ export function TimeValueChart({
 
     chart.timeScale().fitContent();
 
-    let lastStableSeriesIndex: number | null = null;
-    let lastStableDistance = Number.POSITIVE_INFINITY;
-    let lastStableXIndex = -1;
+    const getHoveredSeriesValue = (seriesApi: ISeriesApi<'Line'>, seriesIdx: number, param: any, index: number) => {
+      const seriesData = param?.seriesData?.get?.(seriesApi);
+      if (seriesData && typeof seriesData === 'object') {
+        if ('value' in seriesData && typeof seriesData.value === 'number') {
+          return seriesData.value;
+        }
+        if ('close' in seriesData && typeof seriesData.close === 'number') {
+          return seriesData.close;
+        }
+      }
+      const fallback = prepared.series[seriesIdx]?.data[index];
+      return typeof fallback === 'number' ? fallback : null;
+    };
     const handleCrosshairMove = (param: any) => {
       const key = toTimeKey(param?.time);
       if (key == null) {
         return;
       }
-      const rawIndex = Math.floor((key - Number(SYNTHETIC_START_TS)) / SYNTHETIC_STEP_SECONDS);
+      const rawIndex = Math.round((key - Number(SYNTHETIC_START_TS)) / SYNTHETIC_STEP_SECONDS);
       const index = Math.max(0, Math.min(prepared.metaData.length - 1, rawIndex));
       setHoveredIndex(index);
       const hovered = (param?.hoveredSeries as unknown) ?? null;
       if (hovered) {
         const seriesIndex = tradingSeriesRefs.current.findIndex((s) => s === hovered);
-        setHoveredSeriesIndex(seriesIndex >= 0 ? seriesIndex : hoveredSeriesIndex);
-        lastStableSeriesIndex = seriesIndex >= 0 ? seriesIndex : null;
-        lastStableDistance = 0;
-        lastStableXIndex = index;
-        return;
+        if (seriesIndex >= 0) {
+          setHoveredSeriesIndex(seriesIndex);
+          return;
+        }
       }
 
       const y = typeof param?.point?.y === 'number' ? param.point.y : null;
@@ -454,8 +460,8 @@ export function TimeValueChart({
       let bestIndex: number | null = null;
       let bestDistance = Number.POSITIVE_INFINITY;
       tradingSeriesRefs.current.forEach((seriesApi, seriesIdx) => {
-        const value = prepared.series[seriesIdx]?.data[index];
-        if (typeof value !== 'number') return;
+        const value = getHoveredSeriesValue(seriesApi, seriesIdx, param, index);
+        if (value == null) return;
         const coord = typeof seriesApi.priceToCoordinate === 'function' ? seriesApi.priceToCoordinate(value) : null;
         if (typeof coord !== 'number') return;
         const distance = Math.abs(coord - y);
@@ -467,18 +473,6 @@ export function TimeValueChart({
       if (bestIndex == null || bestDistance > 24) {
         return;
       }
-
-      if (lastStableXIndex === index && lastStableSeriesIndex != null && bestIndex !== lastStableSeriesIndex) {
-        const improved = lastStableDistance - bestDistance;
-        if (improved < 6) {
-          setHoveredSeriesIndex(lastStableSeriesIndex);
-          return;
-        }
-      }
-
-      lastStableSeriesIndex = bestIndex;
-      lastStableDistance = bestDistance;
-      lastStableXIndex = index;
       setHoveredSeriesIndex(bestIndex);
     };
 

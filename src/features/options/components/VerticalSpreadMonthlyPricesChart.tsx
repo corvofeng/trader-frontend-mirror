@@ -339,7 +339,9 @@ export function VerticalSpreadMonthlyPricesChart({
         type: 'line' as const,
         data: item.data,
         smooth: true,
-        symbol: 'none',
+        symbol: 'circle',
+        symbolSize: item.isNearAtm ? 6 : 4,
+        triggerLineEvent: true,
         lineStyle: {
           width: item.isNearAtm ? 2.5 : 1.5,
           opacity: item.isNearAtm ? 1 : 0.8,
@@ -376,39 +378,25 @@ export function VerticalSpreadMonthlyPricesChart({
         },
       },
       tooltip: {
-        trigger: 'axis',
+        trigger: 'item',
         backgroundColor: isDark ? '#374151' : '#ffffff',
         borderColor: isDark ? '#4b5563' : '#e5e7eb',
         textStyle: {
           color: isDark ? '#e5e7eb' : '#111827',
         },
         formatter: (params: unknown) => {
-          const arr = (Array.isArray(params) ? params : [params]) as Array<{
-            dataIndex?: number;
-            data?: unknown;
-            seriesName?: string;
-          }>;
-          const first = arr[0];
-          const idx = first?.dataIndex ?? 0;
+          const itemParam = params as { dataIndex?: number; data?: unknown; value?: unknown; seriesName?: string };
+          const idx = itemParam.dataIndex ?? 0;
           const label = prepared.xLabels[idx] || '';
-          const lines = arr
-            .filter((item) => item.data != null)
-            .sort((a, b) => {
-              const av = typeof a.data === 'number' ? a.data : Number(a.data || 0);
-              const bv = typeof b.data === 'number' ? b.data : Number(b.data || 0);
-              return bv - av;
-            })
-            .map((item) => {
-              const value = typeof item.data === 'number' ? item.data : Number(item.data || 0);
-              return `<div>${item.seriesName}: ${formatCurrency(value, currencyConfig)}</div>`;
-            })
-            .join('');
+          const rawValue = itemParam.value ?? itemParam.data;
+          if (rawValue == null) return '';
           return `
             <div>
+              <div style="font-weight:bold;margin-bottom:4px;">${itemParam.seriesName ?? ''}</div>
               <div style="font-weight:bold;margin-bottom:4px;">${label}</div>
               <div>展示范围: 覆盖标的 ${prepared.referenceSpot.toFixed(3)} 上下 ${(SPOT_SELECTION_PCT * 100).toFixed(0)}% 价格带的 ${prepared.series.length} 组价差</div>
               <div>基准月份: ${prepared.baselineLabel || '-'}（覆盖价格带候选 ${prepared.strikePoolCount} 组，基准月有报价 ${prepared.baselinePoolCount} 组；当前已展示全部候选曲线）</div>
-              ${lines || '<div>-</div>'}
+              <div>价差价格: ${formatCurrency(Number(rawValue), currencyConfig)}</div>
             </div>
           `;
         },
@@ -561,15 +549,25 @@ export function VerticalSpreadMonthlyPricesChart({
     });
     chart.timeScale().fitContent();
 
-    let lastStableSeriesIndex: number | null = null;
-    let lastStableDistance = Number.POSITIVE_INFINITY;
-    let lastStableXIndex = -1;
+    const getHoveredSeriesValue = (seriesApi: ISeriesApi<'Line'>, seriesIdx: number, param: any, index: number) => {
+      const seriesData = param?.seriesData?.get?.(seriesApi);
+      if (seriesData && typeof seriesData === 'object') {
+        if ('value' in seriesData && typeof seriesData.value === 'number') {
+          return seriesData.value;
+        }
+        if ('close' in seriesData && typeof seriesData.close === 'number') {
+          return seriesData.close;
+        }
+      }
+      const fallback = prepared.series[seriesIdx]?.data[index];
+      return typeof fallback === 'number' ? fallback : null;
+    };
     const handleCrosshairMove = (param: any) => {
       const key = toTimeKey(param?.time);
       if (key == null) {
         return;
       }
-      const rawIndex = Math.floor((key - Number(SYNTHETIC_START_TS)) / SYNTHETIC_STEP_SECONDS);
+      const rawIndex = Math.round((key - Number(SYNTHETIC_START_TS)) / SYNTHETIC_STEP_SECONDS);
       const index = Math.max(0, Math.min(prepared.xLabels.length - 1, rawIndex));
       if (index >= 0 && index < prepared.xLabels.length) {
         setHoveredIndex(index);
@@ -577,11 +575,10 @@ export function VerticalSpreadMonthlyPricesChart({
       const hovered = (param?.hoveredSeries as unknown) ?? null;
       if (hovered) {
         const seriesIndex = tradingSeriesRefs.current.findIndex((s) => s === hovered);
-        setHoveredSeriesIndex(seriesIndex >= 0 ? seriesIndex : hoveredSeriesIndex);
-        lastStableSeriesIndex = seriesIndex >= 0 ? seriesIndex : null;
-        lastStableDistance = 0;
-        lastStableXIndex = index;
-        return;
+        if (seriesIndex >= 0) {
+          setHoveredSeriesIndex(seriesIndex);
+          return;
+        }
       }
 
       const y = typeof param?.point?.y === 'number' ? param.point.y : null;
@@ -592,8 +589,8 @@ export function VerticalSpreadMonthlyPricesChart({
       let bestIndex: number | null = null;
       let bestDistance = Number.POSITIVE_INFINITY;
       tradingSeriesRefs.current.forEach((seriesApi, seriesIdx) => {
-        const value = prepared.series[seriesIdx]?.data[index];
-        if (typeof value !== 'number') return;
+        const value = getHoveredSeriesValue(seriesApi, seriesIdx, param, index);
+        if (value == null) return;
         const coord = typeof seriesApi.priceToCoordinate === 'function' ? seriesApi.priceToCoordinate(value) : null;
         if (typeof coord !== 'number') return;
         const distance = Math.abs(coord - y);
@@ -605,18 +602,6 @@ export function VerticalSpreadMonthlyPricesChart({
       if (bestIndex == null || bestDistance > 24) {
         return;
       }
-
-      if (lastStableXIndex === index && lastStableSeriesIndex != null && bestIndex !== lastStableSeriesIndex) {
-        const improved = lastStableDistance - bestDistance;
-        if (improved < 6) {
-          setHoveredSeriesIndex(lastStableSeriesIndex);
-          return;
-        }
-      }
-
-      lastStableSeriesIndex = bestIndex;
-      lastStableDistance = bestDistance;
-      lastStableXIndex = index;
       setHoveredSeriesIndex(bestIndex);
     };
 
