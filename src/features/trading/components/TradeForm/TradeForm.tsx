@@ -98,10 +98,22 @@ export function TradeForm({ selectedStock, theme, accountAlias, preferredTargetP
     }
   };
 
-  const totalValue = parseFloat(targetPrice) * parseInt(quantity || '0');
-  const inputClasses = `mt-1 block w-full rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 ${themes[theme].input} ${themes[theme].text}`;
+  const parsedTargetPrice = Number.parseFloat(targetPrice);
+  const parsedQuantity = Number.parseInt(quantity || '0', 10);
+  const totalValue = parsedTargetPrice * parsedQuantity;
+  const formattedQuantity = Number.isFinite(parsedQuantity)
+    ? new Intl.NumberFormat().format(parsedQuantity)
+    : '0';
+  const displayAccountAlias = accountAlias || resolveCurrentAccountAlias({ storage: JOURNAL_ACCOUNT_STORAGE });
+  const stockLabel = stockCode.trim().toUpperCase() || stockName.trim() || 'this stock';
+  const shareLabel = parsedQuantity === 1 ? 'share' : 'shares';
+  const operationLabel = operation === 'buy' ? 'Buy' : operation === 'sell' ? 'Sell' : null;
+  const pricePreview = Number.isFinite(parsedTargetPrice)
+    ? formatCurrency(parsedTargetPrice, currencyConfig)
+    : '-';
+  const inputClasses = `mt-1 block w-full rounded-md shadow-sm text-sm sm:text-base focus:border-blue-500 focus:ring-blue-500 ${themes[theme].input} ${themes[theme].text}`;
   const hasTargetPrice = targetPrice.trim().length > 0;
-  const operationButtonBaseClass = 'inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors border';
+  const operationButtonBaseClass = 'inline-flex min-h-[42px] w-full items-center justify-center rounded-md px-3 py-2.5 text-sm font-medium transition-colors border';
   const buyButtonClass = operation === 'buy'
     ? 'border-green-600 bg-green-600 text-white'
     : `${themes[theme].border} ${themes[theme].text} hover:border-green-500 hover:text-green-600`;
@@ -118,14 +130,14 @@ export function TradeForm({ selectedStock, theme, accountAlias, preferredTargetP
           onClose={() => setShowConfigEditor(false)}
         />
       ) : (
-        <form onSubmit={handleSubmit} className={`${themes[theme].card} p-6 rounded-lg shadow-md transition-colors duration-200`}>
-          <div className="flex justify-between items-center mb-6">
-            <h2 className={`text-2xl font-bold ${themes[theme].text}`}>Add New Trade Plan</h2>
+        <form onSubmit={handleSubmit} className={`${themes[theme].card} rounded-lg p-4 shadow-md transition-colors duration-200 sm:p-6`}>
+          <div className="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className={`text-xl font-bold leading-tight sm:text-2xl ${themes[theme].text}`}>Add New Trade Plan</h2>
             {selectedStock && (
               <button
                 type="button"
                 onClick={() => setShowConfigEditor(true)}
-                className={`inline-flex items-center px-3 py-2 rounded-md ${themes[theme].secondary}`}
+                className={`inline-flex w-full items-center justify-center rounded-md px-3 py-2 text-sm sm:w-auto ${themes[theme].secondary}`}
               >
                 <Settings className="w-5 h-5 mr-2" />
                 Configure Stock
@@ -133,7 +145,7 @@ export function TradeForm({ selectedStock, theme, accountAlias, preferredTargetP
             )}
           </div>
           
-          <div className="grid gap-6">
+          <div className="grid gap-4 sm:gap-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className={`block text-sm font-medium ${themes[theme].text}`}>Stock Code</label>
@@ -160,10 +172,10 @@ export function TradeForm({ selectedStock, theme, accountAlias, preferredTargetP
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="sm:col-span-2 xl:col-span-1">
                 <label className={`block text-sm font-medium ${themes[theme].text}`}>Operation</label>
-                <div className="mt-1 flex gap-2">
+                <div className="mt-1 grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setOperation('buy')}
@@ -218,13 +230,63 @@ export function TradeForm({ selectedStock, theme, accountAlias, preferredTargetP
             </div>
 
             {targetPrice && quantity && (
-              <div className={`p-4 rounded-md ${themes[theme].secondary} bg-opacity-50 border border-gray-200 dark:border-gray-700`}>
-                <div className="flex justify-between items-center">
-                  <span className={`text-sm font-medium ${themes[theme].text} opacity-80`}>Estimated Total Value</span>
-                  <span className={`text-xl font-bold ${themes[theme].text}`}>
-                    {formatCurrency(totalValue, currencyConfig)}
-                  </span>
+              <div className={`rounded-md border border-gray-200 p-3 dark:border-gray-700 ${themes[theme].secondary} bg-opacity-50 sm:p-4`}>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                  <div>
+                    <div className={`text-sm font-medium ${themes[theme].text} opacity-80`}>Estimated Exchange</div>
+                    <p className={`mt-1 text-xs ${themes[theme].text} opacity-70`}>
+                      {operation
+                        ? operation === 'buy'
+                          ? 'Spend cash to receive shares.'
+                          : 'Spend shares to receive cash.'
+                        : 'Choose Buy or Sell to see what you spend and receive.'}
+                    </p>
+                    {operation && (
+                      <div className="mt-2 flex flex-wrap gap-2 text-[11px] sm:text-xs">
+                        <span className={`rounded-full px-2 py-1 ${themes[theme].card} ${themes[theme].text} opacity-80`}>
+                          {`Acct ${displayAccountAlias || 'Unassigned'}`}
+                        </span>
+                        <span className={`rounded-full px-2 py-1 ${themes[theme].card} ${themes[theme].text} opacity-80`}>
+                          {operationLabel}
+                        </span>
+                        <span className={`rounded-full px-2 py-1 ${themes[theme].card} ${themes[theme].text} opacity-80`}>
+                          {`${formattedQuantity} ${shareLabel}`}
+                        </span>
+                        <span className={`rounded-full px-2 py-1 ${themes[theme].card} ${themes[theme].text} opacity-80 break-all`}>
+                          {stockLabel}
+                        </span>
+                        <span className={`rounded-full px-2 py-1 ${themes[theme].card} ${themes[theme].text} opacity-80`}>
+                          {pricePreview}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  {operation && (
+                    <span className={`text-lg font-bold leading-none sm:text-xl ${themes[theme].text}`}>
+                      {formatCurrency(totalValue, currencyConfig)}
+                    </span>
+                  )}
                 </div>
+                {operation && (
+                  <div className="mt-3 grid grid-cols-1 gap-2 sm:mt-4 sm:gap-3 sm:grid-cols-2">
+                    <div className={`rounded-md border border-gray-200 p-3 dark:border-gray-700 ${themes[theme].card}`}>
+                      <div className={`text-xs uppercase tracking-wide ${themes[theme].text} opacity-60`}>Spend</div>
+                      <div className={`mt-1 text-base font-semibold ${themes[theme].text}`}>
+                        {operation === 'buy'
+                          ? formatCurrency(totalValue, currencyConfig)
+                          : `${formattedQuantity} shares`}
+                      </div>
+                    </div>
+                    <div className={`rounded-md border border-gray-200 p-3 dark:border-gray-700 ${themes[theme].card}`}>
+                      <div className={`text-xs uppercase tracking-wide ${themes[theme].text} opacity-60`}>Receive</div>
+                      <div className={`mt-1 text-base font-semibold ${themes[theme].text}`}>
+                        {operation === 'buy'
+                          ? `${formattedQuantity} shares`
+                          : formatCurrency(totalValue, currencyConfig)}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -239,8 +301,8 @@ export function TradeForm({ selectedStock, theme, accountAlias, preferredTargetP
               />
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 border-t border-gray-200 dark:border-gray-700">
-              <div className="flex items-center">
+            <div className="flex flex-col gap-3 border-t border-gray-200 pt-3 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              <div className="flex items-center self-start">
                 <input
                   id="execute-immediately"
                   type="checkbox"
@@ -253,15 +315,10 @@ export function TradeForm({ selectedStock, theme, accountAlias, preferredTargetP
                 </label>
               </div>
 
-              <div className="flex items-center gap-3 w-full sm:w-auto">
-                {accountAlias && (
-                  <span className={`text-sm ${themes[theme].text} opacity-70 hidden sm:inline`}>
-                    to <span className="font-medium text-blue-500">{accountAlias}</span>
-                  </span>
-                )}
+              <div className="flex w-full items-center gap-3 sm:w-auto">
                 <button
                   type="submit"
-                  className={`w-full sm:w-auto inline-flex items-center justify-center px-6 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 shadow-sm transition-all duration-200`}
+                  className={`inline-flex w-full items-center justify-center rounded-md border border-transparent bg-blue-600 px-6 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 sm:w-auto`}
                 >
                   <PlusCircle className="w-5 h-5 mr-2" />
                   Add Plan

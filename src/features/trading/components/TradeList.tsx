@@ -227,6 +227,23 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
     };
   };
 
+  const renderTradeSummary = (pendingCount: number, completedCount: number, totalCount: number) => (
+    <div className="grid w-full grid-cols-3 gap-2 text-center sm:flex sm:w-auto sm:flex-wrap sm:justify-end">
+      <div className={`rounded-md px-2 py-1.5 ${theme === 'dark' ? 'bg-amber-950/45 ring-1 ring-inset ring-amber-400/12' : 'bg-yellow-100'}`}>
+        <div className={`text-sm font-semibold ${theme === 'dark' ? 'text-amber-100/90' : 'text-yellow-800'}`}>{pendingCount}</div>
+        <div className={`text-[10px] uppercase tracking-wide ${theme === 'dark' ? 'text-amber-100/65' : 'text-yellow-700/80'}`}>Pending</div>
+      </div>
+      <div className={`rounded-md px-2 py-1.5 ${theme === 'dark' ? 'bg-emerald-950/45 ring-1 ring-inset ring-emerald-400/12' : 'bg-green-100'}`}>
+        <div className={`text-sm font-semibold ${theme === 'dark' ? 'text-emerald-100' : 'text-green-800'}`}>{completedCount}</div>
+        <div className={`text-[10px] uppercase tracking-wide ${theme === 'dark' ? 'text-emerald-100/65' : 'text-green-700/80'}`}>Completed</div>
+      </div>
+      <div className={`rounded-md px-2 py-1.5 ${theme === 'dark' ? 'bg-slate-800/80 ring-1 ring-inset ring-white/8' : 'bg-gray-100'}`}>
+        <div className={`text-sm font-semibold ${themes[theme].text}`}>{totalCount}</div>
+        <div className={`text-[10px] uppercase tracking-wide ${themes[theme].text} opacity-60`}>Total</div>
+      </div>
+    </div>
+  );
+
   const handleStatusChange = async (tradeId: number, newStatus: Trade['status']) => {
     try {
       setIsUpdating(tradeId);
@@ -542,41 +559,21 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
                     style={{ animationDelay: `${(groupIndex * 0.05) + (index * 0.05)}s` }}
                   >
                     <div 
-                      className={`px-4 py-3 flex items-center justify-between cursor-pointer ${
+                      className={`px-4 py-3 flex items-start justify-between gap-3 cursor-pointer ${
                         theme === 'dark' ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-50 hover:bg-gray-100'
                       } transition-all duration-200 hover:shadow-md`}
                       onClick={() => toggleStockExpansion(stockCode)}
                     >
-                      <div className="flex items-center gap-4">
-                        <h3 className={`text-lg font-semibold ${themes[theme].text}`}>
+                      <div className="min-w-0 flex-1">
+                        <h3 className={`text-base sm:text-lg font-semibold ${themes[theme].text}`}>
                           {stockName} <span className="text-sm font-normal opacity-75">({stockCode})</span>
                         </h3>
-                        <div className="flex flex-wrap gap-2 text-xs sm:text-sm">
-                          {pendingCount > 0 && (
-                            <span className={`px-2 py-0.5 rounded-full font-medium ${
-                              theme === 'dark'
-                                ? 'bg-amber-950/45 text-amber-100/85 ring-1 ring-inset ring-amber-400/12'
-                                : 'bg-yellow-100 text-yellow-800'
-                            }`}>
-                              {pendingCount} Pending
-                            </span>
-                          )}
-                          {completedCount > 0 && (
-                            <span className={`px-2 py-0.5 rounded-full font-medium ${
-                              theme === 'dark'
-                                ? 'bg-emerald-950/45 text-emerald-100 ring-1 ring-inset ring-emerald-400/12'
-                                : 'bg-green-100 text-green-800'
-                            }`}>
-                              {completedCount} Completed
-                            </span>
-                          )}
-                          <span className={`px-2 py-0.5 rounded-full ${themes[theme].text} opacity-60`}>
-                            {stockTrades.length} Total
-                          </span>
+                        <div className="mt-3">
+                          {renderTradeSummary(pendingCount, completedCount, stockTrades.length)}
                         </div>
                       </div>
                       <ChevronDown 
-                        className={`w-5 h-5 ${themes[theme].text} opacity-75 transition-transform duration-300 ${isStockExpanded ? 'rotate-180' : ''}`} 
+                        className={`mt-1 h-5 w-5 shrink-0 ${themes[theme].text} opacity-75 transition-transform duration-300 ${isStockExpanded ? 'rotate-180' : ''}`} 
                       />
                     </div>
 
@@ -717,41 +714,21 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
                 style={{ animationDelay: `${index * 0.05}s` }}
               >
                 <div 
-                  className={`px-4 py-3 flex items-center justify-between cursor-pointer ${
+                  className={`px-4 py-3 flex items-start justify-between gap-3 cursor-pointer ${
                     theme === 'dark' ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-50 hover:bg-gray-100'
                   } transition-all duration-200 hover:shadow-md`}
                   onClick={() => toggleStockExpansion(stockCode)}
                 >
-                  <div className="flex items-center gap-4">
-                    <h3 className={`text-lg font-semibold ${themes[theme].text}`}>
+                  <div className="min-w-0 flex-1">
+                    <h3 className={`text-base sm:text-lg font-semibold ${themes[theme].text}`}>
                       {stockName} <span className="text-sm font-normal opacity-75">({stockCode})</span>
                     </h3>
-                    <div className="flex flex-wrap gap-2 text-xs sm:text-sm">
-                      {pendingCount > 0 && (
-                        <span className={`px-2 py-0.5 rounded-full font-medium ${
-                          theme === 'dark'
-                            ? 'bg-amber-950/45 text-amber-100/85 ring-1 ring-inset ring-amber-400/12'
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {pendingCount} Pending
-                        </span>
-                      )}
-                      {completedCount > 0 && (
-                        <span className={`px-2 py-0.5 rounded-full font-medium ${
-                          theme === 'dark'
-                            ? 'bg-emerald-950/45 text-emerald-100 ring-1 ring-inset ring-emerald-400/12'
-                            : 'bg-green-100 text-green-800'
-                        }`}>
-                          {completedCount} Completed
-                        </span>
-                      )}
-                      <span className={`px-2 py-0.5 rounded-full ${themes[theme].text} opacity-60`}>
-                        {stockTrades.length} Total
-                      </span>
+                    <div className="mt-3">
+                      {renderTradeSummary(pendingCount, completedCount, stockTrades.length)}
                     </div>
                   </div>
                   <ChevronDown 
-                    className={`w-5 h-5 ${themes[theme].text} opacity-75 transition-transform duration-300 ${isStockExpanded ? 'rotate-180' : ''}`} 
+                    className={`mt-1 h-5 w-5 shrink-0 ${themes[theme].text} opacity-75 transition-transform duration-300 ${isStockExpanded ? 'rotate-180' : ''}`} 
                   />
                 </div>
 
