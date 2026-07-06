@@ -4,7 +4,7 @@ import { TradeForm, TradeList } from '../../../features/trading';
 import { Portfolio } from '../../../features/portfolio';
 import { OperationsView, UploadPage } from '../features';
 import { RelatedLinks } from '../../../shared/components';
-import { stockService } from '../../../lib/services';
+import { optionsService, stockService } from '../../../lib/services';
 import { themes, Theme } from '../../../lib/theme';
 import type { Stock, Holding, Trade, StockOrder } from '../../../lib/services/types';
 import { JOURNAL_ACCOUNT_STORAGE, persistAccountAlias } from '../../../shared/utils/accountSelection';
@@ -114,6 +114,26 @@ export function TabContent({
     setSelectedQuotePrice(null);
     setSelectedQuoteSide(null);
     setSelectedQuoteLevel(null);
+
+    let cancelled = false;
+
+    const resolveCanonicalSymbol = async () => {
+      try {
+        const { data, error } = await optionsService.getOptionsData(code);
+        if (cancelled || error) return;
+        const canonicalCode = data?.opt_undl_code_full?.trim();
+        if (!canonicalCode || canonicalCode === code) return;
+        setSelectedContractCode(canonicalCode);
+      } catch {
+        // Fall back to the raw selected stock code when canonicalization is unavailable.
+      }
+    };
+
+    void resolveCanonicalSymbol();
+
+    return () => {
+      cancelled = true;
+    };
   }, [selectedStock]);
 
   React.useEffect(() => {
@@ -173,7 +193,6 @@ export function TabContent({
           theme={theme} 
           accountAlias={selectedAccountId}
           preferredTargetPrice={selectedQuotePrice}
-          preferredOperation={selectedQuoteSide === 'ask' ? 'buy' : selectedQuoteSide === 'bid' ? 'sell' : null}
         />
         <JournalContractQuotePanel
           contractCode={selectedContractCode}

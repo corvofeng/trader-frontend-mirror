@@ -17,13 +17,12 @@ interface TradeFormProps {
   theme: Theme;
   accountAlias?: string | null;
   preferredTargetPrice?: number | null;
-  preferredOperation?: 'buy' | 'sell' | null;
 }
 
-export function TradeForm({ selectedStock, theme, accountAlias, preferredTargetPrice, preferredOperation }: TradeFormProps) {
+export function TradeForm({ selectedStock, theme, accountAlias, preferredTargetPrice }: TradeFormProps) {
   const [stockCode, setStockCode] = useState('');
   const [stockName, setStockName] = useState('');
-  const [operation, setOperation] = useState<'buy' | 'sell'>('buy');
+  const [operation, setOperation] = useState<'buy' | 'sell' | null>(null);
   const [targetPrice, setTargetPrice] = useState('');
   const [quantity, setQuantity] = useState('');
   const [notes, setNotes] = useState('');
@@ -46,13 +45,13 @@ export function TradeForm({ selectedStock, theme, accountAlias, preferredTargetP
     setTargetPrice(preferredTargetPrice.toFixed(4));
   }, [preferredTargetPrice]);
 
-  useEffect(() => {
-    if (preferredOperation !== 'buy' && preferredOperation !== 'sell') return;
-    setOperation(preferredOperation);
-  }, [preferredOperation]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!operation) {
+      toast.error('Please choose Buy or Sell');
+      return;
+    }
     
     try {
       const authResponse = await authService.getUser();
@@ -101,6 +100,14 @@ export function TradeForm({ selectedStock, theme, accountAlias, preferredTargetP
 
   const totalValue = parseFloat(targetPrice) * parseInt(quantity || '0');
   const inputClasses = `mt-1 block w-full rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 ${themes[theme].input} ${themes[theme].text}`;
+  const hasTargetPrice = targetPrice.trim().length > 0;
+  const operationButtonBaseClass = 'inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors border';
+  const buyButtonClass = operation === 'buy'
+    ? 'border-green-600 bg-green-600 text-white'
+    : `${themes[theme].border} ${themes[theme].text} hover:border-green-500 hover:text-green-600`;
+  const sellButtonClass = operation === 'sell'
+    ? 'border-red-600 bg-red-600 text-white'
+    : `${themes[theme].border} ${themes[theme].text} hover:border-red-500 hover:text-red-600`;
 
   return (
     <div className="space-y-6">
@@ -156,14 +163,29 @@ export function TradeForm({ selectedStock, theme, accountAlias, preferredTargetP
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className={`block text-sm font-medium ${themes[theme].text}`}>Operation</label>
-                <select
-                  value={operation}
-                  onChange={(e) => setOperation(e.target.value as 'buy' | 'sell')}
-                  className={inputClasses}
-                >
-                  <option value="buy">Buy</option>
-                  <option value="sell">Sell</option>
-                </select>
+                <div className="mt-1 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setOperation('buy')}
+                    disabled={!hasTargetPrice}
+                    aria-pressed={operation === 'buy'}
+                    className={`${operationButtonBaseClass} ${buyButtonClass} ${!hasTargetPrice ? 'cursor-not-allowed opacity-50' : ''}`}
+                  >
+                    Buy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOperation('sell')}
+                    disabled={!hasTargetPrice}
+                    aria-pressed={operation === 'sell'}
+                    className={`${operationButtonBaseClass} ${sellButtonClass} ${!hasTargetPrice ? 'cursor-not-allowed opacity-50' : ''}`}
+                  >
+                    Sell
+                  </button>
+                </div>
+                <p className={`mt-2 text-xs ${themes[theme].text} opacity-70`}>
+                  {hasTargetPrice ? 'Set Buy or Sell manually.' : 'Enter target price first, then choose Buy or Sell.'}
+                </p>
               </div>
 
               <div>
