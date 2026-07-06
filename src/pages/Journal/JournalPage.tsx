@@ -1,24 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { logger } from '../shared/utils/logger';
+import { logger } from '../../shared/utils/logger';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Briefcase } from 'lucide-react';
 
-import { Theme, themes } from '../lib/theme';
-import { portfolioService, accountService, stockService } from '../lib/services';
-import { AccountSelector } from '../shared/components/AccountSelector';
-import type { Account, Stock, Holding, Trade, StockOrder, User } from '../lib/services/types';
-import { TabNavigation } from './Journal/components/TabNavigation';
+import { Theme, themes } from '../../lib/theme';
+import { portfolioService, accountService, stockService } from '../../lib/services';
+import { AccountSelector } from '../../shared/components/AccountSelector';
+import type { Account, Stock, Holding, Trade, StockOrder, User } from '../../lib/services/types';
+import { TabNavigation } from './components/TabNavigation';
 import {
   getAccountAliasFromSearch,
   JOURNAL_ACCOUNT_STORAGE,
   persistAccountAlias,
   resolveCurrentAccountAlias,
-} from '../shared/utils/accountSelection';
+} from '../../shared/utils/accountSelection';
 import {
   buildJournalSearch,
   getJournalTabDefinitions,
   resolveJournalTab,
-} from './Journal/tabConfig';
+} from './tabConfig';
 
 interface JournalProps {
   selectedStock: Stock | null;

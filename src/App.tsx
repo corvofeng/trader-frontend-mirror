@@ -15,7 +15,7 @@ import { updateAnonPresenceWithTitleRetry } from './shared/utils/anonPresence';
 
 // Lazy load pages
 const Landing = React.lazy(() => import('./pages/Landing').then(module => ({ default: module.Landing })));
-const Journal = React.lazy(() => import('./pages/Journal').then(module => ({ default: module.Journal })));
+const Journal = React.lazy(() => import('./pages/Journal/JournalPage').then(module => ({ default: module.Journal })));
 const Options = React.lazy(() => import('./pages/Options').then(module => ({ default: module.Options })));
 const Admin = React.lazy(() => import('./pages/Admin').then(module => ({ default: module.Admin })));
 const About = React.lazy(() => import('./pages/About').then(module => ({ default: module.About })));
