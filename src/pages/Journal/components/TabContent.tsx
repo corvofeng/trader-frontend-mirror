@@ -9,6 +9,7 @@ import { themes, Theme } from '../../../lib/theme';
 import type { Stock, Holding, Trade, StockOrder } from '../../../lib/services/types';
 import { JOURNAL_ACCOUNT_STORAGE, persistAccountAlias } from '../../../shared/utils/accountSelection';
 import { AnalysisTab } from './AnalysisTab';
+import { JournalContractQuotePanel } from './JournalContractQuotePanel';
 
 const getOrderStatusBadge = (raw?: string | null) => {
   const s = (raw || '').trim().toUpperCase();
@@ -54,6 +55,11 @@ export function TabContent({
   onAccountChange
 }: TabContentProps) {
   const isSharedView = !!portfolioUuid;
+  const [selectedContractCode, setSelectedContractCode] = React.useState<string | null>(null);
+  const [selectedContractName, setSelectedContractName] = React.useState<string | null>(null);
+  const [selectedQuotePrice, setSelectedQuotePrice] = React.useState<number | null>(null);
+  const [selectedQuoteSide, setSelectedQuoteSide] = React.useState<'bid' | 'ask' | null>(null);
+  const [selectedQuoteLevel, setSelectedQuoteLevel] = React.useState<number | null>(null);
 
   const [todayOrders, setTodayOrders] = React.useState<StockOrder[]>([]);
   const [todayOrdersLoading, setTodayOrdersLoading] = React.useState(false);
@@ -100,6 +106,45 @@ export function TabContent({
     fetchTodayOrders();
   }, [activeTab, fetchTodayOrders, portfolioUuid]);
 
+  React.useEffect(() => {
+    const code = selectedStock?.stock_code?.trim();
+    if (!code) return;
+    setSelectedContractCode(code);
+    setSelectedContractName(selectedStock?.stock_name || code);
+    setSelectedQuotePrice(null);
+    setSelectedQuoteSide(null);
+    setSelectedQuoteLevel(null);
+  }, [selectedStock]);
+
+  React.useEffect(() => {
+    if (activeTab !== 'trades' || portfolioUuid) return;
+    if (selectedContractCode) return;
+    const latestOrder = sortedTodayOrders.find((order) => {
+      const code = (order.contract_code_full || order.instrument_id || '').trim();
+      return code.length > 0;
+    });
+    if (!latestOrder) return;
+    setSelectedContractCode((latestOrder.contract_code_full || latestOrder.instrument_id || '').trim());
+    setSelectedContractName(latestOrder.instrument_name || null);
+  }, [activeTab, portfolioUuid, selectedContractCode, sortedTodayOrders]);
+
+  const handleSelectContract = React.useCallback((code: string, name?: string) => {
+    const trimmedCode = code.trim();
+    if (!trimmedCode) return;
+    setSelectedContractCode(trimmedCode);
+    setSelectedContractName(name || null);
+    setSelectedQuotePrice(null);
+    setSelectedQuoteSide(null);
+    setSelectedQuoteLevel(null);
+  }, []);
+
+  const handleSelectQuotePrice = React.useCallback((price: number, side?: 'bid' | 'ask', level?: number) => {
+    if (!Number.isFinite(price)) return;
+    setSelectedQuotePrice(price);
+    setSelectedQuoteSide(side || null);
+    setSelectedQuoteLevel(level ?? null);
+  }, []);
+
   if (activeTab === 'portfolio') {
     return (
         <Portfolio
@@ -127,6 +172,17 @@ export function TabContent({
           selectedStock={selectedStock} 
           theme={theme} 
           accountAlias={selectedAccountId}
+          preferredTargetPrice={selectedQuotePrice}
+          preferredOperation={selectedQuoteSide === 'ask' ? 'buy' : selectedQuoteSide === 'bid' ? 'sell' : null}
+        />
+        <JournalContractQuotePanel
+          contractCode={selectedContractCode}
+          contractName={selectedContractName}
+          theme={theme}
+          selectedQuotePrice={selectedQuotePrice}
+          selectedQuoteSide={selectedQuoteSide}
+          selectedQuoteLevel={selectedQuoteLevel}
+          onSelectPrice={handleSelectQuotePrice}
         />
         <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden transition-colors duration-200`}>
           <div className={`px-4 sm:px-6 py-4 border-b ${themes[theme].border}`}>
@@ -135,6 +191,9 @@ export function TabContent({
                 <div className={`text-lg sm:text-xl font-semibold ${themes[theme].text}`}>当日订单</div>
                 <div className={`text-xs ${themes[theme].text} opacity-60 mt-1`}>
                   {todayOrdersLastUpdatedAt ? `更新于 ${new Date(todayOrdersLastUpdatedAt).toLocaleTimeString()}` : ' '}
+                </div>
+                <div className={`text-xs ${themes[theme].text} opacity-60 mt-1`}>
+                  点击合约代码可直接在上方加载该合约盘口，点击盘口价格可回填目标价。
                 </div>
               </div>
               <button
@@ -181,6 +240,7 @@ export function TabContent({
                         ? order.order_time.split(' ')[1]?.slice(0, 8)
                         : (order.order_time || '-');
                       const symbol = order.contract_code_full || order.instrument_id || '-';
+                      const isSelected = !!selectedContractCode && selectedContractCode === symbol;
                       const name = order.instrument_name || '';
                       const traded = Number.isFinite(order.traded_price) ? order.traded_price : null;
                       const limit = Number.isFinite(order.limit_price) ? order.limit_price : null;
@@ -193,10 +253,24 @@ export function TabContent({
                       const isSell = opName.includes('卖') || opName.toUpperCase().includes('SELL') || opName.includes('平仓') || opName.includes('S');
 
                       return (
-                        <tr key={`${order.order_sys_id || symbol || order.order_time || 'na'}-${idx}`}>
+                        <tr
+                          key={`${order.order_sys_id || symbol || order.order_time || 'na'}-${idx}`}
+                          className={isSelected ? 'bg-blue-50/70 dark:bg-blue-900/10' : undefined}
+                        >
                           <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{timeText}</td>
                           <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
-                            <div className="font-mono">{symbol}</div>
+                            <button
+                              type="button"
+                              disabled={symbol === '-'}
+                              onClick={() => handleSelectContract(symbol, name || undefined)}
+                              className={`font-mono text-left ${
+                                symbol === '-'
+                                  ? 'cursor-default opacity-60'
+                                  : 'text-blue-600 hover:underline dark:text-blue-400'
+                              }`}
+                            >
+                              {symbol}
+                            </button>
                             {name ? <div className="opacity-75">{name}</div> : null}
                           </td>
                           <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 text-center">

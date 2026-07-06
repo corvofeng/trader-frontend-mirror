@@ -16,9 +16,11 @@ interface TradeFormProps {
   selectedStock: Stock | null;
   theme: Theme;
   accountAlias?: string | null;
+  preferredTargetPrice?: number | null;
+  preferredOperation?: 'buy' | 'sell' | null;
 }
 
-export function TradeForm({ selectedStock, theme, accountAlias }: TradeFormProps) {
+export function TradeForm({ selectedStock, theme, accountAlias, preferredTargetPrice, preferredOperation }: TradeFormProps) {
   const [stockCode, setStockCode] = useState('');
   const [stockName, setStockName] = useState('');
   const [operation, setOperation] = useState<'buy' | 'sell'>('buy');
@@ -38,6 +40,16 @@ export function TradeForm({ selectedStock, theme, accountAlias }: TradeFormProps
       }
     }
   }, [selectedStock]);
+
+  useEffect(() => {
+    if (typeof preferredTargetPrice !== 'number' || !Number.isFinite(preferredTargetPrice)) return;
+    setTargetPrice(preferredTargetPrice.toFixed(4));
+  }, [preferredTargetPrice]);
+
+  useEffect(() => {
+    if (preferredOperation !== 'buy' && preferredOperation !== 'sell') return;
+    setOperation(preferredOperation);
+  }, [preferredOperation]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
