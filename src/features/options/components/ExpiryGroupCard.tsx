@@ -1278,7 +1278,7 @@ export function ExpiryGroupCard({
     hasUserAdjustedTBoardRef.current = true;
   }, []);
 
-  const actionButtonClass = `rounded-xl px-3 py-2 text-xs sm:text-sm font-medium transition-colors ${themes[theme].secondary}`;
+  const actionButtonClass = `rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-sm font-medium transition-colors ${themes[theme].secondary}`;
   const tBoardValueTextClass = `inline-flex items-center justify-center text-[13px] font-semibold leading-tight ${themes[theme].text}`;
   const tBoardComboValueClass = `inline-flex min-w-[2.5rem] items-center justify-center text-[13px] font-semibold leading-tight ${themes[theme].text}`;
   const tBoardComboHintClass = 'decoration-dotted underline-offset-2 hover:opacity-80';
@@ -1521,51 +1521,51 @@ export function ExpiryGroupCard({
 
   return (
     <div className={`${themes[theme].card} ${themes[theme].border} rounded-2xl border shadow-md overflow-hidden`}>
-      <div className={`p-4 sm:p-6 border-b ${themes[theme].border}`}>
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className={`p-3 sm:p-6 border-b ${themes[theme].border}`}>
+        <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             <div className={`text-[11px] sm:text-xs font-medium uppercase tracking-[0.18em] ${themes[theme].text} opacity-45`}>
               到期日
             </div>
-            <h3 className={`mt-1 text-2xl sm:text-3xl font-semibold leading-tight ${themes[theme].text}`}>
+            <h3 className={`mt-0.5 sm:mt-1 text-lg sm:text-3xl font-semibold leading-tight ${themes[theme].text}`}>
               {format(new Date(group.expiry), 'yyyy年MM月dd日')}
             </h3>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <span className={`px-3 py-1.5 rounded-full text-xs font-medium ${getDaysToExpiryColor(group.daysToExpiry)}`}>
+            <div className="mt-2 sm:mt-3 flex flex-wrap gap-1.5 sm:gap-2">
+              <span className={`px-2 sm:px-3 py-0.5 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-medium ${getDaysToExpiryColor(group.daysToExpiry)}`}>
                 {group.daysToExpiry > 0 ? `${group.daysToExpiry}天后到期` : '已到期'}
               </span>
-              <span className={`px-3 py-1.5 rounded-full text-xs font-medium ${themes[theme].background} ${themes[theme].text}`}>
+              <span className={`px-2 sm:px-3 py-0.5 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-medium ${themes[theme].background} ${themes[theme].text}`}>
                 {filteredPositions.length} 个持仓
               </span>
               {totalMargin > 0 && (
-                <span className="px-3 py-1.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-600 dark:text-amber-300 font-mono">
+                <span className="px-2 sm:px-3 py-0.5 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-medium bg-amber-500/10 text-amber-600 dark:text-amber-300 font-mono">
                   保证金 {formatCurrency(totalMargin, currencyConfig, 0)}
                 </span>
               )}
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 lg:min-w-[320px] lg:max-w-[360px]">
-            <div className="grid gap-2 sm:grid-cols-2">
+          <div className="flex flex-col gap-2 sm:gap-3 lg:min-w-[320px] lg:max-w-[360px]">
+            <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
               {selectedSymbol && underlyingPrice != null && (
-                <div className={`${themes[theme].background} rounded-2xl px-4 py-3`}>
-                  <div className={`text-[11px] ${themes[theme].text} opacity-55`}>标的价格</div>
-                  <div className={`mt-1 text-xl font-semibold ${themes[theme].text}`}>
+                <div className={`${themes[theme].background} rounded-xl sm:rounded-2xl px-2.5 sm:px-4 py-2 sm:py-3`}>
+                  <div className={`text-[10px] sm:text-[11px] ${themes[theme].text} opacity-55`}>标的价格</div>
+                  <div className={`mt-0.5 sm:mt-1 text-sm sm:text-xl font-semibold ${themes[theme].text}`}>
                     {underlyingPrice.toFixed(4)}
                   </div>
                 </div>
               )}
 
-              <div className={`${themes[theme].background} rounded-2xl px-4 py-3`}>
+              <div className={`${themes[theme].background} rounded-xl sm:rounded-2xl px-2.5 sm:px-4 py-2 sm:py-3`}>
                 <div className="flex items-center justify-between gap-2">
-                  <div className={`text-[11px] ${themes[theme].text} opacity-55`}>行情刷新</div>
-                  <div className={`text-[11px] ${themes[theme].text} opacity-60`}>
+                  <div className={`text-[10px] sm:text-[11px] ${themes[theme].text} opacity-55`}>行情刷新</div>
+                  <div className={`text-[10px] sm:text-[11px] ${themes[theme].text} opacity-60`}>
                     {isConnected && codes.length > 0 ? `${Math.ceil(quoteRemainingMs / 1000)}s` : '--'}
                   </div>
                 </div>
-                <div className="mt-2 flex items-center gap-2">
-                  <Hourglass className={`w-4 h-4 ${themes[theme].text} opacity-55`} />
-                  <div className="flex-1 h-1.5 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+                <div className="mt-1.5 sm:mt-2 flex items-center gap-1.5 sm:gap-2">
+                  <Hourglass className={`w-3 h-3 sm:w-4 sm:h-4 ${themes[theme].text} opacity-55`} />
+                  <div className="flex-1 h-1 sm:h-1.5 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
                     <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.round(quoteProgress * 100)}%` }} />
                   </div>
                   <button
@@ -1582,7 +1582,7 @@ export function ExpiryGroupCard({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
+            <div className="grid grid-cols-2 gap-1.5 sm:gap-2 sm:flex sm:flex-wrap sm:justify-end">
               <button onClick={onToggleExpand} className={actionButtonClass}>
                 {isExpanded ? '收起详情' : '展开详情'}
               </button>
@@ -1595,7 +1595,7 @@ export function ExpiryGroupCard({
               {isSelectingExpiry(group.expiry) && (
                 <button
                   onClick={() => openSaveModal(group.expiry)}
-                  className="col-span-2 rounded-xl px-3 py-2 text-xs sm:text-sm font-medium bg-blue-600 text-white hover:bg-blue-700"
+                  className="col-span-2 rounded-xl px-2.5 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-sm font-medium bg-blue-600 text-white hover:bg-blue-700"
                 >
                   构建组合并保存
                 </button>
@@ -1607,7 +1607,7 @@ export function ExpiryGroupCard({
 
 
 
-      <div className="p-4 sm:p-6">
+      <div className="p-3 sm:p-6">
         <div className="space-y-4">
           {(() => {
             const callPositions = filteredPositions.filter(pos => (pos.type === 'call' || pos.contract_type_zh === 'call'));
@@ -2490,41 +2490,41 @@ export function ExpiryGroupCard({
                   </div>
                 )}
                 {isExpanded && (callPositions.length > 0 || putPositions.length > 0) && (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
                     <div>
-                      <div className="flex items-center gap-2 mb-4">
-                        <div className="w-4 h-4 bg-green-500 rounded"></div>
-                        <h4 className={`text-lg font-semibold ${themes[theme].text}`}>
+                      <div className="flex items-center gap-2 mb-2 sm:mb-4">
+                        <div className="w-3 h-3 sm:w-4 sm:h-4 bg-green-500 rounded"></div>
+                        <h4 className={`text-sm sm:text-lg font-semibold ${themes[theme].text}`}>
                           Call期权 ({callPositions.length})
                         </h4>
                       </div>
-                      <div className="space-y-3">
+                      <div className="space-y-2 sm:space-y-3">
                         {callPositions.map((position, index) => {
                           const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh, position.is_covered);
                           return (
                             <div 
                               key={`${position.id ?? 'noid'}-${position.symbol}-${position.strike}-${position.type}-${position.expiry}-${index}`}
-                              className={`${themes[theme].background} rounded-lg p-4 border ${themes[theme].border} border-l-4 ${positionInfo.borderColor} ${getHighlightClass(position)}`}
+                              className={`${themes[theme].background} rounded-lg p-3 sm:p-4 border ${themes[theme].border} border-l-4 ${positionInfo.borderColor} ${getHighlightClass(position)}`}
                             >
-                              <div className="flex justify-between items-start">
-                                <div className="flex items-start space-x-3">
+                              <div className="flex justify-between items-start gap-2">
+                                <div className="flex items-start space-x-2 sm:space-x-3 min-w-0 flex-1">
                                   {getTypeIcon(position.type)}
-                                  <div>
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <div className={`text-sm font-medium ${themes[theme].text}`}>
+                                  <div className="min-w-0">
+                                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-0.5 sm:mb-1">
+                                      <div className={`text-xs sm:text-sm font-medium ${themes[theme].text} break-all`}>
                                         {position.symbol} {position.strike}
                                       </div>
-                                      <div className="flex items-center gap-1">
+                                      <div className="flex items-center gap-1 shrink-0">
                                         {positionInfo.icon}
-                                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${positionInfo.color}`}>
+                                        <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${positionInfo.color}`}>
                                           {positionInfo.label}
                                         </span>
                                       </div>
                                     </div>
-                                    <div className={`text-xs ${themes[theme].text} opacity-75`}>
+                                    <div className={`text-[11px] sm:text-xs ${themes[theme].text} opacity-75 leading-tight`}>
                                       {position.strategy} • {positionInfo.description}
                                     </div>
-                                    <div className="flex items-center gap-3 mt-2 text-xs">
+                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 sm:mt-2 text-[11px] sm:text-xs">
                                       <span className={`${themes[theme].text} opacity-75`}>
                                         {(() => {
                                           const base = position.quantity;
@@ -2538,30 +2538,30 @@ export function ExpiryGroupCard({
                                     </div>
                                   </div>
                                 </div>
-                                <div className="text-right">
-                                  <div className={`text-sm font-bold ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                <div className="text-right shrink-0">
+                                  <div className={`text-xs sm:text-sm font-bold ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                     {position.profitLoss >= 0 ? '+' : '-'}{formatCurrency(Math.abs(position.profitLoss), currencyConfig, 4)}
                                   </div>
-                                  <div className={`text-xs ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  <div className={`text-[10px] sm:text-xs ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                     ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
                                   </div>
-                                  <div className="flex items-center justify-end gap-2 mt-1">
-                                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(position.status)}`}>
+                                  <div className="flex flex-wrap items-center justify-end gap-1 sm:gap-2 mt-1">
+                                    <span className={`inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${getStatusColor(position.status)}`}>
                                       {position.status === 'open' ? '持仓中' : position.status === 'closed' ? '已平仓' : '已到期'}
                                     </span>
                                     {!isSelectingExpiry(position.expiry) && (
                                       <button
                                         type="button"
                                         onClick={() => setPositionSelected(position.id, true)}
-                                        className="inline-flex items-center px-2 py-1 rounded text-xs bg-blue-600 text-white hover:bg-blue-700"
+                                        className="inline-flex items-center px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs bg-blue-600 text-white hover:bg-blue-700"
                                         aria-label="加入策略"
                                       >
                                         加入策略
                                       </button>
                                     )}
                                     {isSelectingExpiry(position.expiry) && (
-                                      <div className="mt-2 flex items-center justify-end gap-2">
-                                        <label className={`text-xs ${themes[theme].text} opacity-75 flex items-center gap-1`}>
+                                      <div className="flex items-center gap-1 sm:gap-2">
+                                        <label className={`text-[10px] sm:text-xs ${themes[theme].text} opacity-75 flex items-center gap-1`}>
                                           <input
                                             type="checkbox"
                                             checked={!!selectedLegs[position.id]}
@@ -2580,20 +2580,20 @@ export function ExpiryGroupCard({
                                               const clamped = Math.max(1, Math.min(val, position.quantity));
                                               updateSelectedQuantity(position.id, clamped);
                                             }}
-                                            className={`w-20 px-2 py-1 rounded text-xs ${themes[theme].input} ${themes[theme].text}`}
+                                            className={`w-14 sm:w-20 px-1.5 sm:px-2 py-0.5 rounded text-[10px] sm:text-xs ${themes[theme].input} ${themes[theme].text}`}
                                           />
                                         )}
-      </div>
-    )}
-  </div>
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             </div>
                           );
                         })}
                         {callPositions.length === 0 && (
-                          <div className={`${themes[theme].background} rounded-lg p-6 text-center border-2 border-dashed ${themes[theme].border}`}>
-                            <p className={`${themes[theme].text} opacity-75`}>
+                          <div className={`${themes[theme].background} rounded-lg p-4 sm:p-6 text-center border-2 border-dashed ${themes[theme].border}`}>
+                            <p className={`text-xs sm:text-sm ${themes[theme].text} opacity-75`}>
                               暂无Call期权持仓
                             </p>
                           </div>
@@ -2602,39 +2602,39 @@ export function ExpiryGroupCard({
                     </div>
 
                     <div>
-                      <div className="flex items-center gap-2 mb-4">
-                        <div className="w-4 h-4 bg-red-500 rounded"></div>
-                        <h4 className={`text-lg font-semibold ${themes[theme].text}`}>
+                      <div className="flex items-center gap-2 mb-2 sm:mb-4">
+                        <div className="w-3 h-3 sm:w-4 sm:h-4 bg-red-500 rounded"></div>
+                        <h4 className={`text-sm sm:text-lg font-semibold ${themes[theme].text}`}>
                           Put期权 ({putPositions.length})
                         </h4>
                       </div>
-                      <div className="space-y-3">
+                      <div className="space-y-2 sm:space-y-3">
                         {putPositions.map((position, index) => {
                           const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh, position.is_covered);
                           return (
                             <div 
                               key={`${position.id ?? 'noid'}-${position.symbol}-${position.strike}-${position.type}-${position.expiry}-${index}`}
-                              className={`${themes[theme].background} rounded-lg p-4 border ${themes[theme].border} border-l-4 ${positionInfo.borderColor} ${getHighlightClass(position)}`}
+                              className={`${themes[theme].background} rounded-lg p-3 sm:p-4 border ${themes[theme].border} border-l-4 ${positionInfo.borderColor} ${getHighlightClass(position)}`}
                             >
-                              <div className="flex justify-between items-start">
-                                <div className="flex items-start space-x-3">
+                              <div className="flex justify-between items-start gap-2">
+                                <div className="flex items-start space-x-2 sm:space-x-3 min-w-0 flex-1">
                                   {getTypeIcon(position.type)}
-                                  <div>
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <div className={`text-sm font-medium ${themes[theme].text}`}>
+                                  <div className="min-w-0">
+                                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-0.5 sm:mb-1">
+                                      <div className={`text-xs sm:text-sm font-medium ${themes[theme].text} break-all`}>
                                         {position.symbol} {position.strike}
                                       </div>
-                                      <div className="flex items-center gap-1">
+                                      <div className="flex items-center gap-1 shrink-0">
                                         {positionInfo.icon}
-                                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${positionInfo.color}`}>
+                                        <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${positionInfo.color}`}>
                                           {positionInfo.label}
                                         </span>
                                       </div>
                                     </div>
-                                    <div className={`text-xs ${themes[theme].text} opacity-75`}>
+                                    <div className={`text-[11px] sm:text-xs ${themes[theme].text} opacity-75 leading-tight`}>
                                       {position.strategy} • {positionInfo.description}
                                     </div>
-                                    <div className="flex items-center gap-3 mt-2 text-xs">
+                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 sm:mt-2 text-[11px] sm:text-xs">
                                       <span className={`${themes[theme].text} opacity-75`}>
                                         {(() => {
                                           const base = position.quantity;
@@ -2648,30 +2648,30 @@ export function ExpiryGroupCard({
                                     </div>
                                   </div>
                                 </div>
-                                <div className="text-right">
-                                  <div className={`text-sm font-bold ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                <div className="text-right shrink-0">
+                                  <div className={`text-xs sm:text-sm font-bold ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                     {position.profitLoss >= 0 ? '+' : '-'}{formatCurrency(Math.abs(position.profitLoss), currencyConfig, 4)}
                                   </div>
-                                  <div className={`text-xs ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  <div className={`text-[10px] sm:text-xs ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                     ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
                                   </div>
-                                  <div className="flex items-center justify-end gap-2 mt-1">
-                                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(position.status)}`}>
+                                  <div className="flex flex-wrap items-center justify-end gap-1 sm:gap-2 mt-1">
+                                    <span className={`inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${getStatusColor(position.status)}`}>
                                       {position.status === 'open' ? '持仓中' : position.status === 'closed' ? '已平仓' : '已到期'}
                                     </span>
                                     {!isSelectingExpiry(position.expiry) && (
                                       <button
                                         type="button"
                                         onClick={() => setPositionSelected(position.id, true)}
-                                        className="inline-flex items-center px-2 py-1 rounded text-xs bg-blue-600 text-white hover:bg-blue-700"
+                                        className="inline-flex items-center px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs bg-blue-600 text-white hover:bg-blue-700"
                                         aria-label="加入策略"
                                       >
                                         加入策略
                                       </button>
                                     )}
                                     {isSelectingExpiry(position.expiry) && (
-                                      <div className="mt-2 flex items-center justify-end gap-2">
-                                        <label className={`text-xs ${themes[theme].text} opacity-75 flex items-center gap-1`}>
+                                      <div className="flex items-center gap-1 sm:gap-2">
+                                        <label className={`text-[10px] sm:text-xs ${themes[theme].text} opacity-75 flex items-center gap-1`}>
                                           <input
                                             type="checkbox"
                                             checked={!!selectedLegs[position.id]}
@@ -2690,7 +2690,7 @@ export function ExpiryGroupCard({
                                               const clamped = Math.max(1, Math.min(val, position.quantity));
                                               updateSelectedQuantity(position.id, clamped);
                                             }}
-                                            className={`w-20 px-2 py-1 rounded text-xs ${themes[theme].input} ${themes[theme].text}`}
+                                            className={`w-14 sm:w-20 px-1.5 sm:px-2 py-0.5 rounded text-[10px] sm:text-xs ${themes[theme].input} ${themes[theme].text}`}
                                           />
                                         )}
                                       </div>
@@ -2702,8 +2702,8 @@ export function ExpiryGroupCard({
                           );
                         })}
                         {putPositions.length === 0 && (
-                          <div className={`${themes[theme].background} rounded-lg p-6 text-center border-2 border-dashed ${themes[theme].border}`}>
-                            <p className={`${themes[theme].text} opacity-75`}>
+                          <div className={`${themes[theme].background} rounded-lg p-4 sm:p-6 text-center border-2 border-dashed ${themes[theme].border}`}>
+                            <p className={`text-xs sm:text-sm ${themes[theme].text} opacity-75`}>
                               暂无Put期权持仓
                             </p>
                           </div>
@@ -2715,13 +2715,13 @@ export function ExpiryGroupCard({
 
                 {isExpanded && (group.complex && group.complex.length > 0) && (
                   <div>
-                    <div className="flex items-center gap-2 mb-4">
-                      <div className="w-4 h-4 bg-purple-500 rounded"></div>
-                      <h4 className={`text-lg font-semibold ${themes[theme].text}`}>
+                    <div className="flex items-center gap-2 mb-2 sm:mb-4">
+                      <div className="w-3 h-3 sm:w-4 sm:h-4 bg-purple-500 rounded"></div>
+                      <h4 className={`text-sm sm:text-lg font-semibold ${themes[theme].text}`}>
                         复杂策略 ({group.complex.length})
                       </h4>
                     </div>
-                    <div className="space-y-3">
+                    <div className="space-y-2 sm:space-y-3">
                       {group.complex.map((strategy, strategyIndex) => {
                         const positions = filterAndSortPositions(strategy.positions)
                           .filter(position => statusFilter === 'all' || position.status === statusFilter);
@@ -2732,44 +2732,44 @@ export function ExpiryGroupCard({
                         const comboCount = Array.from(callCombosByStrike.values()).reduce((sum, v) => sum + v, 0) +
                           Array.from(putCombosByStrike.values()).reduce((sum, v) => sum + v, 0);
                         return (
-                          <div key={`${strategy.id ?? 'nostrategy'}-${strategyIndex}`} className={`${themes[theme].background} rounded-lg p-4 border-l-4 border-purple-500`}>
-                            <div className="flex items-center justify-between mb-3">
-                              <div className={`text-sm ${themes[theme].text} opacity-75`}>
+                          <div key={`${strategy.id ?? 'nostrategy'}-${strategyIndex}`} className={`${themes[theme].background} rounded-lg p-3 sm:p-4 border-l-4 border-purple-500`}>
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-3 mb-2 sm:mb-3">
+                              <div className={`text-[11px] sm:text-sm ${themes[theme].text} opacity-75`}>
                                 {strategy.name} （{legCount} 腿，组合数 {comboCount}）
                               </div>
-                              <div className="text-right">
-                                <div className={`text-sm font-medium ${themes[theme].text}`}>
-                                  总成本: {formatCurrency(strategy.totalCost, currencyConfig, 4)}
+                              <div className="flex gap-3 sm:text-right text-xs sm:text-sm shrink-0">
+                                <div className={`font-medium ${themes[theme].text}`}>
+                                  成本 {formatCurrency(strategy.totalCost, currencyConfig, 4)}
                                 </div>
-                                <div className={`text-sm ${strategy.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                  盈亏: {strategy.profitLoss >= 0 ? '+' : '-'}{formatCurrency(Math.abs(strategy.profitLoss), currencyConfig, 4)}
+                                <div className={`${strategy.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {strategy.profitLoss >= 0 ? '+' : '-'}{formatCurrency(Math.abs(strategy.profitLoss), currencyConfig, 4)}
                                 </div>
                               </div>
                             </div>
-                            <div className="grid gap-3">
+                            <div className="grid gap-2 sm:gap-3">
                               {positions.map((position) => {
                                 const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh, position.is_covered);
                                 return (
-                                  <div key={`${position.id ?? 'noid'}-${position.symbol}-${position.strike}-${position.type}-${position.expiry}`} className={`${themes[theme].card} rounded-lg p-3 border ${themes[theme].border}`}>
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex items-center gap-3">
-                                        <div className="flex items-center gap-2">
+                                  <div key={`${position.id ?? 'noid'}-${position.symbol}-${position.strike}-${position.type}-${position.expiry}`} className={`${themes[theme].card} rounded-lg p-2 sm:p-3 border ${themes[theme].border}`}>
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                                        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                                           {positionInfo.icon}
-                                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${positionInfo.color}`}>
+                                          <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${positionInfo.color}`}>
                                             {positionInfo.label}
                                           </span>
                                         </div>
-                                        <div>
-                                          <div className={`text-sm font-medium ${themes[theme].text}`}>
+                                        <div className="min-w-0">
+                                          <div className={`text-xs sm:text-sm font-medium ${themes[theme].text} break-all`}>
                                             {position.symbol} {position.strike} {position.type.toUpperCase()}
                                           </div>
                                         </div>
                                       </div>
-                                      <div className="text-right">
-                                        <div className={`text-sm font-medium ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                      <div className="text-right shrink-0">
+                                        <div className={`text-xs sm:text-sm font-medium ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                           {position.profitLoss >= 0 ? '+' : '-'}{formatCurrency(Math.abs(position.profitLoss), currencyConfig, 4)}
                                         </div>
-                                        <div className={`text-xs ${themes[theme].text} opacity-60`}>
+                                        <div className={`text-[10px] sm:text-xs ${themes[theme].text} opacity-60`}>
                                           {(() => {
                                             const base = position.quantity;
                                             const avail = Number(position.available ?? base) || 0;
