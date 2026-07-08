@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useAutoRefresh, useOptionPriceWebSocket } from '../hooks/useOptionPriceWebSocket';
 import { AnimatedFlash } from './AnimatedFlash';
 import { Theme, themes } from '../../../lib/theme';
@@ -39,44 +39,114 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0 }: Unde
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [dragging, setDragging] = useState(false);
   const dragOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const activeDragPointerIdRef = useRef<number | null>(null);
+  const getViewportSize = useCallback(() => {
+    const vv = window.visualViewport;
+    return {
+      width: vv?.width ?? window.innerWidth,
+      height: vv?.height ?? window.innerHeight,
+    };
+  }, []);
+  const [viewportSize, setViewportSize] = useState(() => getViewportSize());
   const [collapsed, setCollapsed] = useState(() => {
     try {
-      return localStorage.getItem('underlying_price_monitor_collapsed') === '1';
+      const saved = localStorage.getItem('underlying_price_monitor_collapsed');
+      if (saved === '1') return true;
+      if (saved === '0') return false;
     } catch {
-      return false;
+      void 0;
     }
+    return getViewportSize().width < 1280;
   });
-  const [positionMode, setPositionMode] = useState<'corner' | 'custom'>(() => {
+  const getMonitorDims = useCallback((size = viewportSize) => {
+    const compact = size.width < 768;
+    const width = compact ? Math.max(220, Math.min(240, size.width - 16)) : 256;
+    const approxHeight = compact ? 380 : 430;
+    const chartHeight = compact ? 96 : 128;
+    return { width, approxHeight, chartHeight, compact };
+  }, [viewportSize]);
+  const clampPanelPos = useCallback((pos: { top: number; left: number }, size = viewportSize) => {
+    const dims = getMonitorDims(size);
+    const top = Math.max(8, Math.min(pos.top, Math.max(8, size.height - dims.approxHeight)));
+    const left = Math.max(8, Math.min(pos.left, Math.max(8, size.width - dims.width - 8)));
+    return { top, left };
+  }, [getMonitorDims, viewportSize]);
+  const getDefaultPanelPos = useCallback((size = viewportSize) => {
+    const dims = getMonitorDims(size);
+    const topSeed = size.width < 1280
+      ? Math.max(96, size.height - dims.approxHeight - 88)
+      : 96;
+    return clampPanelPos(
+      {
+        top: topSeed,
+        left: size.width - dims.width - 8,
+      },
+      size
+    );
+  }, [clampPanelPos, getMonitorDims, viewportSize]);
+  const [panelPos, setPanelPos] = useState<{ top: number; left: number }>(() => {
     try {
-      const saved = localStorage.getItem('underlying_price_monitor_pos_mode');
-      return saved === 'custom' ? 'custom' : 'corner';
-    } catch {
-      return 'corner';
-    }
-  });
-  const [corner, setCorner] = useState<'top-right' | 'bottom-right' | 'top-left' | 'bottom-left'>(() => {
-    try {
-      const saved = localStorage.getItem('underlying_price_monitor_corner');
-      if (saved === 'bottom-right' || saved === 'top-left' || saved === 'bottom-left') return saved;
-      return 'top-right';
-    } catch {
-      return 'top-right';
-    }
-  });
-  const [customPos, setCustomPos] = useState<{ top: number; left: number }>(() => {
-    try {
-      const saved = localStorage.getItem('underlying_price_monitor_custom');
+      const saved = localStorage.getItem('underlying_price_monitor_pos');
       if (saved) {
         const obj = JSON.parse(saved);
         if (typeof obj?.top === 'number' && typeof obj?.left === 'number') {
-          return { top: obj.top, left: obj.left };
+          return obj;
+        }
+      }
+      const legacy = localStorage.getItem('underlying_price_monitor_custom');
+      if (legacy) {
+        const obj = JSON.parse(legacy);
+        if (typeof obj?.top === 'number' && typeof obj?.left === 'number') {
+          return obj;
         }
       }
     } catch {
       void 0;
     }
-    return { top: 96, left: window.innerWidth - 16 - 256 }; // approx: top-24, right-4 for 16rem width
+    return getDefaultPanelPos(getViewportSize());
   });
+  const persistPanelPos = useCallback((pos: { top: number; left: number }) => {
+    try {
+      localStorage.setItem('underlying_price_monitor_pos', JSON.stringify(pos));
+      localStorage.setItem('underlying_price_monitor_custom', JSON.stringify(pos));
+    } catch {
+      void 0;
+    }
+  }, []);
+
+  useEffect(() => {
+    const syncViewport = () => {
+      setViewportSize((prev) => {
+        const next = getViewportSize();
+        if (prev.width === next.width && prev.height === next.height) {
+          return prev;
+        }
+        return next;
+      });
+    };
+
+    syncViewport();
+    window.addEventListener('resize', syncViewport);
+    const vv = window.visualViewport;
+    vv?.addEventListener('resize', syncViewport);
+    vv?.addEventListener('scroll', syncViewport);
+    return () => {
+      window.removeEventListener('resize', syncViewport);
+      vv?.removeEventListener('resize', syncViewport);
+      vv?.removeEventListener('scroll', syncViewport);
+    };
+  }, [getViewportSize]);
+
+  useEffect(() => {
+    setPanelPos((prev) => {
+      const next = clampPanelPos(prev);
+      if (next.top === prev.top && next.left === prev.left) {
+        return prev;
+      }
+      persistPanelPos(next);
+      return next;
+    });
+  }, [clampPanelPos, persistPanelPos, viewportSize.height, viewportSize.width]);
 
   const autoRefreshIntervalMs = 5000;
   const { remainingMs, progress, triggerNow } = useAutoRefresh(
@@ -204,15 +274,15 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0 }: Unde
 
   const baseClass = `${themes[theme].card} shadow-lg rounded-lg border ${themes[theme].border} overflow-hidden opacity-90 hover:opacity-100 transition-opacity ${dragging ? 'cursor-grabbing' : 'cursor-move'}`;
   const motionMs = 240;
-  const monitorWidth = 256; // 16rem
-  const monitorApproxHeight = 360;
+  const monitorDims = getMonitorDims();
+  const clampedPanelPos = clampPanelPos(panelPos);
 
   const readTodayPanelState = (includeClosed: boolean) => {
     try {
       const open = localStorage.getItem('options_portfolio_today_combo_open') === '1';
       const posStr = localStorage.getItem('options_portfolio_today_combo_pos');
       const sizeStr = localStorage.getItem('options_portfolio_today_combo_size');
-      const pos = posStr ? JSON.parse(posStr) : { top: 120, left: window.innerWidth - 16 - 860 };
+      const pos = posStr ? JSON.parse(posStr) : { top: 120, left: viewportSize.width - 16 - 860 };
 
       if (!open) {
         if (!includeClosed) {
@@ -221,8 +291,8 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0 }: Unde
         const headerHeight = 52;
         const collapsedWidth = 56;
         const topRaw = Number(pos.top ?? 120);
-        const top = Math.max(8, Math.min(topRaw, window.innerHeight - headerHeight - 8));
-        const left = window.innerWidth - collapsedWidth - 8;
+        const top = Math.max(8, Math.min(topRaw, viewportSize.height - headerHeight - 8));
+        const left = viewportSize.width - collapsedWidth - 8;
         return {
           open: false,
           top,
@@ -232,66 +302,60 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0 }: Unde
         };
       }
       const size = sizeStr ? JSON.parse(sizeStr) : { width: 860, height: 360 };
-      const width = Math.max(640, Math.min(size.width ?? 860, Math.max(320, window.innerWidth - 16)));
-      const height = Math.max(180, Math.min(size.height ?? 360, Math.max(160, window.innerHeight - 16)));
+      const width = Math.max(640, Math.min(size.width ?? 860, Math.max(320, viewportSize.width - 16)));
+      const height = Math.max(180, Math.min(size.height ?? 360, Math.max(160, viewportSize.height - 16)));
       const topRaw = Number(pos.top ?? 120);
-      const leftRaw = Number(pos.left ?? (window.innerWidth - 16 - width));
-      const top = Math.max(8, Math.min(topRaw, window.innerHeight - height - 8));
-      const left = Math.max(8, Math.min(leftRaw, window.innerWidth - width - 8));
+      const leftRaw = Number(pos.left ?? (viewportSize.width - 16 - width));
+      const top = Math.max(8, Math.min(topRaw, viewportSize.height - height - 8));
+      const left = Math.max(8, Math.min(leftRaw, viewportSize.width - width - 8));
       return { open: true, top, left, width, height };
     } catch {
       return null;
     }
   };
 
-  const style: React.CSSProperties = { position: 'fixed', zIndex: 60, width: monitorWidth, transition: `top ${motionMs}ms ease, left ${motionMs}ms ease, right ${motionMs}ms ease, bottom ${motionMs}ms ease, width ${motionMs}ms ease, opacity ${motionMs}ms ease, transform ${motionMs}ms ease` };
-  if (positionMode === 'corner') {
-    if (corner === 'top-right') { style.top = 96; style.right = 16; }
-    if (corner === 'bottom-right') { style.bottom = 80; style.right = 16; }
-    if (corner === 'top-left') { style.top = 96; style.left = 16; }
-    if (corner === 'bottom-left') { style.bottom = 80; style.left = 16; }
-  } else {
-    style.top = Math.max(16, Math.min(customPos.top, window.innerHeight - monitorApproxHeight));
-    style.left = Math.max(16, Math.min(customPos.left, window.innerWidth - 280));
-  }
+  const style: React.CSSProperties = {
+    position: 'fixed',
+    zIndex: 48,
+    width: monitorDims.width,
+    top: clampedPanelPos.top,
+    left: clampedPanelPos.left,
+    transition: dragging
+      ? 'none'
+      : `top ${motionMs}ms ease, left ${motionMs}ms ease, width ${motionMs}ms ease, opacity ${motionMs}ms ease, transform ${motionMs}ms ease`
+  };
 
   const collapsedStyle: React.CSSProperties = {
     position: 'fixed',
-    zIndex: 60,
+    zIndex: 48,
     right: 0,
-    width: 34,
-    height: 160,
+    width: 36,
+    height: 156,
     borderTopRightRadius: 0,
     borderBottomRightRadius: 0,
     transition: `top ${motionMs}ms ease, bottom ${motionMs}ms ease, width ${motionMs}ms ease, opacity ${motionMs}ms ease, transform ${motionMs}ms ease`
   };
-  if (typeof style.top === 'number') {
-    collapsedStyle.top = style.top;
-  } else if (typeof style.bottom === 'number') {
-    collapsedStyle.bottom = style.bottom;
-  } else {
-    collapsedStyle.top = 96;
-  }
+  collapsedStyle.top = clampedPanelPos.top;
   const todayAny = readTodayPanelState(true);
   if (todayAny) {
     const collapsedHeight = Number(collapsedStyle.height ?? 160);
     const currentTop = typeof collapsedStyle.top === 'number'
       ? collapsedStyle.top
       : (typeof collapsedStyle.bottom === 'number'
-          ? window.innerHeight - (collapsedStyle.bottom + collapsedHeight)
+          ? viewportSize.height - (collapsedStyle.bottom + collapsedHeight)
           : 96);
 
     const todayBottom = todayAny.top + todayAny.height;
     const overlapVertically = !(currentTop + collapsedHeight < todayAny.top || currentTop > todayBottom);
-    const monitorLeft = window.innerWidth - Number(collapsedStyle.width ?? 34);
+    const monitorLeft = viewportSize.width - Number(collapsedStyle.width ?? 34);
     const overlapHorizontally = (todayAny.left + todayAny.width) > monitorLeft;
 
     if (overlapVertically && overlapHorizontally) {
       const gap = 10;
       const below = todayBottom + gap;
       const above = todayAny.top - gap - collapsedHeight;
-      const clampedBelow = Math.max(8, Math.min(below, window.innerHeight - collapsedHeight - 8));
-      const nextTop = below + collapsedHeight <= window.innerHeight - 8
+      const clampedBelow = Math.max(8, Math.min(below, viewportSize.height - collapsedHeight - 8));
+      const nextTop = below + collapsedHeight <= viewportSize.height - 8
         ? below
         : (above >= 8 ? above : clampedBelow);
       collapsedStyle.top = nextTop;
@@ -299,55 +363,49 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0 }: Unde
     }
   }
 
-  const startDrag = (e: React.MouseEvent) => {
+  const startDrag = useCallback((e: React.PointerEvent) => {
     if (collapsed) return;
-    if (positionMode !== 'custom') return;
+    if ((e.target as HTMLElement | null)?.closest('button')) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
     setDragging(true);
+    activeDragPointerIdRef.current = e.pointerId;
+    try {
+      (e.currentTarget as HTMLElement | null)?.setPointerCapture?.(e.pointerId);
+    } catch {
+      void 0;
+    }
     const rect = containerRef.current?.getBoundingClientRect();
     const offsetX = e.clientX - (rect?.left ?? 0);
     const offsetY = e.clientY - (rect?.top ?? 0);
     dragOffsetRef.current = { x: offsetX, y: offsetY };
-    window.addEventListener('mousemove', onDrag);
-    window.addEventListener('mouseup', endDrag);
-  };
-  const onDrag = (e: MouseEvent) => {
-    setCustomPos(() => {
-      const top = e.clientY - dragOffsetRef.current.y;
-      const left = e.clientX - dragOffsetRef.current.x;
-      const clampedTop = Math.max(8, Math.min(top, window.innerHeight - monitorApproxHeight));
-      const clampedLeft = Math.max(8, Math.min(left, window.innerWidth - 280));
-      try {
-        localStorage.setItem('underlying_price_monitor_custom', JSON.stringify({ top: clampedTop, left: clampedLeft }));
-      } catch {
-        void 0;
-      }
-      return { top: clampedTop, left: clampedLeft };
-    });
-  };
-  const endDrag = () => {
-    setDragging(false);
-    window.removeEventListener('mousemove', onDrag);
-    window.removeEventListener('mouseup', endDrag);
-  };
+    const onDrag = (ev: PointerEvent) => {
+      if (activeDragPointerIdRef.current != null && ev.pointerId !== activeDragPointerIdRef.current) return;
+      ev.preventDefault();
+      const next = clampPanelPos({
+        top: ev.clientY - dragOffsetRef.current.y,
+        left: ev.clientX - dragOffsetRef.current.x,
+      });
+      setPanelPos(next);
+      persistPanelPos(next);
+    };
+    const endDrag = () => {
+      setDragging(false);
+      activeDragPointerIdRef.current = null;
+      window.removeEventListener('pointermove', onDrag);
+      window.removeEventListener('pointerup', endDrag);
+      window.removeEventListener('pointercancel', endDrag);
+    };
+    window.addEventListener('pointermove', onDrag, { passive: false });
+    window.addEventListener('pointerup', endDrag);
+    window.addEventListener('pointercancel', endDrag);
+  }, [clampPanelPos, collapsed, persistPanelPos]);
 
-  const setCornerMode = (c: typeof corner) => {
-    setPositionMode('corner');
-    setCorner(c);
-    try {
-      localStorage.setItem('underlying_price_monitor_pos_mode', 'corner');
-      localStorage.setItem('underlying_price_monitor_corner', c);
-    } catch {
-      void 0;
-    }
-  };
-  const setCustomMode = () => {
-    setPositionMode('custom');
-    try {
-      localStorage.setItem('underlying_price_monitor_pos_mode', 'custom');
-    } catch {
-      void 0;
-    }
-  };
+  const dockToRight = useCallback(() => {
+    const next = getDefaultPanelPos();
+    setPanelPos(next);
+    persistPanelPos(next);
+  }, [getDefaultPanelPos, persistPanelPos]);
 
   const toggleCollapsed = () => {
     setCollapsed(prev => {
@@ -391,28 +449,44 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0 }: Unde
   return (
     <div ref={containerRef} className={baseClass} style={style}>
       <div
-        className={`p-3 border-b ${themes[theme].border} flex justify-between items-center bg-opacity-50 backdrop-blur select-none`}
-        onMouseDown={startDrag}
-        title={positionMode === 'custom' ? '拖动移动位置' : '点击右侧按钮选择位置'}
+        className={`p-3 border-b ${themes[theme].border} bg-opacity-50 backdrop-blur select-none ${dragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+        onPointerDown={startDrag}
+        style={{ touchAction: 'none' }}
+        title="拖动移动位置"
       >
-        <div className="min-w-0">
-          <div className="font-bold text-sm truncate">{symbol}</div>
-          <div className={`text-[10px] ${themes[theme].text} opacity-60`}>
-            {lastUpdated ? `更新 ${lastUpdated}` : '未更新'}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="font-bold text-sm truncate">{symbol}</div>
+            <div className={`text-[10px] ${themes[theme].text} opacity-60`}>
+              {lastUpdated ? `更新 ${lastUpdated}` : '未更新'}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <div className={`font-mono font-bold ${monitorDims.compact ? 'text-base' : 'text-lg'}`}>
+              <AnimatedFlash value={currentPrice} type="price" />
+            </div>
+            <button
+              type="button"
+              onClick={toggleCollapsed}
+              className={`${themes[theme].secondary} rounded-md p-1`}
+              aria-label="折叠到右侧"
+              title="折叠到右侧"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <div className="font-mono text-lg font-bold">
-            <AnimatedFlash value={currentPrice} type="price" />
-          </div>
-          <div className="flex items-center gap-1">
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1 min-w-0">
             <Hourglass className={`w-4 h-4 ${themes[theme].text} opacity-60`} />
-            <div className="w-16 h-1 rounded bg-gray-200 dark:bg-gray-700 overflow-hidden">
+            <div className={`${monitorDims.compact ? 'w-10' : 'w-16'} h-1 rounded bg-gray-200 dark:bg-gray-700 overflow-hidden`}>
               <div className="h-1 bg-blue-500" style={{ width: `${Math.round(progress * 100)}%` }} />
             </div>
-            <div className={`text-[10px] ${themes[theme].text} opacity-60 w-8 text-right`}>
+            <div className={`text-[10px] ${themes[theme].text} opacity-60 ${monitorDims.compact ? 'w-7' : 'w-8'} text-right`}>
               {isConnected ? `${Math.ceil(remainingMs / 1000)}s` : '--'}
             </div>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
             <button
               type="button"
               onClick={triggerNow}
@@ -423,16 +497,15 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0 }: Unde
             >
               <RefreshCw className="w-4 h-4" />
             </button>
+            <button
+              type="button"
+              onClick={dockToRight}
+              className={`${themes[theme].secondary} rounded-md px-2 py-1 text-[11px]`}
+              title="回到右侧默认位置"
+            >
+              靠右
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={toggleCollapsed}
-            className={`${themes[theme].secondary} rounded-md p-1`}
-            aria-label="折叠到右侧"
-            title="折叠到右侧"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
         </div>
       </div>
       <div className={`px-2 py-2 border-b ${themes[theme].border}`}>
@@ -484,35 +557,8 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0 }: Unde
           </div>
         </div>
       </div>
-      <div className="h-32 w-full bg-white dark:bg-gray-900 p-2">
+      <div className="w-full bg-white dark:bg-gray-900 p-2" style={{ height: monitorDims.chartHeight }}>
         <Line data={chartData} options={chartOptions} />
-      </div>
-      <div className={`px-2 py-2 border-t ${themes[theme].border} flex items-center justify-between`}>
-        <div className="flex gap-2">
-          <button
-            className={`px-2 py-1 rounded text-xs ${themes[theme].secondary}`}
-            onClick={() => setCornerMode('top-right')}
-          >右上</button>
-          <button
-            className={`px-2 py-1 rounded text-xs ${themes[theme].secondary}`}
-            onClick={() => setCornerMode('bottom-right')}
-          >右下</button>
-          <button
-            className={`px-2 py-1 rounded text-xs ${themes[theme].secondary}`}
-            onClick={() => setCornerMode('top-left')}
-          >左上</button>
-          <button
-            className={`px-2 py-1 rounded text-xs ${themes[theme].secondary}`}
-            onClick={() => setCornerMode('bottom-left')}
-          >左下</button>
-        </div>
-        <button
-          className="px-2 py-1 rounded text-xs bg-blue-600 text-white hover:bg-blue-700"
-          onClick={setCustomMode}
-          title="切换到拖动模式"
-        >
-          拖动
-        </button>
       </div>
     </div>
   );
