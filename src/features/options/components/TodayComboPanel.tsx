@@ -125,6 +125,8 @@ export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, r
     }
   });
 
+  const [activeMobileTab, setActiveMobileTab] = useState<'tasks' | 'orders'>('tasks');
+
   const panelMotionMs = 240;
   const [renderBody, setRenderBody] = useState(isOpen);
   useEffect(() => {
@@ -780,16 +782,16 @@ export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, r
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-900/50">
             <tr>
-              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">时间</th>
-              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">类型</th>
-              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">标的/合约</th>
-              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">动作</th>
-              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
-              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">价格</th>
-              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">数量</th>
-              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">协议号</th>
-              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">备注/原因</th>
-              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+              <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">时间</th>
+              <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">类型</th>
+              <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">标的/合约</th>
+              <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">动作</th>
+              <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
+              <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">价格</th>
+              <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">数量</th>
+              <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">协议号</th>
+              <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">备注/原因</th>
+              <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
@@ -811,8 +813,8 @@ export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, r
                 key={`today-orders-merged-${order.is_combination ? 'combo' : 'real'}-${order.compact_no || order.contract_code_full || order.instrument_id || order.submitted_at || order.order_time || 'na'}-${idx}`}
                 className={order.is_combination ? 'bg-gray-50 dark:bg-gray-900/30' : undefined}
               >
-                <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{getOrderTimeText(order)}</td>
-                <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
+                <td className="px-1.5 py-1 sm:px-3 sm:py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{getOrderTimeText(order)}</td>
+                <td className="px-1.5 py-1 sm:px-3 sm:py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
                   <span
                     className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                       order.is_combination
@@ -823,7 +825,7 @@ export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, r
                     {order.is_combination ? '组合' : '实际'}
                   </span>
                 </td>
-                <td className="px-3 py-2 text-xs text-gray-700 dark:text-gray-200">
+                <td className="px-1.5 py-1 sm:px-3 sm:py-2 text-xs text-gray-700 dark:text-gray-200">
                   <div className="whitespace-nowrap">
                     {order.is_combination ? (order.instrument_name || '-') : (order.contract_code_full || order.instrument_id || '-')}
                   </div>
@@ -834,7 +836,7 @@ export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, r
                     <div className="text-[10px] opacity-70 whitespace-nowrap">腿: {order.contract_ids.join(', ')}</div>
                   )}
                 </td>
-                <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
+                <td className="px-1.5 py-1 sm:px-3 sm:py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
                   {(() => {
                     const raw = getOrderActionText(order);
                     const cfg = getOrderActionConfig(raw);
@@ -845,7 +847,7 @@ export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, r
                     );
                   })()}
                 </td>
-                <td className="px-3 py-2 text-xs text-gray-700 dark:text-gray-200 font-mono">
+                <td className="px-1.5 py-1 sm:px-3 sm:py-2 text-xs text-gray-700 dark:text-gray-200 font-mono">
                   {(() => {
                     const raw = (order.order_status_name || '').trim();
                     const label = raw || '-';
@@ -860,13 +862,13 @@ export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, r
                     );
                   })()}
                 </td>
-                <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{formatOrderPrice(order)}</td>
-                <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">
+                <td className="px-1.5 py-1 sm:px-3 sm:py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{formatOrderPrice(order)}</td>
+                <td className="px-1.5 py-1 sm:px-3 sm:py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">
                   {order.volume_traded}/{order.volume_total_original}
                 </td>
-                <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{order.compact_no || '-'}</td>
-                <td className="px-3 py-2 text-xs text-gray-700 dark:text-gray-200">{order.cancel_info || order.remark || '-'}</td>
-                <td className="px-3 py-2 whitespace-nowrap text-right text-xs">
+                <td className="px-1.5 py-1 sm:px-3 sm:py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{order.compact_no || '-'}</td>
+                <td className="px-1.5 py-1 sm:px-3 sm:py-2 text-xs text-gray-700 dark:text-gray-200">{order.cancel_info || order.remark || '-'}</td>
+                <td className="px-1.5 py-1 sm:px-3 sm:py-2 whitespace-nowrap text-right text-xs">
                   <button
                     type="button"
                     className={`px-2 py-1 rounded border text-[11px] font-medium ${
@@ -979,357 +981,393 @@ export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, r
               {!!selectedAccountId && (
                 <>
                   <div className="flex flex-col gap-3 h-full">
-                    <div className={`flex-1 min-h-0 min-w-0 md:min-w-[340px] border ${themes[theme].border} rounded-lg overflow-hidden`}>
-                      <div className={`px-3 py-2 border-b ${themes[theme].border} flex items-center justify-between`}>
-                        <div className="min-w-0">
-                          <div className={`text-sm font-semibold ${themes[theme].text}`}>任务</div>
-                          <div className={`text-xs ${themes[theme].text} opacity-60`}>点击任务即可下方查看订单</div>
+                    {/* Mobile Tab Switcher */}
+                    <div className="flex md:hidden border-b border-gray-200 dark:border-gray-700 shrink-0">
+                      <button
+                        type="button"
+                        className={`flex-1 py-1.5 text-center text-xs font-semibold transition-colors border-b-2 ${
+                          activeMobileTab === 'tasks'
+                            ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                        }`}
+                        onClick={() => setActiveMobileTab('tasks')}
+                      >
+                        今日任务 ({tasks.length})
+                      </button>
+                      <button
+                        type="button"
+                        className={`flex-1 py-1.5 text-center text-xs font-semibold transition-colors border-b-2 ${
+                          activeMobileTab === 'orders'
+                            ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                        }`}
+                        onClick={() => setActiveMobileTab('orders')}
+                      >
+                        {ordersScope === 'task' && selectedTaskId != null ? `任务 #${selectedTaskId} 订单` : '当日订单'} ({visibleOrders.length})
+                      </button>
+                    </div>
+
+                    <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-3">
+                      <div
+                        className={`flex-1 min-h-0 min-w-0 md:min-w-[340px] border ${themes[theme].border} rounded-lg overflow-hidden flex flex-col ${
+                          activeMobileTab === 'tasks' ? 'flex' : 'hidden md:flex'
+                        }`}
+                      >
+                        <div className={`px-3 py-2 border-b ${themes[theme].border} flex items-center justify-between`}>
+                          <div className="min-w-0">
+                            <div className={`text-sm font-semibold ${themes[theme].text}`}>任务</div>
+                            <div className={`text-xs ${themes[theme].text} opacity-60`}>点击任务即可查看订单</div>
+                          </div>
+                          <div className="flex items-center justify-end gap-1 flex-wrap">
+                            {taskStatusCounts.completed > 0 && (
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeConfig('completed').className}`}>
+                                {getStatusBadgeConfig('completed').label} {taskStatusCounts.completed}
+                              </span>
+                            )}
+                            {taskStatusCounts.failed > 0 && (
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeConfig('failed').className}`}>
+                                {getStatusBadgeConfig('failed').label} {taskStatusCounts.failed}
+                              </span>
+                            )}
+                            {taskStatusCounts.cancelled > 0 && (
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeConfig('cancelled').className}`}>
+                                {getStatusBadgeConfig('cancelled').label} {taskStatusCounts.cancelled}
+                              </span>
+                            )}
+                            {taskStatusCounts.other > 0 && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100">
+                                进行中 {taskStatusCounts.other}
+                              </span>
+                            )}
+                            {taskStatusCounts.unknown > 0 && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100">
+                                未知 {taskStatusCounts.unknown}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center justify-end gap-1 flex-wrap">
-                          {taskStatusCounts.completed > 0 && (
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeConfig('completed').className}`}>
-                              {getStatusBadgeConfig('completed').label} {taskStatusCounts.completed}
-                            </span>
-                          )}
-                          {taskStatusCounts.failed > 0 && (
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeConfig('failed').className}`}>
-                              {getStatusBadgeConfig('failed').label} {taskStatusCounts.failed}
-                            </span>
-                          )}
-                          {taskStatusCounts.cancelled > 0 && (
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeConfig('cancelled').className}`}>
-                              {getStatusBadgeConfig('cancelled').label} {taskStatusCounts.cancelled}
-                            </span>
-                          )}
-                          {taskStatusCounts.other > 0 && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100">
-                              进行中 {taskStatusCounts.other}
-                            </span>
-                          )}
-                          {taskStatusCounts.unknown > 0 && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100">
-                              未知 {taskStatusCounts.unknown}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="h-full overflow-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
-                        {loading && <div className="py-6 text-center text-sm text-gray-500">正在加载今日组合交易任务...</div>}
-                        {!loading && !!error && <div className="py-6 text-center text-sm text-red-500">{error}</div>}
-                        {!loading && !error && tasks.length === 0 && <div className="py-6 text-center text-sm text-gray-500">今日暂无组合交易任务。</div>}
-                        {!loading && !error && tasks.length > 0 && (
-                          <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                              <thead className="bg-gray-50 dark:bg-gray-900/50">
-                                <tr>
-                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">时间</th>
-                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">任务</th>
-                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">动作</th>
-                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
-                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">组合</th>
-                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">到期</th>
-                                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">详情</th>
-                                </tr>
-                              </thead>
-                              <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                                {tasks.map((task) => {
-                                  const isSelected = ordersScope === 'task' && selectedTaskId === task.id;
-                                  return (
-                                    <tr
-                                      key={`today-combo-task-${task.id}`}
-                                      className={isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'}
-                                      onClick={() => {
-                                        setSelectedTaskId(task.id);
-                                        setOrdersScope('task');
-                                        fetchOrdersForTask(task.id);
-                                      }}
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter' || e.key === ' ') {
-                                          e.preventDefault();
+                        <div className="flex-1 overflow-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+                          {loading && <div className="py-6 text-center text-sm text-gray-500">正在加载今日组合交易任务...</div>}
+                          {!loading && !!error && <div className="py-6 text-center text-sm text-red-500">{error}</div>}
+                          {!loading && !error && tasks.length === 0 && <div className="py-6 text-center text-sm text-gray-500">今日暂无组合交易任务。</div>}
+                          {!loading && !error && tasks.length > 0 && (
+                            <div className="overflow-x-auto">
+                              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                <thead className="bg-gray-50 dark:bg-gray-900/50">
+                                  <tr>
+                                    <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">时间</th>
+                                    <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">任务</th>
+                                    <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">动作</th>
+                                    <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
+                                    <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">组合</th>
+                                    <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">到期</th>
+                                    <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">详情</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                                  {tasks.map((task) => {
+                                    const isSelected = ordersScope === 'task' && selectedTaskId === task.id;
+                                    return (
+                                      <tr
+                                        key={`today-combo-task-${task.id}`}
+                                        className={isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'}
+                                        onClick={() => {
                                           setSelectedTaskId(task.id);
                                           setOrdersScope('task');
                                           fetchOrdersForTask(task.id);
-                                        }
-                                      }}
-                                      role="button"
-                                      tabIndex={0}
-                                    >
-                                      <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
-                                        {task.created_at?.includes('T') ? task.created_at.split('T')[1]?.slice(0, 8) : (task.created_at?.split(' ')[1] || task.created_at || '-')}
-                                      </td>
-                                      <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{task.id}</td>
-                                      <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">{task.action_type}</td>
-                                      <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
-                                        {(() => {
-                                          const cfg = getStatusBadgeConfig(task.status);
-                                          return (
-                                            <span
-                                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${cfg.className}`}
-                                              title={cfg.raw || undefined}
-                                            >
-                                              {cfg.label}
-                                            </span>
-                                          );
-                                        })()}
-                                      </td>
-                                      <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{task.combo_id ?? '-'}</td>
-                                      <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
-                                        {task.expiry_date ? format(new Date(task.expiry_date), 'yyyy-MM-dd') : '-'}
-                                      </td>
-                                      <td className="px-3 py-2 whitespace-nowrap text-xs">
-                                        <button
-                                          type="button"
-                                          className={`inline-flex items-center gap-1 px-2 py-1 rounded ${themes[theme].secondary}`}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            openDetail(task.id);
-                                          }}
-                                          title="查看详情"
-                                        >
-                                          <Info className="w-3.5 h-3.5" />
-                                          查看
-                                        </button>
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div
-                      className={`flex-1 min-h-0 w-full border ${themes[theme].border} rounded-lg overflow-hidden flex flex-col`}
-                    >
-                      <div className={`px-3 py-2 border-b ${themes[theme].border} flex items-center justify-between`}>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <div className={`text-sm font-semibold ${themes[theme].text} truncate`}>
-                              {ordersScope === 'task' && selectedTaskId != null ? `任务 #${selectedTaskId} 相关订单` : '当日订单'}
-                            </div>
-                          </div>
-                          <div className={`text-xs ${themes[theme].text} opacity-60`}>
-                            {selectedAccountId ? `合计 ${displayOrders.length}（组合 ${comboOrders.length} • 实际 ${realOrders.length}） • 当前显示 ${visibleOrders.length}` : ''}
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-end gap-1">
-                          <div className="flex items-center gap-2">
-                            {ordersScope === 'task' && (
-                              <button
-                                type="button"
-                                className={`px-2 py-1 rounded text-xs ${themes[theme].secondary}`}
-                                onClick={() => {
-                                  setOrdersScope('today');
-                                  fetchTodayOrders();
-                                }}
-                                disabled={ordersLoading}
-                                title="切回账户当日全部订单"
-                              >
-                                切回账户
-                              </button>
-                            )}
-                            <div className={`flex items-center rounded border ${themes[theme].border} overflow-hidden`}>
-                              <button
-                                type="button"
-                                className={`px-2 py-1 text-xs ${ordersDisplayMode === 'merged' ? themes[theme].primary : themes[theme].secondary}`}
-                                onClick={() => setOrdersDisplayMode('merged')}
-                                disabled={ordersLoading}
-                                aria-pressed={ordersDisplayMode === 'merged'}
-                                title="按时间合并展示"
-                              >
-                                合并
-                              </button>
-                              <button
-                                type="button"
-                                className={`px-2 py-1 text-xs ${ordersDisplayMode === 'split' ? themes[theme].primary : themes[theme].secondary}`}
-                                onClick={() => setOrdersDisplayMode('split')}
-                                disabled={ordersLoading}
-                                aria-pressed={ordersDisplayMode === 'split'}
-                                title="组合/实际分开展示"
-                              >
-                                分开
-                              </button>
-                            </div>
-                            <div className={`flex items-center rounded border ${themes[theme].border} overflow-hidden`}>
-                              <button
-                                type="button"
-                                className={`px-2 py-1 text-xs ${ordersKind === 'all' ? themes[theme].primary : themes[theme].secondary}`}
-                                onClick={() => setOrdersKind('all')}
-                                disabled={ordersLoading}
-                                aria-pressed={ordersKind === 'all'}
-                                title="显示全部"
-                              >
-                                全部
-                              </button>
-                              <button
-                                type="button"
-                                className={`px-2 py-1 text-xs ${ordersKind === 'combo' ? themes[theme].primary : themes[theme].secondary}`}
-                                onClick={() => setOrdersKind('combo')}
-                                disabled={ordersLoading}
-                                aria-pressed={ordersKind === 'combo'}
-                                title="仅看组合"
-                              >
-                                组合
-                              </button>
-                              <button
-                                type="button"
-                                className={`px-2 py-1 text-xs ${ordersKind === 'real' ? themes[theme].primary : themes[theme].secondary}`}
-                                onClick={() => setOrdersKind('real')}
-                                disabled={ordersLoading}
-                                aria-pressed={ordersKind === 'real'}
-                                title="仅看实际"
-                              >
-                                实际
-                              </button>
-                            </div>
-                          </div>
-                          <div className="flex items-center justify-end gap-1 flex-wrap">
-                            {ordersScope === 'task' && selectedTaskId != null && (
-                              <span
-                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeConfig(selectedDetail?.status).className}`}
-                                title={getStatusBadgeConfig(selectedDetail?.status).raw || undefined}
-                              >
-                                {getStatusBadgeConfig(selectedDetail?.status).label}
-                              </span>
-                            )}
-                            {orderStatusSummaryList.length > 0 && (
-                              <>
-                                <button
-                                  type="button"
-                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${
-                                    orderStatusFilters.length === 0
-                                      ? `${themes[theme].primary} border-transparent`
-                                      : `bg-transparent ${themes[theme].text} ${themes[theme].border}`
-                                  }`}
-                                  onClick={() => setOrderStatusFilters([])}
-                                  disabled={ordersLoading}
-                                  aria-pressed={orderStatusFilters.length === 0}
-                                  title="清空状态过滤"
-                                >
-                                  全部
-                                </button>
-                                {orderStatusSummaryList.map((s) => {
-                                  const active = orderStatusFilters.includes(s.key);
-                                  const isJunk = s.key === 'JUNK';
-                                  const activeClass = isJunk
-                                    ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-100 border-transparent'
-                                    : `${themes[theme].primary} border-transparent`;
-                                  return (
-                                    <button
-                                      key={`order-status-filter-${s.key}`}
-                                      type="button"
-                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${
-                                        active ? activeClass : `bg-transparent ${themes[theme].text} ${themes[theme].border}`
-                                      }`}
-                                      onClick={() =>
-                                        setOrderStatusFilters((prev) => (prev.includes(s.key) ? prev.filter(x => x !== s.key) : [...prev, s.key]))
-                                      }
-                                      disabled={ordersLoading}
-                                      aria-pressed={active}
-                                      title="按状态过滤"
-                                    >
-                                      {s.label} {s.count}
-                                    </button>
-                                  );
-                                })}
-                              </>
-                            )}
-                          </div>
-                          {availableActionKeys.length > 0 && (
-                            <div className="flex items-center justify-end gap-1 flex-wrap">
-                              <button
-                                type="button"
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${
-                                  orderActionFilters.length === 0
-                                    ? `${themes[theme].primary} border-transparent`
-                                    : `bg-transparent ${themes[theme].text} ${themes[theme].border}`
-                                }`}
-                                onClick={() => setOrderActionFilters([])}
-                                disabled={ordersLoading}
-                                aria-pressed={orderActionFilters.length === 0}
-                                title="清空动作过滤"
-                              >
-                                全部
-                              </button>
-                              {availableActionKeys.map((k) => {
-                                const active = orderActionFilters.includes(k);
-                                const cfg = getOrderActionConfig(
-                                  k === 'buy_open'
-                                    ? '买入开仓'
-                                    : k === 'buy_close'
-                                      ? '买入平仓'
-                                      : k === 'sell_open'
-                                        ? '卖出开仓'
-                                        : k === 'sell_close'
-                                          ? '卖出平仓'
-                                          : k === 'build_combo'
-                                            ? '构建组合持仓'
-                                            : k === 'split_combo'
-                                              ? '拆分组合持仓'
-                                              : '其他'
-                                );
-                                return (
-                                  <button
-                                    key={`order-action-filter-${k}`}
-                                    type="button"
-                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${
-                                      active ? `${cfg.className} border-transparent` : `bg-transparent ${themes[theme].text} ${themes[theme].border}`
-                                    }`}
-                                    onClick={() =>
-                                      setOrderActionFilters((prev) => (prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k]))
-                                    }
-                                    disabled={ordersLoading}
-                                    aria-pressed={active}
-                                    title="按动作过滤"
-                                  >
-                                    {cfg.label} {actionCounts[k]}
-                                  </button>
-                                );
-                              })}
+                                          setActiveMobileTab('orders');
+                                        }}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault();
+                                            setSelectedTaskId(task.id);
+                                            setOrdersScope('task');
+                                            fetchOrdersForTask(task.id);
+                                            setActiveMobileTab('orders');
+                                          }
+                                        }}
+                                        role="button"
+                                        tabIndex={0}
+                                      >
+                                        <td className="px-1.5 py-1 sm:px-3 sm:py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
+                                          {task.created_at?.includes('T') ? task.created_at.split('T')[1]?.slice(0, 8) : (task.created_at?.split(' ')[1] || task.created_at || '-')}
+                                        </td>
+                                        <td className="px-1.5 py-1 sm:px-3 sm:py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{task.id}</td>
+                                        <td className="px-1.5 py-1 sm:px-3 sm:py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">{task.action_type}</td>
+                                        <td className="px-1.5 py-1 sm:px-3 sm:py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
+                                          {(() => {
+                                            const cfg = getStatusBadgeConfig(task.status);
+                                            return (
+                                              <span
+                                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${cfg.className}`}
+                                                title={cfg.raw || undefined}
+                                              >
+                                                {cfg.label}
+                                              </span>
+                                            );
+                                          })()}
+                                        </td>
+                                        <td className="px-1.5 py-1 sm:px-3 sm:py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{task.combo_id ?? '-'}</td>
+                                        <td className="px-1.5 py-1 sm:px-3 sm:py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
+                                          {task.expiry_date ? format(new Date(task.expiry_date), 'yyyy-MM-dd') : '-'}
+                                        </td>
+                                        <td className="px-1.5 py-1 sm:px-3 sm:py-2 whitespace-nowrap text-xs">
+                                          <button
+                                            type="button"
+                                            className={`inline-flex items-center gap-1 px-2 py-1 rounded ${themes[theme].secondary}`}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              openDetail(task.id);
+                                            }}
+                                            title="查看详情"
+                                          >
+                                            <Info className="w-3.5 h-3.5" />
+                                            查看
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
                             </div>
                           )}
                         </div>
                       </div>
 
-                      <div className="flex-1 overflow-auto p-3 bg-white dark:bg-gray-900" style={{ WebkitOverflowScrolling: 'touch' }}>
-                        {ordersLoading && (
-                          <div className={`text-sm ${themes[theme].text} opacity-75`}>正在加载当日订单…</div>
-                        )}
-                        {!ordersLoading && !!ordersError && (
-                          <div className="text-sm text-red-500">{ordersError}</div>
-                        )}
-                        {!ordersLoading && !ordersError && visibleOrders.length === 0 && (
-                          <div className={`text-sm ${themes[theme].text} opacity-75`}>
-                            {ordersScope === 'task' ? '未找到本任务相关订单。' : '当日暂无订单。'}
+                      <div
+                        className={`flex-1 min-h-0 w-full border ${themes[theme].border} rounded-lg overflow-hidden flex flex-col ${
+                          activeMobileTab === 'orders' ? 'flex' : 'hidden md:flex'
+                        }`}
+                      >
+                        <div className={`px-3 py-2 border-b ${themes[theme].border} flex flex-col sm:flex-row sm:items-center justify-between gap-2`}>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className={`text-sm font-semibold ${themes[theme].text} truncate`}>
+                                {ordersScope === 'task' && selectedTaskId != null ? `任务 #${selectedTaskId} 相关订单` : '当日订单'}
+                              </div>
+                            </div>
+                            <div className={`text-xs ${themes[theme].text} opacity-60`}>
+                              {selectedAccountId ? `合计 ${displayOrders.length}（组合 ${comboOrders.length} • 实际 ${realOrders.length}） • 当前显示 ${visibleOrders.length}` : ''}
+                            </div>
                           </div>
-                        )}
-                        {!ordersLoading && !ordersError && visibleOrders.length > 0 && (
-                          <>
-                            {ordersDisplayMode === 'merged' && renderOrdersTable(visibleOrders)}
-                            {ordersDisplayMode === 'split' && (
-                              <div className="space-y-4">
-                                <div className="space-y-2">
-                                  <div className={`text-sm font-medium ${themes[theme].text}`}>组合交易（{visibleComboOrders.length}）</div>
-                                  {visibleComboOrders.length === 0 ? (
-                                    <div className={`text-sm ${themes[theme].text} opacity-75`}>当日暂无组合交易订单。</div>
-                                  ) : (
-                                    renderOrdersTable(visibleComboOrders)
-                                  )}
-                                </div>
-                                <div className="space-y-2">
-                                  <div className={`text-sm font-medium ${themes[theme].text}`}>实际订单（{visibleRealOrders.length}）</div>
-                                  {visibleRealOrders.length === 0 ? (
-                                    <div className={`text-sm ${themes[theme].text} opacity-75`}>当日暂无实际订单。</div>
-                                  ) : (
-                                    renderOrdersTable(visibleRealOrders)
-                                  )}
-                                </div>
+                          <div className="flex flex-col items-start sm:items-end gap-1.5 w-full sm:w-auto">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {ordersScope === 'task' && (
+                                <button
+                                  type="button"
+                                  className={`px-2 py-1 rounded text-xs ${themes[theme].secondary}`}
+                                  onClick={() => {
+                                    setOrdersScope('today');
+                                    fetchTodayOrders();
+                                  }}
+                                  disabled={ordersLoading}
+                                  title="切回账户当日全部订单"
+                                >
+                                  切回账户
+                                </button>
+                              )}
+                              <div className={`flex items-center rounded border ${themes[theme].border} overflow-hidden`}>
+                                <button
+                                  type="button"
+                                  className={`px-2 py-1 text-xs ${ordersDisplayMode === 'merged' ? themes[theme].primary : themes[theme].secondary}`}
+                                  onClick={() => setOrdersDisplayMode('merged')}
+                                  disabled={ordersLoading}
+                                  aria-pressed={ordersDisplayMode === 'merged'}
+                                  title="按时间合并展示"
+                                >
+                                  合并
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`px-2 py-1 text-xs ${ordersDisplayMode === 'split' ? themes[theme].primary : themes[theme].secondary}`}
+                                  onClick={() => setOrdersDisplayMode('split')}
+                                  disabled={ordersLoading}
+                                  aria-pressed={ordersDisplayMode === 'split'}
+                                  title="组合/实际分开展示"
+                                >
+                                  分开
+                                </button>
+                              </div>
+                              <div className={`flex items-center rounded border ${themes[theme].border} overflow-hidden`}>
+                                <button
+                                  type="button"
+                                  className={`px-2 py-1 text-xs ${ordersKind === 'all' ? themes[theme].primary : themes[theme].secondary}`}
+                                  onClick={() => setOrdersKind('all')}
+                                  disabled={ordersLoading}
+                                  aria-pressed={ordersKind === 'all'}
+                                  title="显示全部"
+                                >
+                                  全部
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`px-2 py-1 text-xs ${ordersKind === 'combo' ? themes[theme].primary : themes[theme].secondary}`}
+                                  onClick={() => setOrdersKind('combo')}
+                                  disabled={ordersLoading}
+                                  aria-pressed={ordersKind === 'combo'}
+                                  title="仅看组合"
+                                >
+                                  组合
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`px-2 py-1 text-xs ${ordersKind === 'real' ? themes[theme].primary : themes[theme].secondary}`}
+                                  onClick={() => setOrdersKind('real')}
+                                  disabled={ordersLoading}
+                                  aria-pressed={ordersKind === 'real'}
+                                  title="仅看实际"
+                                >
+                                  实际
+                                </button>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-start sm:justify-end gap-1 flex-wrap">
+                              {ordersScope === 'task' && selectedTaskId != null && (
+                                <span
+                                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeConfig(selectedDetail?.status).className}`}
+                                  title={getStatusBadgeConfig(selectedDetail?.status).raw || undefined}
+                                >
+                                  {getStatusBadgeConfig(selectedDetail?.status).label}
+                                </span>
+                              )}
+                              {orderStatusSummaryList.length > 0 && (
+                                <>
+                                  <button
+                                    type="button"
+                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${
+                                      orderStatusFilters.length === 0
+                                        ? `${themes[theme].primary} border-transparent`
+                                        : `bg-transparent ${themes[theme].text} ${themes[theme].border}`
+                                    }`}
+                                    onClick={() => setOrderStatusFilters([])}
+                                    disabled={ordersLoading}
+                                    aria-pressed={orderStatusFilters.length === 0}
+                                    title="清空状态过滤"
+                                  >
+                                    全部
+                                  </button>
+                                  {orderStatusSummaryList.map((s) => {
+                                    const active = orderStatusFilters.includes(s.key);
+                                    const isJunk = s.key === 'JUNK';
+                                    const activeClass = isJunk
+                                      ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-100 border-transparent'
+                                      : `${themes[theme].primary} border-transparent`;
+                                    return (
+                                      <button
+                                        key={`order-status-filter-${s.key}`}
+                                        type="button"
+                                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${
+                                          active ? activeClass : `bg-transparent ${themes[theme].text} ${themes[theme].border}`
+                                        }`}
+                                        onClick={() =>
+                                          setOrderStatusFilters((prev) => (prev.includes(s.key) ? prev.filter(x => x !== s.key) : [...prev, s.key]))
+                                        }
+                                        disabled={ordersLoading}
+                                        aria-pressed={active}
+                                        title="按状态过滤"
+                                      >
+                                        {s.label} {s.count}
+                                      </button>
+                                    );
+                                  })}
+                                </>
+                              )}
+                            </div>
+                            {availableActionKeys.length > 0 && (
+                              <div className="flex items-center justify-start sm:justify-end gap-1 flex-wrap">
+                                <button
+                                  type="button"
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${
+                                    orderActionFilters.length === 0
+                                      ? `${themes[theme].primary} border-transparent`
+                                      : `bg-transparent ${themes[theme].text} ${themes[theme].border}`
+                                  }`}
+                                  onClick={() => setOrderActionFilters([])}
+                                  disabled={ordersLoading}
+                                  aria-pressed={orderActionFilters.length === 0}
+                                  title="清空动作过滤"
+                                >
+                                  全部
+                                </button>
+                                {availableActionKeys.map((k) => {
+                                  const active = orderActionFilters.includes(k);
+                                  const cfg = getOrderActionConfig(
+                                    k === 'buy_open'
+                                      ? '买入开仓'
+                                      : k === 'buy_close'
+                                        ? '买入平仓'
+                                        : k === 'sell_open'
+                                          ? '卖出开仓'
+                                          : k === 'sell_close'
+                                            ? '卖出平仓'
+                                            : k === 'build_combo'
+                                              ? '构建组合持仓'
+                                              : k === 'split_combo'
+                                                ? '拆分组合持仓'
+                                                : '其他'
+                                  );
+                                  return (
+                                    <button
+                                      key={`order-action-filter-${k}`}
+                                      type="button"
+                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${
+                                        active ? `${cfg.className} border-transparent` : `bg-transparent ${themes[theme].text} ${themes[theme].border}`
+                                      }`}
+                                      onClick={() =>
+                                        setOrderActionFilters((prev) => (prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k]))
+                                      }
+                                      disabled={ordersLoading}
+                                      aria-pressed={active}
+                                      title="按动作过滤"
+                                    >
+                                      {cfg.label} {actionCounts[k]}
+                                    </button>
+                                  );
+                                })}
                               </div>
                             )}
-                          </>
-                        )}
+                          </div>
+                        </div>
+
+                        <div className="flex-1 overflow-auto p-3 bg-white dark:bg-gray-900" style={{ WebkitOverflowScrolling: 'touch' }}>
+                          {ordersLoading && (
+                            <div className={`text-sm ${themes[theme].text} opacity-75`}>正在加载当日订单…</div>
+                          )}
+                          {!ordersLoading && !!ordersError && (
+                            <div className="text-sm text-red-500">{ordersError}</div>
+                          )}
+                          {!ordersLoading && !ordersError && visibleOrders.length === 0 && (
+                            <div className={`text-sm ${themes[theme].text} opacity-75`}>
+                              {ordersScope === 'task' ? '未找到本任务相关订单。' : '当日暂无订单。'}
+                            </div>
+                          )}
+                          {!ordersLoading && !ordersError && visibleOrders.length > 0 && (
+                            <>
+                              {ordersDisplayMode === 'merged' && renderOrdersTable(visibleOrders)}
+                              {ordersDisplayMode === 'split' && (
+                                <div className="space-y-4">
+                                  <div className="space-y-2">
+                                    <div className={`text-sm font-medium ${themes[theme].text}`}>组合交易（{visibleComboOrders.length}）</div>
+                                    {visibleComboOrders.length === 0 ? (
+                                      <div className={`text-sm ${themes[theme].text} opacity-75`}>当日暂无组合交易订单。</div>
+                                    ) : (
+                                      renderOrdersTable(visibleComboOrders)
+                                    )}
+                                  </div>
+                                  <div className="space-y-2">
+                                    <div className={`text-sm font-medium ${themes[theme].text}`}>实际订单（{visibleRealOrders.length}）</div>
+                                    {visibleRealOrders.length === 0 ? (
+                                      <div className={`text-sm ${themes[theme].text} opacity-75`}>当日暂无实际订单。</div>
+                                    ) : (
+                                      renderOrdersTable(visibleRealOrders)
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1689,16 +1727,16 @@ export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, r
                         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                           <thead className="bg-gray-50 dark:bg-gray-900/50">
                             <tr>
-                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
-                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">名称</th>
-                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">动作</th>
-                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
-                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">标的</th>
-                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">开始</th>
-                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">结束</th>
-                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">耗时</th>
-                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">订单</th>
-                              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">参数</th>
+                              <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
+                              <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">名称</th>
+                              <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">动作</th>
+                              <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
+                              <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">标的</th>
+                              <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">开始</th>
+                              <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">结束</th>
+                              <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">耗时</th>
+                              <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">订单</th>
+                              <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">参数</th>
                             </tr>
                           </thead>
                           <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
@@ -1718,22 +1756,22 @@ export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, r
 
                               return (
                                 <tr key={`today-combo-task-step-${selectedTaskId || 'na'}-${idx}`}>
-                                  <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{idx + 1}</td>
-                                  <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">{step.name || '-'}</td>
-                                  <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{step.action || '-'}</td>
-                                  <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{step.status || '-'}</td>
-                                  <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">{step.symbol || '-'}</td>
-                                  <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">
+                                  <td className="px-1.5 py-1 sm:px-3 sm:py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{idx + 1}</td>
+                                  <td className="px-1.5 py-1 sm:px-3 sm:py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">{step.name || '-'}</td>
+                                  <td className="px-1.5 py-1 sm:px-3 sm:py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{step.action || '-'}</td>
+                                  <td className="px-1.5 py-1 sm:px-3 sm:py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{step.status || '-'}</td>
+                                  <td className="px-1.5 py-1 sm:px-3 sm:py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">{step.symbol || '-'}</td>
+                                  <td className="px-1.5 py-1 sm:px-3 sm:py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">
                                     {startDt ? format(startDt, 'HH:mm:ss') : (step.start_time || '-')}
                                   </td>
-                                  <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">
+                                  <td className="px-1.5 py-1 sm:px-3 sm:py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">
                                     {endDt ? format(endDt, 'HH:mm:ss') : (step.end_time || '-')}
                                   </td>
-                                  <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{durationText}</td>
-                                  <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono" title={step.user_order_id || ''}>
+                                  <td className="px-1.5 py-1 sm:px-3 sm:py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{durationText}</td>
+                                  <td className="px-1.5 py-1 sm:px-3 sm:py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono" title={step.user_order_id || ''}>
                                     {step.user_order_id ? String(step.user_order_id).slice(0, 18) : '-'}
                                   </td>
-                                  <td className="px-3 py-2 text-xs text-gray-700 dark:text-gray-200">
+                                  <td className="px-1.5 py-1 sm:px-3 sm:py-2 text-xs text-gray-700 dark:text-gray-200">
                                     {hasAnyExtra ? (
                                       <details className="select-text">
                                         <summary className="cursor-pointer text-blue-600 dark:text-blue-400">展开</summary>
