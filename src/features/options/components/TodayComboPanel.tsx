@@ -1007,9 +1007,9 @@ export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, r
                       </button>
                     </div>
 
-                    <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-3">
+                    <div className="flex-1 min-h-0 flex flex-col gap-3">
                       <div
-                        className={`flex-1 min-h-0 min-w-0 md:min-w-[340px] border ${themes[theme].border} rounded-lg overflow-hidden flex flex-col ${
+                        className={`flex-1 min-h-0 min-w-0 border ${themes[theme].border} rounded-lg overflow-hidden flex flex-col ${
                           activeMobileTab === 'tasks' ? 'flex' : 'hidden md:flex'
                         }`}
                       >
