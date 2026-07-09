@@ -1,4 +1,3 @@
-import React from 'react';
 import { RefreshCw } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 
@@ -13,6 +12,7 @@ interface OverviewControlsProps {
   portfolioUuid?: string | null;
   onQuickSelect: (days: number) => void;
   onRefresh?: () => void;
+  isLoggedIn?: boolean;
 }
 
 export function OverviewControls({
@@ -23,6 +23,7 @@ export function OverviewControls({
   portfolioUuid,
   onQuickSelect,
   onRefresh,
+  isLoggedIn = true,
 }: OverviewControlsProps) {
   return (
     <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center mb-6">
@@ -30,7 +31,7 @@ export function OverviewControls({
         <h2 className={`text-2xl font-bold ${themes[theme].text}`}>Portfolio Overview</h2>
       </div>
 
-      {(!isSharedView || portfolioUuid) && (
+      {isLoggedIn && (!isSharedView || portfolioUuid) && (
         <div className="flex flex-wrap gap-4 items-center">
           <div className="flex gap-2">
             <button

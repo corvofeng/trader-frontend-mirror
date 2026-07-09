@@ -323,6 +323,7 @@ export const JOURNAL_TAB_DEFINITIONS: readonly JournalTabDefinition[] = [
       selectedAccountId,
       onAccountChange,
       isSnapshot,
+      user,
     }) => (
       <Portfolio
         holdings={holdings}
@@ -335,6 +336,7 @@ export const JOURNAL_TAB_DEFINITIONS: readonly JournalTabDefinition[] = [
         selectedAccountId={selectedAccountId}
         onAccountChange={onAccountChange}
         isSnapshot={isSnapshot}
+        user={user}
       />
     ),
   },

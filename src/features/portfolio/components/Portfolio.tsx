@@ -3,7 +3,7 @@ import { logger } from '../../../shared/utils/logger';
 import { Filter, ExternalLink } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
-import type { Holding, PortfolioKlineMetrics, PortfolioKlinePoint, Trade, TrendData } from '../../../lib/services/types';
+import type { Holding, PortfolioKlineMetrics, PortfolioKlinePoint, Trade, TrendData, User } from '../../../lib/services/types';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement } from 'chart.js';
 import type { LegendItem, TooltipItem } from 'chart.js';
 import { Pie } from 'react-chartjs-2';
@@ -54,6 +54,7 @@ interface PortfolioProps {
   selectedAccountId?: string | null;
   onAccountChange?: (accountId: string) => void;
   isSnapshot?: boolean;
+  user?: User | null;
 }
 
 export function Portfolio({ 
@@ -68,6 +69,7 @@ export function Portfolio({
   selectedAccountId,
   onAccountChange,
   isSnapshot = false,
+  user,
 }: PortfolioProps) {
   const [showRecentTrades, setShowRecentTrades] = useState(true);
   const [holdingsPage, setHoldingsPage] = useState(1);
@@ -478,6 +480,7 @@ export function Portfolio({
               portfolioUuid={portfolioUuid}
               onQuickSelect={setQuickDateRange}
               onRefresh={refreshAll}
+              isLoggedIn={!!user}
             />
           </div>
           <FadeIn delay={100}>
