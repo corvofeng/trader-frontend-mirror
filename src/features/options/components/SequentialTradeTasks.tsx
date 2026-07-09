@@ -74,6 +74,136 @@ function filterOrdersForTask(allOrders: OptionOrder[], task: SequentialTradeTask
   return [];
 }
 
+const extractExpiryFromText = (text: string, referenceDateStr?: string | null): string | null => {
+  if (!text) return null;
+
+  // 1. Check for YYYY-MM-DD or YYYY/MM/DD
+  const ymdMatch = text.match(/(20[2-3][0-9])[-/]([0-1][0-9])[-/]([0-3][0-9])/);
+  if (ymdMatch) {
+    return `${ymdMatch[1]}-${ymdMatch[2]}-${ymdMatch[3]}`;
+  }
+
+  // 2. Check for YYYYMMDD in string
+  const ymdDigitsMatch = text.match(/(?:\D|^)(20[2-3][0-9])([0-1][0-9])([0-3][0-9])(?:\D|$)/);
+  if (ymdDigitsMatch) {
+    return `${ymdDigitsMatch[1]}-${ymdDigitsMatch[2]}-${ymdDigitsMatch[3]}`;
+  }
+
+  // 3. Check for YYMMDD in string (e.g. OP260715)
+  const yyMatch = text.match(/(?:OP|op|Code|code)?([2-3][0-9])([0-1][0-9])([0-3][0-9])/);
+  if (yyMatch) {
+    return `20${yyMatch[1]}-${yyMatch[2]}-${yyMatch[3]}`;
+  }
+
+  // 4. Check for YYYY年MM月 or YYYY年M月
+  const zhMatch = text.match(/(20[2-3][0-9])\s*年\s*([0-1]?[0-9])\s*月/);
+  if (zhMatch) {
+    const year = zhMatch[1];
+    const month = zhMatch[2].padStart(2, '0');
+    return `${year}-${month}-22`;
+  }
+
+  // 5. Check for MM月 or M月 (e.g. 7月)
+  const zhMonthOnlyMatch = text.match(/([0-1]?[0-9])\s*月/);
+  if (zhMonthOnlyMatch) {
+    const month = zhMonthOnlyMatch[1].padStart(2, '0');
+    let year = new Date().getFullYear();
+    if (referenceDateStr) {
+      const refDt = new Date(referenceDateStr);
+      if (Number.isFinite(refDt.getTime())) {
+        year = refDt.getFullYear();
+      }
+    }
+    return `${year}-${month}-22`;
+  }
+
+  // 6. Check for YYYYMM (e.g. OP202607 or OP2607)
+  const ymMatch = text.match(/(?:\D|^)(20[2-3][0-9])([0-1][0-9])(?:\D|$)/);
+  if (ymMatch) {
+    return `${ymMatch[1]}-${ymMatch[2]}-22`;
+  }
+
+  return null;
+};
+
+const getTaskExpiryDisplay = (task: SequentialTradeTask, taskOrders: OptionOrder[]) => {
+  const isRelease = task.action_type === 'RELEASE_COMBINATION' || task.action_type?.toLowerCase()?.includes('release');
+  if (isRelease || !task.expiry_date) {
+    for (const order of taskOrders) {
+      const textToSearch = [
+        order.contract_code_full,
+        order.instrument_name,
+        order.instrument_id
+      ].filter(Boolean).join(' ');
+
+      const parsed = extractExpiryFromText(textToSearch, task.created_at);
+      if (parsed) {
+        return parsed;
+      }
+    }
+  }
+
+  if (task.expiry_date) {
+    return task.expiry_date;
+  }
+
+  return '-';
+};
+
+const calculateTaskCost = (task: SequentialTradeTask, taskOrders: OptionOrder[]) => {
+  const actionType = (task.action_type || '').toUpperCase();
+  const isRelease = actionType === 'RELEASE_COMBINATION' || actionType.includes('RELEASE');
+  const isCreate = actionType === 'CREATE_COMBINATION' || actionType.includes('CREATE');
+
+  if (!isRelease && !isCreate) return null;
+
+  let totalCost = 0;
+  let hasValidCost = false;
+
+  taskOrders.forEach(order => {
+    const opText = (order.op_type_name_zh || order.op_type_name || '').trim();
+    const isBuy = opText.includes('买') || opText.toUpperCase().includes('BUY');
+    const isSell = opText.includes('卖') || opText.toUpperCase().includes('SELL');
+
+    if (!isBuy && !isSell) return;
+
+    const statusKey = (order.order_status_name || '').toUpperCase();
+    const isCancelled = statusKey.includes('CANCEL') || statusKey.includes('REJECT');
+
+    let qty = Number(order.volume_traded);
+    if (qty === 0 && !isCancelled) {
+      qty = Number(order.volume_total_original);
+    }
+
+    let price = Number(order.traded_price);
+    if (price === 0) {
+      price = Number(order.limit_price);
+    }
+
+    const costVal = price * qty;
+
+    if (costVal > 0) {
+      hasValidCost = true;
+    }
+
+    if (isRelease) {
+      if (isBuy) {
+        totalCost += costVal;
+      } else if (isSell) {
+        totalCost -= costVal;
+      }
+    } else {
+      if (isBuy) {
+        totalCost -= costVal;
+      } else if (isSell) {
+        totalCost += costVal;
+      }
+    }
+  });
+
+  return hasValidCost ? totalCost : null;
+};
+
 interface SequentialTradeTasksProps {
   theme: Theme;
   selectedAccountId: string | null;
@@ -740,13 +870,22 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
             <div className="text-[11px] text-slate-500 dark:text-slate-400">
               最近更新: {formatTime(selectedTask.updated_at)}
             </div>
-            {(selectedTask.combo_id != null || selectedTask.expiry_date) && (
-              <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                {selectedTask.combo_id != null && <>组合ID: {selectedTask.combo_id}</>}
-                {selectedTask.combo_id != null && selectedTask.expiry_date && ' · '}
-                {selectedTask.expiry_date && <>到期日: {selectedTask.expiry_date}</>}
-              </div>
-            )}
+            {(() => {
+              const taskOrders = ordersByTaskId[selectedTask.id] || [];
+              const expiry = getTaskExpiryDisplay(selectedTask, taskOrders);
+              const cost = calculateTaskCost(selectedTask, taskOrders);
+              if (selectedTask.combo_id != null || expiry !== '-' || cost != null) {
+                return (
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                    {selectedTask.combo_id != null && <>组合ID: {selectedTask.combo_id}</>}
+                    {selectedTask.combo_id != null && expiry !== '-' && ' · '}
+                    {expiry !== '-' && <>到期日: {expiry}</>}
+                    {cost != null && <> · 花费/收益: <span className={`font-mono font-semibold ${cost > 0 ? 'text-emerald-600 dark:text-emerald-400' : cost < 0 ? 'text-rose-600 dark:text-rose-400' : ''}`}>{cost > 0 ? `+${cost.toFixed(4)}` : cost.toFixed(4)}</span></>}
+                  </div>
+                );
+              }
+              return null;
+            })()}
             {selectedTask.completed_at && (
               <div className="text-[11px] text-slate-500 dark:text-slate-400">
                 完成时间: {formatTime(selectedTask.completed_at)}
@@ -1161,13 +1300,22 @@ export function SequentialTradeTasks({ theme, selectedAccountId }: SequentialTra
                                     <span className="text-[10px] text-slate-500 dark:text-slate-400">
                                       更新: {formatTime(task.updated_at)}
                                     </span>
-                                    {(task.combo_id != null || task.expiry_date) && (
-                                      <span className="text-[10px] text-slate-500 dark:text-slate-400">
-                                        {task.combo_id != null && <>组合ID: {task.combo_id}</>}
-                                        {task.combo_id != null && task.expiry_date && ' · '}
-                                        {task.expiry_date && <>到期日: {task.expiry_date}</>}
-                                      </span>
-                                    )}
+                                    {(() => {
+                                      const taskOrders = ordersByTaskId[task.id] || [];
+                                      const expiry = getTaskExpiryDisplay(task, taskOrders);
+                                      const cost = calculateTaskCost(task, taskOrders);
+                                      if (task.combo_id != null || expiry !== '-' || cost != null) {
+                                        return (
+                                          <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                                            {task.combo_id != null && <>组合ID: {task.combo_id}</>}
+                                            {task.combo_id != null && expiry !== '-' && ' · '}
+                                            {expiry !== '-' && <>到期日: {expiry}</>}
+                                            {cost != null && <> · 花费: <span className={`font-mono font-semibold ${cost > 0 ? 'text-emerald-600 dark:text-emerald-400' : cost < 0 ? 'text-rose-600 dark:text-rose-400' : ''}`}>{cost > 0 ? `+${cost.toFixed(4)}` : cost.toFixed(4)}</span></>}
+                                          </span>
+                                        );
+                                      }
+                                      return null;
+                                    })()}
                                   </div>
                                   <div className="flex flex-col gap-0.5 sm:items-end">
                                     {progressText && (

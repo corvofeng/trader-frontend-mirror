@@ -63,6 +63,140 @@ function filterOrdersForTask(allOrders: OptionOrder[], task: SequentialTradeTask
   return [];
 }
 
+const extractExpiryFromText = (text: string, referenceDateStr?: string | null): string | null => {
+  if (!text) return null;
+
+  // 1. Check for YYYY-MM-DD or YYYY/MM/DD
+  const ymdMatch = text.match(/(20[2-3][0-9])[-/]([0-1][0-9])[-/]([0-3][0-9])/);
+  if (ymdMatch) {
+    return `${ymdMatch[1]}-${ymdMatch[2]}-${ymdMatch[3]}`;
+  }
+
+  // 2. Check for YYYYMMDD in string
+  const ymdDigitsMatch = text.match(/(?:\D|^)(20[2-3][0-9])([0-1][0-9])([0-3][0-9])(?:\D|$)/);
+  if (ymdDigitsMatch) {
+    return `${ymdDigitsMatch[1]}-${ymdDigitsMatch[2]}-${ymdDigitsMatch[3]}`;
+  }
+
+  // 3. Check for YYMMDD in string (e.g. OP260715)
+  const yyMatch = text.match(/(?:OP|op|Code|code)?([2-3][0-9])([0-1][0-9])([0-3][0-9])/);
+  if (yyMatch) {
+    return `20${yyMatch[1]}-${yyMatch[2]}-${yyMatch[3]}`;
+  }
+
+  // 4. Check for YYYY年MM月 or YYYY年M月
+  const zhMatch = text.match(/(20[2-3][0-9])\s*年\s*([0-1]?[0-9])\s*月/);
+  if (zhMatch) {
+    const year = zhMatch[1];
+    const month = zhMatch[2].padStart(2, '0');
+    return `${year}-${month}-22`;
+  }
+
+  // 5. Check for MM月 or M月 (e.g. 7月)
+  const zhMonthOnlyMatch = text.match(/([0-1]?[0-9])\s*月/);
+  if (zhMonthOnlyMatch) {
+    const month = zhMonthOnlyMatch[1].padStart(2, '0');
+    let year = new Date().getFullYear();
+    if (referenceDateStr) {
+      const refDt = new Date(referenceDateStr);
+      if (Number.isFinite(refDt.getTime())) {
+        year = refDt.getFullYear();
+      }
+    }
+    return `${year}-${month}-22`;
+  }
+
+  // 6. Check for YYYYMM (e.g. OP202607 or OP2607)
+  const ymMatch = text.match(/(?:\D|^)(20[2-3][0-9])([0-1][0-9])(?:\D|$)/);
+  if (ymMatch) {
+    return `${ymMatch[1]}-${ymMatch[2]}-22`;
+  }
+
+  return null;
+};
+
+const getTaskExpiryDisplay = (task: SequentialTradeTask, taskOrders: OptionOrder[]) => {
+  const isRelease = task.action_type === 'RELEASE_COMBINATION' || task.action_type?.toLowerCase()?.includes('release');
+  if (isRelease || !task.expiry_date) {
+    for (const order of taskOrders) {
+      const textToSearch = [
+        order.contract_code_full,
+        order.instrument_name,
+        order.instrument_id
+      ].filter(Boolean).join(' ');
+
+      const parsed = extractExpiryFromText(textToSearch, task.created_at);
+      if (parsed) {
+        return parsed;
+      }
+    }
+  }
+
+  if (task.expiry_date) {
+    try {
+      return format(new Date(task.expiry_date), 'yyyy-MM-dd');
+    } catch {
+      return task.expiry_date;
+    }
+  }
+
+  return '-';
+};
+
+const calculateTaskCost = (task: SequentialTradeTask, taskOrders: OptionOrder[]) => {
+  const actionType = (task.action_type || '').toUpperCase();
+  const isRelease = actionType === 'RELEASE_COMBINATION' || actionType.includes('RELEASE');
+  const isCreate = actionType === 'CREATE_COMBINATION' || actionType.includes('CREATE');
+
+  if (!isRelease && !isCreate) return null;
+
+  let totalCost = 0;
+  let hasValidCost = false;
+
+  taskOrders.forEach(order => {
+    const opText = (order.op_type_name_zh || order.op_type_name || '').trim();
+    const isBuy = opText.includes('买') || opText.toUpperCase().includes('BUY');
+    const isSell = opText.includes('卖') || opText.toUpperCase().includes('SELL');
+
+    if (!isBuy && !isSell) return;
+
+    const statusKey = (order.order_status_name || '').toUpperCase();
+    const isCancelled = statusKey.includes('CANCEL') || statusKey.includes('REJECT');
+
+    let qty = Number(order.volume_traded);
+    if (qty === 0 && !isCancelled) {
+      qty = Number(order.volume_total_original);
+    }
+
+    let price = Number(order.traded_price);
+    if (price === 0) {
+      price = Number(order.limit_price);
+    }
+
+    const costVal = price * qty;
+
+    if (costVal > 0) {
+      hasValidCost = true;
+    }
+
+    if (isRelease) {
+      if (isBuy) {
+        totalCost += costVal;
+      } else if (isSell) {
+        totalCost -= costVal;
+      }
+    } else {
+      if (isBuy) {
+        totalCost -= costVal;
+      } else if (isSell) {
+        totalCost += costVal;
+      }
+    }
+  });
+
+  return hasValidCost ? totalCost : null;
+};
+
 interface TodayOrderFlowPanelProps {
   theme: Theme;
   selectedAccountId: string | null;
@@ -1060,6 +1194,7 @@ export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, r
                                     <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">动作</th>
                                     <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
                                     <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">组合</th>
+                                    <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">花费</th>
                                     <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">到期</th>
                                     <th className="px-1.5 py-1 sm:px-3 sm:py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">详情</th>
                                   </tr>
@@ -1067,6 +1202,9 @@ export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, r
                                 <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
                                   {tasks.map((task) => {
                                     const isSelected = ordersScope === 'task' && selectedTaskId === task.id;
+                                    const taskOrders = filterOrdersForTask(orders, task);
+                                    const cost = calculateTaskCost(task, taskOrders);
+                                    const expiryDisplay = getTaskExpiryDisplay(task, taskOrders);
                                     return (
                                       <tr
                                         key={`today-combo-task-${task.id}`}
@@ -1108,8 +1246,13 @@ export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, r
                                           })()}
                                         </td>
                                         <td className="px-1.5 py-1 sm:px-3 sm:py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{task.combo_id ?? '-'}</td>
+                                        <td className={`px-1.5 py-1 sm:px-3 sm:py-2 whitespace-nowrap text-xs font-mono font-medium ${
+                                          cost == null ? 'text-gray-400' : cost > 0 ? 'text-emerald-600 dark:text-emerald-400' : cost < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-gray-700 dark:text-gray-200'
+                                        }`}>
+                                          {cost == null ? '-' : cost > 0 ? `+${cost.toFixed(4)}` : cost.toFixed(4)}
+                                        </td>
                                         <td className="px-1.5 py-1 sm:px-3 sm:py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">
-                                          {task.expiry_date ? format(new Date(task.expiry_date), 'yyyy-MM-dd') : '-'}
+                                          {expiryDisplay}
                                         </td>
                                         <td className="px-1.5 py-1 sm:px-3 sm:py-2 whitespace-nowrap text-xs">
                                           <button
@@ -1517,6 +1660,28 @@ export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, r
                           {selectedDetail.trade_uuid || '-'}
                         </span>
                       </div>
+                      {(() => {
+                        const detailCost = calculateTaskCost(selectedDetail, displayOrders);
+                        const detailExpiry = getTaskExpiryDisplay(selectedDetail, displayOrders);
+                        return (
+                          <>
+                            {detailCost != null && (
+                              <div className="flex gap-2">
+                                <span className={`${themes[theme].text} opacity-70`}>花费/收益</span>
+                                <span className={`font-mono font-semibold ${detailCost > 0 ? 'text-emerald-600 dark:text-emerald-400' : detailCost < 0 ? 'text-rose-600 dark:text-rose-400' : themes[theme].text}`}>
+                                  {detailCost > 0 ? `+${detailCost.toFixed(4)}` : detailCost.toFixed(4)}
+                                </span>
+                              </div>
+                            )}
+                            {detailExpiry !== '-' && (
+                              <div className="flex gap-2">
+                                <span className={`${themes[theme].text} opacity-70`}>到期日</span>
+                                <span className={`${themes[theme].text} font-mono`}>{detailExpiry}</span>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
 
                     {!!selectedDetail.error_msg && (
