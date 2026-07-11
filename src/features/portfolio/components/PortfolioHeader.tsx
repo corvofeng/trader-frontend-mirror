@@ -1,5 +1,4 @@
-import React from 'react';
-import { ChevronUp, ChevronDown, Camera } from 'lucide-react';
+import { ChevronUp, ChevronDown } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 
 interface PortfolioHeaderProps {
@@ -7,7 +6,6 @@ interface PortfolioHeaderProps {
   title?: string;
   showPortfolioAnalysis: boolean;
   onToggle: () => void;
-  onScreenshot: () => void;
 }
 
 export function PortfolioHeader({
@@ -15,7 +13,6 @@ export function PortfolioHeader({
   title = '投资组合分析',
   showPortfolioAnalysis,
   onToggle,
-  onScreenshot,
 }: PortfolioHeaderProps) {
   return (
     <div className="flex justify-between items-center mb-4 px-6">
@@ -32,15 +29,6 @@ export function PortfolioHeader({
           )}
         </button>
       </div>
-
-      <button
-        onClick={onScreenshot}
-        className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-base whitespace-nowrap ${themes[theme].secondary} hover:opacity-80 transition-opacity no-print`}
-        title="生成持仓截图"
-      >
-        <Camera className="w-5 h-5" />
-        <span>分享截图</span>
-      </button>
     </div>
   );
 }

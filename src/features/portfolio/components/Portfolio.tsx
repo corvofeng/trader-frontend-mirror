@@ -466,62 +466,65 @@ export function Portfolio({
           />
         </div>
       )}
-      <div className={`${themes[theme].card} rounded-lg shadow-md`}>
-        <div className="p-3 md:p-6 border-b border-gray-200">
-          <div className="no-print">
-            <OverviewControls
-              theme={theme}
-              userId={userId}
-              selectedAccountId={selectedAccountId ?? null}
-              onAccountChange={onAccountChange}
-              dateRange={dateRange}
-              onDateRangeChange={onDateRangeChange}
-              isSharedView={isSharedView}
-              portfolioUuid={portfolioUuid}
-              onQuickSelect={setQuickDateRange}
-              onRefresh={refreshAll}
-              isLoggedIn={!!user}
-            />
-          </div>
-          <FadeIn delay={100}>
-            <StatsGrid
-              theme={theme}
-              currencyConfig={currencyConfig}
-              latestTrendValue={latestTrendValue}
-              totalHoldingsValue={totalHoldingsValue}
-              positionRatio={positionRatio}
-              totalProfitLoss={totalProfitLoss}
-              hasTrendData={trendData.length > 0}
-            />
-          </FadeIn>
+      <div className={`${themes[theme].card} rounded-lg shadow-md p-3 md:p-6`}>
+        <div className="no-print">
+          <OverviewControls
+            theme={theme}
+            userId={userId}
+            selectedAccountId={selectedAccountId ?? null}
+            onAccountChange={onAccountChange}
+            dateRange={dateRange}
+            onDateRangeChange={onDateRangeChange}
+            isSharedView={isSharedView}
+            portfolioUuid={portfolioUuid}
+            onQuickSelect={setQuickDateRange}
+            onRefresh={refreshAll}
+            isLoggedIn={!!user}
+            onScreenshot={handleScreenshot}
+          />
         </div>
+        <FadeIn delay={100}>
+          <StatsGrid
+            theme={theme}
+            currencyConfig={currencyConfig}
+            latestTrendValue={latestTrendValue}
+            totalHoldingsValue={totalHoldingsValue}
+            positionRatio={positionRatio}
+            totalProfitLoss={totalProfitLoss}
+            hasTrendData={trendData.length > 0}
+          />
+        </FadeIn>
+      </div>
 
-        {trendData.length > 0 && (
-          <FadeIn delay={200}>
+      {trendData.length > 0 && (
+        <FadeIn delay={200}>
+          <div className={`${themes[theme].card} rounded-lg shadow-md`}>
             <PortfolioTrend 
               trendData={trendData}
               klineData={klineData}
-            klineMetrics={klineMetrics}
+              klineMetrics={klineMetrics}
               theme={theme}
               dateRange={dateRange}
             />
-          </FadeIn>
-        )}
+          </div>
+        </FadeIn>
+      )}
 
-        <div className="mt-4 md:mt-6">
-          {isLoading && holdings.length === 0 ? (
-            <div className={`${themes[theme].card} rounded-lg shadow-md`}>
-              <div className="p-4 sm:p-6">
-                <div className="h-[400px] sm:h-[600px] rounded-md bg-gray-200/60 dark:bg-gray-800/60 animate-pulse" />
-              </div>
+      <div className="mt-6">
+        {isLoading && holdings.length === 0 ? (
+          <div className={`${themes[theme].card} rounded-lg shadow-md`}>
+            <div className="p-4 sm:p-6">
+              <div className="h-[400px] sm:h-[600px] rounded-md bg-gray-200/60 dark:bg-gray-800/60 animate-pulse" />
             </div>
-          ) : (
-            <PortfolioHeatmap holdings={holdings} theme={theme} />
-          )}
-        </div>
+          </div>
+        ) : (
+          <PortfolioHeatmap holdings={holdings} theme={theme} />
+        )}
+      </div>
 
-        <div className="grid lg:grid-cols-2 gap-4 md:gap-6 p-2 md:p-6">
-          <div className="order-2 lg:order-1 min-w-0">
+      <div className={`${themes[theme].card} rounded-lg shadow-md p-4 md:p-6 mt-6`}>
+        <div className="grid lg:grid-cols-2 gap-6 items-start">
+          <div className="order-1 lg:order-1 min-w-0">
             <HoldingsTable
               theme={theme}
               holdings={holdings}
@@ -538,7 +541,7 @@ export function Portfolio({
             />
           </div>
 
-          <div className="order-1 lg:order-2 min-w-0">
+          <div className="order-2 lg:order-2 min-w-0">
             <div className="h-[180px] xs:h-[220px] sm:h-[320px] md:h-[360px] lg:h-[450px] relative mx-auto">
               <Pie data={pieChartData} options={pieChartOptions} />
             </div>
@@ -597,7 +600,6 @@ export function Portfolio({
           theme={theme}
           showPortfolioAnalysis={showPortfolioAnalysis}
           onToggle={() => setShowPortfolioAnalysis(!showPortfolioAnalysis)}
-          onScreenshot={handleScreenshot}
         />
         {showPortfolioAnalysis && (
           <PortfolioAnalysisPanel

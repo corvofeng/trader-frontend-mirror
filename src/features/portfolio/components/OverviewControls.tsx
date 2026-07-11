@@ -1,4 +1,4 @@
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Camera } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 
 interface OverviewControlsProps {
@@ -13,6 +13,7 @@ interface OverviewControlsProps {
   onQuickSelect: (days: number) => void;
   onRefresh?: () => void;
   isLoggedIn?: boolean;
+  onScreenshot?: () => void;
 }
 
 export function OverviewControls({
@@ -24,63 +25,80 @@ export function OverviewControls({
   onQuickSelect,
   onRefresh,
   isLoggedIn = true,
+  onScreenshot,
 }: OverviewControlsProps) {
   return (
-    <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center mb-6">
+    <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center mb-6">
       <div className="flex items-center gap-4">
-        <h2 className={`text-2xl font-bold ${themes[theme].text}`}>Portfolio Overview</h2>
+        <h2 className={`text-xl font-semibold ${themes[theme].text}`}>Portfolio Overview</h2>
       </div>
 
       {isLoggedIn && (!isSharedView || portfolioUuid) && (
-        <div className="flex flex-wrap gap-4 items-center">
-          <div className="flex gap-2">
-            <button
-              onClick={() => onQuickSelect(7)}
-              className={`px-3 py-1 rounded-md text-sm sm:text-base ${themes[theme].secondary}`}
-            >
-              1W
-            </button>
-            <button
-              onClick={() => onQuickSelect(30)}
-              className={`px-3 py-1 rounded-md text-sm sm:text-base ${themes[theme].secondary}`}
-            >
-              1M
-            </button>
-            <button
-              onClick={() => onQuickSelect(90)}
-              className={`px-3 py-1 rounded-md text-sm sm:text-base ${themes[theme].secondary}`}
-            >
-              3M
-            </button>
-            <button
-              onClick={() => onQuickSelect(180)}
-              className={`px-3 py-1 rounded-md text-sm sm:text-base ${themes[theme].secondary}`}
-            >
-              6M
-            </button>
-            {onRefresh && (
+        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center w-full md:w-auto">
+          <div className="flex flex-wrap gap-2 items-center w-full sm:w-auto">
+            <div className="flex gap-1.5 sm:gap-2">
               <button
-                onClick={onRefresh}
-                className={`inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 rounded-md text-sm sm:text-base whitespace-nowrap ${themes[theme].secondary} hide-in-screenshot hover:opacity-80 transition-opacity`}
+                onClick={() => onQuickSelect(7)}
+                className={`px-2.5 py-1 rounded-md text-sm ${themes[theme].secondary}`}
               >
-                <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
-                <span className="hidden xs:inline">刷新</span>
+                1W
               </button>
-            )}
+              <button
+                onClick={() => onQuickSelect(30)}
+                className={`px-2.5 py-1 rounded-md text-sm ${themes[theme].secondary}`}
+              >
+                1M
+              </button>
+              <button
+                onClick={() => onQuickSelect(90)}
+                className={`px-2.5 py-1 rounded-md text-sm ${themes[theme].secondary}`}
+              >
+                3M
+              </button>
+              <button
+                onClick={() => onQuickSelect(180)}
+                className={`px-2.5 py-1 rounded-md text-sm ${themes[theme].secondary}`}
+              >
+                6M
+              </button>
+            </div>
+            
+            <div className="flex gap-2 ml-auto sm:ml-0">
+              {onRefresh && (
+                <button
+                  onClick={onRefresh}
+                  className={`inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 rounded-md text-sm sm:text-base whitespace-nowrap ${themes[theme].secondary} hide-in-screenshot hover:opacity-80 transition-opacity`}
+                >
+                  <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span className="hidden xs:inline">刷新</span>
+                </button>
+              )}
+              {onScreenshot && (
+                <button
+                  onClick={onScreenshot}
+                  className={`inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 rounded-md text-sm sm:text-base whitespace-nowrap ${themes[theme].secondary} hide-in-screenshot hover:opacity-80 transition-opacity`}
+                  title="生成持仓截图"
+                >
+                  <Camera className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <span>分享截图</span>
+                </button>
+              )}
+            </div>
           </div>
-          <div className="hidden sm:flex items-center gap-2">
+          
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             <input
               type="date"
               value={dateRange.startDate}
               onChange={(e) => onDateRangeChange({ ...dateRange, startDate: e.target.value })}
-              className={`px-2 py-1 rounded-md text-base ${themes[theme].input} ${themes[theme].text}`}
+              className={`flex-1 sm:flex-none px-2 py-1 rounded-md text-sm sm:text-base ${themes[theme].input} ${themes[theme].text}`}
             />
-            <span className={`text-base ${themes[theme].text}`}>to</span>
+            <span className={`text-sm sm:text-base ${themes[theme].text}`}>to</span>
             <input
               type="date"
               value={dateRange.endDate}
               onChange={(e) => onDateRangeChange({ ...dateRange, endDate: e.target.value })}
-              className={`px-2 py-1 rounded-md text-base ${themes[theme].input} ${themes[theme].text}`}
+              className={`flex-1 sm:flex-none px-2 py-1 rounded-md text-sm sm:text-base ${themes[theme].input} ${themes[theme].text}`}
             />
           </div>
         </div>
@@ -88,3 +106,4 @@ export function OverviewControls({
     </div>
   );
 }
+
