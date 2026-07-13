@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useAutoRefresh, useOptionPriceWebSocket } from '../hooks/useOptionPriceWebSocket';
 import { AnimatedFlash } from './AnimatedFlash';
 import { Theme, themes } from '../../../lib/theme';
-import { ChevronLeft, ChevronRight, Hourglass, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Hourglass, RefreshCw, Activity } from 'lucide-react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -31,15 +31,30 @@ interface UnderlyingPriceMonitorProps {
   symbol: string;
   theme: Theme;
   refreshNonce?: number;
+  isMobile?: boolean;
 }
 
-export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0 }: UnderlyingPriceMonitorProps) {
+export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobile: isMobileProp }: UnderlyingPriceMonitorProps) {
   const { prices, isConnected, queryPrice } = useOptionPriceWebSocket();
   const [history, setHistory] = useState<{ time: string; price: number }[]>([]);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const lastPushedAtRef = useRef<number>(0);
   const [dragging, setDragging] = useState(false);
   const dragOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const activeDragPointerIdRef = useRef<number | null>(null);
+
+  // Screen width detection for responsive fallback
+  const [isMobileWidth, setIsMobileWidth] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 768px)');
+    setIsMobileWidth(media.matches);
+    const listener = (e: MediaQueryListEvent) => setIsMobileWidth(e.matches);
+    media.addEventListener('change', listener);
+    return () => media.removeEventListener('change', listener);
+  }, []);
+
+  const isMobileMode = isMobileProp ?? isMobileWidth;
+
   const getViewportSize = useCallback(() => {
     const vv = window.visualViewport;
     return {
@@ -58,6 +73,7 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0 }: Unde
     }
     return getViewportSize().width < 1280;
   });
+
   const getMonitorDims = useCallback((size = viewportSize) => {
     const compact = size.width < 768;
     const width = compact ? Math.max(220, Math.min(240, size.width - 16)) : 256;
@@ -65,12 +81,14 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0 }: Unde
     const chartHeight = compact ? 96 : 128;
     return { width, approxHeight, chartHeight, compact };
   }, [viewportSize]);
+
   const clampPanelPos = useCallback((pos: { top: number; left: number }, size = viewportSize) => {
     const dims = getMonitorDims(size);
     const top = Math.max(8, Math.min(pos.top, Math.max(8, size.height - dims.approxHeight)));
     const left = Math.max(8, Math.min(pos.left, Math.max(8, size.width - dims.width - 8)));
     return { top, left };
   }, [getMonitorDims, viewportSize]);
+
   const getDefaultPanelPos = useCallback((size = viewportSize) => {
     const dims = getMonitorDims(size);
     const topSeed = size.width < 1280
@@ -84,6 +102,7 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0 }: Unde
       size
     );
   }, [clampPanelPos, getMonitorDims, viewportSize]);
+
   const [panelPos, setPanelPos] = useState<{ top: number; left: number }>(() => {
     try {
       const saved = localStorage.getItem('underlying_price_monitor_pos');
@@ -105,6 +124,7 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0 }: Unde
     }
     return getDefaultPanelPos(getViewportSize());
   });
+
   const persistPanelPos = useCallback((pos: { top: number; left: number }) => {
     try {
       localStorage.setItem('underlying_price_monitor_pos', JSON.stringify(pos));
@@ -194,29 +214,39 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0 }: Unde
   const bestAsk = askRows[0]?.price;
   const spread = typeof bestAsk === 'number' && typeof bestBid === 'number' ? bestAsk - bestBid : null;
 
-  useEffect(() => {
-    if (currentPrice !== undefined && currentPrice !== null) {
-      // Only add if price changed or enough time passed? 
-      // User wants "recent points", so maybe every update or every X seconds.
-      // If we poll every second, we might get same price.
-      // Let's just add it if it's new or update the last one if it's the same minute?
-      // User wants "recent points", let's just keep last 50 points.
-      
-      const now = new Date();
-      const timeStr = now.toLocaleTimeString();
+  // Max volume calculation for visualization progress bar
+  const maxVolume = useMemo(() => {
+    const values = [...bidRows, ...askRows]
+      .map((row) => (typeof row.vol === 'number' && Number.isFinite(row.vol) ? row.vol : 0));
+    return Math.max(0, ...values);
+  }, [askRows, bidRows]);
 
-      setHistory(prev => {
-        const newEntry = { time: timeStr, price: currentPrice };
-        // Avoid duplicate consecutive entries if needed, but for chart "flow" duplicates are okay to show flat line.
-        // But to save memory/rendering, maybe limit to changes or time intervals.
-        // Let's limit to max 50 points.
-        const newHistory = [...prev, newEntry];
-        if (newHistory.length > 50) {
-          return newHistory.slice(newHistory.length - 50);
-        }
-        return newHistory;
-      });
+  const getVolumeRatio = useCallback((volume?: number) => {
+    if (typeof volume !== 'number' || !Number.isFinite(volume) || volume <= 0 || maxVolume <= 0) {
+      return 0;
     }
+    return Math.max(0, Math.min(1, volume / maxVolume));
+  }, [maxVolume]);
+
+  useEffect(() => {
+    setHistory([]);
+    lastPushedAtRef.current = 0;
+  }, [symbol]);
+
+  useEffect(() => {
+    if (typeof currentPrice !== 'number' || !Number.isFinite(currentPrice)) return;
+    const now = Date.now();
+    const timeStr = new Date(now).toLocaleTimeString();
+
+    setHistory((prev) => {
+      const lastItem = prev[prev.length - 1];
+      if (lastItem && lastItem.price === currentPrice && now - lastPushedAtRef.current < 1500) {
+        return prev;
+      }
+      lastPushedAtRef.current = now;
+      const next = [...prev, { time: timeStr, price: currentPrice }];
+      return next.length > 60 ? next.slice(next.length - 60) : next;
+    });
   }, [currentPrice]);
 
   const chartData: ChartData<'line'> = useMemo(() => {
@@ -227,9 +257,11 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0 }: Unde
           label: symbol,
           data: history.map(h => h.price),
           borderColor: 'rgb(59, 130, 246)', // blue-500
-          backgroundColor: 'rgba(59, 130, 246, 0.5)',
-          tension: 0.1,
-          pointRadius: 2,
+          backgroundColor: 'rgba(59, 130, 246, 0.25)',
+          tension: 0.2, // smoother curve
+          pointRadius: history.length > 1 ? 1.5 : 2,
+          borderWidth: 2,
+          fill: false,
         },
       ],
     };
@@ -239,129 +271,36 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0 }: Unde
     return {
       responsive: true,
       maintainAspectRatio: false,
+      animation: { duration: 0 },
       plugins: {
-        legend: {
-          display: false,
-        },
+        legend: { display: false },
         tooltip: {
-            enabled: true,
-            mode: 'index',
-            intersect: false,
-        }
+          enabled: true,
+          mode: 'index',
+          intersect: false,
+          callbacks: {
+            label: (context) => `${Number(context.parsed.y).toFixed(4)}`,
+          },
+        },
       },
       scales: {
         x: {
-          display: false, // Hide x axis labels to save space
+          display: false,
+          grid: { display: false },
         },
         y: {
           position: 'right',
           ticks: {
-             color: theme === 'dark' ? '#9ca3af' : '#4b5563',
-             callback: (value) => Number(value).toFixed(3)
+            color: theme === 'dark' ? '#9ca3af' : '#4b5563',
+            callback: (value) => Number(value).toFixed(4),
           },
           grid: {
-             color: theme === 'dark' ? 'rgba(75, 85, 99, 0.2)' : 'rgba(209, 213, 219, 0.2)'
-          }
-        }
+            color: theme === 'dark' ? 'rgba(75, 85, 99, 0.24)' : 'rgba(209, 213, 219, 0.35)',
+          },
+        },
       },
-      animation: {
-        duration: 0 // Disable animation for performance
-      }
     };
   }, [theme]);
-
-  if (!symbol) return null;
-
-  const baseClass = `${themes[theme].card} shadow-lg rounded-lg border ${themes[theme].border} overflow-hidden opacity-90 hover:opacity-100 transition-opacity ${dragging ? 'cursor-grabbing' : 'cursor-move'}`;
-  const motionMs = 240;
-  const monitorDims = getMonitorDims();
-  const clampedPanelPos = clampPanelPos(panelPos);
-
-  const readTodayPanelState = (includeClosed: boolean) => {
-    try {
-      const open = localStorage.getItem('options_portfolio_today_combo_open') === '1';
-      const posStr = localStorage.getItem('options_portfolio_today_combo_pos');
-      const sizeStr = localStorage.getItem('options_portfolio_today_combo_size');
-      const pos = posStr ? JSON.parse(posStr) : { top: 120, left: viewportSize.width - 16 - 860 };
-
-      if (!open) {
-        if (!includeClosed) {
-          return null;
-        }
-        const headerHeight = 52;
-        const collapsedWidth = 56;
-        const topRaw = Number(pos.top ?? 120);
-        const top = Math.max(8, Math.min(topRaw, viewportSize.height - headerHeight - 8));
-        const left = viewportSize.width - collapsedWidth - 8;
-        return {
-          open: false,
-          top,
-          left,
-          width: collapsedWidth,
-          height: headerHeight
-        };
-      }
-      const size = sizeStr ? JSON.parse(sizeStr) : { width: 860, height: 360 };
-      const width = Math.max(640, Math.min(size.width ?? 860, Math.max(320, viewportSize.width - 16)));
-      const height = Math.max(180, Math.min(size.height ?? 360, Math.max(160, viewportSize.height - 16)));
-      const topRaw = Number(pos.top ?? 120);
-      const leftRaw = Number(pos.left ?? (viewportSize.width - 16 - width));
-      const top = Math.max(8, Math.min(topRaw, viewportSize.height - height - 8));
-      const left = Math.max(8, Math.min(leftRaw, viewportSize.width - width - 8));
-      return { open: true, top, left, width, height };
-    } catch {
-      return null;
-    }
-  };
-
-  const style: React.CSSProperties = {
-    position: 'fixed',
-    zIndex: 48,
-    width: monitorDims.width,
-    top: clampedPanelPos.top,
-    left: clampedPanelPos.left,
-    transition: dragging
-      ? 'none'
-      : `top ${motionMs}ms ease, left ${motionMs}ms ease, width ${motionMs}ms ease, opacity ${motionMs}ms ease, transform ${motionMs}ms ease`
-  };
-
-  const collapsedStyle: React.CSSProperties = {
-    position: 'fixed',
-    zIndex: 48,
-    right: 0,
-    width: 36,
-    height: 156,
-    borderTopRightRadius: 0,
-    borderBottomRightRadius: 0,
-    transition: `top ${motionMs}ms ease, bottom ${motionMs}ms ease, width ${motionMs}ms ease, opacity ${motionMs}ms ease, transform ${motionMs}ms ease`
-  };
-  collapsedStyle.top = clampedPanelPos.top;
-  const todayAny = readTodayPanelState(true);
-  if (todayAny) {
-    const collapsedHeight = Number(collapsedStyle.height ?? 160);
-    const currentTop = typeof collapsedStyle.top === 'number'
-      ? collapsedStyle.top
-      : (typeof collapsedStyle.bottom === 'number'
-          ? viewportSize.height - (collapsedStyle.bottom + collapsedHeight)
-          : 96);
-
-    const todayBottom = todayAny.top + todayAny.height;
-    const overlapVertically = !(currentTop + collapsedHeight < todayAny.top || currentTop > todayBottom);
-    const monitorLeft = viewportSize.width - Number(collapsedStyle.width ?? 34);
-    const overlapHorizontally = (todayAny.left + todayAny.width) > monitorLeft;
-
-    if (overlapVertically && overlapHorizontally) {
-      const gap = 10;
-      const below = todayBottom + gap;
-      const above = todayAny.top - gap - collapsedHeight;
-      const clampedBelow = Math.max(8, Math.min(below, viewportSize.height - collapsedHeight - 8));
-      const nextTop = below + collapsedHeight <= viewportSize.height - 8
-        ? below
-        : (above >= 8 ? above : clampedBelow);
-      collapsedStyle.top = nextTop;
-      delete collapsedStyle.bottom;
-    }
-  }
 
   const startDrag = useCallback((e: React.PointerEvent) => {
     if (collapsed) return;
@@ -419,7 +358,198 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0 }: Unde
     });
   };
 
+  if (!symbol) return null;
+
+  // 1. MOBILE INLINE CARD LAYOUT
+  if (isMobileMode) {
+    return (
+      <div className={`${themes[theme].card} rounded-lg border ${themes[theme].border} shadow-md overflow-hidden w-full mt-4`}>
+        <div className={`px-4 sm:px-6 py-4 border-b ${themes[theme].border}`}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <div className={`text-base sm:text-lg font-semibold ${themes[theme].text}`}>标的盘口与走势</div>
+                <span
+                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                    isConnected
+                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                      : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                  }`}
+                >
+                  <Activity className="mr-1 h-3 w-3" />
+                  {isConnected ? 'WS 已连接' : 'WS 连接中'}
+                </span>
+              </div>
+              <div className={`mt-1 text-sm ${themes[theme].text}`}>
+                <span className="font-mono font-semibold">{symbol}</span>
+                {lastUpdated ? <span className="ml-2 text-xs opacity-60">最近更新 {lastUpdated}</span> : null}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="min-w-[90px]">
+                <div className={`text-[11px] uppercase tracking-wide ${themes[theme].text} opacity-60`}>最新价</div>
+                <div className={`text-xl font-bold ${themes[theme].text}`}>
+                  <AnimatedFlash value={typeof currentPrice === 'number' ? currentPrice.toFixed(4) : '-'} type="price" />
+                </div>
+              </div>
+              <div className="min-w-[140px]">
+                <div className="mb-1 flex items-center justify-between text-[11px]">
+                  <span className={`${themes[theme].text} opacity-60`}>自动刷新</span>
+                  <span className={`${themes[theme].text} opacity-60`}>
+                    {isConnected ? `${Math.ceil(remainingMs / 1000)}s` : '--'}
+                  </span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                  <div className="h-full bg-blue-500" style={{ width: `${Math.round(progress * 100)}%` }} />
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={triggerNow}
+                disabled={!isConnected || !symbol}
+                className={`inline-flex items-center rounded-md px-2.5 py-1.5 text-xs font-medium ${themes[theme].secondary} ${
+                  !isConnected ? 'cursor-not-allowed opacity-50' : ''
+                }`}
+              >
+                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                刷新行情
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-4 p-4 grid-cols-1 md:grid-cols-2 sm:p-6">
+          {/* Depth Section */}
+          <div className={`rounded-lg border ${themes[theme].border} p-3 sm:p-4`}>
+            <div className="mb-3 flex items-center justify-between">
+              <div className={`text-sm font-semibold ${themes[theme].text}`}>盘口 5 档</div>
+              <div className={`text-xs ${themes[theme].text} opacity-70`}>
+                点差 {spread != null ? spread.toFixed(4) : '-'}
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3">
+              {/* Buy Side */}
+              <div className="min-w-0">
+                <div className="mb-2 text-center text-xs font-semibold text-rose-500">买盘</div>
+                <div className={`mb-1 grid grid-cols-[20px_1fr_40px] gap-1 px-1 text-[10px] ${themes[theme].text} opacity-60`}>
+                  <div>档位</div>
+                  <div className="text-right">价格</div>
+                  <div className="text-right">量</div>
+                </div>
+                <div className="space-y-1">
+                  {bidRows.map((row) => (
+                    <div
+                      key={`bid-${row.level}`}
+                      className="grid grid-cols-[20px_1fr_40px] gap-1 rounded px-1 py-0.5 text-xs items-center"
+                    >
+                      <div className={`${themes[theme].text} opacity-75 text-[10px]`}>买{row.level}</div>
+                      <div className="min-w-0">
+                        <div className="text-right font-mono text-[11px] text-rose-500 font-semibold">
+                          {typeof row.price === 'number' ? row.price.toFixed(4) : '-'}
+                        </div>
+                        <div className="mt-0.5 h-1 overflow-hidden rounded-full bg-rose-100 dark:bg-rose-950/40">
+                          <div
+                            className="h-full rounded-full bg-rose-500/80 transition-[width] duration-300"
+                            style={{ width: `${Math.round(getVolumeRatio(row.vol) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                      <div className={`text-right font-mono text-[10px] ${themes[theme].text}`}>{row.vol ?? '-'}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Sell Side */}
+              <div className="min-w-0">
+                <div className="mb-2 text-center text-xs font-semibold text-emerald-500">卖盘</div>
+                <div className={`mb-1 grid grid-cols-[20px_1fr_40px] gap-1 px-1 text-[10px] ${themes[theme].text} opacity-60`}>
+                  <div>档位</div>
+                  <div className="text-right">价格</div>
+                  <div className="text-right">量</div>
+                </div>
+                <div className="space-y-1">
+                  {askRows.map((row) => (
+                    <div
+                      key={`ask-${row.level}`}
+                      className="grid grid-cols-[20px_1fr_40px] gap-1 rounded px-1 py-0.5 text-xs items-center"
+                    >
+                      <div className={`${themes[theme].text} opacity-75 text-[10px]`}>卖{row.level}</div>
+                      <div className="min-w-0">
+                        <div className="text-right font-mono text-[11px] text-emerald-500 font-semibold">
+                          {typeof row.price === 'number' ? row.price.toFixed(4) : '-'}
+                        </div>
+                        <div className="mt-0.5 h-1 overflow-hidden rounded-full bg-emerald-100 dark:bg-emerald-950/40">
+                          <div
+                            className="h-full rounded-full bg-emerald-500/80 transition-[width] duration-300"
+                            style={{ width: `${Math.round(getVolumeRatio(row.vol) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                      <div className={`text-right font-mono text-[10px] ${themes[theme].text}`}>{row.vol ?? '-'}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Chart Section */}
+          <div className={`rounded-lg border ${themes[theme].border} p-3 sm:p-4 flex flex-col justify-between`}>
+            <div className="mb-3 flex items-center justify-between">
+              <div className={`text-sm font-semibold ${themes[theme].text}`}>短线走势</div>
+              <div className={`text-xs ${themes[theme].text} opacity-70`}>
+                {history.length > 0 ? `最近 ${history.length} 个点` : '暂无数据'}
+              </div>
+            </div>
+            <div className="h-44 sm:h-52">
+              {history.length > 0 ? (
+                <Line data={chartData} options={chartOptions} />
+              ) : (
+                <div className={`flex h-full items-center justify-center rounded border border-dashed ${themes[theme].border} text-sm ${themes[theme].text} opacity-70`}>
+                  {isConnected ? '已发起订阅，等待首个行情点...' : '正在建立行情连接...'}
+                </div>
+              )}
+            </div>
+            <div className={`mt-3 grid grid-cols-3 gap-3 text-xs ${themes[theme].text}`}>
+              <div>
+                <div className="opacity-60">买一</div>
+                <div className="font-mono font-semibold text-rose-500">
+                  {typeof bestBid === 'number' ? bestBid.toFixed(4) : '-'}
+                </div>
+              </div>
+              <div>
+                <div className="opacity-60">卖一</div>
+                <div className="font-mono font-semibold text-emerald-500">
+                  {typeof bestAsk === 'number' ? bestAsk.toFixed(4) : '-'}
+                </div>
+              </div>
+              <div>
+                <div className="opacity-60">点差</div>
+                <div className="font-mono font-semibold">{spread != null ? spread.toFixed(4) : '-'}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. DESKTOP FLOATING LAYOUT (COLLAPSED STATE)
   if (collapsed) {
+    const collapsedStyle: React.CSSProperties = {
+      position: 'fixed',
+      zIndex: 48,
+      right: 0,
+      width: 36,
+      height: 156,
+      borderTopRightRadius: 0,
+      borderBottomRightRadius: 0,
+      transition: `top 240ms ease, bottom 240ms ease, width 240ms ease, opacity 240ms ease, transform 240ms ease`
+    };
+    collapsedStyle.top = clampPanelPos(panelPos).top;
+    
     return (
       <div
         className={`${themes[theme].card} shadow-lg border ${themes[theme].border} overflow-hidden opacity-90 hover:opacity-100 transition-opacity rounded-l-lg`}
@@ -446,6 +576,23 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0 }: Unde
     );
   }
 
+  // 3. DESKTOP FLOATING LAYOUT (EXPANDED STATE)
+  const baseClass = `${themes[theme].card} shadow-lg rounded-lg border ${themes[theme].border} overflow-hidden opacity-90 hover:opacity-100 transition-opacity ${dragging ? 'cursor-grabbing' : 'cursor-move'}`;
+  const motionMs = 240;
+  const monitorDims = getMonitorDims();
+  const clampedPanelPos = clampPanelPos(panelPos);
+
+  const style: React.CSSProperties = {
+    position: 'fixed',
+    zIndex: 48,
+    width: monitorDims.width,
+    top: clampedPanelPos.top,
+    left: clampedPanelPos.left,
+    transition: dragging
+      ? 'none'
+      : `top ${motionMs}ms ease, left ${motionMs}ms ease, width ${motionMs}ms ease, opacity ${motionMs}ms ease, transform ${motionMs}ms ease`
+  };
+
   return (
     <div ref={containerRef} className={baseClass} style={style}>
       <div
@@ -463,7 +610,7 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0 }: Unde
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <div className={`font-mono font-bold ${monitorDims.compact ? 'text-base' : 'text-lg'}`}>
-              <AnimatedFlash value={currentPrice} type="price" />
+              <AnimatedFlash value={typeof currentPrice === 'number' ? currentPrice.toFixed(4) : '-'} type="price" />
             </div>
             <button
               type="button"
@@ -508,55 +655,77 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0 }: Unde
           </div>
         </div>
       </div>
+      
       <div className={`px-2 py-2 border-b ${themes[theme].border}`}>
-        <div className="flex items-center justify-between text-[10px]">
+        <div className="flex items-center justify-between text-[10px] mb-1">
           <div className="flex items-center gap-2">
             <span className={`${themes[theme].text} opacity-75`}>买一</span>
-            <span className="font-mono text-red-500 font-semibold">{typeof bestBid === 'number' ? bestBid.toFixed(4) : '-'}</span>
+            <span className="font-mono text-rose-500 font-semibold">{typeof bestBid === 'number' ? bestBid.toFixed(4) : '-'}</span>
             <span className={`${themes[theme].text} opacity-75`}>卖一</span>
-            <span className="font-mono text-green-500 font-semibold">{typeof bestAsk === 'number' ? bestAsk.toFixed(4) : '-'}</span>
+            <span className="font-mono text-emerald-500 font-semibold">{typeof bestAsk === 'number' ? bestAsk.toFixed(4) : '-'}</span>
           </div>
-          <div className={`${themes[theme].text} opacity-75`}>
-            {spread != null ? `Spread ${spread.toFixed(4)}` : 'Spread -'}
+          <div className={`${themes[theme].text} opacity-75 font-semibold`}>
+            {spread != null ? `点差 ${spread.toFixed(4)}` : '点差 -'}
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-2 mt-2 text-[10px]">
+        
+        <div className="grid grid-cols-2 gap-2 mt-1 text-[10px]">
+          {/* Buy side */}
           <div className="flex flex-col">
-            <div className={`text-center font-medium border-b ${themes[theme].border} mb-1 text-red-500`}>买盘</div>
-            <div className="grid grid-cols-3 gap-1 px-1 opacity-70 mb-1">
-              <div className="text-left">档位</div>
-              <div className="text-right">价格</div>
+            <div className={`text-center font-medium border-b ${themes[theme].border} mb-1 text-rose-500`}>买盘</div>
+            <div className="grid grid-cols-[14px_1fr_24px] gap-1 px-1 opacity-70 mb-1">
+              <div>档</div>
+              <div className="text-right">价</div>
               <div className="text-right">量</div>
             </div>
             <div className="space-y-0.5">
               {bidRows.map((r) => (
-                <div key={`bid-${r.level}`} className="grid grid-cols-3 gap-1 px-1 rounded">
-                  <div className="text-left opacity-75">{r.level}</div>
-                  <div className="text-right text-red-500 font-medium">{typeof r.price === 'number' ? r.price.toFixed(4) : '-'}</div>
-                  <div className="text-right opacity-90">{r.vol ?? '-'}</div>
+                <div key={`bid-${r.level}`} className="grid grid-cols-[14px_1fr_24px] gap-1 px-1 rounded items-center">
+                  <div className="text-left opacity-75 text-[9px]">{r.level}</div>
+                  <div className="min-w-0">
+                    <div className="text-right text-rose-500 font-medium font-mono text-[10px]">{typeof r.price === 'number' ? r.price.toFixed(4) : '-'}</div>
+                    <div className="mt-0.5 h-0.5 overflow-hidden rounded-full bg-rose-100 dark:bg-rose-950/40">
+                      <div
+                        className="h-full rounded-full bg-rose-500/80 transition-[width] duration-300"
+                        style={{ width: `${Math.round(getVolumeRatio(r.vol) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                  <div className="text-right opacity-90 font-mono text-[9px] truncate">{r.vol ?? '-'}</div>
                 </div>
               ))}
             </div>
           </div>
+
+          {/* Sell side */}
           <div className="flex flex-col">
-            <div className={`text-center font-medium border-b ${themes[theme].border} mb-1 text-green-500`}>卖盘</div>
-            <div className="grid grid-cols-3 gap-1 px-1 opacity-70 mb-1">
-              <div className="text-left">档位</div>
-              <div className="text-right">价格</div>
+            <div className={`text-center font-medium border-b ${themes[theme].border} mb-1 text-emerald-500`}>卖盘</div>
+            <div className="grid grid-cols-[14px_1fr_24px] gap-1 px-1 opacity-70 mb-1">
+              <div>档</div>
+              <div className="text-right">价</div>
               <div className="text-right">量</div>
             </div>
             <div className="space-y-0.5">
               {askRows.map((r) => (
-                <div key={`ask-${r.level}`} className="grid grid-cols-3 gap-1 px-1 rounded">
-                  <div className="text-left opacity-75">{r.level}</div>
-                  <div className="text-right text-green-500 font-medium">{typeof r.price === 'number' ? r.price.toFixed(4) : '-'}</div>
-                  <div className="text-right opacity-90">{r.vol ?? '-'}</div>
+                <div key={`ask-${r.level}`} className="grid grid-cols-[14px_1fr_24px] gap-1 px-1 rounded items-center">
+                  <div className="text-left opacity-75 text-[9px]">{r.level}</div>
+                  <div className="min-w-0">
+                    <div className="text-right text-emerald-500 font-medium font-mono text-[10px]">{typeof r.price === 'number' ? r.price.toFixed(4) : '-'}</div>
+                    <div className="mt-0.5 h-0.5 overflow-hidden rounded-full bg-emerald-100 dark:bg-emerald-950/40">
+                      <div
+                        className="h-full rounded-full bg-emerald-500/80 transition-[width] duration-300"
+                        style={{ width: `${Math.round(getVolumeRatio(r.vol) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                  <div className="text-right opacity-90 font-mono text-[9px] truncate">{r.vol ?? '-'}</div>
                 </div>
               ))}
             </div>
           </div>
         </div>
       </div>
+      
       <div className="w-full bg-white dark:bg-gray-900 p-2" style={{ height: monitorDims.chartHeight }}>
         <Line data={chartData} options={chartOptions} />
       </div>

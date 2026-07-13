@@ -54,6 +54,15 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   const { currencyConfig } = useCurrency();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [activeSymbol, setActiveSymbol] = useState<string>(selectedSymbol || '');
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 768px)');
+    setIsMobile(media.matches);
+    const listener = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    media.addEventListener('change', listener);
+    return () => media.removeEventListener('change', listener);
+  }, []);
 
   const inferStrategyFromLegs = useCallback((legs: OptionsPosition[]): InferredStrategyResult | null => {
     return inferStrategyFromLegsWithSelection(legs, selectedLegs);
@@ -731,6 +740,10 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         currentUnderlyingPrice={activeSymbol ? getCurrentUnderlyingPrice(activeSymbol) : null}
       />
 
+      {isMobile && activeSymbol && (
+        <UnderlyingPriceMonitor symbol={activeSymbol} theme={theme} refreshNonce={wsRefreshNonce} isMobile={true} />
+      )}
+
       {portfolioData.subject_positions && portfolioData.subject_positions.length > 0 && (
         <SubjectPositionsPanel theme={theme} positions={portfolioData.subject_positions} currencyConfig={currencyConfig} />
       )}
@@ -832,7 +845,9 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       />
 
       {/* Underlying Price Monitor */}
-      <UnderlyingPriceMonitor symbol={activeSymbol} theme={theme} refreshNonce={wsRefreshNonce} />
+      {!isMobile && (
+        <UnderlyingPriceMonitor symbol={activeSymbol} theme={theme} refreshNonce={wsRefreshNonce} isMobile={false} />
+      )}
 
       {/* Scroll-following Refresh Button */}
       <button
