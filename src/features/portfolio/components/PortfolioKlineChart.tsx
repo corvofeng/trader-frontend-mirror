@@ -226,19 +226,20 @@ export function PortfolioKlineChart({ theme, klineData, source, priceMode }: Por
     }
 
     const isDark = theme === 'dark';
+    const isBlue = theme === 'blue';
     const themedColors = getThemedColors(theme);
-    const verticalGridColor = isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(148, 163, 184, 0.08)';
-    const horizontalGridColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(148, 163, 184, 0.12)';
-    const borderColor = isDark ? '#71649C' : '#e2e8f0';
-    const textColor = isDark ? '#C3BCDB' : '#64748b';
-    const areaTopColor = isDark ? 'rgba(56, 33, 110, 0.60)' : 'rgba(99, 102, 241, 0.18)';
-    const areaBottomColor = isDark ? 'rgba(56, 33, 110, 0.10)' : 'rgba(99, 102, 241, 0.04)';
-    const candleUpColor = isDark ? 'rgb(54, 116, 217)' : themedColors.chart.upColor;
-    const candleDownColor = isDark ? 'rgb(225, 50, 85)' : themedColors.chart.downColor;
+    const verticalGridColor = isDark ? 'rgba(255, 255, 255, 0.04)' : (isBlue ? 'rgba(224, 231, 255, 0.4)' : 'rgba(241, 245, 249, 0.6)');
+    const horizontalGridColor = isDark ? 'rgba(255, 255, 255, 0.08)' : (isBlue ? 'rgba(224, 231, 255, 0.7)' : 'rgba(241, 245, 249, 0.8)');
+    const borderColor = isDark ? '#3f3f46' : (isBlue ? '#dbeafe' : '#e2e8f0');
+    const textColor = isDark ? '#C3BCDB' : (isBlue ? '#1e293b' : '#64748b');
+    const areaTopColor = isDark ? 'rgba(56, 33, 110, 0.60)' : (isBlue ? 'rgba(37, 99, 235, 0.15)' : 'rgba(99, 102, 241, 0.14)');
+    const areaBottomColor = isDark ? 'rgba(56, 33, 110, 0.10)' : (isBlue ? 'rgba(37, 99, 235, 0.02)' : 'rgba(99, 102, 241, 0.02)');
+    const candleUpColor = themedColors.chart.upColor;
+    const candleDownColor = themedColors.chart.downColor;
     const chart = createChart(container, {
       autoSize: true,
       layout: {
-        background: { type: ColorType.Solid, color: isDark ? '#222222' : '#ffffff' },
+        background: { type: ColorType.Solid, color: isDark ? '#18181b' : '#ffffff' },
         textColor,
       },
       handleScroll: {

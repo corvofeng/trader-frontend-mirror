@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Bell, LogIn, LogOut, Menu, X, Sun, Moon, Palette, RefreshCw } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { ArrowLeft, Bell, LogIn, LogOut, Menu, X, Sun, Moon, Palette, RefreshCw, TrendingUp } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Theme, themes } from '../../lib/theme';
 import { noticeService } from '../../lib/services';
@@ -89,6 +89,8 @@ export function Navigation({
   onThemeDropdownToggle
 }: NavigationProps) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isActivePath = (path: string) => location.pathname === path;
   const [noticesOpen, setNoticesOpen] = useState(false);
   const [noticesLoading, setNoticesLoading] = useState(false);
   const [noticesError, setNoticesError] = useState<string | null>(null);
@@ -345,43 +347,64 @@ export function Navigation({
   
   return (
     <React.Fragment>
-      <nav className={`${themes[theme].card} shadow-sm transition-colors duration-200 sticky top-0 z-50`}>
+      <nav className={`${themes[theme].card} border-b ${themes[theme].border} backdrop-blur-md bg-opacity-90 dark:bg-opacity-90 sticky top-0 z-50 transition-colors duration-200`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center">
-              <h1 
-                className={`text-lg sm:text-xl font-bold ${themes[theme].text} cursor-pointer`}
+              <div 
+                className="flex items-center gap-2.5 cursor-pointer group"
                 onClick={() => navigate('/')}
               >
-                Stock Trading Journal
-              </h1>
+                <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-sm shadow-blue-500/30 group-hover:scale-105 transition-transform duration-200">
+                  <TrendingUp className="w-4 h-4" />
+                </div>
+                <span className={`text-lg sm:text-xl font-bold tracking-tight ${themes[theme].text}`}>
+                  Trader<span className="text-blue-500">Log</span>
+                </span>
+              </div>
             </div>
             
             <div className="hidden md:flex items-center space-x-4">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 p-1 rounded-lg bg-slate-100/80 dark:bg-zinc-800/60 border border-slate-200/50 dark:border-zinc-700/50">
                 <button
                   onClick={() => navigate('/journal')}
-                  className={`px-3 py-2 rounded-md text-sm font-medium ${themes[theme].secondary}`}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-150 ${
+                    isActivePath('/journal')
+                      ? themes[theme].primary + ' shadow-xs'
+                      : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-slate-200/50 dark:hover:bg-zinc-700/50'
+                  }`}
                 >
                   Journal
                 </button>
                 <button
                   onClick={() => navigate('/options')}
-                  className={`px-3 py-2 rounded-md text-sm font-medium ${themes[theme].secondary}`}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-150 ${
+                    isActivePath('/options')
+                      ? themes[theme].primary + ' shadow-xs'
+                      : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-slate-200/50 dark:hover:bg-zinc-700/50'
+                  }`}
                 >
                   Options
                 </button>
                 {user && (
                   <button
                     onClick={() => navigate('/admin')}
-                    className={`px-3 py-2 rounded-md text-sm font-medium ${themes[theme].secondary}`}
+                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-150 ${
+                      isActivePath('/admin')
+                        ? themes[theme].primary + ' shadow-xs'
+                        : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-slate-200/50 dark:hover:bg-zinc-700/50'
+                    }`}
                   >
                     Admin
                   </button>
                 )}
                 <button
                   onClick={() => navigate('/about')}
-                  className={`px-3 py-2 rounded-md text-sm font-medium ${themes[theme].secondary}`}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-150 ${
+                    isActivePath('/about')
+                      ? themes[theme].primary + ' shadow-xs'
+                      : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-slate-200/50 dark:hover:bg-zinc-700/50'
+                  }`}
                 >
                   About
                 </button>

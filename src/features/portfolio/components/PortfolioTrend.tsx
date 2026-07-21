@@ -293,6 +293,8 @@ export function PortfolioTrend({ trendData, klineData, klineMetrics, theme, date
 
   const lineChartData = viewMode === 'kline' ? null : getChartData() as any;
 
+  const isDarkTheme = theme === 'dark';
+  const isBlueTheme = theme === 'blue';
   const lineChartOptions: any = {
     responsive: true,
     maintainAspectRatio: false,
@@ -303,10 +305,10 @@ export function PortfolioTrend({ trendData, klineData, klineMetrics, theme, date
       tooltip: {
         mode: 'index' as const,
         intersect: false,
-        backgroundColor: theme === 'dark' ? '#374151' : '#ffffff',
-        titleColor: theme === 'dark' ? '#e5e7eb' : '#374151',
-        bodyColor: theme === 'dark' ? '#e5e7eb' : '#374151',
-        borderColor: theme === 'dark' ? '#4b5563' : '#e5e7eb',
+        backgroundColor: isDarkTheme ? '#1f2937' : '#ffffff',
+        titleColor: isDarkTheme ? '#f3f4f6' : (isBlueTheme ? '#1e293b' : '#374151'),
+        bodyColor: isDarkTheme ? '#f3f4f6' : (isBlueTheme ? '#1e293b' : '#374151'),
+        borderColor: isDarkTheme ? '#4b5563' : (isBlueTheme ? '#bfdbfe' : '#e5e7eb'),
         borderWidth: 1,
         callbacks: {
           label: (context: any) => {
@@ -336,18 +338,18 @@ export function PortfolioTrend({ trendData, klineData, klineMetrics, theme, date
     scales: {
       x: {
         grid: {
-          color: theme === 'dark' ? '#374151' : '#e5e7eb'
+          color: isDarkTheme ? '#374151' : (isBlueTheme ? '#e0e7ff' : '#f1f5f9')
         },
         ticks: {
-          color: theme === 'dark' ? '#e5e7eb' : '#374151'
+          color: isDarkTheme ? '#cbd5e1' : (isBlueTheme ? '#334155' : '#475569')
         }
       },
       y: {
         grid: {
-          color: theme === 'dark' ? '#374151' : '#e5e7eb'
+          color: isDarkTheme ? '#374151' : (isBlueTheme ? '#e0e7ff' : '#f1f5f9')
         },
         ticks: {
-          color: theme === 'dark' ? '#e5e7eb' : '#374151',
+          color: isDarkTheme ? '#cbd5e1' : (isBlueTheme ? '#334155' : '#475569'),
           callback: (value: number) => {
             if (viewMode === 'return') {
               return value.toFixed(1) + '%';

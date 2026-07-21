@@ -16,8 +16,8 @@ interface TabNavigationProps {
 
 export function TabNavigation({ tabs, activeTab, theme, onTabChange }: TabNavigationProps) {
   return (
-    <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-      <div className="flex space-x-2 min-w-max sm:min-w-0">
+    <div className="w-full max-w-full overflow-x-auto py-1">
+      <div className="flex space-x-2 min-w-max">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           return (

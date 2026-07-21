@@ -32,10 +32,10 @@ export function MainLayout({
   onThemeDropdownToggle
 }: MainLayoutProps) {
   const location = useLocation();
-  const showNav = location.pathname !== '/';
+  const showNav = true;
 
   return (
-    <div className={`min-h-screen ${themes[theme].background} transition-colors duration-200`}>
+    <div className={`min-h-screen w-full max-w-full overflow-x-hidden ${themes[theme].background} transition-colors duration-200`}>
       <Toaster position="top-right" />
       
       {showNav && (
@@ -52,7 +52,7 @@ export function MainLayout({
         />
       )}
 
-      {showNav && <Breadcrumbs theme={theme} />}
+      {location.pathname !== '/' && <Breadcrumbs theme={theme} />}
 
       {children}
     </div>

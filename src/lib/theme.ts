@@ -39,65 +39,65 @@ export function getThemeColors(theme: Theme, regionalColors: RegionalColorConfig
 function getBaseTheme(theme: Theme): ThemeColors {
   const baseThemes = {
     light: {
-      primary: 'bg-blue-600 hover:bg-blue-700 text-white',
-      secondary: 'bg-gray-100 hover:bg-gray-200 text-gray-700',
-      background: 'bg-gray-100',
-      text: 'text-gray-900',
+      primary: 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs',
+      secondary: 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/60',
+      background: 'bg-slate-50',
+      text: 'text-slate-900',
       card: 'bg-white',
-      cardHover: 'hover:bg-gray-50',
-      input: 'bg-white border-gray-300',
-      border: 'border-gray-200',
+      cardHover: 'hover:bg-slate-50/80',
+      input: 'bg-white border-slate-200 text-slate-900',
+      border: 'border-slate-200/80',
       semantic: {
         snapshotBanner: 'bg-amber-50 border-l-4 border-amber-500',
-        snapshotIcon: 'text-amber-400',
-        snapshotText: 'text-amber-700',
+        snapshotIcon: 'text-amber-500',
+        snapshotText: 'text-amber-800',
       },
       chart: {
-        upColor: '#26a69a',
-        downColor: '#ef5350',
-        gridColor: '#e1e5eb',
-        crosshairColor: '#9ca3af'
+        upColor: '#10b981',
+        downColor: '#ef4444',
+        gridColor: '#f1f5f9',
+        crosshairColor: '#94a3b8'
       }
     },
     dark: {
-      primary: 'bg-blue-500 hover:bg-blue-600 text-white',
-      secondary: 'bg-gray-700 hover:bg-gray-600 text-gray-100',
-      background: 'bg-gray-900',
-      text: 'text-gray-100',
-      card: 'bg-gray-800',
-      cardHover: 'hover:bg-gray-700',
-      input: 'bg-gray-800 border-gray-600',
-      border: 'border-gray-700',
+      primary: 'bg-blue-600 hover:bg-blue-500 text-white shadow-sm shadow-blue-500/20',
+      secondary: 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/50',
+      background: 'bg-zinc-950',
+      text: 'text-zinc-100',
+      card: 'bg-zinc-900/90',
+      cardHover: 'hover:bg-zinc-800/80',
+      input: 'bg-zinc-900 border-zinc-800 text-zinc-100',
+      border: 'border-zinc-800/80',
       semantic: {
-        snapshotBanner: 'bg-slate-950/80 border-l-4 border-amber-400/60',
-        snapshotIcon: 'text-amber-300/80',
-        snapshotText: 'text-amber-100/80',
+        snapshotBanner: 'bg-amber-950/40 border-l-4 border-amber-500/80',
+        snapshotIcon: 'text-amber-400',
+        snapshotText: 'text-amber-200/90',
       },
       chart: {
-        upColor: '#4caf50',
-        downColor: '#f44336',
-        gridColor: '#363c4e',
-        crosshairColor: '#758696'
+        upColor: '#10b981',
+        downColor: '#ef4444',
+        gridColor: '#27272a',
+        crosshairColor: '#71717a'
       }
     },
     blue: {
-      primary: 'bg-indigo-600 hover:bg-indigo-700 text-white',
-      secondary: 'bg-blue-100 hover:bg-blue-200 text-blue-900',
-      background: 'bg-blue-50',
-      text: 'text-blue-900',
+      primary: 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs shadow-blue-500/20',
+      secondary: 'bg-blue-100/80 hover:bg-blue-200/80 text-blue-900 border border-blue-200/60',
+      background: 'bg-[#f0f5ff]',
+      text: 'text-slate-900',
       card: 'bg-white',
-      cardHover: 'hover:bg-blue-50',
-      input: 'bg-white border-blue-200',
+      cardHover: 'hover:bg-blue-50/60',
+      input: 'bg-white border-blue-200 text-slate-900',
       border: 'border-blue-100',
       semantic: {
-        snapshotBanner: 'bg-amber-50 border-l-4 border-amber-500',
-        snapshotIcon: 'text-amber-400',
-        snapshotText: 'text-amber-700',
+        snapshotBanner: 'bg-amber-50/90 border-l-4 border-amber-500',
+        snapshotIcon: 'text-amber-500',
+        snapshotText: 'text-amber-800',
       },
       chart: {
-        upColor: '#3b82f6',
-        downColor: '#f43f5e',
-        gridColor: '#bfdbfe',
+        upColor: '#10b981',
+        downColor: '#ef4444',
+        gridColor: '#e0e7ff',
         crosshairColor: '#60a5fa'
       }
     }

@@ -61,24 +61,25 @@ const isValidDataPoint = (item: StockData) => {
 const getChartVisualPalette = (theme: Theme, fallback: { upColor: string; downColor: string }) => {
   if (theme === 'dark') {
     return {
-      background: '#1f2937',
+      background: '#18181b',
       textColor: '#d1d5db',
-      gridColor: '#363c4e',
-      scaleBorderColor: '#4b5563',
-      crosshairLineColor: '#758696',
-      crosshairLabelColor: '#4b5563',
+      gridColor: '#27272a',
+      scaleBorderColor: '#3f3f46',
+      crosshairLineColor: '#71717a',
+      crosshairLabelColor: '#3f3f46',
       upColor: fallback.upColor,
       downColor: fallback.downColor,
     };
   }
 
+  const isBlue = theme === 'blue';
   return {
     background: '#ffffff',
-    textColor: '#191919',
-    gridColor: '#e1e5eb',
-    scaleBorderColor: '#d1d4dc',
-    crosshairLineColor: '#9ca3af',
-    crosshairLabelColor: '#9ca3af',
+    textColor: '#0f172a',
+    gridColor: isBlue ? '#e0e7ff' : '#f1f5f9',
+    scaleBorderColor: isBlue ? '#c7d2fe' : '#e2e8f0',
+    crosshairLineColor: isBlue ? '#60a5fa' : '#94a3b8',
+    crosshairLabelColor: isBlue ? '#60a5fa' : '#94a3b8',
     upColor: fallback.upColor,
     downColor: fallback.downColor,
   };
