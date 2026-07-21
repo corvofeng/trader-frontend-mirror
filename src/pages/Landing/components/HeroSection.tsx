@@ -1,5 +1,10 @@
+import { useEffect, useState } from 'react';
 import { TrendingUp, Sigma, ArrowRight, ShieldCheck, Activity, LineChart, Zap } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
+import { accountService, portfolioService, optionsService } from '../../../lib/services';
+import type { Holding, User, Account, TrendData } from '../../../lib/services/types';
+import { landingTranslations, Language } from '../i18n';
+import { getCurrencySymbol } from '../../../shared/utils/format';
 
 interface HeroSectionProps {
   theme: Theme;
@@ -8,121 +13,297 @@ interface HeroSectionProps {
   onNavigateToOptions: () => void;
   onNavigateToAdmin?: () => void;
   onNavigateToAbout: () => void;
+  user?: User | null;
+  lang?: Language;
 }
+
+interface DailyBarItem {
+  change: number;
+  dateStr: string;
+}
+
+const DEFAULT_USER_ID = 'mock-user-id';
+
+// Default realistic 15-day daily PnL change dataset as fallback
+const FALLBACK_DAILY_BARS: DailyBarItem[] = [
+  { change: 320, dateStr: 'Day 1' },
+  { change: -140, dateStr: 'Day 2' },
+  { change: 510, dateStr: 'Day 3' },
+  { change: 180, dateStr: 'Day 4' },
+  { change: -220, dateStr: 'Day 5' },
+  { change: 450, dateStr: 'Day 6' },
+  { change: -110, dateStr: 'Day 7' },
+  { change: 290, dateStr: 'Day 8' },
+  { change: 80, dateStr: 'Day 9' },
+  { change: -310, dateStr: 'Day 10' },
+  { change: 620, dateStr: 'Day 11' },
+  { change: 150, dateStr: 'Day 12' },
+  { change: -90, dateStr: 'Day 13' },
+  { change: 410, dateStr: 'Day 14' },
+  { change: 230, dateStr: 'Day 15' },
+];
 
 export function HeroSection({ 
   theme, 
   onNavigateToJournal, 
   onNavigateToOptions,
+  user,
+  lang = 'zh',
 }: HeroSectionProps) {
+  const t = landingTranslations[lang].hero;
+  const [monitorStock, setMonitorStock] = useState<{ code: string; price: number; changePct: number }>({
+    code: 'SPY',
+    price: 512.40,
+    changePct: 1.2,
+  });
+  const [winRate, setWinRate] = useState<number>(74.8);
+  const [optionsDelta, setOptionsDelta] = useState<string>('+0.48');
+  const [dailyBars, setDailyBars] = useState<DailyBarItem[]>(FALLBACK_DAILY_BARS);
+  const [thirtyDayNetPnL, setThirtyDayNetPnL] = useState<number>(2580.00);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadRealData = async () => {
+      setIsLoading(true);
+      try {
+        const userId = user?.id || DEFAULT_USER_ID;
+
+        // 1. Fetch user accounts to locate main account
+        const accountsResponse = await accountService.getAccounts(userId);
+        const accounts: Account[] = accountsResponse.data || [];
+        const mainAccount = accounts.find((acc) => acc.is_default) || accounts[0];
+        const accountKey = mainAccount ? (mainAccount.alias || mainAccount.id) : undefined;
+
+        // 2. Fetch holdings for main account
+        const holdingsResponse = await portfolioService.getHoldings(userId, accountKey);
+        const holdings: Holding[] = holdingsResponse.data || [];
+
+        if (holdings.length > 0 && !cancelled) {
+          const sortedHoldings = [...holdings].sort((a, b) => (b.total_value ?? 0) - (a.total_value ?? 0));
+          const top = sortedHoldings[0];
+          setMonitorStock({
+            code: top.stock_code,
+            price: top.current_price,
+            changePct: top.profit_loss_percentage ?? 0,
+          });
+
+          const winningCount = holdings.filter((h) => (h.profit_loss ?? 0) >= 0).length;
+          const calculatedWinRate = Number(((winningCount / holdings.length) * 100).toFixed(1));
+          setWinRate(calculatedWinRate);
+        }
+
+        // 3. Fetch trend data for 30-day daily PnL bar chart
+        if (accountKey) {
+          const endDate = new Date().toISOString().split('T')[0];
+          const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+          const trendResponse = await portfolioService.getTrendData(userId, startDate, endDate, accountKey);
+          const trend: TrendData[] = trendResponse.data || [];
+
+          if (trend.length >= 2 && !cancelled) {
+            const calculatedBars: DailyBarItem[] = [];
+            for (let i = 1; i < trend.length; i++) {
+              const diff = trend[i].value - trend[i - 1].value;
+              calculatedBars.push({
+                change: diff,
+                dateStr: trend[i].date,
+              });
+            }
+
+            if (calculatedBars.length > 0) {
+              // Take last 15-20 days for optimal bar chart resolution
+              const sampledBars = calculatedBars.slice(-18);
+              setDailyBars(featuredBars(sampledBars));
+              const netChange = trend[trend.length - 1].value - trend[0].value;
+              setThirtyDayNetPnL(netChange);
+            }
+          }
+        }
+
+        // 4. Fetch options portfolio summary for Delta
+        try {
+          const optionsResponse = await optionsService.getOptionsPortfolio(userId, accountKey);
+          const optData = optionsResponse.data;
+          if (optData && !cancelled) {
+            const allPositions = [
+              ...(optData.singleLegPositions || []),
+              ...(optData.strategies || []).flatMap((s) => s.positions || []),
+            ];
+            if (allPositions.length > 0) {
+              const netDelta = allPositions.reduce((sum: number, p) => sum + (p.delta ?? 0) * (p.quantity ?? 1), 0);
+              setOptionsDelta(netDelta >= 0 ? `+${netDelta.toFixed(2)}` : netDelta.toFixed(2));
+            }
+          }
+        } catch {
+          // Ignore options fetch errors
+        }
+      } catch (err) {
+        console.error('Failed to load Live Market Monitor data:', err);
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadRealData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  const isStockPositive = monitorStock.changePct >= 0;
+  const is30DayPositive = thirtyDayNetPnL >= 0;
+  const maxAbsChange = Math.max(...dailyBars.map((b) => Math.abs(b.change)), 1);
+
   return (
     <div className={`relative overflow-hidden ${themes[theme].background} border-b ${themes[theme].border} transition-colors duration-200`}>
       {/* Background glow accents */}
       <div className="absolute -top-24 -left-24 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute top-1/2 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-20">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           
-          {/* Left Column: Hero Copy */}
+          {/* Left Column: Clean & Concise Hero Copy */}
           <div className="lg:col-span-7 flex flex-col items-start text-left">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 text-xs font-semibold tracking-wide uppercase mb-6">
-              <Zap className="w-3.5 h-3.5" />
-              <span>Real-Time Options & Portfolio Journal</span>
+            <div className="inline-flex items-center gap-2 px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 text-xs font-semibold tracking-wide uppercase mb-4 sm:mb-5">
+              <Zap className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">{t.badge}</span>
             </div>
 
-            <h1 className={`text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight ${themes[theme].text} mb-6 leading-tight sm:leading-none`}>
-              Precision Analytics for <br className="hidden sm:inline" />
-              <span className="bg-gradient-to-r from-blue-600 via-indigo-500 to-cyan-500 bg-clip-text text-transparent">
-                Stock & Options Traders
+            <h1 className={`text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight ${themes[theme].text} mb-4 leading-snug sm:leading-tight`}>
+              <span className="inline-block">{t.titleLine1}</span>
+              <span className="mt-1 sm:mt-0 sm:ml-3 inline-block whitespace-nowrap bg-gradient-to-r from-blue-600 via-indigo-500 to-cyan-500 bg-clip-text text-transparent">
+                {t.titleLine2}
               </span>
             </h1>
 
-            <p className={`text-base sm:text-lg ${themes[theme].text} opacity-80 mb-8 max-w-xl leading-relaxed`}>
-              Track multi-account portfolios, monitor real-time option chains & Greeks, analyze implied volatility surfaces, and log trade execution metrics.
+            <p className={`text-sm sm:text-base lg:text-lg ${themes[theme].text} opacity-80 mb-6 sm:mb-8 max-w-lg leading-relaxed`}>
+              {t.description}
             </p>
 
             <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
               <button
+                type="button"
                 onClick={onNavigateToJournal}
-                className={`inline-flex items-center justify-center px-6 py-3.5 rounded-xl font-semibold text-sm transition-all duration-200 ${themes[theme].primary} active:scale-[0.98] group`}
+                className={`w-full sm:w-auto inline-flex items-center justify-center px-6 py-3.5 rounded-xl font-semibold text-sm transition-all duration-200 ${themes[theme].primary} active:scale-[0.98] group shadow-md hover:shadow-blue-500/20`}
               >
                 <TrendingUp className="w-4 h-4 mr-2" />
-                Open Trading Journal
+                <span>{t.openJournal}</span>
                 <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
               </button>
 
               <button
+                type="button"
                 onClick={onNavigateToOptions}
-                className={`inline-flex items-center justify-center px-6 py-3.5 rounded-xl font-semibold text-sm transition-all duration-200 ${themes[theme].secondary} border ${themes[theme].border} active:scale-[0.98]`}
+                className={`w-full sm:w-auto inline-flex items-center justify-center px-6 py-3.5 rounded-xl font-semibold text-sm transition-all duration-200 ${themes[theme].secondary} border ${themes[theme].border} active:scale-[0.98]`}
               >
                 <Sigma className="w-4 h-4 mr-2 text-indigo-500" />
-                Options Workbench
+                <span>{t.optionsWorkbench}</span>
               </button>
             </div>
 
             {/* Micro Trust Strip */}
-            <div className="mt-10 pt-6 border-t border-slate-200/60 dark:border-zinc-800/60 flex items-center gap-6 text-xs opacity-70">
+            <div className="mt-6 sm:mt-8 pt-4 sm:pt-5 border-t border-slate-200/60 dark:border-zinc-800/60 flex flex-wrap items-center gap-4 sm:gap-6 text-xs opacity-70 w-full sm:w-auto">
               <div className="flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                <span>Multi-Account Storage</span>
+                <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>{t.multiAccount}</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <Activity className="w-4 h-4 text-blue-500" />
-                <span>Live WebSocket Feeds</span>
+                <Activity className="w-4 h-4 text-blue-500 shrink-0" />
+                <span>{t.wsLive}</span>
               </div>
             </div>
           </div>
 
           {/* Right Column: Tactical Financial Dashboard Card */}
-          <div className="lg:col-span-5">
-            <div className={`rounded-2xl p-6 border ${themes[theme].border} ${themes[theme].card} shadow-xl relative overflow-hidden backdrop-blur-sm`}>
+          <div className="lg:col-span-5 w-full">
+            <div className={`rounded-2xl p-5 sm:p-6 border ${themes[theme].border} ${themes[theme].card} shadow-xl relative overflow-hidden backdrop-blur-sm transition-all`}>
               {/* Card Header */}
-              <div className="flex items-center justify-between border-b border-slate-200/50 dark:border-zinc-800/80 pb-4 mb-5">
+              <div className="flex items-center justify-between border-b border-slate-200/50 dark:border-zinc-800/80 pb-3.5 mb-4 sm:mb-5">
                 <div className="flex items-center gap-2">
                   <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-xs font-semibold tracking-wider uppercase opacity-75">Live Market Monitor</span>
+                  <span className="text-xs font-semibold tracking-wider uppercase opacity-75">{t.liveMarketMonitor}</span>
                 </div>
-                <span className="text-xs font-mono px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-medium">
-                  SPY $512.40 (+1.2%)
+                <span className={`text-xs font-mono px-2.5 py-1 rounded-md font-medium border ${
+                  isStockPositive
+                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                    : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
+                }`}>
+                  {monitorStock.code} {getCurrencySymbol(monitorStock.code)}{monitorStock.price.toFixed(2)} ({isStockPositive ? '+' : ''}{monitorStock.changePct.toFixed(1)}%)
                 </span>
               </div>
 
-              {/* Stat Grid */}
-              <div className="grid grid-cols-2 gap-4 mb-5">
-                <div className="p-3.5 rounded-xl bg-slate-100/60 dark:bg-zinc-800/40 border border-slate-200/40 dark:border-zinc-700/40">
-                  <div className="text-xs opacity-70 mb-1">Portfolio Win Rate</div>
-                  <div className="text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400">74.8%</div>
-                  <div className="text-[11px] text-emerald-500 mt-0.5">↑ 4.2% this month</div>
+              {isLoading ? (
+                <div className="space-y-4 animate-pulse">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="h-20 bg-slate-200 dark:bg-zinc-800 rounded-xl"></div>
+                    <div className="h-20 bg-slate-200 dark:bg-zinc-800 rounded-xl"></div>
+                  </div>
+                  <div className="h-28 bg-slate-200 dark:bg-zinc-800 rounded-xl"></div>
                 </div>
+              ) : (
+                <>
+                  {/* Stat Grid */}
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-5">
+                    <div className="p-3 sm:p-3.5 rounded-xl bg-slate-100/60 dark:bg-zinc-800/40 border border-slate-200/40 dark:border-zinc-700/40">
+                      <div className="text-xs opacity-70 mb-1 truncate">{t.winRateLabel}</div>
+                      <div className="text-lg sm:text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400">{winRate.toFixed(1)}%</div>
+                      <div className="text-[11px] text-emerald-500 mt-0.5 truncate">{t.winRateSub}</div>
+                    </div>
 
-                <div className="p-3.5 rounded-xl bg-slate-100/60 dark:bg-zinc-800/40 border border-slate-200/40 dark:border-zinc-700/40">
-                  <div className="text-xs opacity-70 mb-1">Option Delta (Δ)</div>
-                  <div className="text-xl font-bold font-mono text-blue-600 dark:text-blue-400">+0.48</div>
-                  <div className="text-[11px] opacity-60 mt-0.5">Vega: 0.12 · Gamma: 0.03</div>
-                </div>
-              </div>
+                    <div className="p-3 sm:p-3.5 rounded-xl bg-slate-100/60 dark:bg-zinc-800/40 border border-slate-200/40 dark:border-zinc-700/40">
+                      <div className="text-xs opacity-70 mb-1 truncate">{t.optionDelta}</div>
+                      <div className="text-lg sm:text-xl font-bold font-mono text-blue-600 dark:text-blue-400">{optionsDelta}</div>
+                      <div className="text-[11px] opacity-60 mt-0.5 truncate">Vega: 0.12 · Gamma: 0.03</div>
+                    </div>
+                  </div>
 
-              {/* Sparkline Visual Component */}
-              <div className="p-4 rounded-xl bg-slate-100/60 dark:bg-zinc-800/40 border border-slate-200/40 dark:border-zinc-700/40">
-                <div className="flex items-center justify-between text-xs mb-3">
-                  <span className="font-semibold flex items-center gap-1.5">
-                    <LineChart className="w-3.5 h-3.5 text-blue-500" />
-                    Intraday Options PnL
-                  </span>
-                  <span className="font-mono text-emerald-500 font-bold">+$1,420.50</span>
-                </div>
+                  {/* 30-Day Daily PnL Bar Chart Component */}
+                  <div className="p-3.5 sm:p-4 rounded-xl bg-slate-100/60 dark:bg-zinc-800/40 border border-slate-200/40 dark:border-zinc-700/40">
+                    <div className="flex items-center justify-between text-xs mb-3">
+                      <span className="font-semibold flex items-center gap-1.5">
+                        <LineChart className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                        <span className="truncate">{t.unrealizedPnL}</span>
+                      </span>
+                      <span className={`font-mono font-bold shrink-0 ml-2 ${is30DayPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        {is30DayPositive ? '+' : ''}${thirtyDayNetPnL.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
 
-                <div className="h-16 flex items-end gap-1.5 pt-2">
-                  {[35, 42, 38, 55, 62, 58, 74, 82, 78, 95].map((h, i) => (
-                    <div 
-                      key={i} 
-                      className="flex-1 bg-gradient-to-t from-blue-600/40 to-blue-500 rounded-t transition-all duration-300 hover:opacity-100"
-                      style={{ height: `${h}%` }}
-                    />
-                  ))}
-                </div>
-              </div>
+                    {/* Daily PnL Bar Chart Grid */}
+                    <div className="h-20 flex items-center justify-between gap-0.5 sm:gap-1 pt-2 relative">
+                      {/* Center Baseline (0 Line) */}
+                      <div className="absolute inset-x-0 top-1/2 border-b border-dashed border-slate-300 dark:border-zinc-700 opacity-60 z-0 pointer-events-none" />
+
+                      {dailyBars.map((bar, i) => {
+                        const isPos = bar.change >= 0;
+                        const barHeightPct = Math.max(18, Math.min(48, (Math.abs(bar.change) / maxAbsChange) * 48));
+
+                        return (
+                          <div
+                            key={i}
+                            className="flex-1 relative flex items-center justify-center h-full z-10 group/bar cursor-pointer"
+                            title={`${bar.dateStr}: ${isPos ? '+' : ''}$${bar.change.toFixed(2)}`}
+                          >
+                            <div
+                              className={`w-full max-w-[6px] sm:max-w-[10px] rounded-xs transition-all duration-300 ${
+                                isPos
+                                  ? 'bg-emerald-500/80 group-hover/bar:bg-emerald-400 self-end mb-10'
+                                  : 'bg-rose-500/80 group-hover/bar:bg-rose-400 self-start mt-10'
+                              }`}
+                              style={{ height: `${barHeightPct}%` }}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
 
             </div>
           </div>
@@ -132,3 +313,12 @@ export function HeroSection({
     </div>
   );
 }
+
+// Helper to filter/sanitize bars
+function featuredBars(bars: DailyBarItem[]): DailyBarItem[] {
+  if (bars.length === 0) return FALLBACK_DAILY_BARS;
+  return bars;
+}
+
+
+

@@ -1,15 +1,18 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { logger } from '../../../shared/utils/logger';
 import { createChart, ColorType, IChartApi, ISeriesApi } from 'lightweight-charts';
 import { Theme } from '../../../lib/theme';
 import { stockService } from '../../../lib/services';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
+import { landingTranslations, Language } from '../i18n';
 
 interface AnimatedChartProps {
   theme: Theme;
+  lang?: Language;
 }
 
-export function AnimatedChart({ theme }: AnimatedChartProps) {
+export function AnimatedChart({ theme, lang = 'zh' }: AnimatedChartProps) {
+  const t = landingTranslations[lang].marketAnalytics;
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candlestickSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -179,7 +182,7 @@ export function AnimatedChart({ theme }: AnimatedChartProps) {
             width: chartContainerRef.current.clientWidth 
           });
           chartRef.current.timeScale().fitContent();
-        } catch {
+        } catch (e) {
           console.error('Error during resize:', e);
         }
       }
@@ -229,9 +232,10 @@ export function AnimatedChart({ theme }: AnimatedChartProps) {
         <div className={`absolute top-4 left-4 text-sm ${
           theme === 'dark' ? 'text-gray-200 bg-gray-800/80' : 'text-gray-800 bg-white/80'
         } backdrop-blur-sm px-3 py-1 rounded-full z-20`}>
-          Shanghai Composite Index
+          {t.shanghaiIndex}
         </div>
       </div>
     </div>
   );
 }
+
