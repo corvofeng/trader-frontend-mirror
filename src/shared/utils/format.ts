@@ -20,6 +20,15 @@ export function getCurrencySymbol(stockCode?: string): string {
   return '$';
 }
 
+export function getCurrencySymbolFromCode(currency?: string): string {
+  if (!currency) return '$';
+  const upper = currency.toUpperCase().trim();
+  if (upper === 'CNY' || upper === 'RMB') return '¥';
+  if (upper === 'HKD') return 'HK$';
+  if (upper === 'USD') return '$';
+  return '$';
+}
+
 export function formatCurrency(amount: number, config: CurrencyConfig, precision: number = 2): string {
   const formattedNumber = Math.abs(amount).toLocaleString('en-US', {
     minimumFractionDigits: precision,

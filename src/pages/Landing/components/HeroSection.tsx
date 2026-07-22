@@ -4,7 +4,7 @@ import { Theme, themes } from '../../../lib/theme';
 import { accountService, portfolioService, optionsService } from '../../../lib/services';
 import type { Holding, User, Account, TrendData } from '../../../lib/services/types';
 import { landingTranslations, Language } from '../i18n';
-import { getCurrencySymbol } from '../../../shared/utils/format';
+import { getCurrencySymbolFromCode } from '../../../shared/utils/format';
 
 interface HeroSectionProps {
   theme: Theme;
@@ -51,10 +51,16 @@ export function HeroSection({
   lang = 'zh',
 }: HeroSectionProps) {
   const t = landingTranslations[lang].hero;
-  const [monitorStock, setMonitorStock] = useState<{ code: string; price: number; changePct: number }>({
-    code: 'SPY',
-    price: 512.40,
-    changePct: 1.2,
+  const [portfolioSummary, setPortfolioSummary] = useState<{
+    totalValue: number;
+    dailyChange: number;
+    dailyChangePct: number;
+    currencySymbol: string;
+  }>({
+    totalValue: 238500.00,
+    dailyChange: 2862.00,
+    dailyChangePct: 1.20,
+    currencySymbol: '$',
   });
   const [winRate, setWinRate] = useState<number>(74.8);
   const [optionsDelta, setOptionsDelta] = useState<string>('+0.48');
@@ -75,23 +81,40 @@ export function HeroSection({
         const accounts: Account[] = accountsResponse.data || [];
         const mainAccount = accounts.find((acc) => acc.is_default) || accounts[0];
         const accountKey = mainAccount ? (mainAccount.alias || mainAccount.id) : undefined;
+        const currency = mainAccount?.currency || 'USD';
 
         // 2. Fetch holdings for main account
         const holdingsResponse = await portfolioService.getHoldings(userId, accountKey);
         const holdings: Holding[] = holdingsResponse.data || [];
 
-        if (holdings.length > 0 && !cancelled) {
-          const sortedHoldings = [...holdings].sort((a, b) => (b.total_value ?? 0) - (a.total_value ?? 0));
-          const top = sortedHoldings[0];
-          setMonitorStock({
-            code: top.stock_code,
-            price: top.current_price,
-            changePct: top.profit_loss_percentage ?? 0,
-          });
+        if (!cancelled) {
+          const currencySymbol = getCurrencySymbolFromCode(currency);
+          
+          if (holdings.length > 0) {
+            const totalValue = holdings.reduce((sum, h) => sum + (h.total_value ?? 0), 0);
+            const totalDailyPnL = holdings.reduce((sum, h) => sum + (h.daily_profit_loss ?? 0), 0);
+            const previousValue = totalValue - totalDailyPnL;
+            const dailyChangePct = previousValue > 0 ? (totalDailyPnL / previousValue) * 100 : 0;
 
-          const winningCount = holdings.filter((h) => (h.profit_loss ?? 0) >= 0).length;
-          const calculatedWinRate = Number(((winningCount / holdings.length) * 100).toFixed(1));
-          setWinRate(calculatedWinRate);
+            setPortfolioSummary({
+              totalValue,
+              dailyChange: totalDailyPnL,
+              dailyChangePct,
+              currencySymbol,
+            });
+
+            const winningCount = holdings.filter((h) => (h.profit_loss ?? 0) >= 0).length;
+            const calculatedWinRate = Number(((winningCount / holdings.length) * 100).toFixed(1));
+            setWinRate(calculatedWinRate);
+          } else {
+            setPortfolioSummary({
+              totalValue: 0,
+              dailyChange: 0,
+              dailyChangePct: 0,
+              currencySymbol,
+            });
+            setWinRate(0);
+          }
         }
 
         // 3. Fetch trend data for 30-day daily PnL bar chart
@@ -154,7 +177,7 @@ export function HeroSection({
     };
   }, [user]);
 
-  const isStockPositive = monitorStock.changePct >= 0;
+  const isPortfolioPositive = portfolioSummary.dailyChangePct >= 0;
   const is30DayPositive = thirtyDayNetPnL >= 0;
   const maxAbsChange = Math.max(...dailyBars.map((b) => Math.abs(b.change)), 1);
 
@@ -229,11 +252,11 @@ export function HeroSection({
                   <span className="text-xs font-semibold tracking-wider uppercase opacity-75">{t.liveMarketMonitor}</span>
                 </div>
                 <span className={`text-xs font-mono px-2.5 py-1 rounded-md font-medium border ${
-                  isStockPositive
+                  isPortfolioPositive
                     ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
                     : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
                 }`}>
-                  {monitorStock.code} {getCurrencySymbol(monitorStock.code)}{monitorStock.price.toFixed(2)} ({isStockPositive ? '+' : ''}{monitorStock.changePct.toFixed(1)}%)
+                  {portfolioSummary.currencySymbol}{portfolioSummary.totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({isPortfolioPositive ? '+' : ''}{portfolioSummary.dailyChangePct.toFixed(2)}%)
                 </span>
               </div>
 
