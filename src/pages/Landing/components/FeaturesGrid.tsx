@@ -1,4 +1,4 @@
-import { Sigma, BarChart3, BookOpenCheck, ArrowRight, Activity, ShieldAlert, Sparkles } from 'lucide-react';
+import { BarChart3, BookOpenCheck, ArrowRight, ShieldAlert, Sparkles } from 'lucide-react';
 import { InternalLink } from '../../../shared/components';
 import { Theme, themes } from '../../../lib/theme';
 import type { User } from '../../../lib/services/types';
@@ -7,12 +7,11 @@ import { landingTranslations, Language } from '../i18n';
 interface FeaturesGridProps {
   theme: Theme;
   user: User | null;
-  onNavigateToOptions?: () => void;
   onNavigateToJournal?: (tab?: string) => void;
   lang?: Language;
 }
 
-export function FeaturesGrid({ theme, user, onNavigateToOptions, onNavigateToJournal, lang = 'zh' }: FeaturesGridProps) {
+export function FeaturesGrid({ theme, user, onNavigateToJournal, lang = 'zh' }: FeaturesGridProps) {
   const t = landingTranslations[lang].commandSuite;
 
   return (
@@ -30,51 +29,7 @@ export function FeaturesGrid({ theme, user, onNavigateToOptions, onNavigateToJou
         </p>
       </div>
 
-      <div className="grid md:grid-cols-3 gap-8">
-        {/* Card 1: Options Workbench */}
-        <div className={`${themes[theme].card} rounded-2xl p-7 border ${themes[theme].border} ${themes[theme].cardHover} transition-all duration-300 shadow-md hover:shadow-xl relative overflow-hidden group flex flex-col justify-between`}>
-          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl group-hover:bg-blue-500/20 transition-all pointer-events-none" />
-          
-          <div>
-            <div className="flex items-center justify-between mb-6">
-              <div className="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-500/20 shadow-sm">
-                <Sigma className="w-6 h-6" />
-              </div>
-              <span className="text-[11px] font-mono px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 font-semibold flex items-center gap-1">
-                <Activity className="w-3 h-3 animate-pulse text-blue-500" />
-                {t.options.badge}
-              </span>
-            </div>
-
-            <h3 className={`text-xl font-bold tracking-tight mb-2.5 ${themes[theme].text}`}>
-              {t.options.title}
-            </h3>
-            <p className={`text-xs sm:text-sm ${themes[theme].text} opacity-75 leading-relaxed mb-6`}>
-              {t.options.description}
-            </p>
-          </div>
-
-          <div className="pt-4 border-t border-slate-200/50 dark:border-zinc-800/80 mt-auto">
-            {onNavigateToOptions ? (
-              <button
-                type="button"
-                onClick={onNavigateToOptions}
-                className="w-full inline-flex items-center justify-between text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-500 group/btn"
-              >
-                <span>{t.options.cta}</span>
-                <ArrowRight className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform" />
-              </button>
-            ) : (
-              <InternalLink
-                to="/options"
-                className="w-full inline-flex items-center justify-between text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-500 group/btn"
-              >
-                <span>{t.options.cta}</span>
-                <ArrowRight className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform" />
-              </InternalLink>
-            )}
-          </div>
-        </div>
+      <div className="grid md:grid-cols-2 gap-8">
 
         {/* Card 2: Portfolio Analytics */}
         <div className={`${themes[theme].card} rounded-2xl p-7 border ${themes[theme].border} ${themes[theme].cardHover} transition-all duration-300 shadow-md hover:shadow-xl relative overflow-hidden group flex flex-col justify-between`}>

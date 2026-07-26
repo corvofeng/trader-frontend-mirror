@@ -2,16 +2,18 @@ import { useEffect, useRef, useState } from 'react';
 import { logger } from '../../../shared/utils/logger';
 import { createChart, ColorType, IChartApi, ISeriesApi } from 'lightweight-charts';
 import { Theme } from '../../../lib/theme';
-import { stockService } from '../../../lib/services';
+import { accountService, portfolioService } from '../../../lib/services';
+import type { User, Account } from '../../../lib/services/types';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { landingTranslations, Language } from '../i18n';
 
 interface AnimatedChartProps {
   theme: Theme;
   lang?: Language;
+  user?: User | null;
 }
 
-export function AnimatedChart({ theme, lang = 'zh' }: AnimatedChartProps) {
+export function AnimatedChart({ theme, lang = 'zh', user }: AnimatedChartProps) {
   const t = landingTranslations[lang].marketAnalytics;
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -28,19 +30,19 @@ export function AnimatedChart({ theme, lang = 'zh' }: AnimatedChartProps) {
   }, []);
 
   useEffect(() => {
-  if (!containerReady) {
-    logger.debug('[AnimatedChart] Guard: container not ready');
-    return;
-  }
+    if (!containerReady) {
+      logger.debug('[AnimatedChart] Guard: container not ready');
+      return;
+    }
 
     let disposed = false;
     let animationFrame: number;
 
     async function initializeChart() {
-  if (!chartContainerRef.current) {
-    logger.debug('[AnimatedChart] Guard: chartContainerRef missing');
-    return;
-  }
+      if (!chartContainerRef.current) {
+        logger.debug('[AnimatedChart] Guard: chartContainerRef missing');
+        return;
+      }
 
       const themedColors = getThemedColors(theme);
       const chartColors = themedColors.chart;
@@ -108,16 +110,30 @@ export function AnimatedChart({ theme, lang = 'zh' }: AnimatedChartProps) {
         setIsLoading(true);
         setError(null);
         
-        const response = await stockService.getStockData('^SSEC');
+        const userId = user?.id || 'mock-user-id';
         
-        if (!response.data) {
-          throw new Error('Failed to load stock data');
+        // 1. Fetch user accounts to locate main account
+        const accountsResponse = await accountService.getAccounts(userId);
+        const accounts: Account[] = accountsResponse.data || [];
+        const mainAccount = accounts.find((acc) => acc.is_default) || accounts[0];
+        const accountKey = mainAccount ? (mainAccount.alias || mainAccount.id) : undefined;
+
+        if (!accountKey) {
+          throw new Error('No account found');
         }
 
-        const stockData = response.data;
+        const endDate = new Date().toISOString().split('T')[0];
+        const startDate = '2026-01-01'; // Fetch data starting from 2026
+        const response = await portfolioService.getKlineData(userId, startDate, endDate, accountKey);
+        
+        if (!response.data) {
+          throw new Error('Failed to load kline data');
+        }
 
-        if (stockData.length > 0) {
-          const candlestickData = stockData.map(item => ({
+        const klineData = response.data;
+
+        if (klineData.length > 0) {
+          const candlestickData = klineData.map(item => ({
             time: item.date,
             open: item.open,
             high: item.high,
@@ -125,19 +141,16 @@ export function AnimatedChart({ theme, lang = 'zh' }: AnimatedChartProps) {
             close: item.close,
           }));
 
-          // Progressive loading animation with slower speed
+          // Progressive loading animation
           let currentIndex = 0;
           const animateData = () => {
             if (currentIndex < candlestickData.length && !disposed) {
               if (candlestickSeriesRef.current && chartRef.current) {
-                // Add data in chunks for smoother animation
                 const chunkSize = Math.max(1, Math.floor(candlestickData.length / 100));
                 const nextIndex = Math.min(currentIndex + chunkSize, candlestickData.length);
                 
                 try {
                   candlestickSeriesRef.current.setData(candlestickData.slice(0, nextIndex));
-                
-                  // Auto-scale and fit content for smooth animation
                   chartRef.current.timeScale().fitContent();
                 } catch (e) {
                   console.error('Error during animation:', e);
@@ -146,12 +159,11 @@ export function AnimatedChart({ theme, lang = 'zh' }: AnimatedChartProps) {
                 
                 currentIndex = nextIndex;
                 
-                // Slow down the animation
                 setTimeout(() => {
                   if (!disposed) {
                     animationFrame = requestAnimationFrame(animateData);
                   }
-                }, 50); // Add delay between frames
+                }, 50);
               }
             } else {
               if (!disposed) {
@@ -160,11 +172,12 @@ export function AnimatedChart({ theme, lang = 'zh' }: AnimatedChartProps) {
             }
           };
 
-          // Start animation
           animateData();
+        } else {
+          setIsLoading(false);
         }
       } catch (err) {
-        console.error('Error loading stock data:', err);
+        console.error('Error loading kline data:', err);
         if (!disposed) {
           setError(err instanceof Error ? err.message : 'Failed to load chart data');
           setIsLoading(false);
@@ -206,7 +219,7 @@ export function AnimatedChart({ theme, lang = 'zh' }: AnimatedChartProps) {
         cancelAnimationFrame(animationFrame);
       }
     };
-  }, [theme, containerReady, getThemedColors]);
+  }, [theme, containerReady, getThemedColors, user]);
 
   return (
     <div className="w-full h-[400px] relative">
@@ -238,4 +251,3 @@ export function AnimatedChart({ theme, lang = 'zh' }: AnimatedChartProps) {
     </div>
   );
 }
-

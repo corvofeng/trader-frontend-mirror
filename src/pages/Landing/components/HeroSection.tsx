@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { TrendingUp, Sigma, ArrowRight, ShieldCheck, Activity, LineChart, Zap } from 'lucide-react';
+import { TrendingUp, ArrowRight, ShieldCheck, Activity, LineChart, Zap } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
-import { accountService, portfolioService, optionsService } from '../../../lib/services';
+import { accountService, portfolioService } from '../../../lib/services';
 import type { Holding, User, Account, TrendData } from '../../../lib/services/types';
 import { landingTranslations, Language } from '../i18n';
 import { getCurrencySymbolFromCode } from '../../../shared/utils/format';
@@ -10,7 +10,6 @@ interface HeroSectionProps {
   theme: Theme;
   onThemeChange: (theme: Theme) => void;
   onNavigateToJournal: () => void;
-  onNavigateToOptions: () => void;
   onNavigateToAdmin?: () => void;
   onNavigateToAbout: () => void;
   user?: User | null;
@@ -46,7 +45,6 @@ const FALLBACK_DAILY_BARS: DailyBarItem[] = [
 export function HeroSection({ 
   theme, 
   onNavigateToJournal, 
-  onNavigateToOptions,
   user,
   lang = 'zh',
 }: HeroSectionProps) {
@@ -63,7 +61,6 @@ export function HeroSection({
     currencySymbol: '$',
   });
   const [winRate, setWinRate] = useState<number>(74.8);
-  const [optionsDelta, setOptionsDelta] = useState<string>('+0.48');
   const [dailyBars, setDailyBars] = useState<DailyBarItem[]>(FALLBACK_DAILY_BARS);
   const [thirtyDayNetPnL, setThirtyDayNetPnL] = useState<number>(2580.00);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -143,24 +140,6 @@ export function HeroSection({
             }
           }
         }
-
-        // 4. Fetch options portfolio summary for Delta
-        try {
-          const optionsResponse = await optionsService.getOptionsPortfolio(userId, accountKey);
-          const optData = optionsResponse.data;
-          if (optData && !cancelled) {
-            const allPositions = [
-              ...(optData.singleLegPositions || []),
-              ...(optData.strategies || []).flatMap((s) => s.positions || []),
-            ];
-            if (allPositions.length > 0) {
-              const netDelta = allPositions.reduce((sum: number, p) => sum + (p.delta ?? 0) * (p.quantity ?? 1), 0);
-              setOptionsDelta(netDelta >= 0 ? `+${netDelta.toFixed(2)}` : netDelta.toFixed(2));
-            }
-          }
-        } catch {
-          // Ignore options fetch errors
-        }
       } catch (err) {
         console.error('Failed to load Live Market Monitor data:', err);
       } finally {
@@ -218,15 +197,6 @@ export function HeroSection({
                 <span>{t.openJournal}</span>
                 <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
               </button>
-
-              <button
-                type="button"
-                onClick={onNavigateToOptions}
-                className={`w-full sm:w-auto inline-flex items-center justify-center px-6 py-3.5 rounded-xl font-semibold text-sm transition-all duration-200 ${themes[theme].secondary} border ${themes[theme].border} active:scale-[0.98]`}
-              >
-                <Sigma className="w-4 h-4 mr-2 text-indigo-500" />
-                <span>{t.optionsWorkbench}</span>
-              </button>
             </div>
 
             {/* Micro Trust Strip */}
@@ -279,9 +249,13 @@ export function HeroSection({
                     </div>
 
                     <div className="p-3 sm:p-3.5 rounded-xl bg-slate-100/60 dark:bg-zinc-800/40 border border-slate-200/40 dark:border-zinc-700/40">
-                      <div className="text-xs opacity-70 mb-1 truncate">{t.optionDelta}</div>
-                      <div className="text-lg sm:text-xl font-bold font-mono text-blue-600 dark:text-blue-400">{optionsDelta}</div>
-                      <div className="text-[11px] opacity-60 mt-0.5 truncate">Vega: 0.12 · Gamma: 0.03</div>
+                      <div className="text-xs opacity-70 mb-1 truncate">{(t as any).dailyPnL}</div>
+                      <div className={`text-lg sm:text-xl font-bold font-mono ${isPortfolioPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                        {portfolioSummary.dailyChange >= 0 ? '+' : ''}{portfolioSummary.dailyChange.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                      <div className={`text-[11px] font-semibold mt-0.5 truncate ${isPortfolioPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        {(t as any).dailyPnLSub} ({isPortfolioPositive ? '+' : ''}{portfolioSummary.dailyChangePct.toFixed(2)}%)
+                      </div>
                     </div>
                   </div>
 
@@ -293,7 +267,7 @@ export function HeroSection({
                         <span className="truncate">{t.unrealizedPnL}</span>
                       </span>
                       <span className={`font-mono font-bold shrink-0 ml-2 ${is30DayPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
-                        {is30DayPositive ? '+' : ''}${thirtyDayNetPnL.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {is30DayPositive ? '+' : ''}{portfolioSummary.currencySymbol}{thirtyDayNetPnL.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
 
@@ -310,7 +284,7 @@ export function HeroSection({
                           <div
                             key={i}
                             className="flex-1 relative flex items-center justify-center h-full z-10 group/bar cursor-pointer"
-                            title={`${bar.dateStr}: ${isPos ? '+' : ''}$${bar.change.toFixed(2)}`}
+                            title={`${bar.dateStr}: ${isPos ? '+' : ''}${portfolioSummary.currencySymbol}${bar.change.toFixed(2)}`}
                           >
                             <div
                               className={`w-full max-w-[6px] sm:max-w-[10px] rounded-xs transition-all duration-300 ${

@@ -1,0 +1,11 @@
+{
+  "name": "trader-frontend",
+  "compatibility_date": "2026-07-23",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  },
+  "routes": [
+    { "pattern": "stock-web.corvo.fun", "custom_domain": true }
+  ]
+}

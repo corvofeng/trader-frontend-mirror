@@ -3,13 +3,15 @@ import { AnimatedChart } from './AnimatedChart';
 import { InternalLink } from '../../../shared/components';
 import { Theme, themes } from '../../../lib/theme';
 import { landingTranslations, Language } from '../i18n';
+import type { User } from '../../../lib/services/types';
 
 interface MarketOverviewProps {
   theme: Theme;
   lang?: Language;
+  user?: User | null;
 }
 
-export function MarketOverview({ theme, lang = 'zh' }: MarketOverviewProps) {
+export function MarketOverview({ theme, lang = 'zh', user }: MarketOverviewProps) {
   const t = landingTranslations[lang].marketAnalytics;
 
   return (
@@ -32,7 +34,7 @@ export function MarketOverview({ theme, lang = 'zh' }: MarketOverviewProps) {
           <TrendingUp className="w-4 h-4" />
         </InternalLink>
       </div>
-      <AnimatedChart theme={theme} lang={lang} />
+      <AnimatedChart theme={theme} lang={lang} user={user} />
     </div>
   );
 }

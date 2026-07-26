@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Bell, LogIn, LogOut, Menu, X, Sun, Moon, Palette, RefreshCw, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Bell, LogOut, Menu, X, Sun, Moon, Palette, RefreshCw, TrendingUp } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Theme, themes } from '../../lib/theme';
 import { noticeService } from '../../lib/services';
@@ -83,7 +83,6 @@ export function Navigation({
   mobileMenuOpen,
   showThemeDropdown,
   onThemeChange,
-  onSignIn,
   onSignOut,
   onMobileMenuToggle,
   onThemeDropdownToggle
@@ -417,18 +416,20 @@ export function Navigation({
                 <RefreshCw className="w-4 h-4 mr-2" />
                 刷新
               </button>
-              <button
-                onClick={() => setNoticesOpen(true)}
-                className={`relative p-2 rounded-md ${themes[theme].secondary}`}
-                title="Alerts"
-              >
-                <Bell className="w-5 h-5" />
-                {unresolvedCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-red-600 text-white text-xs flex items-center justify-center">
-                    {unresolvedCount > 99 ? '99+' : unresolvedCount}
-                  </span>
-                )}
-              </button>
+              {user && (
+                <button
+                  onClick={() => setNoticesOpen(true)}
+                  className={`relative p-2 rounded-md ${themes[theme].secondary}`}
+                  title="Alerts"
+                >
+                  <Bell className="w-5 h-5" />
+                  {unresolvedCount > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-red-600 text-white text-xs flex items-center justify-center">
+                      {unresolvedCount > 99 ? '99+' : unresolvedCount}
+                    </span>
+                  )}
+                </button>
+              )}
               <div className="relative">
                 <button
                   onClick={onThemeDropdownToggle}
@@ -481,15 +482,7 @@ export function Navigation({
                     Sign Out
                   </button>
                 </div>
-              ) : (
-                <button
-                  onClick={onSignIn}
-                  className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md ${themes[theme].primary}`}
-                >
-                  <LogIn className="w-5 h-5 mr-2" />
-                  Sign In
-                </button>
-              )}
+              ) : null}
             </div>
 
             <div className="md:hidden flex items-center">
@@ -548,15 +541,17 @@ export function Navigation({
                   >
                     About
                   </button>
-                  <button
-                    onClick={() => {
-                      setNoticesOpen(true);
-                      onMobileMenuToggle();
-                    }}
-                    className={`w-full px-4 py-2 rounded-md text-sm font-medium text-left ${themes[theme].secondary}`}
-                  >
-                    Alerts{unresolvedCount > 0 ? ` (${unresolvedCount > 99 ? '99+' : unresolvedCount})` : ''}
-                  </button>
+                  {user && (
+                    <button
+                      onClick={() => {
+                        setNoticesOpen(true);
+                        onMobileMenuToggle();
+                      }}
+                      className={`w-full px-4 py-2 rounded-md text-sm font-medium text-left ${themes[theme].secondary}`}
+                    >
+                      Alerts{unresolvedCount > 0 ? ` (${unresolvedCount > 99 ? '99+' : unresolvedCount})` : ''}
+                    </button>
+                  )}
                   <button
                     onClick={() => {
                       void handleRefreshServiceWorker();
@@ -606,15 +601,7 @@ export function Navigation({
                       Sign Out
                     </button>
                   </>
-                ) : (
-                  <button
-                    onClick={onSignIn}
-                    className={`w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md ${themes[theme].primary}`}
-                  >
-                    <LogIn className="w-5 h-5 mr-2" />
-                    Sign In
-                  </button>
-                )}
+                ) : null}
               </div>
             </div>
           )}

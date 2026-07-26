@@ -2,6 +2,7 @@ import type { CurrencyConfig, RegionalColorConfig } from '../types';
 
 export const currencyConfigs: Record<string, CurrencyConfig> = {
   USD: { symbol: '$', position: 'before', separator: ',', region: 'US' },
+  CNY: { symbol: '¥', position: 'before', separator: ',', region: 'CN' },
   RMB: { symbol: '¥', position: 'before', separator: ',', region: 'CN' },
   JPY: { symbol: '¥', position: 'before', separator: ',', region: 'JP' },
   EUR: { symbol: '€', position: 'before', separator: '.', region: 'EU' },
