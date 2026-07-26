@@ -1960,21 +1960,21 @@ export function ExpiryGroupCard({
                                   <th className="text-center py-2" colSpan={7}>Puts</th>
                                 </tr>
                                 <tr className={`text-xs ${themes[theme].text} opacity-70`}>
-                                  <th className="text-center py-2">Call 组合</th>
-                                  <th className="text-center py-2">Call 备兑</th>
-                                  <th className="text-center py-2">Call 义务</th>
-                                  <th className="text-center py-2 px-2">Call 权利</th>
-                                  <th className="text-center py-2 px-2">Call 保证金</th>
-                                  <th className="text-center py-2 px-2">Call 时间价值</th>
-                                  <th className={`text-center py-2 px-2 border-r ${themes[theme].border}`}>Call 现价</th>
+                                  <th className="text-center py-2">组合</th>
+                                  <th className="text-center py-2">备兑</th>
+                                  <th className="text-center py-2">义务</th>
+                                  <th className="text-center py-2 px-2">权利</th>
+                                  <th className="text-center py-2 px-2">保证金</th>
+                                  <th className="text-center py-2 px-2">时间价值</th>
+                                  <th className={`text-center py-2 px-2 border-r ${themes[theme].border}`}>现价</th>
                                   <th ref={strikeHeaderRef} className="text-center py-2 px-3">行权价</th>
-                                  <th className={`text-center py-2 px-2 border-l ${themes[theme].border}`}>Put 现价</th>
-                                  <th className="text-center py-2 px-2">Put 时间价值</th>
-                                  <th className="text-center py-2 px-2">Put 保证金</th>
-                                  <th className="text-center py-2 px-2">Put 权利</th>
-                                  <th className="text-center py-2">Put 义务</th>
-                                  <th className="text-center py-2">Put 备兑</th>
-                                  <th className="text-center py-2">Put 组合</th>
+                                  <th className={`text-center py-2 px-2 border-l ${themes[theme].border}`}>现价</th>
+                                  <th className="text-center py-2 px-2">时间价值</th>
+                                  <th className="text-center py-2 px-2">保证金</th>
+                                  <th className="text-center py-2 px-2">权利</th>
+                                  <th className="text-center py-2">义务</th>
+                                  <th className="text-center py-2">备兑</th>
+                                  <th className="text-center py-2">组合</th>
                                 </tr>
                               </thead>
                               <tbody className={`divide-y ${themes[theme].border}`}>
