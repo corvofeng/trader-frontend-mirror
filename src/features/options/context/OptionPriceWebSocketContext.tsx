@@ -88,6 +88,24 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
   const [portfolioSnapshot, setPortfolioSnapshot] = useState<OptionsPortfolioData | null>(null);
   const autoCloseTimeoutId = useRef<number | null>(null);
 
+  // High-frequency price update throttling refs
+  const pendingPricesRef = useRef<Record<string, PriceUpdate>>({});
+  const throttleTimeoutRef = useRef<number | null>(null);
+
+  const queuePriceUpdate = useCallback((updates: Record<string, PriceUpdate>) => {
+    Object.assign(pendingPricesRef.current, updates);
+
+    if (throttleTimeoutRef.current === null) {
+      throttleTimeoutRef.current = window.setTimeout(() => {
+        throttleTimeoutRef.current = null;
+        if (Object.keys(pendingPricesRef.current).length > 0) {
+          setPrices((prev) => ({ ...prev, ...pendingPricesRef.current }));
+          pendingPricesRef.current = {};
+        }
+      }, 250); // 250ms batching window (4 ticks per second)
+    }
+  }, []);
+
   const clearAutoCloseTimer = useCallback(() => {
     if (autoCloseTimeoutId.current === null) return;
     window.clearTimeout(autoCloseTimeoutId.current);
@@ -206,7 +224,7 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
                   };
                 }
               });
-              setPrices(prev => ({ ...prev, ...updates }));
+              queuePriceUpdate(updates);
               return;
             }
 
@@ -229,10 +247,7 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
                 ask_vol: record.ask_vol ?? []
               };
 
-              setPrices(prev => ({
-                ...prev,
-                [record.contract_code]: processedData
-              }));
+              queuePriceUpdate({ [record.contract_code]: processedData });
             }
           } catch (e) {
             console.error('Failed to handle WebSocket message:', e);
@@ -245,7 +260,7 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
     } catch (e) {
       console.error('Failed to initialize WebSocket:', e);
     }
-  }, [clearAutoCloseTimer]);
+  }, [clearAutoCloseTimer, queuePriceUpdate]);
 
   useEffect(() => {
     connect();
@@ -253,6 +268,9 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
     return () => {
       if (clientRef.current) clientRef.current.close();
       clearAutoCloseTimer();
+      if (throttleTimeoutRef.current !== null) {
+        window.clearTimeout(throttleTimeoutRef.current);
+      }
     };
   }, [connect, clearAutoCloseTimer]);
 
