@@ -208,6 +208,218 @@ export function ExpiryGroupCard({
     ? basePositions.filter(p => p.opt_undl_code_full === selectedSymbol)
     : basePositions, [selectedSymbol, basePositions]);
 
+  // Memoized strike to option quote mapping for O(1) lookups during rendering
+  const quotesByStrike = useMemo(() => {
+    const map = new Map<number, OptionQuote>();
+    const activeData = optionsData || localOptionsData;
+    const processQuotes = (quotes?: OptionQuote[]) => {
+      if (!quotes) return;
+      quotes.forEach(q => {
+        if (q.expiry === group.expiry) {
+          map.set(getQuoteStrike(q), q);
+        }
+      });
+    };
+    if (activeData) processQuotes(activeData.quotes);
+    if (optionsDataMap) {
+      Object.values(optionsDataMap).forEach(data => processQuotes(data.quotes));
+    }
+    return map;
+  }, [optionsData, localOptionsData, optionsDataMap, group.expiry]);
+
+  // Memoized strikes and metrics for T-board quantity dashboard
+  const tBoardStrikesAndMetrics = useMemo(() => {
+    const callStrategiesMap = new Map<number, { strategy: OptionsStrategy, qty: number }[]>();
+    const putStrategiesMap = new Map<number, { strategy: OptionsStrategy, qty: number }[]>();
+    
+    (allExpiryBuckets || []).forEach(bucket => {
+      bucket.complex.forEach(s => {
+        if (s.positions.some(p => p.expiry === group.expiry)) {
+          const c = computeCombosForPositions(s, 'call');
+          const p = computeCombosForPositions(s, 'put');
+          
+          const relevantPositions = s.positions.filter(pos => pos.expiry === group.expiry);
+          const strategyQty = relevantPositions.find(pos => pos.position_type === 'buy')?.quantity || relevantPositions[0]?.quantity || 0;
+
+          c.forEach((_val: number, k: number) => {
+             const list = callStrategiesMap.get(k) || [];
+             list.push({ strategy: s, qty: strategyQty });
+             callStrategiesMap.set(k, list);
+          });
+          p.forEach((_val: number, k: number) => {
+             const list = putStrategiesMap.get(k) || [];
+             list.push({ strategy: s, qty: strategyQty });
+             putStrategiesMap.set(k, list);
+          });
+        }
+      });
+    });
+
+    const complexStrikes = (group.complex || []).flatMap(s => 
+      s.positions
+        .filter(p => p.expiry === group.expiry && (!selectedSymbol || p.opt_undl_code_full === selectedSymbol))
+        .map(p => Number(p.contract_strike_price ?? p.strike))
+    );
+    const singleStrikes = filteredPositions.map(p => p.strike);
+    
+    const activeData = optionsData || localOptionsData;
+    const dataStrikes = new Set<number>();
+    
+    if (activeData?.quotes) {
+      if (!selectedSymbol || activeData.opt_undl_code_full === selectedSymbol) {
+        activeData.quotes.forEach(q => {
+          if (q.expiry === group.expiry) {
+            dataStrikes.add(getQuoteStrike(q));
+          }
+        });
+      }
+    }
+    
+    if (optionsDataMap) {
+      Object.values(optionsDataMap).forEach(data => {
+         if (selectedSymbol && data.opt_undl_code_full !== selectedSymbol) {
+           return;
+         }
+         if (data.quotes) {
+           data.quotes.forEach(q => {
+             if (q.expiry === group.expiry) {
+               dataStrikes.add(getQuoteStrike(q));
+             }
+           });
+         }
+      });
+    }
+
+    const strikes = Array.from(new Set([...singleStrikes, ...complexStrikes, ...dataStrikes])).sort((a, b) => a - b);
+
+    const rows = strikes.map(strike => {
+      const callSell = filteredPositions
+        .filter(p => p.strike === strike && p.type === 'call' && p.position_type === 'sell')
+        .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
+      const putSell = filteredPositions
+        .filter(p => p.strike === strike && p.type === 'put' && p.position_type === 'sell')
+        .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
+      return { strike, callSell, putSell };
+    });
+
+    const metrics = rows.map(row => {
+      const s = row.strike;
+      const getM = () => {
+        if (underlyingPrice == null) return '';
+        const thr = 0.005;
+        const diffRatio = Math.abs(underlyingPrice - s) / Math.max(s, 1);
+        if (diffRatio <= thr) return 'ATM';
+        const isCallITM = underlyingPrice > s;
+        const isPutITM = underlyingPrice < s;
+        return `${isCallITM ? 'Call:ITM' : 'Call:OTM'} | ${isPutITM ? 'Put:ITM' : 'Put:OTM'}`;
+      };
+
+      const callRight = filteredPositions
+        .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'buy')
+        .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
+      const callRightAvail = filteredPositions
+        .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'buy')
+        .reduce((sum, p) => {
+          const base = p.selectedQuantity ?? p.quantity;
+          const avail = Number(p.available ?? base) || 0;
+          return sum + avail;
+        }, 0);
+      const callCovered = filteredPositions
+        .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh === '备兑')
+        .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
+      const callCoveredAvail = filteredPositions
+        .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh === '备兑')
+        .reduce((sum, p) => {
+          const base = p.selectedQuantity ?? p.quantity;
+          const avail = Number(p.available ?? base) || 0;
+          return sum + avail;
+        }, 0);
+      const callObligation = filteredPositions
+        .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh !== '备兑')
+        .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
+      const callObligationAvail = filteredPositions
+        .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh !== '备兑')
+        .reduce((sum, p) => {
+          const base = p.selectedQuantity ?? p.quantity;
+          const avail = Number(p.available ?? base) || 0;
+          return sum + avail;
+        }, 0);
+      const putObligation = filteredPositions
+        .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'sell' && p.position_type_zh !== '备兑')
+        .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
+      const putObligationAvail = filteredPositions
+        .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'sell' && p.position_type_zh !== '备兑')
+        .reduce((sum, p) => {
+          const base = p.selectedQuantity ?? p.quantity;
+          const avail = Number(p.available ?? base) || 0;
+          return sum + avail;
+        }, 0);
+      const putCovered = filteredPositions
+        .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'sell' && p.position_type_zh === '备兑')
+        .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
+      const putCoveredAvail = filteredPositions
+        .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'sell' && p.position_type_zh === '备兑')
+        .reduce((sum, p) => {
+          const base = p.selectedQuantity ?? p.quantity;
+          const avail = Number(p.available ?? base) || 0;
+          return sum + avail;
+        }, 0);
+      const putRight = filteredPositions
+        .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'buy')
+        .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
+      const putRightAvail = filteredPositions
+        .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'buy')
+        .reduce((sum, p) => {
+          const base = p.selectedQuantity ?? p.quantity;
+          const avail = Number(p.available ?? base) || 0;
+          return sum + avail;
+        }, 0);
+      
+      const comboCallStrategies = callStrategiesMap.get(s) || [];
+      const comboPutStrategies = putStrategiesMap.get(s) || [];
+      const comboCallQty = comboCallStrategies.reduce((acc, item) => acc + item.qty, 0);
+      const comboPutQty = comboPutStrategies.reduce((acc, item) => acc + item.qty, 0);
+
+      let risk = 0;
+      if (underlyingPrice != null) {
+        const up = underlyingPrice;
+        const cr = Math.max(0, (up - s) / Math.max(s, 1));
+        const pr = Math.max(0, (s - up) / Math.max(s, 1));
+        const wCovered = 0.3;
+        const wCombo = 0.2;
+        const shortCall = callObligation + callCovered * wCovered + comboCallQty * wCombo;
+        const shortPut = putObligation + putCovered * wCovered + comboPutQty * wCombo;
+        risk = shortCall * cr + shortPut * pr;
+        const near = Math.max(0, 0.02 - Math.abs(up - s) / Math.max(s, 1)) / 0.02;
+        risk += near * (callObligation + putObligation) * 0.5;
+      }
+
+      return { 
+        s, 
+        getM, 
+        callRight, 
+        callRightAvail,
+        callObligation, 
+        callObligationAvail,
+        callCovered, 
+        callCoveredAvail,
+        comboCallQty, 
+        putRight, 
+        putRightAvail,
+        putObligation, 
+        putObligationAvail,
+        putCovered, 
+        putCoveredAvail,
+        comboPutQty, 
+        comboCallStrategies,
+        comboPutStrategies,
+        risk 
+      };
+    });
+
+    return { strikes, metrics };
+  }, [allExpiryBuckets, group.expiry, group.complex, selectedSymbol, filteredPositions, optionsData, localOptionsData, optionsDataMap, underlyingPrice]);
+
   const embeddedComboDraft = useMemo<ComboDraftState | null>(() => {
     if (confirmData?.meta?.action !== 'combo_manage' || !confirmData.meta.comboCandidate) return null;
     return {
@@ -1638,57 +1850,7 @@ export function ExpiryGroupCard({
                         </div>
                       )}
                       {(() => {
-                        const complexStrikes = (group.complex || []).flatMap(s => 
-                          s.positions
-                            .filter(p => p.expiry === group.expiry && (!selectedSymbol || p.opt_undl_code_full === selectedSymbol))
-                            .map(p => Number(p.contract_strike_price ?? p.strike))
-                        );
-                        const singleStrikes = filteredPositions.map(p => p.strike);
-                        
-                        // Collect all strikes from options data
-                        const activeData = optionsData || localOptionsData;
-                        const dataStrikes = new Set<number>();
-                        
-                        // From main optionsData
-                        if (activeData?.quotes) {
-                          // Filter by selected symbol if available
-                          if (!selectedSymbol || activeData.opt_undl_code_full === selectedSymbol) {
-                            activeData.quotes.forEach(q => {
-                              if (q.expiry === group.expiry) {
-                                dataStrikes.add(getQuoteStrike(q));
-                              }
-                            });
-                          }
-                        }
-                        
-                        // From optionsDataMap (if available via context or prop - assuming it was passed as prop in previous step)
-                        if (optionsDataMap) {
-                          Object.values(optionsDataMap).forEach(data => {
-                             // Filter by selected symbol if available
-                             if (selectedSymbol && data.opt_undl_code_full !== selectedSymbol) {
-                               return;
-                             }
-                             if (data.quotes) {
-                               data.quotes.forEach(q => {
-                                 if (q.expiry === group.expiry) {
-                                   dataStrikes.add(getQuoteStrike(q));
-                                 }
-                               });
-                             }
-                          });
-                        }
-
-                        const strikes = Array.from(new Set([...singleStrikes, ...complexStrikes, ...dataStrikes])).sort((a, b) => a - b);
-                        const rows = strikes.map(strike => {
-                          const callSell = filteredPositions
-                            .filter(p => p.strike === strike && p.type === 'call' && p.position_type === 'sell')
-                            .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
-                          const putSell = filteredPositions
-                            .filter(p => p.strike === strike && p.type === 'put' && p.position_type === 'sell')
-                            .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
-                          return { strike, callSell, putSell };
-                        });
-
+                        const { strikes } = tBoardStrikesAndMetrics;
                         const hasData = strikes.length > 0;
                         if (!hasData) {
                           return (
@@ -1817,162 +1979,12 @@ export function ExpiryGroupCard({
                               </thead>
                               <tbody className={`divide-y ${themes[theme].border}`}>
                                 {(() => {
-                                  const callStrategiesMap = new Map<number, { strategy: OptionsStrategy, qty: number }[]>();
-                                  const putStrategiesMap = new Map<number, { strategy: OptionsStrategy, qty: number }[]>();
-                                  (allExpiryBuckets || []).forEach(bucket => {
-                                    bucket.complex.forEach(s => {
-                                      if (s.positions.some(p => p.expiry === group.expiry)) {
-                                        const c = computeCombosForPositions(s, 'call');
-                                        const p = computeCombosForPositions(s, 'put');
-                                        
-                                        const relevantPositions = s.positions.filter(pos => pos.expiry === group.expiry);
-                                        const strategyQty = relevantPositions.find(pos => pos.position_type === 'buy')?.quantity || relevantPositions[0]?.quantity || 0;
-
-                                        c.forEach((_, k) => {
-                                           const list = callStrategiesMap.get(k) || [];
-                                           list.push({ strategy: s, qty: strategyQty });
-                                           callStrategiesMap.set(k, list);
-                                        });
-                                        p.forEach((_, k) => {
-                                           const list = putStrategiesMap.get(k) || [];
-                                           list.push({ strategy: s, qty: strategyQty });
-                                           putStrategiesMap.set(k, list);
-                                        });
-                                      }
-                                    });
-                                  });
-                                  const metrics = rows.map(row => {
-                                    const s = row.strike;
-                                    const getM = () => {
-                                      if (underlyingPrice == null) return '';
-                                      const thr = 0.005;
-                                      const diffRatio = Math.abs(underlyingPrice - s) / Math.max(s, 1);
-                                      if (diffRatio <= thr) return 'ATM';
-                                      const isCallITM = underlyingPrice > s;
-                                      const isPutITM = underlyingPrice < s;
-                                      return `${isCallITM ? 'Call:ITM' : 'Call:OTM'} | ${isPutITM ? 'Put:ITM' : 'Put:OTM'}`;
-                                    };
-                                    const callRight = filteredPositions
-                                      .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'buy')
-                                      .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
-                                    const callRightAvail = filteredPositions
-                                      .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'buy')
-                                      .reduce((sum, p) => {
-                                        const base = p.selectedQuantity ?? p.quantity;
-                                        const avail = Number(p.available ?? base) || 0;
-                                        return sum + avail;
-                                      }, 0);
-                                    const callCovered = filteredPositions
-                                      .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh === '备兑')
-                                      .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
-                                    const callCoveredAvail = filteredPositions
-                                      .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh === '备兑')
-                                      .reduce((sum, p) => {
-                                        const base = p.selectedQuantity ?? p.quantity;
-                                        const avail = Number(p.available ?? base) || 0;
-                                        return sum + avail;
-                                      }, 0);
-                                    const callObligation = filteredPositions
-                                      .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh !== '备兑')
-                                      .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
-                                    const callObligationAvail = filteredPositions
-                                      .filter(p => p.strike === s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh !== '备兑')
-                                      .reduce((sum, p) => {
-                                        const base = p.selectedQuantity ?? p.quantity;
-                                        const avail = Number(p.available ?? base) || 0;
-                                        return sum + avail;
-                                      }, 0);
-                                    const putObligation = filteredPositions
-                                      .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'sell' && p.position_type_zh !== '备兑')
-                                      .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
-                                    const putObligationAvail = filteredPositions
-                                      .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'sell' && p.position_type_zh !== '备兑')
-                                      .reduce((sum, p) => {
-                                        const base = p.selectedQuantity ?? p.quantity;
-                                        const avail = Number(p.available ?? base) || 0;
-                                        return sum + avail;
-                                      }, 0);
-                                    const putCovered = filteredPositions
-                                      .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'sell' && p.position_type_zh === '备兑')
-                                      .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
-                                    const putCoveredAvail = filteredPositions
-                                      .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'sell' && p.position_type_zh === '备兑')
-                                      .reduce((sum, p) => {
-                                        const base = p.selectedQuantity ?? p.quantity;
-                                        const avail = Number(p.available ?? base) || 0;
-                                        return sum + avail;
-                                      }, 0);
-                                    const putRight = filteredPositions
-                                      .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'buy')
-                                      .reduce((sum, p) => sum + (p.selectedQuantity ?? p.quantity), 0);
-                                    const putRightAvail = filteredPositions
-                                      .filter(p => p.strike === s && p.type === 'put' && p.position_type === 'buy')
-                                      .reduce((sum, p) => {
-                                        const base = p.selectedQuantity ?? p.quantity;
-                                        const avail = Number(p.available ?? base) || 0;
-                                        return sum + avail;
-                                      }, 0);
-                                    
-                                    const comboCallStrategies = callStrategiesMap.get(s) || [];
-                                    const comboPutStrategies = putStrategiesMap.get(s) || [];
-                                    const comboCallQty = comboCallStrategies.reduce((acc, item) => acc + item.qty, 0);
-                                    const comboPutQty = comboPutStrategies.reduce((acc, item) => acc + item.qty, 0);
-
-                                    let risk = 0;
-                                    if (underlyingPrice != null) {
-                                      const up = underlyingPrice;
-                                      const cr = Math.max(0, (up - s) / Math.max(s, 1));
-                                      const pr = Math.max(0, (s - up) / Math.max(s, 1));
-                                      const wCovered = 0.3;
-                                      const wCombo = 0.2;
-                                      const shortCall = callObligation + callCovered * wCovered + comboCallQty * wCombo;
-                                      const shortPut = putObligation + putCovered * wCovered + comboPutQty * wCombo;
-                                      risk = shortCall * cr + shortPut * pr;
-                                      const near = Math.max(0, 0.02 - Math.abs(up - s) / Math.max(s, 1)) / 0.02;
-                                      risk += near * (callObligation + putObligation) * 0.5;
-                                    }
-                                    return { 
-                                      s, 
-                                      getM, 
-                                      callRight, 
-                                      callRightAvail,
-                                      callObligation, 
-                                      callObligationAvail,
-                                      callCovered, 
-                                      callCoveredAvail,
-                                      comboCallQty, 
-                                      putRight, 
-                                      putRightAvail,
-                                      putObligation, 
-                                      putObligationAvail,
-                                      putCovered, 
-                                      putCoveredAvail,
-                                      comboPutQty, 
-                                      comboCallStrategies,
-                                      comboPutStrategies,
-                                      risk 
-                                    };
-                                  });
+                                  const { metrics } = tBoardStrikesAndMetrics;
                                   const maxRisk = Math.max(1, ...metrics.map(m => m.risk));
-                                  const resolveQuoteForStrike = (strike: number): OptionQuote | undefined => {
-                                    const findQuote = (data?: OptionsData | null) => {
-                                      return data?.quotes?.find(q => q.expiry === group.expiry && getQuoteStrike(q) === strike);
-                                    };
 
-                                    const activeData = optionsData || localOptionsData;
-                                    let quote: OptionQuote | undefined;
-                                    if (activeData) quote = findQuote(activeData);
-                                    if (!quote && optionsDataMap) {
-                                      for (const data of Object.values(optionsDataMap)) {
-                                        quote = findQuote(data);
-                                        if (quote) break;
-                                      }
-                                    }
-                                    return quote;
-                                  };
 
                                   const resolveMaxTimeValueForStrike = (strike: number): number => {
-                                    const quote = resolveQuoteForStrike(strike);
+                                    const quote = quotesByStrike.get(strike);
                                     if (!quote) return 0;
 
                                     let callTV: number | null = null;
@@ -2011,7 +2023,6 @@ export function ExpiryGroupCard({
                                     const bg = `linear-gradient(to right, ${c} 0%, transparent 100%)`;
 
                                     // Determine prices for Call and Put at this strike
-                                    const activeData = optionsData || localOptionsData;
                                     let callPrice = '';
                                     let putPrice = '';
                                     let callMarginText = '-';
@@ -2022,22 +2033,7 @@ export function ExpiryGroupCard({
                                     let callFullCode = '';
                                     let putFullCode = '';
                                     
-                                    // Helper to find quote
-                                    const findQuote = (data: OptionsData) => {
-                                      return data.quotes?.find(q => q.expiry === group.expiry && getQuoteStrike(q) === m.s);
-                                    };
-
-                                    let quote: OptionQuote | undefined;
-                                    if (activeData) {
-                                      quote = findQuote(activeData);
-                                    }
-
-                                    if (!quote && optionsDataMap) {
-                                      for (const data of Object.values(optionsDataMap)) {
-                                        quote = findQuote(data);
-                                        if (quote) break;
-                                      }
-                                    }
+                                    const quote = quotesByStrike.get(m.s);
 
                                     if (quote) {
                                       callCode = quote.call_contract_code || '';
