@@ -102,7 +102,7 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
           setPrices((prev) => ({ ...prev, ...pendingPricesRef.current }));
           pendingPricesRef.current = {};
         }
-      }, 250); // 250ms batching window (4 ticks per second)
+      }, 1000); // 1000ms batching window (1 tick per second)
     }
   }, []);
 
