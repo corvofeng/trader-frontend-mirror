@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { Calendar, Activity, RefreshCw } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Calendar, Activity, RefreshCw, Layers } from 'lucide-react';
 import { PortfolioActivityLog, ActivityLogEntry } from './PortfolioActivityLog';
 import { Theme, themes } from '../../../lib/theme';
 import { setCookie, getCookie } from '../../../shared/utils/cookie';
@@ -123,6 +123,50 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   // State for scroll-following refresh button
   const [showRefreshButton, setShowRefreshButton] = useState(false);
   const [wsRefreshNonce, setWsRefreshNonce] = useState(0);
+
+  // State for mobile month navigation popover
+  const [mobileMonthMenuOpen, setMobileMonthMenuOpen] = useState(false);
+
+  const groups = useMemo(() => {
+    if (!portfolioData) return [];
+    return portfolioData.expiryBuckets && portfolioData.expiryBuckets.length > 0
+      ? portfolioData.expiryBuckets
+      : (portfolioData.expiryGroups || []).map(g => ({
+          expiry: g.expiry,
+          daysToExpiry: g.daysToExpiry,
+          single: g.positions,
+          complex: []
+        }));
+  }, [portfolioData]);
+
+  const months = useMemo(() => {
+    const seen = new Set<string>();
+    const list: { key: string; label: string; firstExpiry: string }[] = [];
+
+    groups.forEach((group) => {
+      const parts = group.expiry.split('-');
+      if (parts.length >= 2) {
+        const yearMonth = `${parts[0]}-${parts[1]}`;
+        if (!seen.has(yearMonth)) {
+          seen.add(yearMonth);
+          const shortYear = parts[0].slice(-2);
+          const cleanMonth = parseInt(parts[1], 10);
+          list.push({
+            key: yearMonth,
+            label: `${shortYear}年${cleanMonth}月`,
+            firstExpiry: group.expiry,
+          });
+        }
+      }
+    });
+    return list;
+  }, [groups]);
+
+  const activeMonthKey = useMemo(() => {
+    if (!activeExpiry) return null;
+    const parts = activeExpiry.split('-');
+    return parts.length >= 2 ? `${parts[0]}-${parts[1]}` : null;
+  }, [activeExpiry]);
 
   // Persist expanded groups to cookie whenever it changes
   useEffect(() => {
@@ -749,18 +793,52 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       )}
       <div className="space-y-6">
         {(() => {
-          const groups = (portfolioData.expiryBuckets && portfolioData.expiryBuckets.length > 0
-            ? portfolioData.expiryBuckets
-            : (portfolioData.expiryGroups || []).map(g => ({
-                expiry: g.expiry,
-                daysToExpiry: g.daysToExpiry,
-                single: g.positions,
-                complex: []
-              }))
-          );
-
           return (
             <>
+              {/* Floating Month TOC */}
+              {!isMobile && months.length > 0 && (
+                <div className={`fixed right-6 top-[280px] z-45 flex flex-col items-center gap-1.5 p-2 rounded-2xl shadow-md border ${
+                  theme === 'dark'
+                    ? 'bg-zinc-900/80 border-zinc-800/80 text-zinc-100'
+                    : theme === 'blue'
+                      ? 'bg-white/80 border-blue-100 text-slate-900'
+                      : 'bg-white/80 border-slate-200/60 text-slate-900'
+                } backdrop-blur-md transition-all duration-200 select-none`}>
+                  <div className="text-[9px] uppercase tracking-wider font-bold opacity-30 px-1 py-0.5 border-b border-current/10 mb-1 w-full text-center">
+                    月份
+                  </div>
+                  <div className="flex flex-col gap-1 max-h-[220px] overflow-y-auto pr-0.5 scrollbar-none">
+                    {months.map((m) => {
+                      const isActive = activeMonthKey === m.key;
+                      const monthNum = parseInt(m.key.split('-')[1], 10);
+                      return (
+                        <button
+                          key={m.key}
+                          type="button"
+                          onClick={() => {
+                            const el = document.getElementById(`expiry-group-${m.firstExpiry}`);
+                            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                          }}
+                          title={m.label}
+                          className={`text-center text-[10px] w-9 h-9 rounded-full transition-all duration-150 flex items-center justify-center font-semibold cursor-pointer ${
+                            isActive
+                              ? theme === 'dark'
+                                ? 'bg-blue-500/25 text-blue-400 font-bold shadow-sm'
+                                : 'bg-blue-50 text-blue-600 border border-blue-100/50 font-bold shadow-xs'
+                              : theme === 'dark'
+                                ? 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+                                : theme === 'blue'
+                                  ? 'text-slate-600 hover:bg-blue-50 hover:text-blue-900'
+                                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                          }`}
+                        >
+                          {monthNum}月
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               <ExpiryFastNav
                 theme={theme}
                 groups={groups}
@@ -847,6 +925,66 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       {/* Underlying Price Monitor */}
       {!isMobile && (
         <UnderlyingPriceMonitor symbol={activeSymbol} theme={theme} refreshNonce={wsRefreshNonce} isMobile={false} />
+      )}
+
+      {/* Mobile Floating TOC Menu */}
+      {isMobile && months.length > 0 && (
+        <div className={`fixed bottom-24 right-8 z-40 transition-all duration-300 ${
+          showRefreshButton ? 'translate-y-0 opacity-100' : 'translate-y-16 opacity-0'
+        }`}>
+          {/* Month list popover */}
+          {mobileMonthMenuOpen && (
+            <div className={`absolute bottom-16 right-0 p-2 rounded-2xl shadow-xl border flex flex-col gap-1.5 min-w-[80px] max-h-[260px] overflow-y-auto ${
+              theme === 'dark'
+                ? 'bg-zinc-900 border-zinc-800 text-zinc-100'
+                : theme === 'blue'
+                  ? 'bg-white border-blue-100 text-slate-900'
+                  : 'bg-white border-slate-200 text-slate-900'
+            } backdrop-blur-md`}>
+              <div className="text-[9px] uppercase tracking-wider font-bold opacity-30 px-1 py-0.5 border-b border-current/10 mb-1 w-full text-center">
+                月份
+              </div>
+              {months.map((m) => {
+                const isActive = activeMonthKey === m.key;
+                const monthNum = parseInt(m.key.split('-')[1], 10);
+                return (
+                  <button
+                    key={m.key}
+                    type="button"
+                    onClick={() => {
+                      const el = document.getElementById(`expiry-group-${m.firstExpiry}`);
+                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      setMobileMonthMenuOpen(false);
+                    }}
+                    className={`text-center text-xs py-1.5 px-3 rounded-lg transition-all duration-150 font-semibold ${
+                      isActive
+                        ? theme === 'dark'
+                          ? 'bg-blue-500/25 text-blue-400'
+                          : 'bg-blue-50 text-blue-600 border border-blue-100/50'
+                        : theme === 'dark'
+                          ? 'text-zinc-400 hover:bg-zinc-800'
+                          : theme === 'blue'
+                            ? 'text-slate-600 hover:bg-blue-50'
+                            : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {monthNum}月
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Trigger Button */}
+          <button
+            onClick={() => setMobileMonthMenuOpen(prev => !prev)}
+            className={`p-3 rounded-full shadow-lg ${themes[theme].card} ${themes[theme].border} border hover:bg-gray-100 dark:hover:bg-gray-700`}
+            aria-label="Toggle Expiry Months TOC"
+            title="选择到期月份"
+          >
+            <Layers className={`w-6 h-6 ${themes[theme].text}`} />
+          </button>
+        </div>
       )}
 
       {/* Scroll-following Refresh Button */}
