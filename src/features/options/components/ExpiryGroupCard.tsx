@@ -309,9 +309,7 @@ export function ExpiryGroupCard({
         const thr = 0.005;
         const diffRatio = Math.abs(underlyingPrice - s) / Math.max(s, 1);
         if (diffRatio <= thr) return 'ATM';
-        const isCallITM = underlyingPrice > s;
-        const isPutITM = underlyingPrice < s;
-        return `${isCallITM ? 'Call:ITM' : 'Call:OTM'} | ${isPutITM ? 'Put:ITM' : 'Put:OTM'}`;
+        return '';
       };
 
       const callRight = filteredPositions
@@ -3840,16 +3838,6 @@ const TBoardRow = React.memo(function TBoardRow({
     });
   };
 
-  const moneynessLabel = (() => {
-    if (underlyingPrice == null) return '';
-    const thr = 0.005;
-    const diffRatio = Math.abs(underlyingPrice - m.s) / Math.max(m.s, 1);
-    if (diffRatio <= thr) return 'ATM';
-    const isCallITM = underlyingPrice > m.s;
-    const isPutITM = underlyingPrice < m.s;
-    return `${isCallITM ? 'Call:ITM' : 'Call:OTM'} | ${isPutITM ? 'Put:ITM' : 'Put:OTM'}`;
-  })();
-
   return (
     <tr style={{ backgroundImage: rowBg, contentVisibility: 'auto' as any, contain: 'layout style paint' as any }} className={themes[theme].cardHover}>
       <td className={`align-top text-center py-2 ${themes[theme].text}`}>
@@ -3905,7 +3893,6 @@ const TBoardRow = React.memo(function TBoardRow({
         <AnimatedFlash value={callPrice || '-'} className="font-mono text-xs" type="price" />
       </td>
       <td className={`text-center py-1.5 px-2 w-20 ${themes[theme].text}`}>{m.s}
-        {underlyingPrice != null && <div className="mt-1 text-[10px] opacity-75">{moneynessLabel}</div>}
       </td>
       <td className={`text-center py-1.5 px-2 w-20 border-l ${themes[theme].border} ${themes[theme].text} text-xs leading-tight`}>
         <AnimatedFlash value={putPrice || '-'} className="font-mono text-xs" type="price" />
