@@ -2096,26 +2096,15 @@ export function ExpiryGroupCard({
 
                                     const openComboManageModal = (comboType: 'call' | 'put') => {
                                       const strategies = comboType === 'call' ? (m.comboCallStrategies || []) : (m.comboPutStrategies || []);
-                                      const pickStrategy = comboType === 'call' ? m.comboCallStrategies?.[0]?.strategy : m.comboPutStrategies?.[0]?.strategy;
                                       const buyStrike = Number(m.s);
 
                                       let sellStrike: number | null = null;
-                                      if (pickStrategy) {
-                                        const sellLeg = pickStrategy.positions.find(p => {
-                                          const t = String(p.type || p.contract_type_zh);
-                                          return t === comboType && p.position_type === 'sell';
-                                        });
-                                        if (sellLeg) sellStrike = Number(sellLeg.contract_strike_price ?? sellLeg.strike);
-                                      }
-
-                                      if (sellStrike == null) {
-                                        if (comboType === 'call') {
-                                          const higher = strikes.find(s => s > buyStrike);
-                                          if (higher != null) sellStrike = higher;
-                                        } else {
-                                          const lower = [...strikes].reverse().find(s => s < buyStrike);
-                                          if (lower != null) sellStrike = lower;
-                                        }
+                                      if (comboType === 'call') {
+                                        const higher = strikes.find(s => s > buyStrike);
+                                        if (higher != null) sellStrike = higher;
+                                      } else {
+                                        const lower = [...strikes].reverse().find(s => s < buyStrike);
+                                        if (lower != null) sellStrike = lower;
                                       }
 
                                       if (sellStrike == null) {
