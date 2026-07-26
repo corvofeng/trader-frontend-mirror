@@ -4,11 +4,11 @@ import { registerSW } from 'virtual:pwa-register';
 import App from './App.tsx';
 import './index.css';
 
-// Intercept fetch calls to support custom API base URL or direct static JSON database
 const apiBase = import.meta.env.VITE_API_BASE_URL;
 const staticDbBase = import.meta.env.VITE_STATIC_DB_BASE_URL;
+const isCloudflare = import.meta.env.VITE_ENV === 'cloudflare';
 
-if (staticDbBase) {
+if (staticDbBase && !isCloudflare) {
   const originalFetch = window.fetch;
   let dbPromise: Promise<any> | null = null;
 

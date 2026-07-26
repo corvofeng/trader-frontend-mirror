@@ -1,11 +1,16 @@
 import type { Services } from './types';
 import * as mockServices from './mock';
 import * as prodServices from './prod';
+import { cloudflareServices } from './cloudflare';
 
-const isProduction = import.meta.env.VITE_ENV === 'production';
-console.log(`Running in ${isProduction ? 'production' : 'development'} mode`);
+const env = import.meta.env.VITE_ENV;
+console.log(`Running in ${env} environment mode`);
 
-const services: Services = isProduction ? prodServices : mockServices;
+const services: Services = env === 'cloudflare'
+  ? cloudflareServices
+  : env === 'production'
+    ? prodServices
+    : mockServices;
 
 export const {
   authService,
