@@ -1491,15 +1491,6 @@ export function ExpiryGroupCard({
   }, []);
 
   const actionButtonClass = `rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-sm font-medium transition-colors ${themes[theme].secondary}`;
-  const tBoardValueTextClass = `inline-flex items-center justify-center text-[13px] font-semibold leading-tight ${themes[theme].text}`;
-  const tBoardComboValueClass = `inline-flex min-w-[2.5rem] items-center justify-center text-[13px] font-semibold leading-tight ${themes[theme].text}`;
-  const tBoardComboHintClass = 'decoration-dotted underline-offset-2 hover:opacity-80';
-  const tBoardActionStackClass = 'flex flex-col items-center gap-1.5';
-  const getTBoardActionButtonClass = (variant: 'adjust' | 'release' = 'adjust') => (
-    variant === 'adjust'
-      ? 'inline-flex min-w-[3.6rem] items-center justify-center rounded-full border border-blue-200/90 bg-white/88 px-2.5 py-1 text-[11px] font-semibold text-blue-700 shadow-sm backdrop-blur transition-all hover:-translate-y-[1px] hover:border-blue-300 hover:bg-blue-50 dark:border-blue-500/30 dark:bg-slate-900/80 dark:text-blue-300 dark:hover:bg-blue-950/70'
-      : 'inline-flex min-w-[3.6rem] items-center justify-center rounded-full border border-rose-200/90 bg-white/88 px-2.5 py-1 text-[11px] font-semibold text-rose-700 shadow-sm backdrop-blur transition-all hover:-translate-y-[1px] hover:border-rose-300 hover:bg-rose-50 dark:border-rose-500/30 dark:bg-slate-900/80 dark:text-rose-300 dark:hover:bg-rose-950/70'
-  );
 
   const renderComboDraftPanel = useCallback((draft: ComboDraftState, embedded = false) => (
     <>
@@ -1857,75 +1848,6 @@ export function ExpiryGroupCard({
                             <div className={`text-center text-sm ${themes[theme].text} opacity-75`}>暂无数据</div>
                           );
                         }
-                        const displayVal = (_c: string, _s: number, d: number) => d;
-                        const openAdjustConfirm = (c: 'call_right' | 'call_obligation' | 'put_right' | 'put_obligation' | 'call_covered' | 'put_covered', s: number) => {
-                          const title = '确认调整持仓数量';
-                          const categoryLabel: Record<string, string> = {
-                            call_right: 'Call 权利',
-                            call_obligation: 'Call 义务',
-                            call_covered: 'Call 备兑',
-                            put_right: 'Put 权利',
-                            put_obligation: 'Put 义务',
-                            put_covered: 'Put 备兑'
-                          };
-                          const ids = collectIdsForCategory(c, s);
-                          const currentSum = ids.reduce((acc, id) => {
-                            const pos = filteredPositions.find(x => x.id === id);
-                            const qty = Number(pos?.selectedQuantity ?? pos?.leg_quantity ?? pos?.quantity) || 0;
-                            return acc + qty;
-                          }, 0);
-                          const desc = `${categoryLabel[c]} @${s}（到期 ${format(new Date(group.expiry), 'yyyy-MM-dd')}），当前数量 ${currentSum}`;
-                          const syntheticId = `sync-${c}-${s}`;
-
-                          // Find quote logic
-                        const findQuote = (data: OptionsData) => {
-                          return data.quotes?.find(q => q.expiry === group.expiry && getQuoteStrike(q) === s);
-                        };
-                          let quote: OptionQuote | undefined;
-                          if (optionsData) quote = findQuote(optionsData);
-                          if (!quote && optionsDataMap) {
-                            for (const data of Object.values(optionsDataMap)) {
-                              quote = findQuote(data);
-                              if (quote) break;
-                            }
-                          }
-                          if (!quote && localOptionsData) quote = findQuote(localOptionsData);
-
-                          const isCall = c.startsWith('call');
-                          const contract_code = isCall ? quote?.call_contract_code : quote?.put_contract_code;
-                          const contract_code_full = isCall ? quote?.call_contract_code_full : quote?.put_contract_code_full;
-
-          // 触发价格查询
-          const codes: string[] = [];
-          if (contract_code_full) {
-            codes.push(contract_code_full);
-          } else {
-            const posCodes = ids.map(id => filteredPositions.find(p => p.id === id)?.contract_code_full).filter(Boolean) as string[];
-            codes.push(...posCodes);
-          }
-          const uniqueCodes = Array.from(new Set(codes));
-          
-          if (uniqueCodes.length > 0) {
-            if (!isConnected) {
-              connect();
-            }
-            queryPrice(uniqueCodes);
-          }
-          setConfirmData({
-            ids: [syntheticId],
-            meta: { 
-              action: 'sync_category', 
-              category: c, 
-              strike: s, 
-              expiry: group.expiry, 
-              quote,
-              contract_code,
-              contract_code_full
-            },
-                            title,
-                            description: desc
-                          });
-                        };
                         return (
                           <div className="space-y-3">
                           <div className="md:hidden flex items-center justify-between gap-3">
@@ -1981,462 +1903,118 @@ export function ExpiryGroupCard({
                                 {(() => {
                                   const { metrics } = tBoardStrikesAndMetrics;
                                   const maxRisk = Math.max(1, ...metrics.map(m => m.risk));
-
-
                                   const resolveMaxTimeValueForStrike = (strike: number): number => {
                                     const quote = quotesByStrike.get(strike);
                                     if (!quote) return 0;
-
                                     let callTV: number | null = null;
                                     let putTV: number | null = null;
-
                                     const qCallTV = quote.callTimeValue;
                                     const qPutTV = quote.putTimeValue;
                                     if (typeof qCallTV === 'number' && Number.isFinite(qCallTV)) callTV = qCallTV;
                                     if (typeof qPutTV === 'number' && Number.isFinite(qPutTV)) putTV = qPutTV;
-
                                     if ((callTV == null || putTV == null) && underlyingPrice != null) {
                                       const callCode = quote.call_contract_code || '';
                                       const callFullCode = quote.call_contract_code_full || '';
                                       const putCode = quote.put_contract_code || '';
                                       const putFullCode = quote.put_contract_code_full || '';
-
                                       const callPrice = (callCode && prices[callCode]?.price) || (callFullCode && prices[callFullCode]?.price) || quote.call_last_price;
                                       const putPrice = (putCode && prices[putCode]?.price) || (putFullCode && prices[putFullCode]?.price) || quote.put_last_price;
-
-                                      if (callTV == null && typeof callPrice === 'number' && Number.isFinite(callPrice)) {
-                                        callTV = callPrice - Math.max(0, underlyingPrice - strike);
-                                      }
-                                      if (putTV == null && typeof putPrice === 'number' && Number.isFinite(putPrice)) {
-                                        putTV = putPrice - Math.max(0, strike - underlyingPrice);
-                                      }
+                                      if (callTV == null && typeof callPrice === 'number' && Number.isFinite(callPrice)) { callTV = callPrice - Math.max(0, underlyingPrice - strike); }
+                                      if (putTV == null && typeof putPrice === 'number' && Number.isFinite(putPrice)) { putTV = putPrice - Math.max(0, strike - underlyingPrice); }
                                     }
-
                                     return Math.max(0, callTV ?? 0, putTV ?? 0);
                                   };
-
                                   const maxTimeValue = Math.max(0, ...metrics.map(m => resolveMaxTimeValueForStrike(m.s)));
-                                  return metrics.map(m => {
-                                    const intensity = Math.min(1, m.risk / maxRisk);
-                                    const h = Math.round(0 + 120 * (1 - intensity));
-                                    const c = theme === 'dark' ? `hsla(${h},70%,30%,0.35)` : `hsla(${h},85%,85%,0.65)`;
-                                    const bg = `linear-gradient(to right, ${c} 0%, transparent 100%)`;
 
-                                    // Determine prices for Call and Put at this strike
-                                    let callPrice = '';
-                                    let putPrice = '';
-                                    let callMarginText = '-';
-                                    let putMarginText = '-';
-                                    
-                                    let callCode = '';
-                                    let putCode = '';
-                                    let callFullCode = '';
-                                    let putFullCode = '';
-                                    
-                                    const quote = quotesByStrike.get(m.s);
-
-                                    if (quote) {
-                                      callCode = quote.call_contract_code || '';
-                                      callFullCode = quote.call_contract_code_full || '';
-                                      putCode = quote.put_contract_code || '';
-                                      putFullCode = quote.put_contract_code_full || '';
-                                      const callMargin = quote.callMargin ?? quote.call_margin;
-                                      const putMargin = quote.putMargin ?? quote.put_margin;
-                                      
-                                      const getPrice = (code: string, fullCode: string, last?: number) => {
-                                        const p = (code && prices[code]) || (fullCode && prices[fullCode]);
-                                        if (p) return p.price.toFixed(4);
-                                        return typeof last === 'number' && last ? last.toFixed(4) : '-';
-                                      };
-                                      
-                                      callPrice = getPrice(callCode, callFullCode, quote.call_last_price);
-                                      putPrice = getPrice(putCode, putFullCode, quote.put_last_price);
-
-                                      if (typeof callMargin === 'number' && Number.isFinite(callMargin)) {
-                                        callMarginText = formatCurrency(callMargin, currencyConfig, Number.isInteger(callMargin) ? 0 : 2);
-                                      }
-                                      if (typeof putMargin === 'number' && Number.isFinite(putMargin)) {
-                                        putMarginText = formatCurrency(putMargin, currencyConfig, Number.isInteger(putMargin) ? 0 : 2);
+                                  // ---- Spot price indicator line ----
+                                  if (underlyingPrice != null && metrics.length > 0) {
+                                    let insertIdx = metrics.length;
+                                    for (let i = 0; i < metrics.length; i++) {
+                                      if (metrics[i].s >= underlyingPrice) {
+                                        insertIdx = i;
+                                        break;
                                       }
                                     }
 
-                                    let timeValueColor = 'transparent';
-                                    let displayCallTV = '-';
-                                    let displayPutTV = '-';
+                                    const isInRange = underlyingPrice >= metrics[0].s && underlyingPrice <= metrics[metrics.length - 1].s;
+                                    const spotColor = isInRange
+                                      ? 'text-yellow-600 dark:text-yellow-400'
+                                      : 'text-orange-500 dark:text-orange-400';
 
-                                    let callTV: number | null = null;
-                                    let putTV: number | null = null;
-                                    if (quote) {
-                                      const qCallTV = quote.callTimeValue;
-                                      const qPutTV = quote.putTimeValue;
-                                      if (typeof qCallTV === 'number' && Number.isFinite(qCallTV)) callTV = qCallTV;
-                                      if (typeof qPutTV === 'number' && Number.isFinite(qPutTV)) putTV = qPutTV;
-                                    }
-
-                                    if ((callTV == null || putTV == null) && underlyingPrice != null) {
-                                      const cp = parseFloat(callPrice);
-                                      const pp = parseFloat(putPrice);
-                                      if (callTV == null && !isNaN(cp)) callTV = cp - Math.max(0, underlyingPrice - m.s);
-                                      if (putTV == null && !isNaN(pp)) putTV = pp - Math.max(0, m.s - underlyingPrice);
-                                    }
-
-                                    if (callTV != null) displayCallTV = callTV.toFixed(4);
-                                    if (putTV != null) displayPutTV = putTV.toFixed(4);
-
-                                    const strikeMaxTV = Math.max(0, callTV ?? 0, putTV ?? 0);
-                                    const tvIntensity = maxTimeValue > 0 ? Math.min(1, strikeMaxTV / maxTimeValue) : 0;
-                                    if (tvIntensity > 0.01) {
-                                      const alpha = theme === 'dark' ? 0.3 : 0.5;
-                                      timeValueColor = `rgba(255, 170, 0, ${tvIntensity * alpha})`;
-                                    }
-                                    const timeValueBg = timeValueColor !== 'transparent'
-                                      ? `linear-gradient(0deg, ${timeValueColor}, ${timeValueColor})`
-                                      : 'none';
-                                    const rowBg = timeValueBg === 'none' ? bg : `${timeValueBg}, ${bg}`;
-
-                                    const openComboManageModal = (comboType: 'call' | 'put') => {
-                                      const strategies = comboType === 'call' ? (m.comboCallStrategies || []) : (m.comboPutStrategies || []);
-                                      const buyStrike = Number(m.s);
-
-                                      let sellStrike: number | null = null;
-                                      if (comboType === 'call') {
-                                        const higher = strikes.find(s => s > buyStrike);
-                                        if (higher != null) sellStrike = higher;
-                                      } else {
-                                        const lower = [...strikes].reverse().find(s => s < buyStrike);
-                                        if (lower != null) sellStrike = lower;
-                                      }
-
-                                      if (sellStrike == null) {
-                                        toast.error('找不到可用的另一腿行权价，无法生成组合');
-                                        return;
-                                      }
-
-                                      const findQuote = (data: OptionsData, strike: number) => {
-                                        return data.quotes?.find(q => q.expiry === group.expiry && getQuoteStrike(q) === strike);
-                                      };
-
-                                      const getQuoteByStrike = (strike: number) => {
-                                        if (optionsData) {
-                                          const q = findQuote(optionsData, strike);
-                                          if (q) return q;
-                                        }
-                                        if (optionsDataMap) {
-                                          for (const data of Object.values(optionsDataMap)) {
-                                            const q = findQuote(data, strike);
-                                            if (q) return q;
-                                          }
-                                        }
-                                        if (localOptionsData) {
-                                          const q = findQuote(localOptionsData, strike);
-                                          if (q) return q;
-                                        }
-                                        return undefined;
-                                      };
-
-                                      const buyQuote = getQuoteByStrike(buyStrike);
-                                      const sellQuote = getQuoteByStrike(sellStrike);
-                                      if (!buyQuote || !sellQuote) {
-                                        toast.error('缺少期权链数据，无法生成组合');
-                                        return;
-                                      }
-
-                                      const buyFullCode = comboType === 'call' ? buyQuote.call_contract_code_full : buyQuote.put_contract_code_full;
-                                      const buyCode = comboType === 'call' ? buyQuote.call_contract_code : buyQuote.put_contract_code;
-                                      const sellFullCode = comboType === 'call' ? sellQuote.call_contract_code_full : sellQuote.put_contract_code_full;
-                                      const sellCode = comboType === 'call' ? sellQuote.call_contract_code : sellQuote.put_contract_code;
-
-                                      if ((!buyFullCode && !buyCode) || (!sellFullCode && !sellCode)) {
-                                        toast.error('缺少合约代码，无法生成组合');
-                                        return;
-                                      }
-
-                                      const now = new Date().toISOString();
-                                      const undl = selectedSymbol || optionsData?.opt_undl_code_full || localOptionsData?.opt_undl_code_full || '';
-
-                                      const makeLegPosition = (positionType: 'buy' | 'sell', strike: number, code: string, fullCode: string | undefined) => {
-                                        const pos: OptionsPosition = {
-                                          id: `combo-manual-${comboType}-${positionType}-${group.expiry}-${strike}`,
-                                          symbol: fullCode || code,
-                                          opt_undl_code_full: undl || undefined,
-                                          strategy: '组合购买',
-                                          type: comboType,
-                                          option_type: comboType,
-                                          position_type: positionType,
-                                          strike,
-                                          strike_price: String(strike),
-                                          expiry: group.expiry,
-                                          quantity: 1,
-                                          premium: 0,
-                                          currentValue: 0,
-                                          profitLoss: 0,
-                                          profitLossPercentage: 0,
-                                          impliedVolatility: 0,
-                                          delta: 0,
-                                          gamma: 0,
-                                          theta: 0,
-                                          vega: 0,
-                                          status: 'open',
-                                          openDate: now,
-                                          contract_code: code || undefined,
-                                          contract_code_full: fullCode || undefined,
-                                          contract_strike_price: strike,
-                                          contract_type_zh: comboType,
-                                          position_type_zh: positionType === 'buy' ? '权利' : '义务',
-                                          leg_quantity: 1,
-                                        };
-                                        return pos;
-                                      };
-
-                                      const buyLeg = makeLegPosition('buy', buyStrike, buyCode || buyFullCode || '', buyFullCode);
-                                      const sellLeg = makeLegPosition('sell', sellStrike, sellCode || sellFullCode || '', sellFullCode);
-
-                                      const isBullish = comboType === 'call' ? sellStrike > buyStrike : sellStrike < buyStrike;
-                                      const description = comboType === 'call'
-                                        ? `${isBullish ? '认购牛市价差' : '认购熊市价差'} ${buyStrike}-${sellStrike}`
-                                        : `${isBullish ? '认沽熊市价差' : '认沽牛市价差'} ${buyStrike}-${sellStrike}`;
-
-                                      const volume = comboType === 'call' ? buyQuote.callVolume : buyQuote.putVolume;
-                                      const sellVolume = comboType === 'call' ? sellQuote.callVolume : sellQuote.putVolume;
-
-                                      const combo: AdvisedCombination = {
-                                        type: comboType === 'call'
-                                          ? (isBullish ? 'bull_call_spread' : 'bear_call_spread')
-                                          : (isBullish ? 'bear_put_spread' : 'bull_put_spread'),
-                                        description,
-                                        expiry: group.expiry,
-                                        quantity: 1,
-                                        buy_position: {
-                                          code: buyFullCode || buyCode || '',
-                                          name: buyFullCode || buyCode || '',
-                                          position: buyLeg,
-                                          strike: buyStrike,
-                                          volume: Number(volume || 0),
-                                        },
-                                        sell_position: {
-                                          code: sellFullCode || sellCode || '',
-                                          name: sellFullCode || sellCode || '',
-                                          position: sellLeg,
-                                          strike: sellStrike,
-                                          volume: Number(sellVolume || 0),
-                                        },
-                                        buy_strike: buyStrike,
-                                        sell_strike: sellStrike,
-                                      };
-
-                                      setConfirmData({
-                                        ids: strategies.flatMap(s => s.strategy.positions.map(p => p.id)),
-                                        meta: {
-                                          action: 'combo_manage',
-                                          comboType,
-                                          strike: m.s,
-                                          expiry: group.expiry,
-                                          strategies,
-                                          strategyIds: strategies.map(s => s.strategy.id),
-                                          quote,
-                                          contract_code: comboType === 'call' ? quote?.call_contract_code : quote?.put_contract_code,
-                                          contract_code_full: comboType === 'call' ? quote?.call_contract_code_full : quote?.put_contract_code_full,
-                                          comboCandidate: combo,
-                                        },
-                                        title: '组合管理',
-                                        description: `调整 ${m.s} ${group.expiry} 的 ${comboType === 'call' ? 'Call' : 'Put'} 组合`
-                                      });
-                                    };
-
-                                  return (
-                                      <tr key={`trow-top-${group.expiry}-${m.s}`} className={themes[theme].cardHover} style={{ backgroundImage: rowBg }}>
-                                        <td className={`align-top text-center py-2 ${themes[theme].text}`}>
-                                          <div className="flex flex-col items-center gap-1.5">
-                                            {m.comboCallStrategies.length > 0 ? (
-                                              <>
-                                                <span
-                                                  className={`${tBoardComboValueClass} ${tBoardComboHintClass} cursor-help`}
-                                                  title={m.comboCallStrategies.map(s => `${s.strategy.name} (${s.qty})`).join('\n')}
-                                                >
-                                                  {m.comboCallStrategies.reduce((sum, s) => sum + s.qty, 0)}
-                                                </span>
-                                                <div className={tBoardActionStackClass}>
-                                                  <button
-                                                    type="button"
-                                                    className={`${getTBoardActionButtonClass('adjust')} whitespace-nowrap shrink-0`}
-                                                    onClick={() => openComboManageModal('call')}
-                                                  >
-                                                    调整
-                                                  </button>
-                                                </div>
-                                              </>
-                                            ) : (
-                                              <>
-                                                <span className={tBoardComboValueClass}>
-                                                  0
-                                                </span>
-                                                <div className={tBoardActionStackClass}>
-                                                  <button
-                                                    type="button"
-                                                    className={`${getTBoardActionButtonClass('adjust')} whitespace-nowrap shrink-0`}
-                                                    onClick={() => openComboManageModal('call')}
-                                                  >
-                                                    调整
-                                                  </button>
-                                                </div>
-                                              </>
-                                            )}
-                                          </div>
-                                        </td>
-                                        <td className={`align-top text-center py-2 ${themes[theme].text}`}>
-                                          <div className="flex items-center justify-center gap-1">
-                                            <div className="flex flex-col items-center gap-1.5">
-                                              <span className={tBoardValueTextClass}>
-                                                {displayVal('call_covered', m.s, m.callCovered)}
-                                                {m.callCoveredAvail !== m.callCovered ? `（${m.callCoveredAvail}）` : ''}
-                                              </span>
-                                              <button
-                                                type="button"
-                                                className={getTBoardActionButtonClass('adjust')}
-                                                onClick={() => openAdjustConfirm('call_covered', m.s)}
-                                              >调整</button>
-                                            </div>
-                                          </div>
-                                        </td>
-                                        <td className={`align-top text-center py-2 ${themes[theme].text}`}>
-                                          <div className="flex items-center justify-center gap-1">
-                                            <div className="flex flex-col items-center gap-1.5">
-                                              <span className={tBoardValueTextClass}>
-                                                {displayVal('call_obligation', m.s, m.callObligation)}
-                                                {m.callObligationAvail !== m.callObligation ? `（${m.callObligationAvail}）` : ''}
-                                              </span>
-                                              <button
-                                                type="button"
-                                                className={getTBoardActionButtonClass('adjust')}
-                                                onClick={() => openAdjustConfirm('call_obligation', m.s)}
-                                              >调整</button>
-                                            </div>
-                                          </div>
-                                        </td>
-                                        <td className={`align-top text-center py-2 px-3 w-20 ${themes[theme].text}`}>
-                                          <div className="flex items-center justify-center gap-1">
-                                            <div className="flex flex-col items-center gap-1.5">
-                                              <span className={tBoardValueTextClass}>
-                                                {displayVal('call_right', m.s, m.callRight)}
-                                                {m.callRightAvail !== m.callRight ? `（${m.callRightAvail}）` : ''}
-                                              </span>
-                                              <button
-                                                type="button"
-                                                className={getTBoardActionButtonClass('adjust')}
-                                                onClick={() => openAdjustConfirm('call_right', m.s)}
-                                              >调整</button>
-                                            </div>
-                                          </div>
-                                        </td>
-                                        <td className={`text-center py-1.5 px-2 w-20 ${themes[theme].text} text-xs leading-tight`}>
-                                            <AnimatedFlash value={callMarginText} className="font-mono text-xs text-gray-500" type="price" />
-                                        </td>
-                                        <td className={`text-center py-1.5 px-2 w-20 ${themes[theme].text} text-xs leading-tight`}>
-                                            <AnimatedFlash value={displayCallTV} className="font-mono text-xs text-gray-500" />
-                                        </td>
-                                        <td className={`text-center py-1.5 px-2 w-20 border-r ${themes[theme].border} ${themes[theme].text} text-xs leading-tight`}>
-                                            <AnimatedFlash value={callPrice || '-'} className="font-mono text-xs" type="price" />
-                                        </td>
-                                        <td className={`text-center py-1.5 px-2 w-20 ${themes[theme].text}`}>{m.s}
-                                          {underlyingPrice != null && (
-                                            <div className={`mt-1 text-[10px] opacity-75`}>{m.getM()}</div>
-                                          )}
-                                        </td>
-                                        <td className={`text-center py-1.5 px-2 w-20 border-l ${themes[theme].border} ${themes[theme].text} text-xs leading-tight`}>
-                                            <AnimatedFlash value={putPrice || '-'} className="font-mono text-xs" type="price" />
-                                        </td>
-                                        <td className={`text-center py-1.5 px-2 w-20 ${themes[theme].text} text-xs leading-tight`}>
-                                            <AnimatedFlash value={displayPutTV} className="font-mono text-xs text-gray-500" />
-                                        </td>
-                                        <td className={`text-center py-1.5 px-2 w-20 ${themes[theme].text} text-xs leading-tight`}>
-                                            <AnimatedFlash value={putMarginText} className="font-mono text-xs text-gray-500" type="price" />
-                                        </td>
-                                        <td className={`align-top text-center py-2 px-3 w-20 ${themes[theme].text}`}>
-                                          <div className="flex items-center justify-center gap-1">
-                                            <div className="flex flex-col items-center gap-1.5">
-                                              <span className={tBoardValueTextClass}>
-                                                {displayVal('put_right', m.s, m.putRight)}
-                                                {m.putRightAvail !== m.putRight ? `（${m.putRightAvail}）` : ''}
-                                              </span>
-                                              <button
-                                                type="button"
-                                                className={getTBoardActionButtonClass('adjust')}
-                                                onClick={() => openAdjustConfirm('put_right', m.s)}
-                                              >调整</button>
-                                            </div>
-                                          </div>
-                                        </td>
-                                        <td className={`align-top text-center py-2 ${themes[theme].text}`}>
-                                          <div className="flex items-center justify-center gap-1">
-                                            <div className="flex flex-col items-center gap-1.5">
-                                              <span className={tBoardValueTextClass}>
-                                                {displayVal('put_obligation', m.s, m.putObligation)}
-                                                {m.putObligationAvail !== m.putObligation ? `（${m.putObligationAvail}）` : ''}
-                                              </span>
-                                              <button
-                                                type="button"
-                                                className={getTBoardActionButtonClass('adjust')}
-                                                onClick={() => openAdjustConfirm('put_obligation', m.s)}
-                                              >调整</button>
-                                            </div>
-                                          </div>
-                                        </td>
-                                        <td className={`align-top text-center py-2 ${themes[theme].text}`}>
-                                          <div className="flex items-center justify-center gap-1">
-                                            <div className="flex flex-col items-center gap-1.5">
-                                              <span className={tBoardValueTextClass}>
-                                                {displayVal('put_covered', m.s, m.putCovered)}
-                                                {m.putCoveredAvail !== m.putCovered ? `（${m.putCoveredAvail}）` : ''}
-                                              </span>
-                                              <button
-                                                type="button"
-                                                className={getTBoardActionButtonClass('adjust')}
-                                                onClick={() => openAdjustConfirm('put_covered', m.s)}
-                                              >调整</button>
-                                            </div>
-                                          </div>
-                                        </td>
-                                        <td className={`align-top text-center py-2 ${themes[theme].text}`}>
-                                          <div className="flex flex-col items-center gap-1.5">
-                                            {m.comboPutStrategies.length > 0 ? (
-                                              <>
-                                                <span
-                                                  className={`${tBoardComboValueClass} ${tBoardComboHintClass} cursor-help`}
-                                                  title={m.comboPutStrategies.map(s => `${s.strategy.name} (${s.qty})`).join('\n')}
-                                                >
-                                                  {m.comboPutStrategies.reduce((sum, s) => sum + s.qty, 0)}
-                                                </span>
-                                                <div className={tBoardActionStackClass}>
-                                                  <button
-                                                    type="button"
-                                                    className={`${getTBoardActionButtonClass('adjust')} whitespace-nowrap shrink-0`}
-                                                    onClick={() => openComboManageModal('put')}
-                                                  >
-                                                    调整
-                                                  </button>
-                                                </div>
-                                              </>
-                                            ) : (
-                                              <>
-                                                <span className={tBoardComboValueClass}>
-                                                  0
-                                                </span>
-                                                <div className={tBoardActionStackClass}>
-                                                  <button
-                                                    type="button"
-                                                    className={`${getTBoardActionButtonClass('adjust')} whitespace-nowrap shrink-0`}
-                                                    onClick={() => openComboManageModal('put')}
-                                                  >
-                                                    调整
-                                                  </button>
-                                                </div>
-                                              </>
-                                            )}
+                                    const spotIndicator = (
+                                      <tr key={`spot-${group.expiry}`} style={{ background: 'transparent' }}>
+                                        <td colSpan={15} className="py-1 px-2">
+                                          <div className="flex items-center gap-1.5">
+                                            <div className="h-px flex-1 bg-gradient-to-r from-transparent via-yellow-500/60 to-transparent" />
+                                            <span className={`text-[11px] font-semibold whitespace-nowrap ${spotColor}`}>
+                                              {isInRange ? '' : '⚠ '}标的价格: {formatCurrency(underlyingPrice, currencyConfig, 4)}
+                                            </span>
+                                            <div className="h-px flex-1 bg-gradient-to-r from-transparent via-yellow-500/60 to-transparent" />
                                           </div>
                                         </td>
                                       </tr>
                                     );
-                                  });
+
+                                    const rows: React.ReactNode[] = [];
+                                    for (let i = 0; i < metrics.length; i++) {
+                                      if (i === insertIdx) {
+                                        rows.push(spotIndicator);
+                                      }
+                                      rows.push(
+                                        <TBoardRow
+                                          key={`trow-top-${group.expiry}-${metrics[i].s}`}
+                                          metric={metrics[i]}
+                                          theme={theme}
+                                          maxRisk={maxRisk}
+                                          maxTimeValue={maxTimeValue}
+                                          underlyingPrice={underlyingPrice}
+                                          quotesByStrike={quotesByStrike}
+                                          prices={prices}
+                                          currencyConfig={currencyConfig}
+                                          strikes={strikes}
+                                          groupExpiry={group.expiry}
+                                          selectedSymbol={selectedSymbol}
+                                          optionsData={optionsData}
+                                          optionsDataMap={optionsDataMap}
+                                          localOptionsData={localOptionsData}
+                                          filteredPositions={filteredPositions}
+                                          onSetConfirmData={setConfirmData}
+                                          isConnected={isConnected}
+                                          onConnect={connect}
+                                          onQueryPrice={queryPrice}
+                                        />
+                                      );
+                                    }
+                                    if (insertIdx === metrics.length) {
+                                      rows.push(spotIndicator);
+                                    }
+                                    return rows;
+                                  }
+
+                                  return metrics.map(m => (
+                                    <TBoardRow
+                                      key={`trow-top-${group.expiry}-${m.s}`}
+                                      metric={m}
+                                      theme={theme}
+                                      maxRisk={maxRisk}
+                                      maxTimeValue={maxTimeValue}
+                                      underlyingPrice={underlyingPrice}
+                                      quotesByStrike={quotesByStrike}
+                                      prices={prices}
+                                      currencyConfig={currencyConfig}
+                                      strikes={strikes}
+                                      groupExpiry={group.expiry}
+                                      selectedSymbol={selectedSymbol}
+                                      optionsData={optionsData}
+                                      optionsDataMap={optionsDataMap}
+                                      localOptionsData={localOptionsData}
+                                      filteredPositions={filteredPositions}
+                                      onSetConfirmData={setConfirmData}
+                                      isConnected={isConnected}
+                                      onConnect={connect}
+                                      onQueryPrice={queryPrice}
+                                    />
+                                  ));
                                 })()}
                               </tbody>
                             </table>
@@ -3982,3 +3560,422 @@ export function ExpiryGroupCard({
 </div>
 );
 }
+
+// ---- TBoardRow: React.memo component for T-board rows ----
+const TBOARD_COMBO_HINT_CLASS = 'decoration-dotted underline-offset-2 hover:opacity-80';
+const TBOARD_ACTION_STACK_CLASS = 'flex flex-col items-center gap-1.5';
+
+interface TBoardMetric {
+  s: number;
+  callRight: number;
+  callRightAvail: number;
+  callObligation: number;
+  callObligationAvail: number;
+  callCovered: number;
+  callCoveredAvail: number;
+  comboCallQty: number;
+  putRight: number;
+  putRightAvail: number;
+  putObligation: number;
+  putObligationAvail: number;
+  putCovered: number;
+  putCoveredAvail: number;
+  comboPutQty: number;
+  comboCallStrategies: Array<{ strategy: OptionsStrategy; qty: number }>;
+  comboPutStrategies: Array<{ strategy: OptionsStrategy; qty: number }>;
+  risk: number;
+}
+
+interface TBoardRowProps {
+  metric: TBoardMetric;
+  theme: Theme;
+  maxRisk: number;
+  maxTimeValue: number;
+  underlyingPrice: number | null;
+  quotesByStrike: Map<number, OptionQuote>;
+  prices: Record<string, { price: number } | undefined>;
+  currencyConfig: CurrencyConfig;
+  /** Callback context (ignored by memo comparator) */
+  strikes: number[];
+  groupExpiry: string;
+  selectedSymbol?: string;
+  optionsData?: OptionsData | null | undefined;
+  optionsDataMap?: Record<string, OptionsData> | undefined;
+  localOptionsData?: OptionsData | undefined;
+  filteredPositions: OptionsPosition[];
+  onSetConfirmData: (data: any) => void;
+  isConnected: boolean;
+  onConnect: () => void;
+  onQueryPrice: (codes: string[]) => void;
+}
+
+const TBoardRow = React.memo(function TBoardRow({
+  metric: m,
+  theme,
+  maxRisk,
+  maxTimeValue,
+  underlyingPrice,
+  quotesByStrike,
+  prices,
+  currencyConfig,
+  strikes,
+  groupExpiry,
+  selectedSymbol,
+  optionsData,
+  optionsDataMap,
+  localOptionsData,
+  filteredPositions,
+  onSetConfirmData,
+  isConnected,
+  onConnect,
+  onQueryPrice,
+}: TBoardRowProps) {
+  const tBoardValueTextClass = `inline-flex items-center justify-center text-[13px] font-semibold leading-tight ${themes[theme].text}`;
+  const tBoardComboValueClass = `inline-flex min-w-[2.5rem] items-center justify-center text-[13px] font-semibold leading-tight ${themes[theme].text}`;
+  const getTBoardActionButtonClass = (variant: 'adjust' | 'release' = 'adjust') => (
+    variant === 'adjust'
+      ? 'inline-flex min-w-[3.6rem] items-center justify-center rounded-full border border-blue-200/90 bg-white/88 px-2.5 py-1 text-[11px] font-semibold text-blue-700 shadow-sm backdrop-blur transition-all hover:-translate-y-[1px] hover:border-blue-300 hover:bg-blue-50 dark:border-blue-500/30 dark:bg-slate-900/80 dark:text-blue-300 dark:hover:bg-blue-950/70'
+      : 'inline-flex min-w-[3.6rem] items-center justify-center rounded-full border border-rose-200/90 bg-white/88 px-2.5 py-1 text-[11px] font-semibold text-rose-700 shadow-sm backdrop-blur transition-all hover:-translate-y-[1px] hover:border-rose-300 hover:bg-rose-50 dark:border-rose-500/30 dark:bg-slate-900/80 dark:text-rose-300 dark:hover:bg-rose-950/70'
+  );
+
+  const intensity = Math.min(1, m.risk / maxRisk);
+  const h = Math.round(0 + 120 * (1 - intensity));
+  const c = theme === 'dark' ? `hsla(${h},70%,30%,0.35)` : `hsla(${h},85%,85%,0.65)`;
+  const bg = `linear-gradient(to right, ${c} 0%, transparent 100%)`;
+
+  let callPrice = '';
+  let putPrice = '';
+  let callMarginText = '-';
+  let putMarginText = '-';
+  let callCode = '';
+  let putCode = '';
+  let callFullCode = '';
+  let putFullCode = '';
+  const quote = quotesByStrike.get(m.s);
+
+  if (quote) {
+    callCode = quote.call_contract_code || '';
+    callFullCode = quote.call_contract_code_full || '';
+    putCode = quote.put_contract_code || '';
+    putFullCode = quote.put_contract_code_full || '';
+    const callMargin = quote.callMargin ?? quote.call_margin;
+    const putMargin = quote.putMargin ?? quote.put_margin;
+
+    const getPrice = (code: string, fullCode: string, last?: number) => {
+      const p = (code && prices[code]) || (fullCode && prices[fullCode]);
+      if (p) return p.price.toFixed(4);
+      return typeof last === 'number' && last ? last.toFixed(4) : '-';
+    };
+    callPrice = getPrice(callCode, callFullCode, quote.call_last_price);
+    putPrice = getPrice(putCode, putFullCode, quote.put_last_price);
+    if (typeof callMargin === 'number' && Number.isFinite(callMargin)) {
+      callMarginText = formatCurrency(callMargin, currencyConfig, Number.isInteger(callMargin) ? 0 : 2);
+    }
+    if (typeof putMargin === 'number' && Number.isFinite(putMargin)) {
+      putMarginText = formatCurrency(putMargin, currencyConfig, Number.isInteger(putMargin) ? 0 : 2);
+    }
+  }
+
+  let callTV: number | null = null;
+  let putTV: number | null = null;
+  if (quote) {
+    const qCallTV = quote.callTimeValue;
+    const qPutTV = quote.putTimeValue;
+    if (typeof qCallTV === 'number' && Number.isFinite(qCallTV)) callTV = qCallTV;
+    if (typeof qPutTV === 'number' && Number.isFinite(qPutTV)) putTV = qPutTV;
+  }
+  if ((callTV == null || putTV == null) && underlyingPrice != null) {
+    const cp = parseFloat(callPrice);
+    const pp = parseFloat(putPrice);
+    if (callTV == null && !isNaN(cp)) callTV = cp - Math.max(0, underlyingPrice - m.s);
+    if (putTV == null && !isNaN(pp)) putTV = pp - Math.max(0, m.s - underlyingPrice);
+  }
+  let displayCallTV = '-';
+  let displayPutTV = '-';
+  if (callTV != null) displayCallTV = callTV.toFixed(4);
+  if (putTV != null) displayPutTV = putTV.toFixed(4);
+
+  const strikeMaxTV = Math.max(0, callTV ?? 0, putTV ?? 0);
+  const tvIntensity = maxTimeValue > 0 ? Math.min(1, strikeMaxTV / maxTimeValue) : 0;
+  let timeValueColor = 'transparent';
+  if (tvIntensity > 0.01) {
+    const alpha = theme === 'dark' ? 0.3 : 0.5;
+    timeValueColor = `rgba(255, 170, 0, ${tvIntensity * alpha})`;
+  }
+  const timeValueBg = timeValueColor !== 'transparent'
+    ? `linear-gradient(0deg, ${timeValueColor}, ${timeValueColor})`
+    : 'none';
+  const rowBg = timeValueBg === 'none' ? bg : `${timeValueBg}, ${bg}`;
+
+  const displayVal = (_c: string, _s: number, d: number) => d;
+
+  const getQuoteStrike = (q: OptionQuote): number => {
+    const record = q as unknown as { strike_price?: unknown };
+    const value = record.strike_price ?? q.strike;
+    return typeof value === 'number' ? value : Number(value);
+  };
+
+  const openAdjustConfirm = (category: string, s: number) => {
+    const title = '确认调整持仓数量';
+    const categoryLabel: Record<string, string> = {
+      call_right: 'Call 权利',
+      call_obligation: 'Call 义务',
+      call_covered: 'Call 备兑',
+      put_right: 'Put 权利',
+      put_obligation: 'Put 义务',
+      put_covered: 'Put 备兑'
+    };
+    const ids = (() => {
+      if (category.startsWith('call')) {
+        if (category === 'call_right') return filteredPositions.filter(p => p.strike === s && p.type === 'call' && p.position_type === 'buy').map(p => p.id);
+        if (category === 'call_covered') return filteredPositions.filter(p => p.strike === s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh === '备兑').map(p => p.id);
+        if (category === 'call_obligation') return filteredPositions.filter(p => p.strike === s && p.type === 'call' && p.position_type === 'sell' && p.position_type_zh !== '备兑').map(p => p.id);
+      } else {
+        if (category === 'put_right') return filteredPositions.filter(p => p.strike === s && p.type === 'put' && p.position_type === 'buy').map(p => p.id);
+        if (category === 'put_covered') return filteredPositions.filter(p => p.strike === s && p.type === 'put' && p.position_type === 'sell' && p.position_type_zh === '备兑').map(p => p.id);
+        if (category === 'put_obligation') return filteredPositions.filter(p => p.strike === s && p.type === 'put' && p.position_type === 'sell' && p.position_type_zh !== '备兑').map(p => p.id);
+      }
+      return [] as string[];
+    })();
+
+    const currentSum = ids.reduce((acc, id) => {
+      const pos = filteredPositions.find(x => x.id === id);
+      const qty = Number(pos?.selectedQuantity ?? pos?.leg_quantity ?? pos?.quantity) || 0;
+      return acc + qty;
+    }, 0);
+    const desc = `${categoryLabel[category]} @${s}（到期 ${format(new Date(groupExpiry), 'yyyy-MM-dd')}），当前数量 ${currentSum}`;
+    const syntheticId = `sync-${category}-${s}`;
+
+    const findQuote = (data: OptionsData) => data.quotes?.find(q => q.expiry === groupExpiry && getQuoteStrike(q) === s);
+    let quoteForModal: OptionQuote | undefined;
+    if (optionsData) quoteForModal = findQuote(optionsData);
+    if (!quoteForModal && optionsDataMap) {
+      for (const data of Object.values(optionsDataMap)) { quoteForModal = findQuote(data); if (quoteForModal) break; }
+    }
+    if (!quoteForModal && localOptionsData) quoteForModal = findQuote(localOptionsData);
+
+    const isCall = category.startsWith('call');
+    const contract_code = isCall ? quoteForModal?.call_contract_code : quoteForModal?.put_contract_code;
+    const contract_code_full = isCall ? quoteForModal?.call_contract_code_full : quoteForModal?.put_contract_code_full;
+
+    const codes: string[] = [];
+    if (contract_code_full) codes.push(contract_code_full);
+    else {
+      const posCodes = ids.map(id => filteredPositions.find(p => p.id === id)?.contract_code_full).filter(Boolean) as string[];
+      codes.push(...posCodes);
+    }
+    const uniqueCodes = Array.from(new Set(codes));
+    if (uniqueCodes.length > 0) {
+      if (!isConnected) onConnect();
+      onQueryPrice(uniqueCodes);
+    }
+
+    onSetConfirmData({
+      ids: [syntheticId],
+      meta: { action: 'sync_category', category, strike: s, expiry: groupExpiry, quote: quoteForModal, contract_code, contract_code_full },
+      title,
+      description: desc
+    });
+  };
+
+  const openComboManageModal = (comboType: 'call' | 'put') => {
+    const strategies = comboType === 'call' ? (m.comboCallStrategies || []) : (m.comboPutStrategies || []);
+    const buyStrike = Number(m.s);
+    let sellStrike: number | null = null;
+    if (comboType === 'call') { const higher = strikes.find(s => s > buyStrike); if (higher != null) sellStrike = higher; }
+    else { const lower = [...strikes].reverse().find(s => s < buyStrike); if (lower != null) sellStrike = lower; }
+    if (sellStrike == null) { toast.error('找不到可用的另一腿行权价，无法生成组合'); return; }
+
+    const findQuote = (data: OptionsData, strike: number) => data.quotes?.find(q => q.expiry === groupExpiry && getQuoteStrike(q) === strike);
+    const getQuoteByStrike = (strike: number) => {
+      if (optionsData) { const q = findQuote(optionsData, strike); if (q) return q; }
+      if (optionsDataMap) { for (const data of Object.values(optionsDataMap)) { const q = findQuote(data, strike); if (q) return q; } }
+      if (localOptionsData) { const q = findQuote(localOptionsData, strike); if (q) return q; }
+      return undefined;
+    };
+
+    const buyQuote = getQuoteByStrike(buyStrike);
+    const sellQuote = getQuoteByStrike(sellStrike);
+    if (!buyQuote || !sellQuote) { toast.error('缺少期权链数据，无法生成组合'); return; }
+
+    const buyFullCode = comboType === 'call' ? buyQuote.call_contract_code_full : buyQuote.put_contract_code_full;
+    const buyCode = comboType === 'call' ? buyQuote.call_contract_code : buyQuote.put_contract_code;
+    const sellFullCode = comboType === 'call' ? sellQuote.call_contract_code_full : sellQuote.put_contract_code_full;
+    const sellCode = comboType === 'call' ? sellQuote.call_contract_code : sellQuote.put_contract_code;
+    if ((!buyFullCode && !buyCode) || (!sellFullCode && !sellCode)) { toast.error('缺少合约代码，无法生成组合'); return; }
+
+    const now = new Date().toISOString();
+    const undl = selectedSymbol || optionsData?.opt_undl_code_full || localOptionsData?.opt_undl_code_full || '';
+    const makeLegPosition = (positionType: 'buy' | 'sell', strike: number, code: string, fullCode: string | undefined): OptionsPosition => ({
+      id: `combo-manual-${comboType}-${positionType}-${groupExpiry}-${strike}`,
+      symbol: fullCode || code, opt_undl_code_full: undl || undefined, strategy: '组合购买',
+      type: comboType, option_type: comboType, position_type: positionType, strike,
+      strike_price: String(strike), expiry: groupExpiry, quantity: 1, premium: 0, currentValue: 0,
+      profitLoss: 0, profitLossPercentage: 0, impliedVolatility: 0, delta: 0, gamma: 0, theta: 0, vega: 0,
+      status: 'open', openDate: now, contract_code: code || undefined, contract_code_full: fullCode || undefined,
+      contract_strike_price: strike, contract_type_zh: comboType,
+      position_type_zh: positionType === 'buy' ? '权利' : '义务', leg_quantity: 1,
+    });
+
+    const buyLeg = makeLegPosition('buy', buyStrike, buyCode || buyFullCode || '', buyFullCode);
+    const sellLeg = makeLegPosition('sell', sellStrike, sellCode || sellFullCode || '', sellFullCode);
+    const isBullish = comboType === 'call' ? sellStrike > buyStrike : sellStrike < buyStrike;
+    const description = comboType === 'call'
+      ? `${isBullish ? '认购牛市价差' : '认购熊市价差'} ${buyStrike}-${sellStrike}`
+      : `${isBullish ? '认沽熊市价差' : '认沽牛市价差'} ${buyStrike}-${sellStrike}`;
+
+    const combo: AdvisedCombination = {
+      type: comboType === 'call' ? (isBullish ? 'bull_call_spread' : 'bear_call_spread') : (isBullish ? 'bear_put_spread' : 'bull_put_spread'),
+      description, expiry: groupExpiry, quantity: 1,
+      buy_position: { code: buyFullCode || buyCode || '', name: buyFullCode || buyCode || '', position: buyLeg, strike: buyStrike, volume: Number(buyQuote.callVolume || buyQuote.putVolume || 0) },
+      sell_position: { code: sellFullCode || sellCode || '', name: sellFullCode || sellCode || '', position: sellLeg, strike: sellStrike, volume: Number(sellQuote.putVolume || sellQuote.callVolume || 0) },
+      buy_strike: buyStrike, sell_strike: sellStrike,
+    };
+
+    onSetConfirmData({
+      ids: strategies.flatMap(s => s.strategy.positions.map(p => p.id)),
+      meta: { action: 'combo_manage', comboType, strike: m.s, expiry: groupExpiry, strategies, strategyIds: strategies.map(s => s.strategy.id), quote, contract_code: comboType === 'call' ? quote?.call_contract_code : quote?.put_contract_code, contract_code_full: comboType === 'call' ? quote?.call_contract_code_full : quote?.put_contract_code_full, comboCandidate: combo },
+      title: '组合管理',
+      description: `调整 ${m.s} ${groupExpiry} 的 ${comboType === 'call' ? 'Call' : 'Put'} 组合`
+    });
+  };
+
+  const moneynessLabel = (() => {
+    if (underlyingPrice == null) return '';
+    const thr = 0.005;
+    const diffRatio = Math.abs(underlyingPrice - m.s) / Math.max(m.s, 1);
+    if (diffRatio <= thr) return 'ATM';
+    const isCallITM = underlyingPrice > m.s;
+    const isPutITM = underlyingPrice < m.s;
+    return `${isCallITM ? 'Call:ITM' : 'Call:OTM'} | ${isPutITM ? 'Put:ITM' : 'Put:OTM'}`;
+  })();
+
+  return (
+    <tr style={{ backgroundImage: rowBg, contentVisibility: 'auto' as any, contain: 'layout style paint' as any }} className={themes[theme].cardHover}>
+      <td className={`align-top text-center py-2 ${themes[theme].text}`}>
+        <div className="flex flex-col items-center gap-1.5">
+          {m.comboCallStrategies.length > 0 ? (
+            <>
+              <span className={`${tBoardComboValueClass} ${TBOARD_COMBO_HINT_CLASS} cursor-help`} title={m.comboCallStrategies.map(s => `${s.strategy.name} (${s.qty})`).join('\n')}>{m.comboCallStrategies.reduce((sum, s) => sum + s.qty, 0)}</span>
+              <div className={TBOARD_ACTION_STACK_CLASS}>
+                <button type="button" className={`${getTBoardActionButtonClass('adjust')} whitespace-nowrap shrink-0`} onClick={() => openComboManageModal('call')}>调整</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <span className={tBoardComboValueClass}>0</span>
+              <div className={TBOARD_ACTION_STACK_CLASS}>
+                <button type="button" className={`${getTBoardActionButtonClass('adjust')} whitespace-nowrap shrink-0`} onClick={() => openComboManageModal('call')}>调整</button>
+              </div>
+            </>
+          )}
+        </div>
+      </td>
+      <td className={`align-top text-center py-2 ${themes[theme].text}`}>
+        <div className="flex items-center justify-center gap-1">
+          <div className="flex flex-col items-center gap-1.5">
+            <span className={tBoardValueTextClass}>{displayVal('call_covered', m.s, m.callCovered)}{m.callCoveredAvail !== m.callCovered ? `（${m.callCoveredAvail}）` : ''}</span>
+            <button type="button" className={getTBoardActionButtonClass('adjust')} onClick={() => openAdjustConfirm('call_covered', m.s)}>调整</button>
+          </div>
+        </div>
+      </td>
+      <td className={`align-top text-center py-2 ${themes[theme].text}`}>
+        <div className="flex items-center justify-center gap-1">
+          <div className="flex flex-col items-center gap-1.5">
+            <span className={tBoardValueTextClass}>{displayVal('call_obligation', m.s, m.callObligation)}{m.callObligationAvail !== m.callObligation ? `（${m.callObligationAvail}）` : ''}</span>
+            <button type="button" className={getTBoardActionButtonClass('adjust')} onClick={() => openAdjustConfirm('call_obligation', m.s)}>调整</button>
+          </div>
+        </div>
+      </td>
+      <td className={`align-top text-center py-2 px-3 w-20 ${themes[theme].text}`}>
+        <div className="flex items-center justify-center gap-1">
+          <div className="flex flex-col items-center gap-1.5">
+            <span className={tBoardValueTextClass}>{displayVal('call_right', m.s, m.callRight)}{m.callRightAvail !== m.callRight ? `（${m.callRightAvail}）` : ''}</span>
+            <button type="button" className={getTBoardActionButtonClass('adjust')} onClick={() => openAdjustConfirm('call_right', m.s)}>调整</button>
+          </div>
+        </div>
+      </td>
+      <td className={`text-center py-1.5 px-2 w-20 ${themes[theme].text} text-xs leading-tight`}>
+        <AnimatedFlash value={callMarginText} className="font-mono text-xs text-gray-500" type="price" />
+      </td>
+      <td className={`text-center py-1.5 px-2 w-20 ${themes[theme].text} text-xs leading-tight`}>
+        <AnimatedFlash value={displayCallTV} className="font-mono text-xs text-gray-500" />
+      </td>
+      <td className={`text-center py-1.5 px-2 w-20 border-r ${themes[theme].border} ${themes[theme].text} text-xs leading-tight`}>
+        <AnimatedFlash value={callPrice || '-'} className="font-mono text-xs" type="price" />
+      </td>
+      <td className={`text-center py-1.5 px-2 w-20 ${themes[theme].text}`}>{m.s}
+        {underlyingPrice != null && <div className="mt-1 text-[10px] opacity-75">{moneynessLabel}</div>}
+      </td>
+      <td className={`text-center py-1.5 px-2 w-20 border-l ${themes[theme].border} ${themes[theme].text} text-xs leading-tight`}>
+        <AnimatedFlash value={putPrice || '-'} className="font-mono text-xs" type="price" />
+      </td>
+      <td className={`text-center py-1.5 px-2 w-20 ${themes[theme].text} text-xs leading-tight`}>
+        <AnimatedFlash value={displayPutTV} className="font-mono text-xs text-gray-500" />
+      </td>
+      <td className={`text-center py-1.5 px-2 w-20 ${themes[theme].text} text-xs leading-tight`}>
+        <AnimatedFlash value={putMarginText} className="font-mono text-xs text-gray-500" type="price" />
+      </td>
+      <td className={`align-top text-center py-2 px-3 w-20 ${themes[theme].text}`}>
+        <div className="flex items-center justify-center gap-1">
+          <div className="flex flex-col items-center gap-1.5">
+            <span className={tBoardValueTextClass}>{displayVal('put_right', m.s, m.putRight)}{m.putRightAvail !== m.putRight ? `（${m.putRightAvail}）` : ''}</span>
+            <button type="button" className={getTBoardActionButtonClass('adjust')} onClick={() => openAdjustConfirm('put_right', m.s)}>调整</button>
+          </div>
+        </div>
+      </td>
+      <td className={`align-top text-center py-2 ${themes[theme].text}`}>
+        <div className="flex items-center justify-center gap-1">
+          <div className="flex flex-col items-center gap-1.5">
+            <span className={tBoardValueTextClass}>{displayVal('put_obligation', m.s, m.putObligation)}{m.putObligationAvail !== m.putObligation ? `（${m.putObligationAvail}）` : ''}</span>
+            <button type="button" className={getTBoardActionButtonClass('adjust')} onClick={() => openAdjustConfirm('put_obligation', m.s)}>调整</button>
+          </div>
+        </div>
+      </td>
+      <td className={`align-top text-center py-2 ${themes[theme].text}`}>
+        <div className="flex items-center justify-center gap-1">
+          <div className="flex flex-col items-center gap-1.5">
+            <span className={tBoardValueTextClass}>{displayVal('put_covered', m.s, m.putCovered)}{m.putCoveredAvail !== m.putCovered ? `（${m.putCoveredAvail}）` : ''}</span>
+            <button type="button" className={getTBoardActionButtonClass('adjust')} onClick={() => openAdjustConfirm('put_covered', m.s)}>调整</button>
+          </div>
+        </div>
+      </td>
+      <td className={`align-top text-center py-2 ${themes[theme].text}`}>
+        <div className="flex flex-col items-center gap-1.5">
+          {m.comboPutStrategies.length > 0 ? (
+            <>
+              <span className={`${tBoardComboValueClass} ${TBOARD_COMBO_HINT_CLASS} cursor-help`} title={m.comboPutStrategies.map(s => `${s.strategy.name} (${s.qty})`).join('\n')}>{m.comboPutStrategies.reduce((sum, s) => sum + s.qty, 0)}</span>
+              <div className={TBOARD_ACTION_STACK_CLASS}>
+                <button type="button" className={`${getTBoardActionButtonClass('adjust')} whitespace-nowrap shrink-0`} onClick={() => openComboManageModal('put')}>调整</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <span className={tBoardComboValueClass}>0</span>
+              <div className={TBOARD_ACTION_STACK_CLASS}>
+                <button type="button" className={`${getTBoardActionButtonClass('adjust')} whitespace-nowrap shrink-0`} onClick={() => openComboManageModal('put')}>调整</button>
+              </div>
+            </>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+}, (prevProps, nextProps) => {
+  // Custom comparator: only re-render when THIS row's display data changes
+  if (prevProps.metric !== nextProps.metric) return false;
+  if (prevProps.theme !== nextProps.theme) return false;
+  if (prevProps.maxRisk !== nextProps.maxRisk) return false;
+  if (prevProps.maxTimeValue !== nextProps.maxTimeValue) return false;
+  if (prevProps.underlyingPrice !== nextProps.underlyingPrice) return false;
+  const s = prevProps.metric.s;
+  const prevQuote = prevProps.quotesByStrike.get(s);
+  const nextQuote = nextProps.quotesByStrike.get(s);
+  if (prevQuote !== nextQuote) return false;
+  if (nextQuote) {
+    const codes = [nextQuote.call_contract_code, nextQuote.call_contract_code_full, nextQuote.put_contract_code, nextQuote.put_contract_code_full].filter(Boolean);
+    for (const code of codes) { if (code && prevProps.prices[code]?.price !== nextProps.prices[code]?.price) return false; }
+  }
+  return true;
+});
+// ---- End TBoardRow ----
