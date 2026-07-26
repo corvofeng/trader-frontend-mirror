@@ -5,6 +5,8 @@ import { accountService, portfolioService } from '../../../lib/services';
 import type { Holding, User, Account, TrendData } from '../../../lib/services/types';
 import { landingTranslations, Language } from '../i18n';
 import { getCurrencySymbolFromCode } from '../../../shared/utils/format';
+import { useCurrency } from '../../../lib/context/CurrencyContext';
+
 
 interface HeroSectionProps {
   theme: Theme;
@@ -49,6 +51,8 @@ export function HeroSection({
   lang = 'zh',
 }: HeroSectionProps) {
   const t = landingTranslations[lang].hero;
+  const { regionalColors } = useCurrency();
+
   const [portfolioSummary, setPortfolioSummary] = useState<{
     totalValue: number;
     dailyChange: number;
@@ -221,11 +225,14 @@ export function HeroSection({
                   <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
                   <span className="text-xs font-semibold tracking-wider uppercase opacity-75">{t.liveMarketMonitor}</span>
                 </div>
-                <span className={`text-xs font-mono px-2.5 py-1 rounded-md font-medium border ${
-                  isPortfolioPositive
-                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
-                    : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
-                }`}>
+                <span 
+                  className="text-xs font-mono px-2.5 py-1 rounded-md font-medium border"
+                  style={{
+                    backgroundColor: isPortfolioPositive ? `${regionalColors.upColor}1a` : `${regionalColors.downColor}1a`,
+                    color: isPortfolioPositive ? regionalColors.upColor : regionalColors.downColor,
+                    borderColor: isPortfolioPositive ? `${regionalColors.upColor}33` : `${regionalColors.downColor}33`,
+                  }}
+                >
                   {portfolioSummary.currencySymbol}{portfolioSummary.totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({isPortfolioPositive ? '+' : ''}{portfolioSummary.dailyChangePct.toFixed(2)}%)
                 </span>
               </div>
@@ -244,16 +251,32 @@ export function HeroSection({
                   <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-5">
                     <div className="p-3 sm:p-3.5 rounded-xl bg-slate-100/60 dark:bg-zinc-800/40 border border-slate-200/40 dark:border-zinc-700/40">
                       <div className="text-xs opacity-70 mb-1 truncate">{t.winRateLabel}</div>
-                      <div className="text-lg sm:text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400">{winRate.toFixed(1)}%</div>
-                      <div className="text-[11px] text-emerald-500 mt-0.5 truncate">{t.winRateSub}</div>
+                      <div 
+                        className="text-lg sm:text-xl font-bold font-mono"
+                        style={{ color: regionalColors.upColor }}
+                      >
+                        {winRate.toFixed(1)}%
+                      </div>
+                      <div 
+                        className="text-[11px] mt-0.5 truncate"
+                        style={{ color: regionalColors.upColor }}
+                      >
+                        {t.winRateSub}
+                      </div>
                     </div>
 
                     <div className="p-3 sm:p-3.5 rounded-xl bg-slate-100/60 dark:bg-zinc-800/40 border border-slate-200/40 dark:border-zinc-700/40">
                       <div className="text-xs opacity-70 mb-1 truncate">{(t as any).dailyPnL}</div>
-                      <div className={`text-lg sm:text-xl font-bold font-mono ${isPortfolioPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                      <div 
+                        className="text-lg sm:text-xl font-bold font-mono"
+                        style={{ color: isPortfolioPositive ? regionalColors.upColor : regionalColors.downColor }}
+                      >
                         {portfolioSummary.dailyChange >= 0 ? '+' : ''}{portfolioSummary.dailyChange.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
-                      <div className={`text-[11px] font-semibold mt-0.5 truncate ${isPortfolioPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      <div 
+                        className="text-[11px] font-semibold mt-0.5 truncate"
+                        style={{ color: isPortfolioPositive ? regionalColors.upColor : regionalColors.downColor }}
+                      >
                         {(t as any).dailyPnLSub} ({isPortfolioPositive ? '+' : ''}{portfolioSummary.dailyChangePct.toFixed(2)}%)
                       </div>
                     </div>
@@ -266,7 +289,10 @@ export function HeroSection({
                         <LineChart className="w-3.5 h-3.5 text-blue-500 shrink-0" />
                         <span className="truncate">{t.unrealizedPnL}</span>
                       </span>
-                      <span className={`font-mono font-bold shrink-0 ml-2 ${is30DayPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      <span 
+                        className="font-mono font-bold shrink-0 ml-2"
+                        style={{ color: is30DayPositive ? regionalColors.upColor : regionalColors.downColor }}
+                      >
                         {is30DayPositive ? '+' : ''}{portfolioSummary.currencySymbol}{thirtyDayNetPnL.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
@@ -287,12 +313,13 @@ export function HeroSection({
                             title={`${bar.dateStr}: ${isPos ? '+' : ''}${portfolioSummary.currencySymbol}${bar.change.toFixed(2)}`}
                           >
                             <div
-                              className={`w-full max-w-[6px] sm:max-w-[10px] rounded-xs transition-all duration-300 ${
-                                isPos
-                                  ? 'bg-emerald-500/80 group-hover/bar:bg-emerald-400 self-end mb-10'
-                                  : 'bg-rose-500/80 group-hover/bar:bg-rose-400 self-start mt-10'
+                              className={`w-full max-w-[6px] sm:max-w-[10px] rounded-xs transition-all duration-300 hover:opacity-100 opacity-80 ${
+                                isPos ? 'self-end mb-10' : 'self-start mt-10'
                               }`}
-                              style={{ height: `${barHeightPct}%` }}
+                              style={{ 
+                                height: `${barHeightPct}%`,
+                                backgroundColor: isPos ? regionalColors.upColor : regionalColors.downColor 
+                              }}
                             />
                           </div>
                         );
