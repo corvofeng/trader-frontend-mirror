@@ -18,6 +18,7 @@ export interface PortfolioSummary {
   totalProfitLoss: number;
   latestTrendValue: number;
   positionRatio: number;
+  remainingCash: number;
 }
 
 export interface PortfolioKlineRequestDates {
@@ -34,12 +35,14 @@ export function calculatePortfolioSummary(holdings: Holding[], trendData: TrendD
   const totalProfitLoss = holdings.reduce((sum, holding) => sum + holding.profit_loss, 0);
   const latestTrendValue = trendData.length > 0 ? trendData[trendData.length - 1].value : totalHoldingsValue;
   const positionRatio = latestTrendValue > 0 ? (totalHoldingsValue / latestTrendValue) * 100 : 0;
+  const remainingCash = latestTrendValue - totalHoldingsValue;
 
   return {
     totalHoldingsValue,
     totalProfitLoss,
     latestTrendValue,
     positionRatio,
+    remainingCash,
   };
 }
 

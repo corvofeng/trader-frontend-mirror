@@ -96,6 +96,7 @@ export function Portfolio({
     totalProfitLoss,
     latestTrendValue,
     positionRatio,
+    remainingCash,
   } = calculatePortfolioSummary(holdings, trendData);
 
   // Get UUID from URL params for portfolio sharing
@@ -491,6 +492,7 @@ export function Portfolio({
             totalHoldingsValue={totalHoldingsValue}
             positionRatio={positionRatio}
             totalProfitLoss={totalProfitLoss}
+            remainingCash={remainingCash}
             hasTrendData={trendData.length > 0}
           />
         </FadeIn>

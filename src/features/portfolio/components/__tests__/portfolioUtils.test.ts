@@ -61,6 +61,7 @@ describe('portfolioUtils', () => {
         totalProfitLoss: 150,
         latestTrendValue: 2500,
         positionRatio: 80,
+        remainingCash: 500,
       });
     });
 
@@ -72,6 +73,7 @@ describe('portfolioUtils', () => {
         totalProfitLoss: 30,
         latestTrendValue: 900,
         positionRatio: 100,
+        remainingCash: 0,
       });
     });
 

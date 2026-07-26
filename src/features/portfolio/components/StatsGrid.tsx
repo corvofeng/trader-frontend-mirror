@@ -10,6 +10,7 @@ interface StatsGridProps {
   totalHoldingsValue: number;
   positionRatio: number;
   totalProfitLoss: number;
+  remainingCash: number;
   hasTrendData?: boolean;
 }
 
@@ -20,6 +21,7 @@ export function StatsGrid({
   totalHoldingsValue,
   positionRatio,
   totalProfitLoss,
+  remainingCash,
   hasTrendData = false,
 }: StatsGridProps) {
   const statItems = [
@@ -42,6 +44,14 @@ export function StatsGrid({
       valueClassName: themes[theme].text,
     },
     {
+      label: '剩余现金',
+      tooltip: '账户剩余的可用现金（估算为：总市值 - 总仓位）。',
+      value: formatCurrency(remainingCash, currencyConfig),
+      valueTitle: formatCurrency(remainingCash, currencyConfig),
+      description: 'Estimated remaining cash balance',
+      valueClassName: themes[theme].text,
+    },
+    {
       label: '持仓比例',
       tooltip: '持仓市值 / 总市值。数值越高，代表当前资金越多处于已持仓状态。',
       value: `${positionRatio.toFixed(2)}%`,
@@ -59,7 +69,7 @@ export function StatsGrid({
   ];
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-6">
       {statItems.map((item) => (
         <div key={item.label} className={`${themes[theme].background} rounded-lg p-3 md:p-4 min-w-0`}>
           <div className="flex items-center gap-1.5">
@@ -68,7 +78,7 @@ export function StatsGrid({
             </h3>
             <InfoTooltip theme={theme} content={item.tooltip} align="left" className="shrink-0" />
           </div>
-          <p className={`text-lg sm:text-xl md:text-3xl font-bold mt-1 truncate ${item.valueClassName}`} title={item.valueTitle}>
+          <p className={`text-base sm:text-lg md:text-xl lg:text-2xl font-bold mt-1 truncate ${item.valueClassName}`} title={item.valueTitle}>
             {item.value}
           </p>
           <p className={`text-xs md:text-sm ${themes[theme].text} opacity-60 mt-1 truncate`}>
