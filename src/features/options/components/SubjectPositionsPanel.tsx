@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
 import type { CurrencyConfig } from '../../../shared/types/ui';
+
+const SUBJECT_POSITIONS_COLLAPSED_KEY = 'options_portfolio_subject_positions_collapsed';
 
 interface SubjectPosition {
   stock_code: string;
@@ -20,104 +22,150 @@ interface SubjectPositionsPanelProps {
 }
 
 export function SubjectPositionsPanel({ theme, positions, currencyConfig }: SubjectPositionsPanelProps) {
-  const [isMobileExpanded, setIsMobileExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(() => {
+    if (typeof window === 'undefined') return true;
 
-  if (!positions || positions.length === 0) return null;
+    const saved = localStorage.getItem(SUBJECT_POSITIONS_COLLAPSED_KEY);
+    if (saved === '1') return false;
+    if (saved === '0') return true;
+
+    return window.innerWidth >= 640;
+  });
 
   const summary = useMemo(() => {
     const totalVolume = positions.reduce((sum, pos) => sum + (pos.total_volume || 0), 0);
     const totalCovered = positions.reduce((sum, pos) => sum + (pos.covered_volume || 0), 0);
     const totalLocked = positions.reduce((sum, pos) => sum + (pos.lock_volume || 0), 0);
     const totalMarketValue = positions.reduce((sum, pos) => sum + (pos.total_stock_price ?? 0), 0);
+    const totalAvailable = positions.reduce(
+      (sum, pos) => sum + Math.max(0, pos.total_volume - pos.covered_volume - pos.lock_volume),
+      0
+    );
 
     return {
       totalVolume,
       totalCovered,
       totalLocked,
       totalMarketValue,
+      totalAvailable,
     };
   }, [positions]);
 
+  if (!positions || positions.length === 0) return null;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(SUBJECT_POSITIONS_COLLAPSED_KEY, isExpanded ? '0' : '1');
+  }, [isExpanded]);
+
   return (
     <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
-      <div className="p-3 sm:p-6 border-b border-gray-200">
+      <div className={`${isExpanded ? 'border-b border-gray-200' : ''} p-3 sm:p-4`}>
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <h2 className={`text-base sm:text-xl font-bold ${themes[theme].text}`}>标的物持仓</h2>
-            <p className={`mt-1 text-xs sm:text-sm ${themes[theme].text} opacity-70`}>
+            <h2 className={`text-sm sm:text-lg font-bold ${themes[theme].text}`}>标的物持仓</h2>
+            <p className={`mt-0.5 text-[11px] sm:text-sm ${themes[theme].text} opacity-70`}>
               {positions.length} 个标的 · 总持仓 {summary.totalVolume.toLocaleString()}
             </p>
           </div>
           <button
             type="button"
-            onClick={() => setIsMobileExpanded((prev) => !prev)}
-            className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium sm:hidden ${themes[theme].secondary}`}
-            aria-expanded={isMobileExpanded}
-            aria-label={isMobileExpanded ? '收起标的物持仓' : '展开标的物持仓'}
+            onClick={() => setIsExpanded((prev) => !prev)}
+            className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] sm:text-xs font-medium ${themes[theme].secondary}`}
+            aria-expanded={isExpanded}
+            aria-label={isExpanded ? '收起标的物持仓' : '展开标的物持仓'}
           >
-            {isMobileExpanded ? '收起' : '展开'}
-            {isMobileExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            {isExpanded ? '收起' : '展开'}
+            {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </button>
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:hidden">
-          <div className={`${themes[theme].background} rounded-md px-2.5 py-2`}>
-            <p className={`text-[11px] ${themes[theme].text} opacity-70`}>总市值</p>
-            <p className={`text-sm font-semibold ${themes[theme].text} truncate`}>
-              {formatCurrency(summary.totalMarketValue, currencyConfig, 4)}
-            </p>
+        {isExpanded && (
+          <div className="mt-2 flex flex-wrap gap-1.5 sm:gap-2">
+            <span className={`${themes[theme].background} rounded-md px-2 py-1 text-[11px] sm:text-xs ${themes[theme].text}`}>
+              可用 {summary.totalAvailable.toLocaleString()}
+            </span>
+            <span className={`${themes[theme].background} rounded-md px-2 py-1 text-[11px] sm:text-xs ${themes[theme].text}`}>
+              备兑 {summary.totalCovered.toLocaleString()}
+            </span>
+            <span className={`${themes[theme].background} rounded-md px-2 py-1 text-[11px] sm:text-xs ${themes[theme].text}`}>
+              其他锁定 {summary.totalLocked.toLocaleString()}
+            </span>
+            <span className={`${themes[theme].background} rounded-md px-2 py-1 text-[11px] sm:text-xs ${themes[theme].text} max-w-full truncate`}>
+              市值 {formatCurrency(summary.totalMarketValue, currencyConfig, 4)}
+            </span>
           </div>
-          <div className={`${themes[theme].background} rounded-md px-2.5 py-2`}>
-            <p className={`text-[11px] ${themes[theme].text} opacity-70`}>备兑锁定</p>
-            <p className={`text-sm font-semibold ${themes[theme].text}`}>
-              {summary.totalCovered.toLocaleString()}
-            </p>
-          </div>
-        </div>
+        )}
       </div>
-      <div className={`${isMobileExpanded ? 'block' : 'hidden'} p-3 pt-0 sm:block sm:p-6`}>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6">
-          {positions.map((pos, idx) => (
-            <div key={idx} className={`${themes[theme].background} rounded-md sm:rounded-lg p-3 sm:p-4 border border-gray-200 dark:border-gray-700`}>
-              <div className="flex justify-between items-start gap-2 mb-2 sm:mb-3">
-                <h3 className={`text-sm sm:text-lg font-bold ${themes[theme].text} break-all`}>{pos.stock_code}</h3>
-                <span className={`text-[10px] sm:text-xs px-2 py-1 rounded bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100 shrink-0`}>标的</span>
-              </div>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-2 sm:space-y-2 sm:block">
-                <div className="flex justify-between items-center">
-                  <span className={`text-[11px] sm:text-sm ${themes[theme].text} opacity-75`}>当前价格</span>
-                  <span className={`text-[11px] sm:text-sm font-medium ${themes[theme].text} text-right break-all`}>{pos.stock_price != null ? formatCurrency(pos.stock_price, currencyConfig, 4) : '-'}</span>
+      <div className={isExpanded ? 'block' : 'hidden'}>
+        <div className="sm:hidden divide-y divide-gray-200 dark:divide-gray-700">
+          {positions.map((pos, idx) => {
+            const availableVolume = Math.max(0, pos.total_volume - pos.covered_volume - pos.lock_volume);
+
+            return (
+              <div key={idx} className="px-3 py-2.5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className={`text-sm font-semibold ${themes[theme].text} truncate`}>{pos.stock_code}</div>
+                    <div className={`mt-0.5 text-[11px] ${themes[theme].text} opacity-70`}>
+                      现价 {pos.stock_price != null ? formatCurrency(pos.stock_price, currencyConfig, 4) : '-'} · 市值 {pos.total_stock_price != null ? formatCurrency(pos.total_stock_price, currencyConfig, 4) : '-'}
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className={`text-sm font-bold ${themes[theme].text}`}>{pos.total_volume.toLocaleString()}</div>
+                    <div className={`text-[11px] ${themes[theme].text} opacity-70`}>总持仓</div>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className={`text-[11px] sm:text-sm ${themes[theme].text} opacity-75`}>持仓市值</span>
-                  <span className={`text-[11px] sm:text-sm font-medium ${themes[theme].text} text-right break-all`}>{pos.total_stock_price != null ? formatCurrency(pos.total_stock_price, currencyConfig, 4) : '-'}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className={`text-[11px] sm:text-sm ${themes[theme].text} opacity-75`}>总持仓</span>
-                  <span className={`text-[11px] sm:text-sm font-bold ${themes[theme].text} text-right`}>{pos.total_volume.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className={`text-[11px] sm:text-sm ${themes[theme].text} opacity-75`}>备兑锁定</span>
-                  <span className={`text-[11px] sm:text-sm font-medium ${themes[theme].text} text-right`}>{pos.covered_volume.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className={`text-[11px] sm:text-sm ${themes[theme].text} opacity-75`}>其他锁定</span>
-                  <span className={`text-[11px] sm:text-sm font-medium ${themes[theme].text} text-right`}>{pos.lock_volume.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between items-center col-span-2 border-t border-gray-200/70 dark:border-gray-700/70 pt-2 mt-1 sm:hidden">
-                  <span className={`text-[11px] ${themes[theme].text} opacity-75`}>可用数量</span>
-                  <span className={`text-[11px] font-semibold ${themes[theme].text}`}>
-                    {Math.max(0, pos.total_volume - pos.covered_volume - pos.lock_volume).toLocaleString()}
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <span className={`${themes[theme].background} rounded px-1.5 py-1 text-[11px] ${themes[theme].text}`}>
+                    可用 {availableVolume.toLocaleString()}
                   </span>
-                </div>
-                <div className="hidden sm:flex justify-between items-center border-t border-gray-200/70 dark:border-gray-700/70 pt-2 mt-2">
-                  <span className={`text-sm ${themes[theme].text} opacity-75`}>可用数量</span>
-                  <span className={`text-sm font-semibold ${themes[theme].text}`}>
-                    {Math.max(0, pos.total_volume - pos.covered_volume - pos.lock_volume).toLocaleString()}
+                  <span className={`${themes[theme].background} rounded px-1.5 py-1 text-[11px] ${themes[theme].text}`}>
+                    备兑 {pos.covered_volume.toLocaleString()}
+                  </span>
+                  <span className={`${themes[theme].background} rounded px-1.5 py-1 text-[11px] ${themes[theme].text}`}>
+                    锁定 {pos.lock_volume.toLocaleString()}
                   </span>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
+        </div>
+
+        <div className="hidden sm:block overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className={`${themes[theme].background} border-b border-gray-200 dark:border-gray-700`}>
+              <tr className={`text-left text-xs uppercase tracking-wide ${themes[theme].text} opacity-65`}>
+                <th className="px-4 py-2.5 font-medium">标的</th>
+                <th className="px-4 py-2.5 font-medium text-right">现价</th>
+                <th className="px-4 py-2.5 font-medium text-right">总持仓</th>
+                <th className="px-4 py-2.5 font-medium text-right">可用</th>
+                <th className="px-4 py-2.5 font-medium text-right">备兑</th>
+                <th className="px-4 py-2.5 font-medium text-right">其他锁定</th>
+                <th className="px-4 py-2.5 font-medium text-right">持仓市值</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+              {positions.map((pos, idx) => {
+                const availableVolume = Math.max(0, pos.total_volume - pos.covered_volume - pos.lock_volume);
+
+                return (
+                  <tr key={idx} className={`${themes[theme].text}`}>
+                    <td className="px-4 py-3 font-semibold whitespace-nowrap">{pos.stock_code}</td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      {pos.stock_price != null ? formatCurrency(pos.stock_price, currencyConfig, 4) : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold whitespace-nowrap">{pos.total_volume.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">{availableVolume.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">{pos.covered_volume.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">{pos.lock_volume.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      {pos.total_stock_price != null ? formatCurrency(pos.total_stock_price, currencyConfig, 4) : '-'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

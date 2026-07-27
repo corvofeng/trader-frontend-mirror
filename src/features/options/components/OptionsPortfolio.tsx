@@ -17,7 +17,6 @@ import { UnderlyingPriceMonitor } from './UnderlyingPriceMonitor';
 import { PortfolioOverview } from './PortfolioOverview';
 import { SubjectPositionsPanel } from './SubjectPositionsPanel';
 import { StockKlineChart } from './StockKlineChart';
-import { ExpiryFastNav } from './ExpiryFastNav';
 import { SaveStrategyModal } from './SaveStrategyModal';
 import { TodayOrderFlowPanel } from './TodayComboPanel';
 import { getDaysToExpiryColor, getPositionTypeInfo2, getStatusColorClass, getTypeIcon, inferStrategyFromLegsWithSelection, type InferredStrategyResult } from '../utils/portfolioUi';
@@ -845,14 +844,6 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                   </div>
                 </div>
               )}
-              <ExpiryFastNav
-                theme={theme}
-                groups={groups}
-                currencyConfig={currencyConfig}
-                activeExpiry={activeExpiry}
-                expandedExpiryGroups={expandedExpiryGroups}
-              />
-
               {groups.map((group) => {
                 return (
                 <div key={group.expiry} id={`expiry-group-${group.expiry}`}>

@@ -839,6 +839,12 @@ export function ExpiryGroupCard({
            group.complex.reduce((sum, s) => sum + s.positions.reduce((pSum, p) => pSum + (p.margin || 0), 0), 0);
   }, [group]);
 
+  const totalProfitLoss = useMemo(() => {
+    const singlePL = group.single.reduce((sum, p) => sum + (Number.isFinite(p.profitLoss) ? p.profitLoss : 0), 0);
+    const complexPL = group.complex.reduce((sum, s) => sum + (Number.isFinite(s.profitLoss) ? s.profitLoss : 0), 0);
+    return singlePL + complexPL;
+  }, [group]);
+
   // Ensure options data is available when needed (especially for adjust dialog)
   useEffect(() => {
     if (confirmData && !optionsData) {
@@ -1737,6 +1743,13 @@ export function ExpiryGroupCard({
               </span>
               <span className={`px-2 sm:px-3 py-0.5 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-medium ${themes[theme].background} ${themes[theme].text}`}>
                 {filteredPositions.length} 个持仓
+              </span>
+              <span className={`px-2 sm:px-3 py-0.5 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-medium ${
+                totalProfitLoss >= 0
+                  ? 'bg-green-500/10 text-green-600 dark:text-green-300'
+                  : 'bg-red-500/10 text-red-600 dark:text-red-300'
+              }`}>
+                浮盈亏 {totalProfitLoss >= 0 ? '+' : '-'}{formatCurrency(Math.abs(totalProfitLoss), currencyConfig, 0)}
               </span>
               {totalMargin > 0 && (
                 <span className="px-2 sm:px-3 py-0.5 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-medium bg-amber-500/10 text-amber-600 dark:text-amber-300 font-mono">
