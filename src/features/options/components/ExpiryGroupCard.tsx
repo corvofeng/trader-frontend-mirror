@@ -1,6 +1,6 @@
 import React, { useCallback, useState, useEffect, useMemo, useRef } from 'react';
 import { format } from 'date-fns';
-import { ChevronDown, ChevronUp, Hourglass, RefreshCw } from 'lucide-react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
 import type { OptionsPosition, OptionsStrategy, AdvisedCombination, OptionsData, OptionQuote, OptionWhitelist } from '../../../lib/services/types';
@@ -1747,42 +1747,6 @@ export function ExpiryGroupCard({
           </div>
 
           <div className="flex flex-col gap-2 sm:gap-3 lg:min-w-[320px] lg:max-w-[360px]">
-            <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
-              {selectedSymbol && underlyingPrice != null && (
-                <div className={`${themes[theme].background} rounded-xl sm:rounded-2xl px-2.5 sm:px-4 py-2 sm:py-3`}>
-                  <div className={`text-[10px] sm:text-[11px] ${themes[theme].text} opacity-55`}>标的价格</div>
-                  <div className={`mt-0.5 sm:mt-1 text-sm sm:text-xl font-semibold ${themes[theme].text}`}>
-                    {underlyingPrice.toFixed(4)}
-                  </div>
-                </div>
-              )}
-
-              <div className={`${themes[theme].background} rounded-xl sm:rounded-2xl px-2.5 sm:px-4 py-2 sm:py-3`}>
-                <div className="flex items-center justify-between gap-2">
-                  <div className={`text-[10px] sm:text-[11px] ${themes[theme].text} opacity-55`}>行情刷新</div>
-                  <div className={`text-[10px] sm:text-[11px] ${themes[theme].text} opacity-60`}>
-                    {isConnected && codes.length > 0 ? `${Math.ceil(quoteRemainingMs / 1000)}s` : '--'}
-                  </div>
-                </div>
-                <div className="mt-1.5 sm:mt-2 flex items-center gap-1.5 sm:gap-2">
-                  <Hourglass className={`w-3 h-3 sm:w-4 sm:h-4 ${themes[theme].text} opacity-55`} />
-                  <div className="flex-1 h-1 sm:h-1.5 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
-                    <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.round(quoteProgress * 100)}%` }} />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={triggerQuoteNow}
-                    disabled={!isConnected || codes.length === 0}
-                    className={`${themes[theme].secondary} rounded-lg p-1.5 disabled:opacity-50 disabled:cursor-not-allowed`}
-                    title="刷新行情"
-                    aria-label="刷新行情"
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-
             <div className="grid grid-cols-2 gap-1.5 sm:gap-2 sm:flex sm:flex-wrap sm:justify-end">
               <button onClick={onToggleExpand} className={actionButtonClass}>
                 {isExpanded ? '收起详情' : '展开详情'}
