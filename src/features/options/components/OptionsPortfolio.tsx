@@ -16,6 +16,7 @@ import { useSaveStrategyModal } from '../hooks/useSaveStrategyModal';
 import { UnderlyingPriceMonitor } from './UnderlyingPriceMonitor';
 import { PortfolioOverview } from './PortfolioOverview';
 import { SubjectPositionsPanel } from './SubjectPositionsPanel';
+import { StockKlineChart } from './StockKlineChart';
 import { ExpiryFastNav } from './ExpiryFastNav';
 import { SaveStrategyModal } from './SaveStrategyModal';
 import { TodayOrderFlowPanel } from './TodayComboPanel';
@@ -791,6 +792,11 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       {portfolioData.subject_positions && portfolioData.subject_positions.length > 0 && (
         <SubjectPositionsPanel theme={theme} positions={portfolioData.subject_positions} currencyConfig={currencyConfig} />
       )}
+
+      {!isMobile && activeSymbol && (
+        <StockKlineChart symbol={activeSymbol} theme={theme} />
+      )}
+
       <div className="space-y-6">
         {(() => {
           return (
