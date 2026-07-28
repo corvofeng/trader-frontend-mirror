@@ -93,6 +93,8 @@ function JournalTradesTabContent({
   const [selectedStockCode, setSelectedStockCode] = React.useState<string | null>(null);
   const [selectedStockName, setSelectedStockName] = React.useState<string | null>(null);
   const [selectedQuotePrice, setSelectedQuotePrice] = React.useState<number | null>(null);
+  const [selectedQuoteSide, setSelectedQuoteSide] = React.useState<'bid' | 'ask' | null>(null);
+  const [selectedQuoteLevel, setSelectedQuoteLevel] = React.useState<number | null>(null);
 
   const sortedTodayOrders = React.useMemo(() => {
     const next = [...todayOrders];
@@ -113,6 +115,8 @@ function JournalTradesTabContent({
     setSelectedStockCode(code);
     setSelectedStockName(selectedStock?.stock_name || code);
     setSelectedQuotePrice(null);
+    setSelectedQuoteSide(null);
+    setSelectedQuoteLevel(null);
   }, [selectedStock]);
 
   React.useEffect(() => {
@@ -132,12 +136,19 @@ function JournalTradesTabContent({
     setSelectedStockCode(trimmedCode);
     setSelectedStockName(name || null);
     setSelectedQuotePrice(null);
+    setSelectedQuoteSide(null);
+    setSelectedQuoteLevel(null);
   }, []);
 
-  const handleSelectQuotePrice = React.useCallback((price: number) => {
-    if (!Number.isFinite(price)) return;
-    setSelectedQuotePrice(price);
-  }, []);
+  const handleSelectQuotePrice = React.useCallback(
+    (price: number, side?: 'bid' | 'ask', level?: number) => {
+      if (!Number.isFinite(price)) return;
+      setSelectedQuotePrice(price);
+      setSelectedQuoteSide(side ?? null);
+      setSelectedQuoteLevel(typeof level === 'number' ? level : null);
+    },
+    []
+  );
 
   return (
     <div className="flex flex-col gap-4 sm:gap-6">
@@ -152,6 +163,8 @@ function JournalTradesTabContent({
         stockName={selectedStockName}
         theme={theme}
         selectedQuotePrice={selectedQuotePrice}
+        selectedQuoteSide={selectedQuoteSide}
+        selectedQuoteLevel={selectedQuoteLevel}
         onSelectPrice={handleSelectQuotePrice}
       />
       <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden transition-colors duration-200`}>

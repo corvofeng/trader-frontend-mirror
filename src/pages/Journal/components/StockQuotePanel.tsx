@@ -14,6 +14,7 @@ import {
 import { Line } from 'react-chartjs-2';
 
 import { stockService } from '../../../lib/services';
+import type { StockPrice } from '../../../lib/services/types';
 import { type Theme, themes } from '../../../lib/theme';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend);
@@ -23,36 +24,84 @@ interface StockQuotePanelProps {
   stockName?: string | null;
   theme: Theme;
   selectedQuotePrice?: number | null;
-  onSelectPrice?: (price: number) => void;
+  selectedQuoteSide?: 'bid' | 'ask' | null;
+  selectedQuoteLevel?: number | null;
+  onSelectPrice?: (price: number, side?: 'bid' | 'ask', level?: number) => void;
 }
 
 interface StockQuotePanelInnerProps extends StockQuotePanelProps {
   stockCode: string;
 }
 
+interface HistoryPoint {
+  time: string;
+  price: number;
+  _ts: number;
+}
+
 function QuotePanelEmptyState({ theme }: { theme: Theme }) {
   return (
     <div className={`${themes[theme].card} rounded-lg border ${themes[theme].border} shadow-md`}>
       <div className={`px-4 sm:px-6 py-4 border-b ${themes[theme].border}`}>
-        <div className={`text-lg font-semibold ${themes[theme].text}`}>股票行情与走势</div>
+        <div className={`text-lg font-semibold ${themes[theme].text}`}>股票盘口与走势</div>
       </div>
       <div className={`px-4 sm:px-6 py-6 text-sm ${themes[theme].text} opacity-75`}>
-        在搜索框输入股票代码，或点击下方“当日订单”里的合约名称，即可在这里查看当前股票的最新价和短线走势。
+        在搜索框输入股票代码，或点击下方「当日订单」里的合约名称，即可在这里直接查看当前股票的 5 档价格和短线走势。
       </div>
     </div>
   );
 }
+
+const toFiniteNumber = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
+
+const pickFirstNumber = (candidates: (unknown | undefined)[]): number | null => {
+  for (const c of candidates) {
+    const v = toFiniteNumber(c);
+    if (v !== null) return v;
+  }
+  return null;
+};
+
+const pickNumberArray = <T,>(arr: T | undefined, len: number): Array<number | null> => {
+  if (!Array.isArray(arr)) return Array.from({ length: len }, () => null);
+  const out: Array<number | null> = [];
+  for (let i = 0; i < len; i += 1) {
+    out.push(toFiniteNumber(arr[i]));
+  }
+  return out;
+};
+
+const inferTickSize = (price: number): number => {
+  if (!Number.isFinite(price) || price <= 0) return 0.01;
+  if (price < 10) return 0.01;
+  if (price < 100) return 0.01;
+  return 0.01;
+};
+
+const roundToTick = (value: number, tick: number): number => {
+  if (!Number.isFinite(value) || !Number.isFinite(tick) || tick <= 0) return value;
+  return Math.round(value / tick) * tick;
+};
 
 function StockQuotePanelInner({
   stockCode,
   stockName,
   theme,
   selectedQuotePrice,
+  selectedQuoteSide,
+  selectedQuoteLevel,
   onSelectPrice,
 }: StockQuotePanelInnerProps) {
   const normalizedCode = stockCode.trim();
-  const [history, setHistory] = useState<Array<{ time: string; price: number; _ts: number }>>([]);
-  const [currentPrice, setCurrentPrice] = useState<number | null>(null);
+  const [quote, setQuote] = useState<StockPrice | null>(null);
+  const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +122,7 @@ function StockQuotePanelInner({
       if (cancelledRef.current) return;
       if (fetchError) throw fetchError;
       if (data && typeof data.price === 'number' && Number.isFinite(data.price)) {
-        setCurrentPrice(data.price);
+        setQuote(data as StockPrice);
         const now = Date.now();
         const nowLabel = new Date(now).toLocaleTimeString();
         setLastUpdated(nowLabel);
@@ -104,7 +153,7 @@ function StockQuotePanelInner({
   useEffect(() => {
     cancelledRef.current = false;
     setHistory([]);
-    setCurrentPrice(null);
+    setQuote(null);
     setLastUpdated(null);
     setError(null);
     nextRunAtRef.current = Date.now() + autoRefreshIntervalMs;
@@ -142,6 +191,90 @@ function StockQuotePanelInner({
     const ratio = 1 - remainingMs / autoRefreshIntervalMs;
     return Math.max(0, Math.min(1, ratio));
   }, [remainingMs]);
+
+  const currentPrice = quote?.price ?? null;
+  const lastPrice = pickFirstNumber([quote?.last_price, quote?.price]);
+
+  const depth = 5;
+  const rawBidPrices = useMemo(
+    () => pickNumberArray(quote?.bid_price ?? quote?.bid_prices, depth),
+    [quote]
+  );
+  const rawBidVols = useMemo(
+    () => pickNumberArray(quote?.bid_vol ?? quote?.bid_volume, depth),
+    [quote]
+  );
+  const rawAskPrices = useMemo(
+    () => pickNumberArray(quote?.ask_price ?? quote?.ask_prices, depth),
+    [quote]
+  );
+  const rawAskVols = useMemo(
+    () => pickNumberArray(quote?.ask_vol ?? quote?.ask_volume, depth),
+    [quote]
+  );
+
+  const { bidRows, askRows, bestBid, bestAsk, spread } = useMemo(() => {
+    const center =
+      lastPrice ?? (typeof currentPrice === 'number' ? currentPrice : null);
+    const tick = typeof center === 'number' ? inferTickSize(center) : 0.01;
+
+    const b0 =
+      pickFirstNumber([rawBidPrices[0], quote?.bid]) ??
+      (typeof center === 'number' ? roundToTick(center - tick, tick) : null);
+    const a0 =
+      pickFirstNumber([rawAskPrices[0], quote?.ask]) ??
+      (typeof center === 'number' ? roundToTick(center + tick, tick) : null);
+
+    const builtBid: Array<{ level: number; price: number | null; volume: number | null }> = [];
+    const builtAsk: Array<{ level: number; price: number | null; volume: number | null }> = [];
+
+    for (let i = 0; i < depth; i += 1) {
+      const bp =
+        pickFirstNumber([rawBidPrices[i]]) ??
+        (typeof b0 === 'number' ? roundToTick(b0 - tick * i, tick) : null);
+      const bv = pickFirstNumber([rawBidVols[i]]) ?? null;
+      builtBid.push({ level: i + 1, price: bp, volume: bv });
+
+      const ap =
+        pickFirstNumber([rawAskPrices[i]]) ??
+        (typeof a0 === 'number' ? roundToTick(a0 + tick * i, tick) : null);
+      const av = pickFirstNumber([rawAskVols[i]]) ?? null;
+      builtAsk.push({ level: i + 1, price: ap, volume: av });
+    }
+
+    const bb = builtBid[0]?.price ?? null;
+    const ba = builtAsk[0]?.price ?? null;
+    const sp =
+      typeof bb === 'number' && typeof ba === 'number' && Number.isFinite(bb) && Number.isFinite(ba)
+        ? ba - bb
+        : null;
+
+    return { bidRows: builtBid, askRows: builtAsk, bestBid: bb, bestAsk: ba, spread: sp };
+  }, [currentPrice, lastPrice, quote, rawBidPrices, rawBidVols, rawAskPrices, rawAskVols]);
+
+  const maxVolume = useMemo(() => {
+    const values = [...bidRows, ...askRows].map((row) =>
+      typeof row.volume === 'number' && Number.isFinite(row.volume) ? row.volume : 0
+    );
+    return Math.max(0, ...values);
+  }, [askRows, bidRows]);
+
+  const getVolumeRatio = (volume?: number | null) => {
+    if (typeof volume !== 'number' || !Number.isFinite(volume) || volume <= 0 || maxVolume <= 0) {
+      return 0;
+    }
+    return Math.max(0, Math.min(1, volume / maxVolume));
+  };
+
+  const isSelectedPrice = (price?: number | null, side?: 'bid' | 'ask', level?: number) => {
+    if (typeof price !== 'number' || !Number.isFinite(price)) return false;
+    if (typeof selectedQuotePrice !== 'number' || !Number.isFinite(selectedQuotePrice)) return false;
+    const sideMatch =
+      selectedQuoteSide === undefined || selectedQuoteSide === null || selectedQuoteSide === (side ?? null);
+    const levelMatch =
+      selectedQuoteLevel === undefined || selectedQuoteLevel === null || selectedQuoteLevel === (level ?? null);
+    return Math.abs(selectedQuotePrice - price) < 0.0000001 && sideMatch && levelMatch;
+  };
 
   const chartData: ChartData<'line'> = useMemo(
     () => ({
@@ -198,19 +331,13 @@ function StockQuotePanelInner({
     [theme]
   );
 
-  const isSelected = (price?: number) => {
-    if (typeof price !== 'number' || !Number.isFinite(price)) return false;
-    if (typeof selectedQuotePrice !== 'number' || !Number.isFinite(selectedQuotePrice)) return false;
-    return Math.abs(selectedQuotePrice - price) < 0.0000001;
-  };
-
   return (
     <div className={`${themes[theme].card} rounded-lg border ${themes[theme].border} shadow-md overflow-hidden`}>
       <div className={`px-4 sm:px-6 py-4 border-b ${themes[theme].border}`}>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <div className={`text-lg sm:text-xl font-semibold ${themes[theme].text}`}>股票行情与走势</div>
+              <div className={`text-lg sm:text-xl font-semibold ${themes[theme].text}`}>股票盘口与走势</div>
               <span
                 className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
                   error
@@ -225,6 +352,9 @@ function StockQuotePanelInner({
             <div className={`mt-1 text-sm ${themes[theme].text}`}>
               <span className="font-mono font-semibold">{normalizedCode}</span>
               {stockName ? <span className="ml-2 opacity-75">{stockName}</span> : null}
+              {quote?.stock_name && quote.stock_name !== stockName ? (
+                <span className="ml-2 opacity-75">{quote.stock_name}</span>
+              ) : null}
             </div>
             <div className={`mt-1 text-xs ${themes[theme].text} opacity-60`}>
               {lastUpdated ? `最近更新 ${lastUpdated}` : '等待行情返回...'}
@@ -252,7 +382,7 @@ function StockQuotePanelInner({
             <button
               type="button"
               onClick={triggerNow}
-              disabled={isLoading}
+              disabled={isLoading || !normalizedCode}
               className={`inline-flex items-center rounded-md px-3 py-2 text-sm font-medium ${themes[theme].secondary} ${
                 isLoading ? 'cursor-not-allowed opacity-50' : ''
               }`}
@@ -267,47 +397,111 @@ function StockQuotePanelInner({
       <div className="grid gap-4 p-4 sm:grid-cols-2 sm:p-6">
         <div className={`rounded-lg border ${themes[theme].border} p-3 sm:p-4`}>
           <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className={`text-sm font-semibold ${themes[theme].text}`}>价格快捷回填</div>
+            <div className={`text-sm font-semibold ${themes[theme].text}`}>盘口 5 档</div>
+            <div className={`text-xs ${themes[theme].text} opacity-70`}>
+              点差 {spread != null && Number.isFinite(spread) ? spread.toFixed(4) : '-'}
+            </div>
           </div>
           <div className={`mb-3 text-xs ${themes[theme].text} opacity-70`}>
-            点击下方价格可直接回填到交易表单的目标价格。
+            点击任意买卖档价格，可直接回填到上方表单的目标价格。
           </div>
-          {typeof currentPrice === 'number' && Number.isFinite(currentPrice) ? (
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={() => onSelectPrice?.(currentPrice)}
-                className={`w-full rounded-md border px-4 py-3 text-center transition-colors ${
-                  isSelected(currentPrice)
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/20'
-                    : `${themes[theme].border} hover:bg-gray-50 dark:hover:bg-gray-800/50`
-                }`}
-              >
-                <div className={`text-[11px] ${themes[theme].text} opacity-60`}>最新价回填</div>
-                <div className={`mt-1 font-mono text-xl font-semibold ${themes[theme].text}`}>
-                  {currentPrice.toFixed(4)}
-                </div>
-              </button>
-              <div className={`mt-2 grid grid-cols-2 gap-2 text-xs ${themes[theme].text}`}>
-                <div className={`rounded-md border ${themes[theme].border} px-3 py-2`}>
-                  <div className="opacity-60">最新价</div>
-                  <div className="mt-1 font-mono font-semibold text-blue-600 dark:text-blue-400">
-                    {currentPrice.toFixed(4)}
+          <div className={`mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] sm:text-xs ${themes[theme].text} opacity-70`}>
+            <span>{`买一 ${typeof bestBid === 'number' ? bestBid.toFixed(4) : '-'}`}</span>
+            <span>{`卖一 ${typeof bestAsk === 'number' ? bestAsk.toFixed(4) : '-'}`}</span>
+            <span>{`差 ${spread != null && Number.isFinite(spread) ? spread.toFixed(4) : '-'}`}</span>
+          </div>
+          <div className={`grid grid-cols-2 gap-2 sm:gap-3`}>
+            <div className="min-w-0">
+              <div className="mb-2 text-center text-xs font-semibold text-rose-500 sm:text-xs">买盘</div>
+              <div className={`mb-1 grid grid-cols-[30px_minmax(0,1fr)_44px] gap-1 px-0.5 text-[10px] sm:grid-cols-[42px_1fr_70px] sm:gap-2 sm:px-1 sm:text-[11px] ${themes[theme].text} opacity-60`}>
+                <div>档位</div>
+                <div>价格</div>
+                <div className="text-right">量</div>
+              </div>
+              <div className="space-y-1">
+                {bidRows.map((row) => (
+                  <div
+                    key={`bid-${row.level}`}
+                    className={`grid grid-cols-[30px_minmax(0,1fr)_44px] gap-1 rounded px-0.5 py-1 text-[10px] sm:grid-cols-[42px_1fr_70px] sm:gap-2 sm:px-1 sm:text-xs ${
+                      isSelectedPrice(row.price, 'bid', row.level)
+                        ? 'bg-rose-50 dark:bg-rose-900/15'
+                        : ''
+                    }`}
+                  >
+                    <div className={`${themes[theme].text} opacity-75`}>买{row.level}</div>
+                    <div className="min-w-0">
+                      {typeof row.price === 'number' ? (
+                        <button
+                          type="button"
+                          onClick={() => onSelectPrice?.(row.price as number, 'bid', row.level)}
+                          className="w-full text-right font-mono text-[12px] text-rose-500 hover:underline sm:text-[13px]"
+                          title={`使用买${row.level} ${row.price.toFixed(4)} 回填`}
+                        >
+                          {row.price.toFixed(4)}
+                        </button>
+                      ) : (
+                        <div className="text-right font-mono text-rose-500">-</div>
+                      )}
+                      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-rose-100 dark:bg-rose-950/40">
+                        <div
+                          className="h-full rounded-full bg-rose-500/80 transition-[width] duration-300"
+                          style={{ width: `${Math.round(getVolumeRatio(row.volume) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                    <div className={`text-right font-mono text-[10px] sm:text-xs ${themes[theme].text}`}>
+                      {row.volume ?? '-'}
+                    </div>
                   </div>
-                </div>
-                <div className={`rounded-md border ${themes[theme].border} px-3 py-2`}>
-                  <div className="opacity-60">采集点数</div>
-                  <div className="mt-1 font-mono font-semibold">
-                    {history.length}
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
-          ) : (
-            <div className={`rounded-md border border-dashed ${themes[theme].border} px-4 py-6 text-center text-sm ${themes[theme].text} opacity-70`}>
-              {isLoading ? '正在获取最新价...' : '暂无价格数据'}
+            <div className="min-w-0">
+              <div className="mb-2 text-center text-xs font-semibold text-emerald-500 sm:text-xs">卖盘</div>
+              <div className={`mb-1 grid grid-cols-[30px_minmax(0,1fr)_44px] gap-1 px-0.5 text-[10px] sm:grid-cols-[42px_1fr_70px] sm:gap-2 sm:px-1 sm:text-[11px] ${themes[theme].text} opacity-60`}>
+                <div>档位</div>
+                <div>价格</div>
+                <div className="text-right">量</div>
+              </div>
+              <div className="space-y-1">
+                {askRows.map((row) => (
+                  <div
+                    key={`ask-${row.level}`}
+                    className={`grid grid-cols-[30px_minmax(0,1fr)_44px] gap-1 rounded px-0.5 py-1 text-[10px] sm:grid-cols-[42px_1fr_70px] sm:gap-2 sm:px-1 sm:text-xs ${
+                      isSelectedPrice(row.price, 'ask', row.level)
+                        ? 'bg-emerald-50 dark:bg-emerald-900/15'
+                        : ''
+                    }`}
+                  >
+                    <div className={`${themes[theme].text} opacity-75`}>卖{row.level}</div>
+                    <div className="min-w-0">
+                      {typeof row.price === 'number' ? (
+                        <button
+                          type="button"
+                          onClick={() => onSelectPrice?.(row.price as number, 'ask', row.level)}
+                          className="w-full text-right font-mono text-[12px] text-emerald-500 hover:underline sm:text-[13px]"
+                          title={`使用卖${row.level} ${row.price.toFixed(4)} 回填`}
+                        >
+                          {row.price.toFixed(4)}
+                        </button>
+                      ) : (
+                        <div className="text-right font-mono text-emerald-500">-</div>
+                      )}
+                      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-emerald-100 dark:bg-emerald-950/40">
+                        <div
+                          className="h-full rounded-full bg-emerald-500/80 transition-[width] duration-300"
+                          style={{ width: `${Math.round(getVolumeRatio(row.volume) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                    <div className={`text-right font-mono text-[10px] sm:text-xs ${themes[theme].text}`}>
+                      {row.volume ?? '-'}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          )}
+          </div>
         </div>
 
         <div className={`rounded-lg border ${themes[theme].border} p-4`}>
@@ -328,21 +522,21 @@ function StockQuotePanelInner({
           </div>
           <div className={`mt-3 grid grid-cols-3 gap-3 text-xs ${themes[theme].text}`}>
             <div>
-              <div className="opacity-60">最新价</div>
-              <div className="font-mono font-semibold text-blue-600 dark:text-blue-400">
-                {typeof currentPrice === 'number' ? currentPrice.toFixed(4) : '-'}
+              <div className="opacity-60">买一</div>
+              <div className="font-mono font-semibold text-rose-500">
+                {typeof bestBid === 'number' ? bestBid.toFixed(4) : '-'}
               </div>
             </div>
             <div>
-              <div className="opacity-60">最高</div>
-              <div className="font-mono font-semibold">
-                {history.length > 0 ? Math.max(...history.map((h) => h.price)).toFixed(4) : '-'}
+              <div className="opacity-60">卖一</div>
+              <div className="font-mono font-semibold text-emerald-500">
+                {typeof bestAsk === 'number' ? bestAsk.toFixed(4) : '-'}
               </div>
             </div>
             <div>
-              <div className="opacity-60">最低</div>
+              <div className="opacity-60">点差</div>
               <div className="font-mono font-semibold">
-                {history.length > 0 ? Math.min(...history.map((h) => h.price)).toFixed(4) : '-'}
+                {spread != null && Number.isFinite(spread) ? spread.toFixed(4) : '-'}
               </div>
             </div>
           </div>
@@ -357,6 +551,8 @@ export function StockQuotePanel({
   stockName,
   theme,
   selectedQuotePrice,
+  selectedQuoteSide,
+  selectedQuoteLevel,
   onSelectPrice,
 }: StockQuotePanelProps) {
   if (!stockCode) {
@@ -369,6 +565,8 @@ export function StockQuotePanel({
       stockName={stockName}
       theme={theme}
       selectedQuotePrice={selectedQuotePrice}
+      selectedQuoteSide={selectedQuoteSide}
+      selectedQuoteLevel={selectedQuoteLevel}
       onSelectPrice={onSelectPrice}
     />
   );

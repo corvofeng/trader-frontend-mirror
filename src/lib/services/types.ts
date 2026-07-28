@@ -173,6 +173,23 @@ export interface StockPrice {
   stock_code: string;
   stock_name: string;
   price: number;
+  last_price?: number;
+  pre_close?: number;
+  open?: number;
+  high?: number;
+  low?: number;
+  volume?: number;
+  amount?: number;
+  bid?: number;
+  ask?: number;
+  bid_price?: (number | null | undefined)[];
+  bid_prices?: (number | null | undefined)[];
+  bid_vol?: (number | null | undefined)[];
+  bid_volume?: (number | null | undefined)[];
+  ask_price?: (number | null | undefined)[];
+  ask_prices?: (number | null | undefined)[];
+  ask_vol?: (number | null | undefined)[];
+  ask_volume?: (number | null | undefined)[];
 }
 
 export interface StockOrder {
