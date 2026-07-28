@@ -32,12 +32,6 @@ interface ExpiryGroupCardProps {
   group: { expiry: string; daysToExpiry: number; single: OptionsPosition[]; complex: OptionsStrategy[] };
   statusFilter: 'all' | 'open' | 'closed' | 'expired';
   filterAndSortPositions: (positions: OptionsPosition[]) => OptionsPosition[];
-  isSelectingExpiry: (expiry: string) => boolean;
-  toggleExpirySelection: (expiry: string) => void;
-  openSaveModal: (expiry: string) => void;
-  selectedLegs: Record<string, number>;
-  setPositionSelected: (positionId: string, checked: boolean) => void;
-  updateSelectedQuantity: (positionId: string, qty: number) => void;
   currencyConfig: CurrencyConfig;
   getDaysToExpiryColor: (days: number) => string;
   getTypeIcon: (type: OptionsPosition['type']) => React.ReactNode;
@@ -49,7 +43,6 @@ interface ExpiryGroupCardProps {
   underlyingPrice: number | null;
   onClosePositions: (ids: string[], meta?: { action?: string; comboType?: 'call' | 'put'; strike?: number; expiry?: string; strategyIds?: string[]; category?: string; quote?: OptionQuote; contract_code?: string; contract_code_full?: string }, overrides?: Record<string, number>) => Promise<void>;
   advisedCombinations?: AdvisedCombination[];
-  onLoadAdvised?: (combo: AdvisedCombination) => void;
   onExecuteAdvised?: (combo: AdvisedCombination) => void;
   selectedAccountId?: string | null;
   userId?: string | null;
@@ -89,12 +82,6 @@ export function ExpiryGroupCard({
   group,
   statusFilter,
   filterAndSortPositions,
-  isSelectingExpiry,
-  toggleExpirySelection,
-  openSaveModal,
-  selectedLegs,
-  setPositionSelected,
-  updateSelectedQuantity,
   currencyConfig,
   getDaysToExpiryColor,
   getTypeIcon,
@@ -106,7 +93,6 @@ export function ExpiryGroupCard({
   underlyingPrice,
   onClosePositions,
   advisedCombinations = [],
-  onLoadAdvised,
   onExecuteAdvised,
   selectedAccountId,
   userId,
@@ -191,6 +177,7 @@ export function ExpiryGroupCard({
   const [contractUnitMap, setContractUnitMap] = useState<Record<string, number>>({});
   const [contractNameMap, setContractNameMap] = useState<Record<string, string>>({});
   const [isPageLocked, setIsPageLocked] = useState(false);
+  const [isDetailsSectionExpanded, setIsDetailsSectionExpanded] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth < 768 : false
   ));
@@ -1494,7 +1481,17 @@ export function ExpiryGroupCard({
     hasUserAdjustedTBoardRef.current = true;
   }, []);
 
-  const actionButtonClass = `rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-sm font-medium transition-colors ${themes[theme].secondary}`;
+  const expiryStatusText = useMemo(() => {
+    if (group.daysToExpiry < 0) return `已过期${Math.abs(group.daysToExpiry)}天`;
+    if (group.daysToExpiry === 0) return '今日到期';
+    if (group.daysToExpiry === 1) return '明日到期';
+    return `${group.daysToExpiry}天后到期`;
+  }, [group.daysToExpiry]);
+  const profitLossBadgeClass = totalProfitLoss >= 0
+    ? 'bg-green-500/10 text-green-600 dark:text-green-300'
+    : 'bg-red-500/10 text-red-600 dark:text-red-300';
+  const expandHandleButtonClass = `absolute right-1.5 top-1/2 z-10 inline-flex h-12 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200/80 bg-gradient-to-b from-white/95 via-white/90 to-slate-100/90 text-slate-500 shadow-[0_8px_22px_rgba(15,23,42,0.12)] backdrop-blur transition-all duration-200 hover:text-slate-700 hover:shadow-[0_10px_28px_rgba(15,23,42,0.18)] dark:border-slate-700/80 dark:from-slate-800/95 dark:via-slate-900/90 dark:to-slate-950/90 dark:text-slate-300 dark:hover:text-slate-100 sm:right-2 sm:h-16 sm:w-9`;
+  const sectionToggleButtonClass = `flex w-full items-center justify-between gap-2 rounded-xl border ${themes[theme].border} ${themes[theme].background} px-3 py-2 text-left transition-colors hover:opacity-90`;
 
   const renderComboDraftPanel = useCallback((draft: ComboDraftState, embedded = false) => (
     <>
@@ -1668,17 +1665,6 @@ export function ExpiryGroupCard({
       </div>
       <div className="mt-4 flex items-center justify-end gap-2">
         <button
-          className={`px-3 py-1 rounded text-sm ${themes[theme].secondary}`}
-          onClick={() => {
-            if (onLoadAdvised) onLoadAdvised({ ...draft.combo, quantity: draft.quantity });
-            if (embedded) {
-              setConfirmData(null);
-            } else {
-              setAdvisedModal(null);
-            }
-          }}
-        >加载到构建器</button>
-        <button
           className={`px-3 py-1 rounded text-sm bg-purple-600 text-white`}
           onClick={async () => {
             if (draft.mode === 't_board_create') {
@@ -1715,7 +1701,6 @@ export function ExpiryGroupCard({
     advisedPricePreview,
     currencyConfig,
     onExecuteAdvised,
-    onLoadAdvised,
     onRefresh,
     selectedAccountId,
     spreadHistory,
@@ -1727,65 +1712,62 @@ export function ExpiryGroupCard({
   ]);
 
   return (
-    <div className={`${themes[theme].card} ${themes[theme].border} rounded-2xl border shadow-md overflow-hidden`}>
-      <div className={`p-3 sm:p-6 border-b ${themes[theme].border}`}>
+    <div className={`${themes[theme].card} ${themes[theme].border} relative rounded-2xl border shadow-md overflow-hidden`}>
+      <div className={`relative border-b ${themes[theme].border} p-3 pr-12 sm:p-6 sm:pr-16`}>
         <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <div className={`text-[11px] sm:text-xs font-medium uppercase tracking-[0.18em] ${themes[theme].text} opacity-45`}>
-              到期日
-            </div>
-            <h3 className={`mt-0.5 sm:mt-1 text-lg sm:text-3xl font-semibold leading-tight ${themes[theme].text}`}>
-              {format(new Date(group.expiry), 'yyyy年MM月dd日')}
-            </h3>
-            <div className="mt-2 sm:mt-3 flex flex-wrap gap-1.5 sm:gap-2">
-              <span className={`px-2 sm:px-3 py-0.5 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-medium ${getDaysToExpiryColor(group.daysToExpiry)}`}>
-                {group.daysToExpiry > 0 ? `${group.daysToExpiry}天后到期` : '已到期'}
-              </span>
-              <span className={`px-2 sm:px-3 py-0.5 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-medium ${themes[theme].background} ${themes[theme].text}`}>
-                {filteredPositions.length} 个持仓
-              </span>
-              <span className={`px-2 sm:px-3 py-0.5 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-medium ${
-                totalProfitLoss >= 0
-                  ? 'bg-green-500/10 text-green-600 dark:text-green-300'
-                  : 'bg-red-500/10 text-red-600 dark:text-red-300'
-              }`}>
-                浮盈亏 {totalProfitLoss >= 0 ? '+' : '-'}{formatCurrency(Math.abs(totalProfitLoss), currencyConfig, 0)}
-              </span>
-              {totalMargin > 0 && (
-                <span className="px-2 sm:px-3 py-0.5 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-medium bg-amber-500/10 text-amber-600 dark:text-amber-300 font-mono">
-                  保证金 {formatCurrency(totalMargin, currencyConfig, 0)}
-                </span>
-              )}
+          <div className="min-w-0 flex flex-1 items-start gap-3">
+            <div className="min-w-0 flex-1">
+              <div>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                  <h3 className={`text-lg sm:text-3xl font-semibold leading-tight ${themes[theme].text}`}>
+                    {format(new Date(group.expiry), 'yyyy年MM月dd日')}
+                  </h3>
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] sm:text-xs font-medium ${getDaysToExpiryColor(group.daysToExpiry)}`}>
+                    {expiryStatusText}
+                  </span>
+                </div>
+                <div className="mt-2 sm:mt-3 flex flex-wrap gap-1.5 sm:gap-2">
+                  <span className={`inline-flex items-center rounded-full px-2.5 sm:px-3 py-1 text-[10px] sm:text-xs font-medium ${themes[theme].background} ${themes[theme].text}`}>
+                    {filteredPositions.length} 个持仓
+                  </span>
+                  <span className={`inline-flex items-center rounded-full px-2.5 sm:px-3 py-1 text-[10px] sm:text-xs font-medium ${profitLossBadgeClass}`}>
+                    浮盈亏 {totalProfitLoss >= 0 ? '+' : '-'}{formatCurrency(Math.abs(totalProfitLoss), currencyConfig, 0)}
+                  </span>
+                  {totalMargin > 0 && (
+                    <span className="inline-flex items-center rounded-full px-2.5 sm:px-3 py-1 text-[10px] sm:text-xs font-medium bg-amber-500/10 text-amber-600 dark:text-amber-300 font-mono">
+                      保证金 {formatCurrency(totalMargin, currencyConfig, 0)}
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="flex flex-col gap-2 sm:gap-3 lg:min-w-[320px] lg:max-w-[360px]">
-            <div className="grid grid-cols-2 gap-1.5 sm:gap-2 sm:flex sm:flex-wrap sm:justify-end">
-              <button onClick={onToggleExpand} className={actionButtonClass}>
-                {isExpanded ? '收起详情' : '展开详情'}
-              </button>
-              <button
-                onClick={() => toggleExpirySelection(group.expiry)}
-                className={actionButtonClass}
-              >
-                {isSelectingExpiry(group.expiry) ? '退出选择' : '选择此到期日'}
-              </button>
-              {isSelectingExpiry(group.expiry) && (
-                <button
-                  onClick={() => openSaveModal(group.expiry)}
-                  className="col-span-2 rounded-xl px-2.5 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-sm font-medium bg-blue-600 text-white hover:bg-blue-700"
-                >
-                  构建组合并保存
-                </button>
-              )}
-            </div>
-          </div>
+
         </div>
+        <button
+          type="button"
+          onClick={onToggleExpand}
+          className={expandHandleButtonClass}
+          aria-expanded={isExpanded}
+          aria-label={isExpanded ? '收起到期日分组' : '展开到期日分组'}
+          title={isExpanded ? '收起' : '展开'}
+        >
+          <span className="sr-only">{isExpanded ? '收起到期日分组' : '展开到期日分组'}</span>
+          <span className="pointer-events-none flex flex-col items-center gap-1">
+            <span className="h-4 w-[2px] rounded-full bg-slate-300/90 dark:bg-slate-600/90" />
+            {isExpanded ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+          </span>
+        </button>
       </div>
 
 
 
-      <div className="p-3 sm:p-6">
+      <div className={`p-3 sm:p-6 ${isExpanded ? 'block' : 'hidden'}`} aria-hidden={!isExpanded}>
         <div className="space-y-4">
           {(() => {
             const callPositions = filteredPositions.filter(pos => (pos.type === 'call' || pos.contract_type_zh === 'call'));
@@ -2011,12 +1993,6 @@ export function ExpiryGroupCard({
                         <div key={`advised-${group.expiry}-${c.type}-${c.buy_strike}-${c.sell_strike}-${i}`} className="flex items-center justify-between gap-2">
                           <div className={`text-sm ${themes[theme].text}`}>{c.description}</div>
                           <div className="flex items-center gap-2">
-                            {!!onLoadAdvised && (
-                              <button
-                                className={`px-2 py-1 rounded text-xs ${themes[theme].secondary}`}
-                                onClick={() => onLoadAdvised(c)}
-                              >加载建议</button>
-                            )}
                             <button
                               className={`px-2 py-1 rounded text-xs bg-purple-600 text-white`}
                                 onClick={() => setAdvisedModal({ combo: c, quantity: Math.max(1, c.quantity || 1), mode: 'advised' })}
@@ -2027,310 +2003,257 @@ export function ExpiryGroupCard({
                     </div>
                   </div>
                 )}
-                {isExpanded && (callPositions.length > 0 || putPositions.length > 0) && (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
-                    <div>
-                      <div className="flex items-center gap-2 mb-2 sm:mb-4">
-                        <div className="w-3 h-3 sm:w-4 sm:h-4 bg-green-500 rounded"></div>
-                        <h4 className={`text-sm sm:text-lg font-semibold ${themes[theme].text}`}>
-                          Call期权 ({callPositions.length})
-                        </h4>
-                      </div>
-                      <div className="space-y-2 sm:space-y-3">
-                        {callPositions.map((position, index) => {
-                          const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh, position.is_covered);
-                          return (
-                            <div 
-                              key={`${position.id ?? 'noid'}-${position.symbol}-${position.strike}-${position.type}-${position.expiry}-${index}`}
-                              className={`${themes[theme].background} rounded-lg p-3 sm:p-4 border ${themes[theme].border} border-l-4 ${positionInfo.borderColor} ${getHighlightClass(position)}`}
-                            >
-                              <div className="flex justify-between items-start gap-2">
-                                <div className="flex items-start space-x-2 sm:space-x-3 min-w-0 flex-1">
-                                  {getTypeIcon(position.type)}
-                                  <div className="min-w-0">
-                                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-0.5 sm:mb-1">
-                                      <div className={`text-xs sm:text-sm font-medium ${themes[theme].text} break-all`}>
-                                        {position.symbol} {position.strike}
-                                      </div>
-                                      <div className="flex items-center gap-1 shrink-0">
-                                        {positionInfo.icon}
-                                        <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${positionInfo.color}`}>
-                                          {positionInfo.label}
-                                        </span>
-                                      </div>
-                                    </div>
-                                    <div className={`text-[11px] sm:text-xs ${themes[theme].text} opacity-75 leading-tight`}>
-                                      {position.strategy} • {positionInfo.description}
-                                    </div>
-                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 sm:mt-2 text-[11px] sm:text-xs">
-                                      <span className={`${themes[theme].text} opacity-75`}>
-                                        {(() => {
-                                          const base = position.quantity;
-                                          const avail = Number(position.available ?? base) || 0;
-                                          return <>数量: {base}{avail !== base ? `（${avail}）` : ''}</>;
-                                        })()}
-                                      </span>
-                                      <span className={`${themes[theme].text} opacity-75`}>
-                                        权利金: {formatCurrency(position.premium, currencyConfig, 4)}
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="text-right shrink-0">
-                                  <div className={`text-xs sm:text-sm font-bold ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                    {position.profitLoss >= 0 ? '+' : '-'}{formatCurrency(Math.abs(position.profitLoss), currencyConfig, 4)}
-                                  </div>
-                                  <div className={`text-[10px] sm:text-xs ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                    ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
-                                  </div>
-                                  <div className="flex flex-wrap items-center justify-end gap-1 sm:gap-2 mt-1">
-                                    <span className={`inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${getStatusColor(position.status)}`}>
-                                      {position.status === 'open' ? '持仓中' : position.status === 'closed' ? '已平仓' : '已到期'}
-                                    </span>
-                                    {!isSelectingExpiry(position.expiry) && (
-                                      <button
-                                        type="button"
-                                        onClick={() => setPositionSelected(position.id, true)}
-                                        className="inline-flex items-center px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs bg-blue-600 text-white hover:bg-blue-700"
-                                        aria-label="加入策略"
-                                      >
-                                        加入策略
-                                      </button>
-                                    )}
-                                    {isSelectingExpiry(position.expiry) && (
-                                      <div className="flex items-center gap-1 sm:gap-2">
-                                        <label className={`text-[10px] sm:text-xs ${themes[theme].text} opacity-75 flex items-center gap-1`}>
-                                          <input
-                                            type="checkbox"
-                                            checked={!!selectedLegs[position.id]}
-                                            onChange={(e) => setPositionSelected(position.id, e.target.checked)}
-                                          />
-                                          选择
-                                        </label>
-                                        {!!selectedLegs[position.id] && (
-                                          <input
-                                            type="number"
-                                            min={1}
-                                            max={position.quantity}
-                                            value={selectedLegs[position.id]}
-                                            onChange={(e) => {
-                                              const val = parseInt(e.target.value) || 1;
-                                              const clamped = Math.max(1, Math.min(val, position.quantity));
-                                              updateSelectedQuantity(position.id, clamped);
-                                            }}
-                                            className={`w-14 sm:w-20 px-1.5 sm:px-2 py-0.5 rounded text-[10px] sm:text-xs ${themes[theme].input} ${themes[theme].text}`}
-                                          />
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                        {callPositions.length === 0 && (
-                          <div className={`${themes[theme].background} rounded-lg p-4 sm:p-6 text-center border-2 border-dashed ${themes[theme].border}`}>
-                            <p className={`text-xs sm:text-sm ${themes[theme].text} opacity-75`}>
-                              暂无Call期权持仓
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                {isExpanded && (callPositions.length > 0 || putPositions.length > 0 || group.complex.length > 0) && (
+                  <div className="space-y-3 sm:space-y-4">
+                    <button
+                      type="button"
+                      className={sectionToggleButtonClass}
+                      onClick={() => setIsDetailsSectionExpanded(prev => !prev)}
+                      aria-expanded={isDetailsSectionExpanded}
+                    >
+                      <span className="min-w-0">
+                        <span className={`block text-sm sm:text-base font-semibold ${themes[theme].text}`}>
+                          详细持仓
+                        </span>
+                        <span className={`mt-0.5 block text-[11px] sm:text-xs ${themes[theme].text} opacity-65`}>
+                          Call {callPositions.length} · Put {putPositions.length} · 复杂策略 {group.complex.length}
+                        </span>
+                      </span>
+                      {isDetailsSectionExpanded ? (
+                        <ChevronUp className={`w-4 h-4 shrink-0 ${themes[theme].text} opacity-60`} />
+                      ) : (
+                        <ChevronDown className={`w-4 h-4 shrink-0 ${themes[theme].text} opacity-60`} />
+                      )}
+                    </button>
 
-                    <div>
-                      <div className="flex items-center gap-2 mb-2 sm:mb-4">
-                        <div className="w-3 h-3 sm:w-4 sm:h-4 bg-red-500 rounded"></div>
-                        <h4 className={`text-sm sm:text-lg font-semibold ${themes[theme].text}`}>
-                          Put期权 ({putPositions.length})
-                        </h4>
-                      </div>
-                      <div className="space-y-2 sm:space-y-3">
-                        {putPositions.map((position, index) => {
-                          const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh, position.is_covered);
-                          return (
-                            <div 
-                              key={`${position.id ?? 'noid'}-${position.symbol}-${position.strike}-${position.type}-${position.expiry}-${index}`}
-                              className={`${themes[theme].background} rounded-lg p-3 sm:p-4 border ${themes[theme].border} border-l-4 ${positionInfo.borderColor} ${getHighlightClass(position)}`}
-                            >
-                              <div className="flex justify-between items-start gap-2">
-                                <div className="flex items-start space-x-2 sm:space-x-3 min-w-0 flex-1">
-                                  {getTypeIcon(position.type)}
-                                  <div className="min-w-0">
-                                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-0.5 sm:mb-1">
-                                      <div className={`text-xs sm:text-sm font-medium ${themes[theme].text} break-all`}>
-                                        {position.symbol} {position.strike}
-                                      </div>
-                                      <div className="flex items-center gap-1 shrink-0">
-                                        {positionInfo.icon}
-                                        <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${positionInfo.color}`}>
-                                          {positionInfo.label}
-                                        </span>
-                                      </div>
-                                    </div>
-                                    <div className={`text-[11px] sm:text-xs ${themes[theme].text} opacity-75 leading-tight`}>
-                                      {position.strategy} • {positionInfo.description}
-                                    </div>
-                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 sm:mt-2 text-[11px] sm:text-xs">
-                                      <span className={`${themes[theme].text} opacity-75`}>
-                                        {(() => {
-                                          const base = position.quantity;
-                                          const avail = Number(position.available ?? base) || 0;
-                                          return <>数量: {base}{avail !== base ? `（${avail}）` : ''}</>;
-                                        })()}
-                                      </span>
-                                      <span className={`${themes[theme].text} opacity-75`}>
-                                        权利金: {formatCurrency(position.premium, currencyConfig, 4)}
-                                      </span>
-                                    </div>
-                                  </div>
+                    {isDetailsSectionExpanded && (
+                      <>
+                        {(callPositions.length > 0 || putPositions.length > 0) && (
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
+                            {callPositions.length > 0 && (
+                              <div>
+                                <div className="flex items-center gap-2 mb-2 sm:mb-4">
+                                  <div className="w-3 h-3 sm:w-4 sm:h-4 bg-green-500 rounded"></div>
+                                  <h4 className={`text-sm sm:text-lg font-semibold ${themes[theme].text}`}>
+                                    Call期权 ({callPositions.length})
+                                  </h4>
                                 </div>
-                                <div className="text-right shrink-0">
-                                  <div className={`text-xs sm:text-sm font-bold ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                    {position.profitLoss >= 0 ? '+' : '-'}{formatCurrency(Math.abs(position.profitLoss), currencyConfig, 4)}
-                                  </div>
-                                  <div className={`text-[10px] sm:text-xs ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                    ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
-                                  </div>
-                                  <div className="flex flex-wrap items-center justify-end gap-1 sm:gap-2 mt-1">
-                                    <span className={`inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${getStatusColor(position.status)}`}>
-                                      {position.status === 'open' ? '持仓中' : position.status === 'closed' ? '已平仓' : '已到期'}
-                                    </span>
-                                    {!isSelectingExpiry(position.expiry) && (
-                                      <button
-                                        type="button"
-                                        onClick={() => setPositionSelected(position.id, true)}
-                                        className="inline-flex items-center px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs bg-blue-600 text-white hover:bg-blue-700"
-                                        aria-label="加入策略"
+                                <div className="space-y-2 sm:space-y-3">
+                                  {callPositions.map((position, index) => {
+                                    const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh, position.is_covered);
+                                    return (
+                                      <div
+                                        key={`${position.id ?? 'noid'}-${position.symbol}-${position.strike}-${position.type}-${position.expiry}-${index}`}
+                                        className={`${themes[theme].background} rounded-lg p-3 sm:p-4 border ${themes[theme].border} border-l-4 ${positionInfo.borderColor} ${getHighlightClass(position)}`}
                                       >
-                                        加入策略
-                                      </button>
-                                    )}
-                                    {isSelectingExpiry(position.expiry) && (
-                                      <div className="flex items-center gap-1 sm:gap-2">
-                                        <label className={`text-[10px] sm:text-xs ${themes[theme].text} opacity-75 flex items-center gap-1`}>
-                                          <input
-                                            type="checkbox"
-                                            checked={!!selectedLegs[position.id]}
-                                            onChange={(e) => setPositionSelected(position.id, e.target.checked)}
-                                          />
-                                          选择
-                                        </label>
-                                        {!!selectedLegs[position.id] && (
-                                          <input
-                                            type="number"
-                                            min={1}
-                                            max={position.quantity}
-                                            value={selectedLegs[position.id]}
-                                            onChange={(e) => {
-                                              const val = parseInt(e.target.value) || 1;
-                                              const clamped = Math.max(1, Math.min(val, position.quantity));
-                                              updateSelectedQuantity(position.id, clamped);
-                                            }}
-                                            className={`w-14 sm:w-20 px-1.5 sm:px-2 py-0.5 rounded text-[10px] sm:text-xs ${themes[theme].input} ${themes[theme].text}`}
-                                          />
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                        {putPositions.length === 0 && (
-                          <div className={`${themes[theme].background} rounded-lg p-4 sm:p-6 text-center border-2 border-dashed ${themes[theme].border}`}>
-                            <p className={`text-xs sm:text-sm ${themes[theme].text} opacity-75`}>
-                              暂无Put期权持仓
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {isExpanded && (group.complex && group.complex.length > 0) && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-2 sm:mb-4">
-                      <div className="w-3 h-3 sm:w-4 sm:h-4 bg-purple-500 rounded"></div>
-                      <h4 className={`text-sm sm:text-lg font-semibold ${themes[theme].text}`}>
-                        复杂策略 ({group.complex.length})
-                      </h4>
-                    </div>
-                    <div className="space-y-2 sm:space-y-3">
-                      {group.complex.map((strategy, strategyIndex) => {
-                        const positions = filterAndSortPositions(strategy.positions)
-                          .filter(position => statusFilter === 'all' || position.status === statusFilter);
-                        if (positions.length === 0) return null;
-                        const legCount = positions.length;
-                        const callCombosByStrike = computeCombosForPositions(strategy, 'call');
-                        const putCombosByStrike = computeCombosForPositions(strategy, 'put');
-                        const comboCount = Array.from(callCombosByStrike.values()).reduce((sum, v) => sum + v, 0) +
-                          Array.from(putCombosByStrike.values()).reduce((sum, v) => sum + v, 0);
-                        return (
-                          <div key={`${strategy.id ?? 'nostrategy'}-${strategyIndex}`} className={`${themes[theme].background} rounded-lg p-3 sm:p-4 border-l-4 border-purple-500`}>
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-3 mb-2 sm:mb-3">
-                              <div className={`text-[11px] sm:text-sm ${themes[theme].text} opacity-75`}>
-                                {strategy.name} （{legCount} 腿，组合数 {comboCount}）
-                              </div>
-                              <div className="flex gap-3 sm:text-right text-xs sm:text-sm shrink-0">
-                                <div className={`font-medium ${themes[theme].text}`}>
-                                  成本 {formatCurrency(strategy.totalCost, currencyConfig, 4)}
-                                </div>
-                                <div className={`${strategy.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                  {strategy.profitLoss >= 0 ? '+' : '-'}{formatCurrency(Math.abs(strategy.profitLoss), currencyConfig, 4)}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="grid gap-2 sm:gap-3">
-                              {positions.map((position) => {
-                                const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh, position.is_covered);
-                                return (
-                                  <div key={`${position.id ?? 'noid'}-${position.symbol}-${position.strike}-${position.type}-${position.expiry}`} className={`${themes[theme].card} rounded-lg p-2 sm:p-3 border ${themes[theme].border}`}>
-                                    <div className="flex items-center justify-between gap-2">
-                                      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                                        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-                                          {positionInfo.icon}
-                                          <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${positionInfo.color}`}>
-                                            {positionInfo.label}
-                                          </span>
-                                        </div>
-                                        <div className="min-w-0">
-                                          <div className={`text-xs sm:text-sm font-medium ${themes[theme].text} break-all`}>
-                                            {position.symbol} {position.strike} {position.type.toUpperCase()}
+                                        <div className="flex justify-between items-start gap-2">
+                                          <div className="flex items-start space-x-2 sm:space-x-3 min-w-0 flex-1">
+                                            {getTypeIcon(position.type)}
+                                            <div className="min-w-0">
+                                              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-0.5 sm:mb-1">
+                                                <div className={`text-xs sm:text-sm font-medium ${themes[theme].text} break-all`}>
+                                                  {position.symbol} {position.strike}
+                                                </div>
+                                                <div className="flex items-center gap-1 shrink-0">
+                                                  {positionInfo.icon}
+                                                  <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${positionInfo.color}`}>
+                                                    {positionInfo.label}
+                                                  </span>
+                                                </div>
+                                              </div>
+                                              <div className={`text-[11px] sm:text-xs ${themes[theme].text} opacity-75 leading-tight`}>
+                                                {position.strategy} • {positionInfo.description}
+                                              </div>
+                                              <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 sm:mt-2 text-[11px] sm:text-xs">
+                                                <span className={`${themes[theme].text} opacity-75`}>
+                                                  {(() => {
+                                                    const base = position.quantity;
+                                                    const avail = Number(position.available ?? base) || 0;
+                                                    return <>数量: {base}{avail !== base ? `（${avail}）` : ''}</>;
+                                                  })()}
+                                                </span>
+                                                <span className={`${themes[theme].text} opacity-75`}>
+                                                  权利金: {formatCurrency(position.premium, currencyConfig, 4)}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <div className="text-right shrink-0">
+                                            <div className={`text-xs sm:text-sm font-bold ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                              {position.profitLoss >= 0 ? '+' : '-'}{formatCurrency(Math.abs(position.profitLoss), currencyConfig, 4)}
+                                            </div>
+                                            <div className={`text-[10px] sm:text-xs ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                              ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
+                                            </div>
+                                            <div className="flex flex-wrap items-center justify-end gap-1 sm:gap-2 mt-1">
+                                              <span className={`inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${getStatusColor(position.status)}`}>
+                                                {position.status === 'open' ? '持仓中' : position.status === 'closed' ? '已平仓' : '已到期'}
+                                              </span>
+                                            </div>
                                           </div>
                                         </div>
                                       </div>
-                                      <div className="text-right shrink-0">
-                                        <div className={`text-xs sm:text-sm font-medium ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                          {position.profitLoss >= 0 ? '+' : '-'}{formatCurrency(Math.abs(position.profitLoss), currencyConfig, 4)}
-                                        </div>
-                                        <div className={`text-[10px] sm:text-xs ${themes[theme].text} opacity-60`}>
-                                          {(() => {
-                                            const base = position.quantity;
-                                            const avail = Number(position.available ?? base) || 0;
-                                            return (
-                                              <>
-                                                数量: {base}
-                                                {avail !== base ? `（${avail}）` : ''}
-                                                {' | '}
-                                                成本: {formatCurrency(position.premium * position.quantity * 100, currencyConfig, 4)}
-                                              </>
-                                            );
-                                          })()}
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                            {putPositions.length > 0 && (
+                              <div>
+                                <div className="flex items-center gap-2 mb-2 sm:mb-4">
+                                  <div className="w-3 h-3 sm:w-4 sm:h-4 bg-red-500 rounded"></div>
+                                  <h4 className={`text-sm sm:text-lg font-semibold ${themes[theme].text}`}>
+                                    Put期权 ({putPositions.length})
+                                  </h4>
+                                </div>
+                                <div className="space-y-2 sm:space-y-3">
+                                  {putPositions.map((position, index) => {
+                                    const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh, position.is_covered);
+                                    return (
+                                      <div
+                                        key={`${position.id ?? 'noid'}-${position.symbol}-${position.strike}-${position.type}-${position.expiry}-${index}`}
+                                        className={`${themes[theme].background} rounded-lg p-3 sm:p-4 border ${themes[theme].border} border-l-4 ${positionInfo.borderColor} ${getHighlightClass(position)}`}
+                                      >
+                                        <div className="flex justify-between items-start gap-2">
+                                          <div className="flex items-start space-x-2 sm:space-x-3 min-w-0 flex-1">
+                                            {getTypeIcon(position.type)}
+                                            <div className="min-w-0">
+                                              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-0.5 sm:mb-1">
+                                                <div className={`text-xs sm:text-sm font-medium ${themes[theme].text} break-all`}>
+                                                  {position.symbol} {position.strike}
+                                                </div>
+                                                <div className="flex items-center gap-1 shrink-0">
+                                                  {positionInfo.icon}
+                                                  <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${positionInfo.color}`}>
+                                                    {positionInfo.label}
+                                                  </span>
+                                                </div>
+                                              </div>
+                                              <div className={`text-[11px] sm:text-xs ${themes[theme].text} opacity-75 leading-tight`}>
+                                                {position.strategy} • {positionInfo.description}
+                                              </div>
+                                              <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 sm:mt-2 text-[11px] sm:text-xs">
+                                                <span className={`${themes[theme].text} opacity-75`}>
+                                                  {(() => {
+                                                    const base = position.quantity;
+                                                    const avail = Number(position.available ?? base) || 0;
+                                                    return <>数量: {base}{avail !== base ? `（${avail}）` : ''}</>;
+                                                  })()}
+                                                </span>
+                                                <span className={`${themes[theme].text} opacity-75`}>
+                                                  权利金: {formatCurrency(position.premium, currencyConfig, 4)}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <div className="text-right shrink-0">
+                                            <div className={`text-xs sm:text-sm font-bold ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                              {position.profitLoss >= 0 ? '+' : '-'}{formatCurrency(Math.abs(position.profitLoss), currencyConfig, 4)}
+                                            </div>
+                                            <div className={`text-[10px] sm:text-xs ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                              ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
+                                            </div>
+                                            <div className="flex flex-wrap items-center justify-end gap-1 sm:gap-2 mt-1">
+                                              <span className={`inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${getStatusColor(position.status)}`}>
+                                                {position.status === 'open' ? '持仓中' : position.status === 'closed' ? '已平仓' : '已到期'}
+                                              </span>
+                                            </div>
+                                          </div>
                                         </div>
                                       </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {group.complex.length > 0 && (
+                          <div>
+                            <div className="flex items-center gap-2 mb-2 sm:mb-4">
+                              <div className="w-3 h-3 sm:w-4 sm:h-4 bg-purple-500 rounded"></div>
+                              <h4 className={`text-sm sm:text-lg font-semibold ${themes[theme].text}`}>
+                                复杂策略 ({group.complex.length})
+                              </h4>
+                            </div>
+                            <div className="space-y-2 sm:space-y-3">
+                              {group.complex.map((strategy, strategyIndex) => {
+                                const positions = filterAndSortPositions(strategy.positions)
+                                  .filter(position => statusFilter === 'all' || position.status === statusFilter);
+                                if (positions.length === 0) return null;
+                                const legCount = positions.length;
+                                const callCombosByStrike = computeCombosForPositions(strategy, 'call');
+                                const putCombosByStrike = computeCombosForPositions(strategy, 'put');
+                                const comboCount = Array.from(callCombosByStrike.values()).reduce((sum, v) => sum + v, 0) +
+                                  Array.from(putCombosByStrike.values()).reduce((sum, v) => sum + v, 0);
+                                return (
+                                  <div key={`${strategy.id ?? 'nostrategy'}-${strategyIndex}`} className={`${themes[theme].background} rounded-lg p-3 sm:p-4 border-l-4 border-purple-500`}>
+                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-3 mb-2 sm:mb-3">
+                                      <div className={`text-[11px] sm:text-sm ${themes[theme].text} opacity-75`}>
+                                        {strategy.name} （{legCount} 腿，组合数 {comboCount}）
+                                      </div>
+                                      <div className="flex gap-3 sm:text-right text-xs sm:text-sm shrink-0">
+                                        <div className={`font-medium ${themes[theme].text}`}>
+                                          成本 {formatCurrency(strategy.totalCost, currencyConfig, 4)}
+                                        </div>
+                                        <div className={`${strategy.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                          {strategy.profitLoss >= 0 ? '+' : '-'}{formatCurrency(Math.abs(strategy.profitLoss), currencyConfig, 4)}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="grid gap-2 sm:gap-3">
+                                      {positions.map((position) => {
+                                        const positionInfo = getPositionTypeInfo2(position.position_type, position.type, position.position_type_zh, position.is_covered);
+                                        return (
+                                          <div key={`${position.id ?? 'noid'}-${position.symbol}-${position.strike}-${position.type}-${position.expiry}`} className={`${themes[theme].card} rounded-lg p-2 sm:p-3 border ${themes[theme].border}`}>
+                                            <div className="flex items-center justify-between gap-2">
+                                              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                                                <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+                                                  {positionInfo.icon}
+                                                  <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${positionInfo.color}`}>
+                                                    {positionInfo.label}
+                                                  </span>
+                                                </div>
+                                                <div className="min-w-0">
+                                                  <div className={`text-xs sm:text-sm font-medium ${themes[theme].text} break-all`}>
+                                                    {position.symbol} {position.strike} {position.type.toUpperCase()}
+                                                  </div>
+                                                </div>
+                                              </div>
+                                              <div className="text-right shrink-0">
+                                                <div className={`text-xs sm:text-sm font-medium ${position.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                  {position.profitLoss >= 0 ? '+' : '-'}{formatCurrency(Math.abs(position.profitLoss), currencyConfig, 4)}
+                                                </div>
+                                                <div className={`text-[10px] sm:text-xs ${themes[theme].text} opacity-60`}>
+                                                  {(() => {
+                                                    const base = position.quantity;
+                                                    const avail = Number(position.available ?? base) || 0;
+                                                    return (
+                                                      <>
+                                                        数量: {base}
+                                                        {avail !== base ? `（${avail}）` : ''}
+                                                        {' | '}
+                                                        成本: {formatCurrency(position.premium * position.quantity * 100, currencyConfig, 4)}
+                                                      </>
+                                                    );
+                                                  })()}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
                                     </div>
                                   </div>
                                 );
                               })}
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -3576,7 +3499,7 @@ interface TBoardRowProps {
   selectedSymbol?: string;
   optionsData?: OptionsData | null | undefined;
   optionsDataMap?: Record<string, OptionsData> | undefined;
-  localOptionsData?: OptionsData | undefined;
+  localOptionsData?: OptionsData | null | undefined;
   filteredPositions: OptionsPosition[];
   onSetConfirmData: (data: any) => void;
   isConnected: boolean;

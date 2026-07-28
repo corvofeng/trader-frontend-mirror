@@ -1,25 +1,22 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Calendar, Activity, RefreshCw, Layers } from 'lucide-react';
+import { Calendar, Activity, RefreshCw } from 'lucide-react';
 import { PortfolioActivityLog, ActivityLogEntry } from './PortfolioActivityLog';
 import { Theme, themes } from '../../../lib/theme';
 import { setCookie, getCookie } from '../../../shared/utils/cookie';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { optionsService, authService, stockService } from '../../../lib/services';
-import { emitAddLegToStrategy } from '../events/strategySelection';
 import type { OptionsPortfolioData, OptionsPosition, OptionsStrategy, AdvisedCombination, OptionsData, OptionWhitelist } from '../../../lib/services/types';
 import { computeCombosForPositions as computeCombosForStrategy } from '../utils/strategyCombos';
 import toast from 'react-hot-toast';
 import { ExpiryGroupCard } from './ExpiryGroupCard';
 import { useOptionPriceWebSocket } from '../hooks/useOptionPriceWebSocket';
 import { useClosePositions } from '../hooks/useClosePositions';
-import { useSaveStrategyModal } from '../hooks/useSaveStrategyModal';
 import { UnderlyingPriceMonitor } from './UnderlyingPriceMonitor';
 import { PortfolioOverview } from './PortfolioOverview';
 import { SubjectPositionsPanel } from './SubjectPositionsPanel';
 import { StockKlineChart } from './StockKlineChart';
-import { SaveStrategyModal } from './SaveStrategyModal';
 import { TodayOrderFlowPanel } from './TodayComboPanel';
-import { getDaysToExpiryColor, getPositionTypeInfo2, getStatusColorClass, getTypeIcon, inferStrategyFromLegsWithSelection, type InferredStrategyResult } from '../utils/portfolioUi';
+import { getDaysToExpiryColor, getPositionTypeInfo2, getStatusColorClass, getTypeIcon } from '../utils/portfolioUi';
 
 interface OptionsPortfolioProps {
   theme: Theme;
@@ -47,10 +44,6 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   void setStatusFilter;
   void setSortBy;
   void setSortDirection;
-  // 到期分组选择模式（每个到期日单独开启多选）
-  const [expirySelectionMode, setExpirySelectionMode] = useState<Record<string, boolean>>({});
-  // 选中的腿及数量（positionId -> quantity）
-  const [selectedLegs, setSelectedLegs] = useState<Record<string, number>>({});
   const { currencyConfig } = useCurrency();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [activeSymbol, setActiveSymbol] = useState<string>(selectedSymbol || '');
@@ -64,39 +57,6 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     return () => media.removeEventListener('change', listener);
   }, []);
 
-  const inferStrategyFromLegs = useCallback((legs: OptionsPosition[]): InferredStrategyResult | null => {
-    return inferStrategyFromLegsWithSelection(legs, selectedLegs);
-  }, [selectedLegs]);
-
-  const getPositionsForExpiry = useCallback((expiry: string): OptionsPosition[] => {
-    if (portfolioData?.expiryBuckets && portfolioData.expiryBuckets.length > 0) {
-      return portfolioData.expiryBuckets.find(b => b.expiry === expiry)?.single || [];
-    }
-    return portfolioData?.expiryGroups?.find(g => g.expiry === expiry)?.positions || [];
-  }, [portfolioData]);
-
-  const {
-    saveModalOpen,
-    modalExpiry,
-    saveStrategyName,
-    saveStrategyCategory,
-    saveStrategyDescription,
-    isModalSaving,
-    setSaveStrategyName,
-    setSaveStrategyCategory,
-    setSaveStrategyDescription,
-    openSaveModal,
-    closeSaveModal,
-    confirmSaveModal,
-  } = useSaveStrategyModal({
-    getPositionsForExpiry,
-    selectedLegs,
-    setSelectedLegs,
-    setExpirySelectionMode,
-    inferStrategyFromLegs,
-    fallbackUserId: DEMO_USER_ID
-  });
-  
   // Activity Log State
   const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>([]);
   const [isLogOpen, setIsLogOpen] = useState(false);
@@ -270,7 +230,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   const toggleExpiryGroup = (expiry: string) => {
     setExpandedExpiryGroups(prev => ({
       ...prev,
-      [expiry]: !prev[expiry]
+      [expiry]: prev[expiry] === undefined ? false : !prev[expiry]
     }));
   };
 
@@ -608,15 +568,6 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     return underlyingCache[sanitized] ?? null;
   };
 
-  // 本页面不订阅外部“打开编辑器”事件，保持弹窗一致
-
-  // 开关指定到期日的选择模式
-  const toggleExpirySelection = (expiry: string) => {
-    setExpirySelectionMode(prev => ({ ...prev, [expiry]: !prev[expiry] }));
-  };
-
-  const isSelectingExpiry = (expiry: string) => !!expirySelectionMode[expiry];
-
   const { handleClosePositions } = useClosePositions({
     portfolioData,
     setPortfolioData,
@@ -625,45 +576,6 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     activeSymbol,
     fallbackUserId: DEMO_USER_ID
   });
-
-  // 根据 positionId 查找持仓，用于判断是否复杂策略
-  const findPositionById = (positionId: string): OptionsPosition | undefined => {
-    for (const group of portfolioData?.expiryGroups || []) {
-      const found = group.positions.find(p => p.id === positionId);
-      if (found) return found;
-    }
-    return undefined;
-  };
-
-  const setPositionSelected = (positionId: string, checked: boolean) => {
-    setSelectedLegs(prev => {
-      const next = { ...prev };
-      if (checked) {
-        // 若无数量则默认1
-        next[positionId] = next[positionId] && next[positionId] > 0 ? next[positionId] : 1;
-        // 在选择模式下：复杂策略不再同步到构建器
-        const pos = findPositionById(positionId);
-        const isComplex = pos ? (pos.type !== 'call' && pos.type !== 'put') : false;
-        if (!isComplex) {
-          emitAddLegToStrategy({ positionId, quantity: next[positionId] });
-        }
-      } else {
-        delete next[positionId];
-      }
-      return next;
-    });
-  };
-
-  const updateSelectedQuantity = (positionId: string, qty: number) => {
-    const bounded = Math.max(1, qty);
-    setSelectedLegs(prev => ({ ...prev, [positionId]: bounded }));
-    // 在选择模式下：复杂策略不再同步到构建器
-    const pos = findPositionById(positionId);
-    const isComplex = pos ? (pos.type !== 'call' && pos.type !== 'put') : false;
-    if (!isComplex) {
-      emitAddLegToStrategy({ positionId, quantity: bounded });
-    }
-  };
 
   const getStatusColor = useCallback(
     (status: OptionsPosition['status']) => getStatusColorClass(theme, status),
@@ -719,20 +631,6 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       </div>
     );
   }
-
-  const loadAdvisedCombination = (combo: AdvisedCombination) => {
-    if (!combo || !combo.expiry) return;
-    setExpirySelectionMode(prev => ({ ...prev, [combo.expiry]: true }));
-    const ids: string[] = [];
-    const buyId = combo.buy_position?.position?.id;
-    const sellId = combo.sell_position?.position?.id;
-    if (buyId) ids.push(buyId);
-    if (sellId) ids.push(sellId);
-    ids.forEach(id => setPositionSelected(id, true));
-    ids.forEach(id => updateSelectedQuantity(id, Math.max(1, combo.quantity)));
-    setSaveStrategyName(combo.description || '组合建议');
-    openSaveModal(combo.expiry);
-  };
 
   const executeAdvisedCombination = async (combo: AdvisedCombination) => {
     try {
@@ -853,12 +751,6 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                     group={group}
                     statusFilter={statusFilter}
                     filterAndSortPositions={filterAndSortPositions}
-                    isSelectingExpiry={isSelectingExpiry}
-                    toggleExpirySelection={toggleExpirySelection}
-                    openSaveModal={openSaveModal}
-                    selectedLegs={selectedLegs}
-                    setPositionSelected={setPositionSelected}
-                    updateSelectedQuantity={updateSelectedQuantity}
                     currencyConfig={currencyConfig}
                     getDaysToExpiryColor={getDaysToExpiryColor}
                     getTypeIcon={getTypeIcon}
@@ -871,13 +763,12 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                     onClosePositions={handleClosePositions}
                     isRefreshing={isLoading}
                     advisedCombinations={(portfolioData.advised_combinations || []).filter(c => c.expiry === group.expiry)}
-                    onLoadAdvised={loadAdvisedCombination}
                     onExecuteAdvised={executeAdvisedCombination}
                     selectedAccountId={selectedAccountIdProp || null}
                     userId={currentUserId || null}
                     optionsData={optionsData}
                     optionsDataMap={internalOptionsDataMap}
-                    isExpanded={!!expandedExpiryGroups[group.expiry]}
+                    isExpanded={expandedExpiryGroups[group.expiry] !== false}
                     onToggleExpand={() => toggleExpiryGroup(group.expiry)}
                     isTBoardExpanded={tBoardExpandedGroups[group.expiry] !== false}
                     onToggleTBoard={() => toggleTBoardGroup(group.expiry)}
@@ -891,26 +782,6 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
           );
         })()}
       </div>
-
-      <SaveStrategyModal
-        theme={theme}
-        isOpen={saveModalOpen}
-        modalExpiry={modalExpiry}
-        positions={modalExpiry ? getPositionsForExpiry(modalExpiry) : []}
-        selectedLegs={selectedLegs}
-        setPositionSelected={setPositionSelected}
-        updateSelectedQuantity={updateSelectedQuantity}
-        name={saveStrategyName}
-        setName={setSaveStrategyName}
-        category={saveStrategyCategory}
-        setCategory={setSaveStrategyCategory}
-        description={saveStrategyDescription}
-        setDescription={setSaveStrategyDescription}
-        inferStrategyFromLegs={inferStrategyFromLegs}
-        isSaving={isModalSaving}
-        onCancel={closeSaveModal}
-        onConfirm={confirmSaveModal}
-      />
 
       <TodayOrderFlowPanel
         theme={theme}

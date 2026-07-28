@@ -265,6 +265,9 @@ export const stockService: StockService = {
       const data = await response.json();
       return { data: extractList(data), error: null };
     } catch (error) {
+      if (options?.signal?.aborted || (error as Error)?.name === 'AbortError') {
+        return { data: null, error: error as Error };
+      }
       console.error('Error fetching stock history:', error);
       return { data: null, error: error as Error };
     }
