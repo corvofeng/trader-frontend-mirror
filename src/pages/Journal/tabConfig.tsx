@@ -2,11 +2,10 @@ import React, { type ReactNode } from 'react';
 import { Briefcase, LayoutGrid, RefreshCw } from 'lucide-react';
 import { Portfolio } from '../../features/portfolio';
 import { StockSearch, TradeForm, TradeList } from '../../features/trading';
-import { optionsService } from '../../lib/services';
 import { themes, type Theme } from '../../lib/theme';
 import type { Holding, Stock, StockOrder, Trade, User } from '../../lib/services/types';
 import { normalizeTab } from '../../shared/utils/tabRouting';
-import { JournalContractQuotePanel } from './components/JournalContractQuotePanel';
+import { StockQuotePanel } from './components/StockQuotePanel';
 
 type JournalTabVisibilityContext = {
   canViewTradePlans: boolean;
@@ -91,11 +90,9 @@ function JournalTradesTabContent({
   | 'todayOrdersLastUpdatedAt'
   | 'onRefreshTodayOrders'
 >) {
-  const [selectedContractCode, setSelectedContractCode] = React.useState<string | null>(null);
-  const [selectedContractName, setSelectedContractName] = React.useState<string | null>(null);
+  const [selectedStockCode, setSelectedStockCode] = React.useState<string | null>(null);
+  const [selectedStockName, setSelectedStockName] = React.useState<string | null>(null);
   const [selectedQuotePrice, setSelectedQuotePrice] = React.useState<number | null>(null);
-  const [selectedQuoteSide, setSelectedQuoteSide] = React.useState<'bid' | 'ask' | null>(null);
-  const [selectedQuoteLevel, setSelectedQuoteLevel] = React.useState<number | null>(null);
 
   const sortedTodayOrders = React.useMemo(() => {
     const next = [...todayOrders];
@@ -113,59 +110,33 @@ function JournalTradesTabContent({
   React.useEffect(() => {
     const code = selectedStock?.stock_code?.trim();
     if (!code) return;
-    setSelectedContractCode(code);
-    setSelectedContractName(selectedStock?.stock_name || code);
+    setSelectedStockCode(code);
+    setSelectedStockName(selectedStock?.stock_name || code);
     setSelectedQuotePrice(null);
-    setSelectedQuoteSide(null);
-    setSelectedQuoteLevel(null);
-
-    let cancelled = false;
-
-    const resolveCanonicalSymbol = async () => {
-      try {
-        const { data, error } = await optionsService.getOptionsData(code);
-        if (cancelled || error) return;
-        const canonicalCode = data?.opt_undl_code_full?.trim();
-        if (!canonicalCode || canonicalCode === code) return;
-        setSelectedContractCode(canonicalCode);
-      } catch {
-        // Use the raw selected stock code when canonicalization is unavailable.
-      }
-    };
-
-    void resolveCanonicalSymbol();
-
-    return () => {
-      cancelled = true;
-    };
   }, [selectedStock]);
 
   React.useEffect(() => {
-    if (selectedContractCode) return;
+    if (selectedStockCode) return;
     const latestOrder = sortedTodayOrders.find((order) => {
       const code = (order.contract_code_full || order.instrument_id || '').trim();
       return code.length > 0;
     });
     if (!latestOrder) return;
-    setSelectedContractCode((latestOrder.contract_code_full || latestOrder.instrument_id || '').trim());
-    setSelectedContractName(latestOrder.instrument_name || null);
-  }, [selectedContractCode, sortedTodayOrders]);
+    setSelectedStockCode((latestOrder.contract_code_full || latestOrder.instrument_id || '').trim());
+    setSelectedStockName(latestOrder.instrument_name || null);
+  }, [selectedStockCode, sortedTodayOrders]);
 
   const handleSelectContract = React.useCallback((code: string, name?: string) => {
     const trimmedCode = code.trim();
     if (!trimmedCode) return;
-    setSelectedContractCode(trimmedCode);
-    setSelectedContractName(name || null);
+    setSelectedStockCode(trimmedCode);
+    setSelectedStockName(name || null);
     setSelectedQuotePrice(null);
-    setSelectedQuoteSide(null);
-    setSelectedQuoteLevel(null);
   }, []);
 
-  const handleSelectQuotePrice = React.useCallback((price: number, side?: 'bid' | 'ask', level?: number) => {
+  const handleSelectQuotePrice = React.useCallback((price: number) => {
     if (!Number.isFinite(price)) return;
     setSelectedQuotePrice(price);
-    setSelectedQuoteSide(side || null);
-    setSelectedQuoteLevel(level ?? null);
   }, []);
 
   return (
@@ -176,13 +147,11 @@ function JournalTradesTabContent({
         accountAlias={selectedAccountId}
         preferredTargetPrice={selectedQuotePrice}
       />
-      <JournalContractQuotePanel
-        contractCode={selectedContractCode}
-        contractName={selectedContractName}
+      <StockQuotePanel
+        stockCode={selectedStockCode}
+        stockName={selectedStockName}
         theme={theme}
         selectedQuotePrice={selectedQuotePrice}
-        selectedQuoteSide={selectedQuoteSide}
-        selectedQuoteLevel={selectedQuoteLevel}
         onSelectPrice={handleSelectQuotePrice}
       />
       <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden transition-colors duration-200`}>
@@ -194,7 +163,7 @@ function JournalTradesTabContent({
                 {todayOrdersLastUpdatedAt ? `更新于 ${new Date(todayOrdersLastUpdatedAt).toLocaleTimeString()}` : ' '}
               </div>
               <div className={`text-xs ${themes[theme].text} opacity-60 mt-1`}>
-                点击合约代码可直接在上方加载该合约盘口，点击盘口价格可回填目标价。
+                点击合约代码可直接在上方加载该股票行情，点击行情面板中的最新价可回填目标价。
               </div>
             </div>
             <button
@@ -247,7 +216,7 @@ function JournalTradesTabContent({
                     const priceText = `${traded != null ? traded.toFixed(4) : '-'} / ${limit != null ? limit.toFixed(4) : '-'}`;
                     const qtyText = `${order.volume_traded ?? 0}/${order.volume_total_original ?? 0}`;
                     const note = order.error_msg || order.remark || '-';
-                    const isSelected = !!selectedContractCode && selectedContractCode === symbol;
+                    const isSelected = !!selectedStockCode && selectedStockCode === symbol;
                     const isBuy = (order.op_type_name_zh || order.op_type_name || '').toUpperCase().includes('BUY') || (order.op_type_name_zh || '').includes('买');
                     const isSell = (order.op_type_name_zh || order.op_type_name || '').toUpperCase().includes('SELL') || (order.op_type_name_zh || '').includes('卖');
 
