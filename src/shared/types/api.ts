@@ -172,11 +172,63 @@ export interface OptionsPortfolioData {
   is_snapshot?: boolean;
 }
 
+export interface PriceDistributionBandPoint {
+  date: string;
+  offset_days?: number;
+  lower: number;
+  mid?: number;
+  upper: number;
+  expected?: number;
+}
+export interface PriceDistributionBand {
+  probability: number;
+  label?: string;
+  points: PriceDistributionBandPoint[];
+}
+export interface PriceDistributionForecast {
+  model?: string;
+  probabilityMeasure?: string;
+  volatilitySource?: string;
+  selectedStrike?: number;
+  iv?: number;
+  riskFreeRate?: number;
+  anchorDate?: string;
+  anchorPrice?: number;
+  expiryDate?: string;
+  calendarDaysToExpiry?: number;
+  pointStepDays?: number;
+  bands: PriceDistributionBand[];
+  densityAtExpiry?: Array<{ price: number; pdf?: number; probabilityDensity?: number; cdf?: number }>;
+}
+export interface PriceDistributionData {
+  success?: boolean;
+  symbol: string;
+  spot: number;
+  asOfDate?: string;
+  source?: Record<string, unknown>;
+  forecast?: PriceDistributionForecast;
+  forecasts?: PriceDistributionForecast[];
+  expiryDates?: string[];
+}
+
 export interface OptionsService {
   getOptionsData: (symbol?: string) => Promise<ServiceResponse<OptionsData>>;
   getAvailableSymbols: () => Promise<ServiceResponse<string[]>>;
   getOptionsPortfolio: (userId: string) => Promise<ServiceResponse<OptionsPortfolioData>>;
   getAvailableStrategies: () => Promise<ServiceResponse<string[]>>;
+  getPriceDistribution: (
+    symbol: string,
+    options?: {
+      expiry?: string;
+      allExpiries?: boolean;
+      bands?: number | number[];
+      pointStepDays?: number;
+      densityPoints?: number;
+      riskFreeRate?: number;
+      fallbackVolatility?: number;
+      marginMultiplier?: number;
+    }
+  ) => Promise<ServiceResponse<PriceDistributionData>>;
   saveCustomStrategy: (strategy: Omit<CustomOptionsStrategy, 'id' | 'createdAt' | 'updatedAt'>) => Promise<ServiceResponse<CustomOptionsStrategy>>;
   deleteCustomStrategy: (strategyId: string) => Promise<ServiceResponse<void>>;
   getCustomStrategies: (userId: string) => Promise<ServiceResponse<CustomOptionsStrategy[]>>;

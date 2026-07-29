@@ -63,6 +63,19 @@ export interface OptionsService {
   getAvailableSymbols: () => Promise<ServiceResponse<string[]>>;
   getOptionsPortfolio: (userId: string) => Promise<ServiceResponse<OptionsPortfolioData>>;
   getAvailableStrategies: () => Promise<ServiceResponse<string[]>>;
+  getPriceDistribution: (
+    symbol: string,
+    options?: {
+      expiry?: string;
+      allExpiries?: boolean;
+      bands?: number | number[];
+      pointStepDays?: number;
+      densityPoints?: number;
+      riskFreeRate?: number;
+      fallbackVolatility?: number;
+      marginMultiplier?: number;
+    }
+  ) => Promise<ServiceResponse<unknown>>;
 }
 
 // Import all API types

@@ -9,6 +9,7 @@ import type {
   OptionsPortfolioData,
   OptionsStrategy,
   OptionWhitelist,
+  PriceDistributionData,
   SequentialTradeTask,
   ServiceResponse
 } from '../types';
@@ -432,6 +433,92 @@ export const optionsService: OptionsService = {
       return { data: symbols, error: null };
     } catch (error) {
       console.error('Error fetching available symbols:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  getPriceDistribution: async (
+    symbol: string,
+    options?: {
+      expiry?: string;
+      allExpiries?: boolean;
+      bands?: number | number[];
+      pointStepDays?: number;
+      densityPoints?: number;
+      riskFreeRate?: number;
+      fallbackVolatility?: number;
+      marginMultiplier?: number;
+    }
+  ): Promise<ServiceResponse<PriceDistributionData>> => {
+    try {
+      const params = new URLSearchParams();
+      params.set('symbol', symbol);
+      if (options?.expiry != null && options.expiry !== '') params.set('expiry', options.expiry);
+      if (options?.allExpiries === true) params.set('all_expiries', 'true');
+      if (options?.bands != null) {
+        const bandsVal = Array.isArray(options.bands) ? options.bands.join(',') : String(options.bands);
+        params.set('bands', bandsVal);
+      }
+      if (options?.pointStepDays != null) params.set('point_step_days', String(options.pointStepDays));
+      // density_points 的后端校验范围是 [1, 301]，传 0 会 400；
+      // 按用户要求：不传这个参数（让后端走默认的 density_points 行为）。
+      if (options?.densityPoints != null && options.densityPoints > 0) {
+        params.set('density_points', String(options.densityPoints));
+      }
+      if (options?.riskFreeRate != null) params.set('risk_free_rate', String(options.riskFreeRate));
+      if (options?.fallbackVolatility != null) params.set('fallback_volatility', String(options.fallbackVolatility));
+      if (options?.marginMultiplier != null) params.set('margin_multiplier', String(options.marginMultiplier));
+      const url = `/api/options/price-distribution?${params.toString()}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        let extra = '';
+        try {
+          const errRaw = await response.clone().json();
+          const errMsg = errRaw && typeof errRaw === 'object' && ('error' in errRaw)
+            ? String((errRaw as Record<string, unknown>).error)
+            : '';
+          if (errMsg) extra = `: ${errMsg}`;
+        } catch (_) { /* ignore */ }
+        throw new Error(`getPriceDistribution failed (${response.status}) for ${symbol}${extra}`);
+      }
+      const raw = await safeParseJson(response);
+      // 后端响应可能是 3 种形态之一，都要兼容：
+      //   (a) { code:200, message:'success', data:{ success, symbol, spot, forecasts } }
+      //   (b) { success:true, symbol, spot, forecast, forecasts, asOfDate, ... }
+      //   (c) { success:false, error:"xxx" }
+      const inner = (() => {
+        if (raw == null) return null;
+        const rec = asRecord(raw);
+        if (rec && 'data' in rec && rec.data && typeof rec.data === 'object') {
+          // (a) 外层有 { code, message, data }，取 data 作为 payload
+          const dataRec = asRecord(rec.data);
+          // 如果 data 里又套了一层 { data: ... }，再剥一次
+          if (dataRec && 'data' in dataRec && dataRec.data && typeof dataRec.data === 'object') {
+            return dataRec.data as unknown as PriceDistributionData;
+          }
+          return rec.data as unknown as PriceDistributionData;
+        }
+        return raw as unknown as PriceDistributionData;
+      })();
+      // 检查 success=false（形态 c 或 (a)(b) 内嵌 success）
+      if (inner && typeof inner === 'object') {
+        const i = inner as Record<string, unknown>;
+        if (i.success === false) {
+          const errText = i.error && typeof i.error === 'string' ? i.error : 'price_distribution success=false';
+          throw new Error(errText);
+        }
+      }
+      if (!inner || typeof inner !== 'object') {
+        throw new Error('Empty/invalid price distribution payload');
+      }
+      // 兼容 forecast singleton / forecasts[] 两种并存：确保 forecasts[] 永远是数组
+      const typed = inner as PriceDistributionData;
+      if (!Array.isArray(typed.forecasts) && typed.forecast && typeof typed.forecast === 'object') {
+        (typed as PriceDistributionData & { forecasts: PriceDistributionForecast[] }).forecasts = [typed.forecast];
+      }
+      return { data: typed, error: null };
+    } catch (error) {
+      console.error('[optionsService.getPriceDistribution] error:', error);
       return { data: null, error: error as Error };
     }
   },

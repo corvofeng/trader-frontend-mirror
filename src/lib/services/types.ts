@@ -963,11 +963,80 @@ export interface OptionsPortfolioAnalysisData {
   expiry_analysis?: Record<string, ExpiryAnalysisReport>;
 }
 
+export interface PriceDistributionBandPoint {
+  date: string;
+  offset_days?: number;
+  lower: number;
+  mid?: number;
+  upper: number;
+  expected?: number;
+}
+
+export interface PriceDistributionBand {
+  probability: number;
+  label?: string;
+  points: PriceDistributionBandPoint[];
+}
+
+export interface PriceDistributionDensityPoint {
+  price: number;
+  pdf?: number;
+  probabilityDensity?: number;
+  cdf?: number;
+}
+
+export interface PriceDistributionForecast {
+  model?: string;
+  probabilityMeasure?: string;
+  volatilitySource?: string;
+  selectedStrike?: number;
+  iv?: number;
+  riskFreeRate?: number;
+  anchorDate?: string;
+  anchorPrice?: number;
+  expiryDate?: string;
+  calendarDaysToExpiry?: number;
+  pointStepDays?: number;
+  bands: PriceDistributionBand[];
+  densityAtExpiry?: PriceDistributionDensityPoint[];
+}
+
+export interface PriceDistributionSource {
+  baseEndpoint?: string;
+  volatilitySource?: string;
+  selectedStrike?: number;
+  mode?: string;
+}
+
+export interface PriceDistributionData {
+  success?: boolean;
+  symbol: string;
+  spot: number;
+  asOfDate?: string;
+  source?: PriceDistributionSource;
+  forecast?: PriceDistributionForecast;
+  forecasts?: PriceDistributionForecast[];
+  expiryDates?: string[];
+}
+
 export interface OptionsService {
   getOptionsData: (symbol?: string) => Promise<ServiceResponse<OptionsData>>;
   refreshOptionsData: (symbol?: string) => Promise<ServiceResponse<OptionsData>>;
   getOptionContractDetail: (contractCode: string) => Promise<ServiceResponse<OptionContractDetail>>;
   getAvailableSymbols: () => Promise<ServiceResponse<string[]>>;
+  getPriceDistribution: (
+    symbol: string,
+    options?: {
+      expiry?: string;
+      allExpiries?: boolean;
+      bands?: number | number[];
+      pointStepDays?: number;
+      densityPoints?: number;
+      riskFreeRate?: number;
+      fallbackVolatility?: number;
+      marginMultiplier?: number;
+    }
+  ) => Promise<ServiceResponse<PriceDistributionData>>;
   getOptionsPortfolio: (userId: string, accountId?: string | null, options?: { symbol?: string }) => Promise<ServiceResponse<OptionsPortfolioData>>;
   getPortfolioAnalysis: (userId: string, accountId?: string | null) => Promise<ServiceResponse<OptionsPortfolioAnalysisData>>;
   getPayoffSurface: (accountId: string, symbol?: string) => Promise<ServiceResponse<PayoffSurfaceData>>;

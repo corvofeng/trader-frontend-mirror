@@ -1,4 +1,4 @@
-import type { AdminOrdersDailyStats, OptionsService, OptionsPortfolioData, OptionsPosition, OptionsStrategy, RatioSpreadPlanResult, OptionWhitelist, ServiceResponse, AdvisedCombination, OptionOrder, SequentialTradeTask, SequentialTradeStatus, OptionPriceWebSocketClient, OptionPriceWebSocketHandlers } from '../types';
+import type { AdminOrdersDailyStats, OptionsService, OptionsPortfolioData, OptionsPosition, OptionsStrategy, RatioSpreadPlanResult, OptionWhitelist, ServiceResponse, AdvisedCombination, OptionOrder, SequentialTradeTask, SequentialTradeStatus, OptionPriceWebSocketClient, OptionPriceWebSocketHandlers, PriceDistributionData, PriceDistributionForecast } from '../types';
 import type { CustomOptionsStrategy } from '../types';
 
 // 支持的期权标的列表
@@ -998,6 +998,156 @@ export const optionsService: OptionsService = {
   getAvailableSymbols: async () => {
     await new Promise(resolve => setTimeout(resolve, 300));
     return { data: AVAILABLE_OPTIONS_SYMBOLS, error: null };
+  },
+
+  getPriceDistribution: async (
+    symbol: string,
+    options?: {
+      expiry?: string;
+      allExpiries?: boolean;
+      bands?: number | number[];
+      pointStepDays?: number;
+      densityPoints?: number;
+      riskFreeRate?: number;
+      fallbackVolatility?: number;
+    }
+  ): Promise<ServiceResponse<PriceDistributionData>> => {
+    try {
+      const { data: opt } = await optionsService.getOptionsData(symbol);
+      const quotes = opt?.quotes ?? [];
+      const spotFirst = quotes[0]?.underlying_price ?? opt?.current_underlying_price ?? 100;
+      const spot = Number.isFinite(spotFirst) && spotFirst > 0 ? spotFirst : 100;
+      const r = options?.riskFreeRate ?? 0.02;
+      const sigma = options?.fallbackVolatility ?? 0.3;
+      const bandList: number[] = Array.isArray(options?.bands)
+        ? (options!.bands as number[])
+        : typeof options?.bands === 'number'
+        ? [options.bands as number]
+        : [0.8];
+      const psd = options?.pointStepDays ?? 5;
+      const allExpiries = options?.allExpiries === true || options?.expiry === 'all';
+      const expiries = Array.from(new Set(quotes.map((q) => q.expiry).filter(Boolean))).sort();
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      const anchorDate = `${yyyy}-${mm}-${dd}`;
+      const addDays = (base: string, days: number): string => {
+        const d = new Date(base + 'T00:00:00');
+        d.setDate(d.getDate() + days);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      };
+      const buildForecast = (expiryDateRaw: string | null): PriceDistributionForecast => {
+        const expiryDate = expiryDateRaw || addDays(anchorDate, 30);
+        const calDays = Math.max(1, Math.round((new Date(expiryDate + 'T23:59:59').getTime() - new Date(anchorDate + 'T00:00:00').getTime()) / 86400000));
+        const T = calDays / 365;
+        const fwd = spot * Math.exp(r * T);
+        const bands = bandList.map((prob) => {
+          const label = `${Math.round(prob * 100)}%`;
+          // lognormal approx: spot * exp((r - 0.5*sigma^2)*T +/- z_p*sigma*sqrtT)
+          // choose z_p such that P(-z_p..z_p) = prob
+          const normInv = (p: number): number => {
+            if (p <= 0 || p >= 1) return NaN;
+            const a = [-3.969683028665376e1, 2.209460984245205e2, -2.759285104469687e2, 1.38357751867269e2, -3.066479806614716e1, 2.506628277459239];
+            const b = [-5.447609879822406e1, 1.615858368580409e2, -1.556989798598866e2, 6.680131188771972e1, -1.328068155288572e1];
+            const c = [-7.784894002430293e-3, -3.223964580411365e-1, -2.400758277161838, -2.549732539343734, 4.374664141464968, 2.938163982698783];
+            const d = [7.784695709041462e-3, 3.224671290700398e-1, 2.445134137142996, 3.754408661907416];
+            const plow = 0.02425;
+            const phigh = 1 - plow;
+            let q: number, rr: number;
+            if (p < plow) {
+              q = Math.sqrt(-2 * Math.log(p));
+              return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1);
+            } else if (p <= phigh) {
+              q = p - 0.5;
+              rr = q * q;
+              return (((((a[0] * rr + a[1]) * rr + a[2]) * rr + a[3]) * rr + a[4]) * rr + a[5]) * q / (((((b[0] * rr + b[1]) * rr + b[2]) * rr + b[3]) * rr + b[4]) * rr + 1);
+            } else {
+              q = Math.sqrt(-2 * Math.log(1 - p));
+              return -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1);
+            }
+          };
+          const p = 0.5 + prob * 0.5;
+          const z = isFinite(normInv(p)) ? normInv(p) : 1.28155;
+          const points: PriceDistributionData['forecasts'] extends Array<infer U> ? U extends { bands: Array<{ points: Array<infer P> }> } ? P[] : never[] : never[] = [] as never[];
+          for (let ofs = 0; ofs <= calDays; ofs = Math.min(calDays, ofs + psd)) {
+            const t = Math.max(0, ofs / 365);
+            const sqrtSig = sigma * Math.sqrt(t);
+            const mu = Math.log(spot) + (r - 0.5 * sigma * sigma) * t;
+            const lower = Math.exp(mu - z * sqrtSig);
+            const upper = Math.exp(mu + z * sqrtSig);
+            const mid = Math.exp(Math.log(spot) + r * t);
+            const expected = Math.exp(Math.log(spot) + r * t);
+            points.push({
+              date: addDays(anchorDate, ofs),
+              offset_days: ofs,
+              lower,
+              mid,
+              upper,
+              expected,
+            } as never);
+            if (ofs >= calDays) break;
+          }
+          return { probability: prob, label, points };
+        });
+        return {
+          model: 'option_implied_lognormal',
+          probabilityMeasure: 'risk_neutral',
+          volatilitySource: 'fallback_sigma',
+          iv: sigma,
+          riskFreeRate: r,
+          anchorDate,
+          anchorPrice: spot,
+          expiryDate,
+          calendarDaysToExpiry: calDays,
+          pointStepDays: psd,
+          bands,
+          densityAtExpiry: [] as PriceDistributionForecast['densityAtExpiry'],
+        };
+      };
+      const forecasts: PriceDistributionForecast[] = (() => {
+        if (allExpiries && expiries.length > 0) {
+          return expiries.map((e) => buildForecast(e));
+        }
+        if (!allExpiries && options?.expiry && options.expiry !== 'all') {
+          return [buildForecast(options.expiry)];
+        }
+        return [buildForecast(expiries[0] ?? null)];
+      })();
+      const firstExp = forecasts[0]?.expiryDate;
+      const payload: PriceDistributionData = {
+        success: true,
+        symbol,
+        spot,
+        asOfDate: anchorDate,
+        source: { baseEndpoint: '/mock/options', mode: allExpiries ? 'all_expiries' : 'single' },
+        forecast: forecasts[0]
+          ? {
+              model: forecasts[0].model,
+              probabilityMeasure: forecasts[0].probabilityMeasure,
+              volatilitySource: forecasts[0].volatilitySource,
+              iv: forecasts[0].iv,
+              riskFreeRate: forecasts[0].riskFreeRate,
+              anchorDate: forecasts[0].anchorDate,
+              anchorPrice: forecasts[0].anchorPrice,
+              expiryDate: firstExp,
+              calendarDaysToExpiry: forecasts[0].calendarDaysToExpiry,
+              pointStepDays: forecasts[0].pointStepDays,
+              bands: forecasts[0].bands,
+              densityAtExpiry: forecasts[0].densityAtExpiry,
+            }
+          : undefined,
+        forecasts,
+        expiryDates: forecasts.map((f) => f.expiryDate).filter((x): x is string => Boolean(x)),
+      };
+      return { data: payload, error: null };
+    } catch (error) {
+      console.error('[mock optionsService.getPriceDistribution] error:', error);
+      return { data: null, error: error as Error };
+    }
   },
 
   getOptionsPortfolio: async (userId: string, accountId?: string | null, options?: { symbol?: string }) => {

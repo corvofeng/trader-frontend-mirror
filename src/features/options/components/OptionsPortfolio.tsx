@@ -691,7 +691,12 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       )}
 
       {!isMobile && activeSymbol && (
-        <StockKlineChart symbol={activeSymbol} theme={theme} />
+        <StockKlineChart
+          symbol={activeSymbol}
+          theme={theme}
+          optionsData={optionsData ?? internalOptionsDataMap[activeSymbol] ?? null}
+          currentUnderlyingPrice={getCurrentUnderlyingPrice(activeSymbol)}
+        />
       )}
 
       <div className="space-y-6">
