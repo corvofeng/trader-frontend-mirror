@@ -79,6 +79,7 @@ function JournalTradesTabContent({
   todayOrdersError,
   todayOrdersLastUpdatedAt,
   onRefreshTodayOrders,
+  userId,
 }: Pick<
   JournalTabRenderContext,
   | 'selectedStock'
@@ -89,6 +90,7 @@ function JournalTradesTabContent({
   | 'todayOrdersError'
   | 'todayOrdersLastUpdatedAt'
   | 'onRefreshTodayOrders'
+  | 'userId'
 >) {
   const [selectedStockCode, setSelectedStockCode] = React.useState<string | null>(null);
   const [selectedStockName, setSelectedStockName] = React.useState<string | null>(null);
@@ -166,6 +168,8 @@ function JournalTradesTabContent({
         selectedQuoteSide={selectedQuoteSide}
         selectedQuoteLevel={selectedQuoteLevel}
         onSelectPrice={handleSelectQuotePrice}
+        userId={userId}
+        accountId={selectedAccountId}
       />
       <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden transition-colors duration-200`}>
         <div className={`px-4 sm:px-6 py-4 border-b ${themes[theme].border}`}>
@@ -348,6 +352,7 @@ export const JOURNAL_TAB_DEFINITIONS: readonly JournalTabDefinition[] = [
       todayOrdersError,
       todayOrdersLastUpdatedAt,
       onRefreshTodayOrders,
+      userId,
     }) => {
       if (portfolioUuid) {
         return renderRestrictedSharedView(theme);
@@ -362,6 +367,7 @@ export const JOURNAL_TAB_DEFINITIONS: readonly JournalTabDefinition[] = [
           todayOrdersError={todayOrdersError}
           todayOrdersLastUpdatedAt={todayOrdersLastUpdatedAt}
           onRefreshTodayOrders={onRefreshTodayOrders}
+          userId={userId}
         />
       );
     },

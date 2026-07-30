@@ -21,6 +21,8 @@ interface StockChartProps {
   onTradesLoaded?: (trades: Trade[]) => void;
   className?: string;
   fillContainer?: boolean;
+  compactMode?: boolean;
+  defaultVisibleMonths?: number;
 }
 
 interface CostBasisPoint {
@@ -58,6 +60,19 @@ const isValidDataPoint = (item: StockData) => {
   );
 };
 
+const findClosestIndex = (points: Array<{ time: UTCTimestamp }>, targetTime: UTCTimestamp): number => {
+  if (points.length === 0) return 0;
+  let lo = 0;
+  let hi = points.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (points[mid].time < targetTime) lo = mid + 1;
+    else hi = mid;
+  }
+  if (lo > 0 && Math.abs(points[lo - 1].time - targetTime) <= Math.abs(points[lo].time - targetTime)) return lo - 1;
+  return lo;
+};
+
 const getChartVisualPalette = (theme: Theme, fallback: { upColor: string; downColor: string }) => {
   if (theme === 'dark') {
     return {
@@ -85,7 +100,7 @@ const getChartVisualPalette = (theme: Theme, fallback: { upColor: string; downCo
   };
 };
 
-export function StockChart({ stockCode, theme, pendingTrades, userId, accountId, onTradesLoaded, className, fillContainer = false }: StockChartProps) {
+export function StockChart({ stockCode, theme, pendingTrades, userId, accountId, onTradesLoaded, className, fillContainer = false, compactMode = false, defaultVisibleMonths }: StockChartProps) {
   const chartViewportRef = useRef<HTMLDivElement>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const onTradesLoadedRef = useRef<typeof onTradesLoaded>(onTradesLoaded);
@@ -259,7 +274,7 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
     }
     candlestickSeriesRef.current = null;
     
-    let newSeries: any;
+    let newSeries: ISeriesApi<'Candlestick'> | ISeriesApi<'Bar'> | ISeriesApi<'Line'>;
     try {
       switch (type) {
         case 'line': {
@@ -299,8 +314,8 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
           newSeries.priceScale().applyOptions({
             autoScale: autoScale,
             scaleMargins: {
-              top: 0.1,
-              bottom: showVolume ? 0.2 : 0.08,
+              top: compactMode ? 0.05 : 0.1,
+              bottom: showVolume ? (compactMode ? 0.12 : 0.2) : (compactMode ? 0.05 : 0.08),
             },
           });
           const sortedCandlestickData = [...chartData.candlestick].sort((a, b) => a.time - b.time);
@@ -525,8 +540,8 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
     candlestickSeries.priceScale().applyOptions({
       autoScale: autoScale,
       scaleMargins: {
-        top: 0.1,
-        bottom: showVolume ? 0.2 : 0.08,
+        top: compactMode ? 0.05 : 0.1,
+        bottom: showVolume ? (compactMode ? 0.12 : 0.2) : (compactMode ? 0.05 : 0.08),
       },
     });
 
@@ -545,7 +560,7 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
 
     volumeSeries.priceScale().applyOptions({
       scaleMargins: {
-        top: 0.8,
+        top: compactMode ? 0.88 : 0.8,
         bottom: 0,
       },
     });
@@ -661,6 +676,18 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
             }
             if (chartRef.current && !isDisposed.current) {
               chartRef.current.timeScale().fitContent();
+              if (defaultVisibleMonths && candlestickData.length > 0) {
+                const lastTime = candlestickData[candlestickData.length - 1].time;
+                const fromMs = lastTime * 1000 - defaultVisibleMonths * 30 * 24 * 60 * 60 * 1000;
+                let fromTime = Math.floor(fromMs / 1000) as UTCTimestamp;
+                if (candlestickData[0].time > fromTime) {
+                  fromTime = candlestickData[0].time;
+                }
+                chartRef.current.timeScale().setVisibleLogicalRange({
+                  from: findClosestIndex(candlestickData, fromTime),
+                  to: candlestickData.length - 1,
+                });
+              }
             }
           } catch (e) {
             console.error('Error setting chart data:', e);
@@ -701,7 +728,7 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
       disposeChart();
       isInitializing.current = false;
     };
-  }, [stockCode, theme, currencyConfig, showCostBasis, showGrid, showVolume, isLocked, autoScale, getThemedColors, addTradeMarkers, userId, accountId]);
+  }, [stockCode, theme, currencyConfig, showCostBasis, showGrid, showVolume, isLocked, autoScale, getThemedColors, addTradeMarkers, userId, accountId, compactMode, defaultVisibleMonths]);
 
   useEffect(() => {
     if (volumeSeriesRef.current && !isDisposed.current) {

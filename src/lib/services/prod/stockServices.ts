@@ -361,16 +361,68 @@ export const stockService: StockService = {
         throw new Error('Failed to fetch current price');
       }
       const data = await response.json();
-      // Handle both new API format (last_price) and legacy format (latest_value.lastPrice)
-      const price = data.last_price !== undefined 
-        ? data.last_price 
-        : (data.latest_value?.lastPrice);
+      const latest = data.latest_value && typeof data.latest_value === 'object' ? data.latest_value : {};
+
+      const pickNumber = (keys: string[]): number | null => {
+        for (const k of keys) {
+          const v = data[k] ?? latest[k as keyof typeof latest];
+          if (typeof v === 'number' && Number.isFinite(v)) return v;
+          if (typeof v === 'string' && v.trim() !== '') {
+            const p = Number(v);
+            if (Number.isFinite(p)) return p;
+          }
+        }
+        return null;
+      };
+
+      const pickArray = (keys: string[], len = 5): (number | null)[] => {
+        for (const k of keys) {
+          const v = data[k] ?? latest[k as keyof typeof latest];
+          if (Array.isArray(v)) {
+            const out: (number | null)[] = [];
+            for (let i = 0; i < len; i += 1) {
+              const item = v[i];
+              if (typeof item === 'number' && Number.isFinite(item)) {
+                out.push(item);
+              } else if (typeof item === 'string' && item.trim() !== '') {
+                const p = Number(item);
+                out.push(Number.isFinite(p) ? p : null);
+              } else {
+                out.push(null);
+              }
+            }
+            return out;
+          }
+        }
+        return Array.from({ length: len }, () => null);
+      };
+
+      const price = pickNumber(['last_price', 'lastPrice', 'price', 'current_price']);
+      const bidScalar = pickNumber(['bid', 'bid1', 'bid_price_1']);
+      const askScalar = pickNumber(['ask', 'ask1', 'ask_price_1']);
 
       return { 
         data: {
           stock_code: symbol,
-          stock_name: data.stock_name || symbol,
-          price: price
+          stock_name: data.stock_name ?? latest.stock_name ?? symbol,
+          price: price ?? 0,
+          last_price: pickNumber(['last_price', 'lastPrice', 'pre_close', 'prev_close']) ?? undefined,
+          pre_close: pickNumber(['pre_close', 'prev_close', 'preClose']) ?? undefined,
+          open: pickNumber(['open', 'open_price']) ?? undefined,
+          high: pickNumber(['high', 'high_price']) ?? undefined,
+          low: pickNumber(['low', 'low_price']) ?? undefined,
+          volume: pickNumber(['volume', 'vol']) ?? undefined,
+          amount: pickNumber(['amount', 'turnover']) ?? undefined,
+          bid: bidScalar ?? undefined,
+          ask: askScalar ?? undefined,
+          bid_price: pickArray(['bid_price', 'bid_prices', 'bid_price_list', 'bidPrices']),
+          bid_prices: pickArray(['bid_prices', 'bid_price', 'bidPrices']),
+          bid_vol: pickArray(['bid_vol', 'bid_volume', 'bid_vol_list', 'bidVol']),
+          bid_volume: pickArray(['bid_volume', 'bid_vol', 'bidVolume']),
+          ask_price: pickArray(['ask_price', 'ask_prices', 'ask_price_list', 'askPrices']),
+          ask_prices: pickArray(['ask_prices', 'ask_price', 'askPrices']),
+          ask_vol: pickArray(['ask_vol', 'ask_volume', 'ask_vol_list', 'askVol']),
+          ask_volume: pickArray(['ask_volume', 'ask_vol', 'askVolume']),
         }, 
         error: null 
       };
@@ -479,6 +531,86 @@ export const stockService: StockService = {
       console.error('Error fetching trading calendar:', error);
       return { data: null, error: error as Error };
     }
+  },
+  createStockPriceWebSocketClient: (handlers) => {
+    const getWebSocketUrl = () => {
+      const meta = import.meta as unknown as { env?: { VITE_WS_URL?: string } };
+      if (meta.env?.VITE_WS_URL && meta.env.VITE_WS_URL.trim().length > 0) {
+        return meta.env.VITE_WS_URL;
+      }
+      if (typeof window !== 'undefined') {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        return `${protocol}//${window.location.host}/api/ws/stock`;
+      }
+      return 'ws://localhost:8000/api/ws/stock';
+    };
+
+    let ws: WebSocket | null = null;
+
+    const send = (payload: unknown) => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      try {
+        if (typeof payload === 'string') {
+          ws.send(payload);
+        } else {
+          ws.send(JSON.stringify(payload));
+        }
+      } catch (e) {
+        console.error('[StockWS] Failed to send payload:', e);
+      }
+    };
+
+    console.info('[StockWS] Creating client for:', getWebSocketUrl());
+
+    const client = {
+      connect: () => {
+        if (ws) {
+          try { ws.close(); } catch { /* noop */ }
+          ws = null;
+        }
+        try {
+          ws = new WebSocket(getWebSocketUrl());
+          ws.onopen = () => { try { handlers?.onOpen?.(); } catch { /* noop */ } };
+          ws.onclose = () => { try { handlers?.onClose?.(); } catch { /* noop */ } };
+          ws.onerror = (event) => { try { handlers?.onError?.(event); } catch { /* noop */ } };
+          ws.onmessage = (event) => {
+            const raw = event.data;
+            if (typeof raw === 'string') {
+              try {
+                handlers?.onMessage?.(JSON.parse(raw));
+                return;
+              } catch {
+                handlers?.onMessage?.(raw);
+                return;
+              }
+            }
+            try { handlers?.onMessage?.(raw); } catch { /* noop */ }
+          };
+        } catch (e) {
+          console.error('[StockWS] Failed to create socket:', e);
+          try { handlers?.onError?.(e); } catch { /* noop */ }
+        }
+      },
+      close: () => {
+        if (ws) {
+          try {
+            ws.onopen = null;
+            ws.onmessage = null;
+            ws.onerror = null;
+            ws.onclose = null;
+            ws.close();
+          } catch { /* noop */ }
+          ws = null;
+        }
+      },
+      send,
+      subscribe: (stockCodes: string[]) => {
+        send({ action: 'subscribe', contract_codes: stockCodes, stock_codes: stockCodes });
+      },
+      getReadyState: () => (ws ? ws.readyState : WebSocket.CLOSED),
+    };
+
+    return client;
   }
 };
 

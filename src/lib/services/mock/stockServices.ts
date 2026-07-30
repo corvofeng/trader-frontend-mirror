@@ -300,17 +300,46 @@ export const stockService: StockService = {
     const lastPrice = DEMO_STOCK_DATA[DEMO_STOCK_DATA.length - 1].current_price;
     const randomChange = (Math.random() - 0.5) * 2;
     const newPrice = lastPrice * (1 + randomChange * 0.01);
+    const tick = newPrice < 10 ? 0.01 : 0.01;
 
     const stock = MOCK_STOCKS.find(s => s.stock_code === symbol) || {
       stock_code: symbol,
       stock_name: symbol
     };
 
+    const bidPrices: (number | null)[] = [];
+    const bidVols: (number | null)[] = [];
+    const askPrices: (number | null)[] = [];
+    const askVols: (number | null)[] = [];
+    for (let i = 0; i < 5; i += 1) {
+      bidPrices.push(Number((newPrice - tick * (i + 1)).toFixed(4)));
+      bidVols.push(Math.floor(Math.random() * 50000) + 1000);
+      askPrices.push(Number((newPrice + tick * (i + 1)).toFixed(4)));
+      askVols.push(Math.floor(Math.random() * 50000) + 1000);
+    }
+
     return { 
       data: {
         stock_code: stock.stock_code,
         stock_name: stock.stock_name,
-        price: newPrice
+        price: Number(newPrice.toFixed(4)),
+        last_price: lastPrice,
+        pre_close: lastPrice,
+        open: Number((lastPrice * (1 + (Math.random() - 0.5) * 0.01)).toFixed(4)),
+        high: Number((newPrice * 1.02).toFixed(4)),
+        low: Number((newPrice * 0.98).toFixed(4)),
+        volume: Math.floor(Math.random() * 10000000) + 1000000,
+        amount: Math.floor(Math.random() * 500000000) + 50000000,
+        bid: bidPrices[0] ?? undefined,
+        ask: askPrices[0] ?? undefined,
+        bid_price: bidPrices,
+        bid_prices: bidPrices,
+        bid_vol: bidVols,
+        bid_volume: bidVols,
+        ask_price: askPrices,
+        ask_prices: askPrices,
+        ask_vol: askVols,
+        ask_volume: askVols,
       }, 
       error: null 
     };
@@ -376,6 +405,71 @@ export const stockService: StockService = {
       d.setDate(d.getDate() + 1);
     }
     return { data: days, error: null };
+  },
+  createStockPriceWebSocketClient: (handlers) => {
+    let connected = false;
+    let heartbeat: number | null = null;
+    const subscribeTimers = new Map<string, number>();
+    const handlersRef = {
+      onOpen: handlers?.onOpen ?? null,
+      onClose: handlers?.onClose ?? null,
+      onMessage: handlers?.onMessage ?? null,
+    };
+    return {
+      connect() {
+        connected = true;
+        try { handlersRef.onOpen?.(); } catch { /* noop */ }
+        heartbeat = window.setInterval(() => {
+          if (!connected) return;
+          try { handlersRef.onMessage?.({ action: 'pong' }); } catch { /* noop */ }
+        }, 10000);
+      },
+      close() {
+        connected = false;
+        subscribeTimers.forEach((t) => window.clearInterval(t));
+        subscribeTimers.clear();
+        if (heartbeat !== null) {
+          window.clearInterval(heartbeat);
+          heartbeat = null;
+        }
+        try { handlersRef.onClose?.(); } catch { /* noop */ }
+      },
+      send(payload: unknown) {
+        if (!connected) return;
+        try {
+          const rec = typeof payload === 'string' ? JSON.parse(payload) : payload;
+          if (rec && typeof rec === 'object' && (rec as { action?: unknown }).action === 'ping') {
+            try { handlersRef.onMessage?.({ action: 'pong' }); } catch { /* noop */ }
+          }
+        } catch { /* mock noop */ }
+      },
+      subscribe(stockCodes: string[]) {
+        const codes = stockCodes.filter((c): c is string => typeof c === 'string' && c.length > 0);
+        for (const code of codes) {
+          if (subscribeTimers.has(code)) continue;
+          const t = window.setInterval(async () => {
+            const { data } = await stockService.getCurrentPrice(code);
+            if (data && connected && handlersRef.onMessage) {
+              handlersRef.onMessage([{
+                contract_code: data.stock_code,
+                stock_code: data.stock_code,
+                price: data.price,
+                last_price: data.last_price ?? data.price,
+                bid: data.bid,
+                ask: data.ask,
+                bid_price: data.bid_price,
+                bid_vol: data.bid_vol,
+                ask_price: data.ask_price,
+                ask_vol: data.ask_vol,
+                timestamp: Date.now(),
+              }]);
+            }
+          }, 1500);
+          subscribeTimers.set(code, t);
+        }
+      },
+      getReadyState() { return connected ? 1 : 3; },
+    };
   }
 };
 

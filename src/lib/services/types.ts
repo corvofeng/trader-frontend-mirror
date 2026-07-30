@@ -358,6 +358,7 @@ export interface StockService {
   getCurrentPrice: (symbol: string) => Promise<ServiceResponse<StockPrice>>;
   getTodayOrders: (accountAlias: string) => Promise<ServiceResponse<StockOrder[]>>;
   getTradingCalendar: (year: number) => Promise<ServiceResponse<string[]>>;
+  createStockPriceWebSocketClient?: (handlers?: StockPriceWebSocketHandlers) => StockPriceWebSocketClient;
 }
 
 export interface StockConfigService {
@@ -1114,6 +1115,21 @@ export interface OptionPriceWebSocketClient {
   subscribe: (contractCodes: string[]) => void;
   queryOptionsData: (symbol: string) => void;
   queryOrders: (accountId: string) => void;
+  getReadyState: () => number;
+}
+
+export type StockPriceWebSocketHandlers = {
+  onOpen?: () => void;
+  onClose?: () => void;
+  onError?: (event: unknown) => void;
+  onMessage?: (data: unknown) => void;
+};
+
+export interface StockPriceWebSocketClient {
+  connect: () => void;
+  close: () => void;
+  send: (payload: unknown) => void;
+  subscribe: (stockCodes: string[]) => void;
   getReadyState: () => number;
 }
 
