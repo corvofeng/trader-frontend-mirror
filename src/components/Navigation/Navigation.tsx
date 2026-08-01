@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Bell, LogOut, Menu, X, Sun, Moon, Palette, RefreshCw, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Bell, LogOut, LogIn, Menu, X, Sun, Moon, Palette, RefreshCw, TrendingUp } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Theme, themes } from '../../lib/theme';
 import { noticeService } from '../../lib/services';
@@ -83,6 +83,7 @@ export function Navigation({
   mobileMenuOpen,
   showThemeDropdown,
   onThemeChange,
+  onSignIn,
   onSignOut,
   onMobileMenuToggle,
   onThemeDropdownToggle
@@ -482,7 +483,15 @@ export function Navigation({
                     Sign Out
                   </button>
                 </div>
-              ) : null}
+              ) : (
+                <button
+                  onClick={onSignIn}
+                  className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md ${themes[theme].primary} text-white`}
+                >
+                  <LogIn className="w-4 h-4 mr-2" />
+                  Sign In
+                </button>
+              )}
             </div>
 
             <div className="md:hidden flex items-center">
@@ -601,7 +610,18 @@ export function Navigation({
                       Sign Out
                     </button>
                   </>
-                ) : null}
+                ) : (
+                  <button
+                    onClick={() => {
+                      onSignIn();
+                      onMobileMenuToggle();
+                    }}
+                    className={`w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md ${themes[theme].primary} text-white`}
+                  >
+                    <LogIn className="w-4 h-4 mr-2" />
+                    Sign In
+                  </button>
+                )}
               </div>
             </div>
           )}
