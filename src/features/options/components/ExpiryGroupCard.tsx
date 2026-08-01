@@ -1,6 +1,6 @@
 import React, { useCallback, useState, useEffect, useMemo, useRef } from 'react';
 import { format } from 'date-fns';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, X } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
 import type { OptionsPosition, OptionsStrategy, AdvisedCombination, OptionsData, OptionQuote, OptionWhitelist } from '../../../lib/services/types';
@@ -1712,8 +1712,19 @@ export function ExpiryGroupCard({
   ]);
 
   return (
-    <div className={`${themes[theme].card} ${themes[theme].border} relative rounded-2xl border shadow-md overflow-hidden`}>
-      <div className={`relative border-b ${themes[theme].border} p-3 pr-12 sm:p-6 sm:pr-16`}>
+    <div className={`${themes[theme].card} ${themes[theme].border} relative isolate rounded-xl border overflow-hidden
+      ${theme === 'dark'
+        ? 'shadow-[0_1px_2px_rgba(0,0,0,0.25),0_12px_28px_-16px_rgba(0,0,0,0.45)]'
+        : theme === 'blue'
+          ? 'shadow-[0_1px_2px_rgba(30,64,175,0.04),0_10px_28px_-16px_rgba(37,99,235,0.10)]'
+          : 'shadow-[0_1px_2px_rgba(15,23,42,0.04),0_10px_28px_-16px_rgba(15,23,42,0.08)]'
+      }`}>
+      <div className={`absolute inset-x-0 top-0 h-px z-10 bg-gradient-to-r ${
+        theme === 'dark' ? 'from-zinc-800/60 via-zinc-900/20 to-transparent'
+        : theme === 'blue' ? 'from-blue-50/90 via-blue-50/40 to-transparent'
+        : 'from-slate-50/90 via-slate-50/40 to-transparent'
+      }`} aria-hidden="true" />
+      <div className={`relative border-b ${themes[theme].border} px-3 py-3 pr-12 sm:px-5 sm:py-4 sm:pr-16`}>
         <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 flex flex-1 items-start gap-3">
             <div className="min-w-0 flex-1">
@@ -1767,33 +1778,39 @@ export function ExpiryGroupCard({
 
 
 
-      <div className={`p-3 sm:p-6 ${isExpanded ? 'block' : 'hidden'}`} aria-hidden={!isExpanded}>
-        <div className="space-y-4">
+      <div className={`px-3 py-3 sm:px-5 sm:py-4 ${isExpanded ? 'block' : 'hidden'}`} aria-hidden={!isExpanded}>
+        <div className="space-y-3 sm:space-y-4">
           {(() => {
             const callPositions = filteredPositions.filter(pos => (pos.type === 'call' || pos.contract_type_zh === 'call'));
             const putPositions = filteredPositions.filter(pos => (pos.type === 'put' || pos.contract_type_zh === 'put'));
 
             return (
-              <div className="space-y-5 sm:space-y-6">
+              <div className="space-y-4 sm:space-y-5">
                 <div className="mt-0">
                     <div 
-                      className="flex items-center gap-2 mb-3 cursor-pointer select-none hover:opacity-80 transition-opacity"
+                      className="flex items-center gap-2 mb-2.5 cursor-pointer select-none hover:opacity-80 transition-opacity"
                       onClick={onToggleTBoard}
                     >
-                      <div className="w-4 h-4 bg-gray-500 rounded"></div>
-                      <h4 className={`text-lg font-semibold ${themes[theme].text}`}>
+                      <div className={`w-4 h-4 rounded ${theme === 'dark' ? 'bg-zinc-600' : theme === 'blue' ? 'bg-blue-400' : 'bg-slate-400'}`}></div>
+                      <h4 className={`text-[15px] sm:text-[17px] font-semibold tracking-tight ${themes[theme].text}`}>
                         {filteredPositions.length > 0 ? '持仓T型数量看板' : 'T型报价'}
                       </h4>
                       {isTBoardExpanded ? (
-                        <ChevronUp className={`w-4 h-4 ${themes[theme].text} opacity-50`} />
+                        <ChevronUp className={`w-4 h-4 ${themes[theme].text} opacity-50`} strokeWidth={2} />
                       ) : (
-                        <ChevronDown className={`w-4 h-4 ${themes[theme].text} opacity-50`} />
+                        <ChevronDown className={`w-4 h-4 ${themes[theme].text} opacity-50`} strokeWidth={2} />
                       )}
                     </div>
                     {isTBoardExpanded && (
-                    <div className={`${themes[theme].background} rounded-lg p-4 border ${themes[theme].border} relative`}>
+                    <div className={`rounded-xl p-3 sm:p-4 border ${themes[theme].border} relative ${
+                      theme === 'dark'
+                        ? 'bg-zinc-950/40'
+                        : theme === 'blue'
+                          ? 'bg-blue-50/40'
+                          : 'bg-slate-50/70'
+                    }`}>
                       {isRefreshing && (
-                        <div className="absolute inset-0 z-10 bg-white/50 dark:bg-black/50 flex items-center justify-center backdrop-blur-sm transition-opacity duration-300 rounded-lg">
+                        <div className="absolute inset-0 z-10 bg-white/50 dark:bg-black/50 flex items-center justify-center backdrop-blur-sm transition-opacity duration-300 rounded-xl">
                           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
                         </div>
                       )}
@@ -2266,19 +2283,53 @@ export function ExpiryGroupCard({
   {confirmData && (
     <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center">
       <div
-        className="absolute inset-0 bg-black/40"
+        className="absolute inset-0 bg-black/45 backdrop-blur-[2px]"
         onClick={() => {
           if (!isPageLocked) setConfirmData(null);
         }}
       ></div>
-      <div className={`relative w-full rounded-t-xl border-t border-l border-r p-6 max-h-[85vh] flex flex-col md:w-auto md:min-w-[600px] md:max-w-2xl md:rounded-lg md:border md:max-h-[85vh] ${themes[theme].card} ${themes[theme].border}`}>
-        {confirmData.meta?.action !== 'combo_manage' && (
-          <>
-            <div className={`text-lg font-semibold ${themes[theme].text}`}>{confirmData.title}</div>
-            <div className={`mt-2 text-sm ${themes[theme].text}`}>{confirmData.description}</div>
-          </>
-        )}
-        <div className={`${confirmData.meta?.action === 'combo_manage' ? 'mt-0' : 'mt-4'} overflow-y-auto min-h-0 flex-1 space-y-2`}>
+      <div className={`relative w-full rounded-t-2xl border-t border-x sm:border sm:rounded-2xl sm:max-w-2xl sm:w-[min(90vw,820px)]
+        flex flex-col
+        max-h-[92svh] md:max-h-[85svh]
+        ${themes[theme].card} ${themes[theme].border}
+        ${theme === 'dark'
+          ? 'shadow-[0_-8px_32px_-8px_rgba(0,0,0,0.55),0_8px_32px_-8px_rgba(0,0,0,0.55)]'
+          : theme === 'blue'
+            ? 'shadow-[0_-10px_40px_-16px_rgba(37,99,235,0.18),0_8px_32px_-8px_rgba(15,23,42,0.08)]'
+            : 'shadow-[0_-10px_40px_-16px_rgba(15,23,42,0.18),0_8px_32px_-8px_rgba(15,23,42,0.08)]'
+        } overflow-hidden`}>
+        {/* Sheet grab handle (mobile only) */}
+        <div className="relative sm:hidden pt-3 pb-2 flex justify-center shrink-0">
+          <div className="w-10 h-1 rounded-full bg-current/15" aria-hidden="true" />
+        </div>
+        {/* Sheet header */}
+        <div className={`flex items-start justify-between gap-3 px-4 pb-3 pt-1 sm:px-6 sm:pb-4 sm:pt-5 shrink-0 border-b ${themes[theme].border}`}>
+          <div className="min-w-0 flex-1">
+            {confirmData.meta?.action !== 'combo_manage' && (
+              <>
+                <div className={`text-[17px] sm:text-xl font-semibold tracking-tight ${themes[theme].text}`}>{confirmData.title}</div>
+                <div className={`mt-1.5 text-[13px] sm:text-sm opacity-80 ${themes[theme].text}`}>{confirmData.description}</div>
+              </>
+            )}
+            {confirmData.meta?.action === 'combo_manage' && embeddedComboDraft && (
+              <div className={`text-[17px] sm:text-xl font-semibold tracking-tight ${themes[theme].text}`}>组合管理</div>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (!isPageLocked) setConfirmData(null);
+            }}
+            disabled={isPageLocked}
+            className={`shrink-0 inline-flex items-center justify-center rounded-xl p-2 transition-colors active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed
+              ${themes[theme].secondary} hover:opacity-90`}
+            aria-label="关闭"
+            title="关闭"
+          >
+            <X className="w-5 h-5" strokeWidth={2} />
+          </button>
+        </div>
+        <div className={`${confirmData.meta?.action === 'combo_manage' ? 'mt-0' : 'mt-0'} px-4 pb-[calc(env(safe-area-inset-bottom)+20px)] sm:px-6 sm:pb-6 overflow-y-auto min-h-0 flex-1 space-y-2`}>
           {confirmData.meta?.action === 'unwind_combo_selection' || confirmData.meta?.action === 'combo_manage' ? (
             <div className="space-y-4">
               {confirmData.meta?.action === 'combo_manage' && embeddedComboDraft ? (
@@ -3432,12 +3483,47 @@ export function ExpiryGroupCard({
     </div>
   )}
   {advisedModal && (
-    <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-black/40" onClick={() => setAdvisedModal(null)}></div>
+    <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center">
+      <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" onClick={() => setAdvisedModal(null)}></div>
       <div
-        className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[92%] md:w-auto md:min-w-[600px] md:max-w-2xl max-h-[85vh] overflow-y-auto rounded-lg border ${themes[theme].card} ${themes[theme].border} p-6`}
+        className={`relative w-full rounded-t-2xl border-t border-x sm:border sm:rounded-2xl sm:max-w-2xl sm:w-[min(90vw,820px)]
+          flex flex-col max-h-[92svh] md:max-h-[85svh]
+          ${themes[theme].card} ${themes[theme].border} overflow-hidden
+          ${theme === 'dark'
+            ? 'shadow-[0_-8px_32px_-8px_rgba(0,0,0,0.55),0_8px_32px_-8px_rgba(0,0,0,0.55)]'
+            : theme === 'blue'
+              ? 'shadow-[0_-10px_40px_-16px_rgba(37,99,235,0.18),0_8px_32px_-8px_rgba(15,23,42,0.08)]'
+              : 'shadow-[0_-10px_40px_-16px_rgba(15,23,42,0.18),0_8px_32px_-8px_rgba(15,23,42,0.08)]'
+        }`}
       >
-        {renderComboDraftPanel(advisedModal)}
+        {/* Sheet grab handle (mobile only) */}
+        <div className="relative sm:hidden pt-3 pb-2 flex justify-center shrink-0">
+          <div className="w-10 h-1 rounded-full bg-current/15" aria-hidden="true" />
+        </div>
+        {/* Header */}
+        <div className={`flex items-start justify-between gap-3 px-4 pb-3 pt-1 sm:px-6 sm:pb-4 sm:pt-5 shrink-0 border-b ${themes[theme].border}`}>
+          <div className="min-w-0 flex-1">
+            <div className={`text-[17px] sm:text-xl font-semibold tracking-tight ${themes[theme].text}`}>
+              {advisedModal.mode === 't_board_create' ? '创建组合' : '执行组合'}
+            </div>
+            <div className={`mt-1.5 text-[13px] sm:text-sm opacity-80 ${themes[theme].text}`}>
+              请确认组合各腿数量与方向
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setAdvisedModal(null)}
+            className={`shrink-0 inline-flex items-center justify-center rounded-xl p-2 transition-colors active:scale-95
+              ${themes[theme].secondary} hover:opacity-90`}
+            aria-label="关闭"
+            title="关闭"
+          >
+            <X className="w-5 h-5" strokeWidth={2} />
+          </button>
+        </div>
+        <div className="px-4 pt-4 pb-[calc(env(safe-area-inset-bottom)+20px)] sm:px-6 sm:pt-5 sm:pb-6 overflow-y-auto min-h-0 flex-1">
+          {renderComboDraftPanel(advisedModal)}
+        </div>
       </div>
     </div>
   )}

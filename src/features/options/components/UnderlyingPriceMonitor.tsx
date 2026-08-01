@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useAutoRefresh, useOptionPriceWebSocket } from '../hooks/useOptionPriceWebSocket';
 import { AnimatedFlash } from './AnimatedFlash';
 import { Theme, themes } from '../../../lib/theme';
-import { ChevronLeft, ChevronRight, Hourglass, RefreshCw, Activity } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Hourglass, RefreshCw, Activity, Target } from 'lucide-react';
 
 interface UnderlyingPriceMonitorProps {
   symbol: string;
@@ -369,7 +369,13 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
       return (
         <div
           ref={containerRef}
-          className={`${themes[theme].card} shadow-lg border ${themes[theme].border} rounded-lg overflow-hidden`}
+          className={`${themes[theme].card} rounded-xl overflow-hidden relative isolate
+            ${theme === 'dark'
+              ? 'shadow-[0_10px_28px_-8px_rgba(0,0,0,0.55)] border border-zinc-800/70'
+              : theme === 'blue'
+                ? 'shadow-[0_10px_28px_-8px_rgba(37,99,235,0.18)] border border-blue-100/80'
+                : 'shadow-[0_10px_28px_-8px_rgba(15,23,42,0.16)] border border-slate-200/70'
+            } backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/5`}
           style={{
             position: 'fixed',
             zIndex: 48,
@@ -383,17 +389,18 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
           }}
           onPointerDown={startCollapsedDrag}
         >
+          <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent dark:from-white/5 pointer-events-none" aria-hidden="true" />
           <button
             type="button"
             onClick={toggleCollapsed}
-            className={`w-full flex flex-col items-center p-1.5 ${themes[theme].secondary}`}
+            className={`w-full flex flex-col items-center p-1.5 ${themes[theme].secondary} relative z-10`}
             aria-label="展开价格窗口"
             title="展开"
           >
-            <div className={`text-[9px] font-mono opacity-70 ${themes[theme].text} truncate w-full text-center`}>
+            <div className={`text-[10px] font-mono opacity-65 ${themes[theme].text} truncate w-full text-center`}>
               {symbol}
             </div>
-            <div className={`text-sm font-bold font-mono ${themes[theme].text} leading-tight`}>
+            <div className={`text-sm font-semibold font-mono tabular-nums ${themes[theme].text} leading-tight mt-0.5`}>
               <AnimatedFlash value={typeof currentPrice === 'number' ? currentPrice.toFixed(4) : '-'} type="price" />
             </div>
           </button>
@@ -417,26 +424,33 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
     return (
       <div
         ref={containerRef}
-        className={`${themes[theme].card} shadow-lg border ${themes[theme].border} overflow-hidden opacity-90 hover:opacity-100 transition-opacity rounded-l-lg`}
+        className={`${themes[theme].card} overflow-hidden opacity-95 hover:opacity-100 transition-opacity rounded-l-2xl relative isolate
+          ${theme === 'dark'
+            ? 'shadow-[-8px_0_24px_-6px_rgba(0,0,0,0.45)] border border-r-0 border-zinc-800/70'
+            : theme === 'blue'
+              ? 'shadow-[-8px_0_24px_-6px_rgba(37,99,235,0.14)] border border-r-0 border-blue-100/80'
+              : 'shadow-[-8px_0_24px_-6px_rgba(15,23,42,0.12)] border border-r-0 border-slate-200/70'
+          } backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/5`}
         style={collapsedStyle}
       >
+        <div className="absolute inset-y-0 left-0 w-px bg-gradient-to-b from-white/40 via-white/10 to-transparent dark:from-white/8 pointer-events-none" aria-hidden="true" />
         <button
           type="button"
           onClick={toggleCollapsed}
-          className={`w-full h-full flex items-center justify-center ${themes[theme].secondary}`}
+          className={`w-full h-full flex items-center justify-center ${themes[theme].secondary} relative z-10`}
           aria-label="展开价格窗口"
           title="展开"
         >
           <div className="flex flex-col items-center gap-1.5">
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft className="w-4 h-4" strokeWidth={1.75} />
             <div
-              className={`text-[9px] font-semibold ${themes[theme].text}`}
+              className={`text-[10px] font-semibold tracking-wide ${themes[theme].text} opacity-80`}
               style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
             >
               价格
             </div>
             <div
-              className={`text-[9px] font-mono font-bold ${themes[theme].text}`}
+              className={`text-[10px] font-mono font-semibold tabular-nums ${themes[theme].text}`}
               style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
             >
               {typeof currentPrice === 'number' ? currentPrice.toFixed(2) : '--'}
@@ -448,7 +462,14 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
   }
 
   // ==================== EXPANDED STATE (unified for mobile & desktop) ====================
-  const baseClass = `${themes[theme].card} shadow-lg rounded-lg border ${themes[theme].border} overflow-hidden opacity-90 hover:opacity-100 transition-opacity ${dragging ? 'cursor-grabbing' : 'cursor-move'}`;
+  const baseClass = `relative isolate rounded-2xl overflow-hidden backdrop-blur-xl transition-opacity ${dragging ? 'cursor-grabbing' : 'cursor-grab'}
+    ${themes[theme].card} border ${themes[theme].border} opacity-97 hover:opacity-100
+    ${theme === 'dark'
+      ? 'shadow-[0_14px_40px_-12px_rgba(0,0,0,0.55)] border-zinc-800/70'
+      : theme === 'blue'
+        ? 'shadow-[0_14px_40px_-12px_rgba(37,99,235,0.16)] border-blue-100/80'
+        : 'shadow-[0_14px_40px_-12px_rgba(15,23,42,0.14)] border-slate-200/70'
+    } ring-1 ring-black/5 dark:ring-white/5`;
   const motionMs = 240;
   const monitorDims = getMonitorDims();
   const clampedPanelPos = clampPanelPos(panelPos);
@@ -466,34 +487,35 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
 
   return (
     <div ref={containerRef} className={baseClass} style={style}>
+      <div className="absolute inset-0 bg-gradient-to-b from-white/40 via-transparent to-transparent dark:from-white/5 pointer-events-none z-[1]" aria-hidden="true" />
       {/* Title bar (draggable) */}
       <div
-        className={`p-3 border-b ${themes[theme].border} bg-opacity-50 backdrop-blur select-none ${dragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+        className={`relative z-10 px-3 py-3 border-b ${themes[theme].border} bg-opacity-50 backdrop-blur-md select-none ${dragging ? 'cursor-grabbing' : 'cursor-grab'}`}
         onPointerDown={startDrag}
         style={{ touchAction: 'none' }}
         title="拖动移动位置"
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <div className={`text-[10px] ${themes[theme].text} opacity-50`}>
+            <div className={`text-[11px] font-medium ${themes[theme].text} opacity-55 tracking-wide`}>
               标的
             </div>
-            <div className={`mt-1 break-all font-semibold ${monitorDims.compact ? 'text-[13px]' : 'text-[15px]'} leading-snug ${themes[theme].text}`}>
+            <div className={`mt-0.5 break-all font-semibold tracking-tight ${monitorDims.compact ? 'text-[13px]' : 'text-[15px]'} leading-snug ${themes[theme].text}`}>
               {symbol}
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               <span
-                className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium ${
+                className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-medium ${
                   isConnected
-                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-                    : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-                }`}
+                    ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                    : 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                } ring-1 ring-black/[0.03] dark:ring-white/[0.04]`}
               >
-                <Activity className="mr-0.5 h-2.5 w-2.5" />
+                <Activity className="h-2.5 w-2.5" strokeWidth={2} />
                 {isConnected ? 'WS' : '···'}
               </span>
               {lastUpdated ? (
-                <span className={`text-[10px] ${themes[theme].text} opacity-50`}>
+                <span className={`text-[10px] font-mono tabular-nums ${themes[theme].text} opacity-55`}>
                   {lastUpdated}
                 </span>
               ) : null}
@@ -503,29 +525,33 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
             <button
               type="button"
               onClick={toggleCollapsed}
-              className={`${themes[theme].secondary} rounded-md p-1`}
+              className={`${themes[theme].secondary} rounded-lg p-1 transition-colors duration-150 active:scale-95 hover:opacity-90`}
               aria-label="折叠到右侧"
               title="折叠到右侧"
             >
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-4 h-4" strokeWidth={1.75} />
             </button>
-            <div className="rounded-md bg-black/5 px-2 py-1 text-right dark:bg-white/5">
-              <div className={`text-[9px] ${themes[theme].text} opacity-45`}>
+            <div className={`rounded-lg px-2.5 py-1.5 text-right ${
+              theme === 'dark' ? 'bg-white/[0.04] ring-1 ring-white/5' : 'bg-black/[0.02] ring-1 ring-black/[0.04]'
+            }`}>
+              <div className={`text-[10px] font-medium ${themes[theme].text} opacity-50 tracking-wide`}>
                 最新价
               </div>
-              <div className={`font-mono font-bold ${monitorDims.compact ? 'text-base' : 'text-lg'}`}>
+              <div className={`font-mono tabular-nums font-semibold ${monitorDims.compact ? 'text-base' : 'text-[17px]'} leading-tight mt-0.5`}>
                 <AnimatedFlash value={typeof currentPrice === 'number' ? currentPrice.toFixed(4) : '-'} type="price" />
               </div>
             </div>
           </div>
         </div>
         <div className="mt-3 flex items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-1">
-            <Hourglass className={`w-4 h-4 ${themes[theme].text} opacity-60`} />
-            <div className={`${monitorDims.compact ? 'w-10' : 'w-16'} h-1 rounded bg-gray-200 dark:bg-gray-700 overflow-hidden`}>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <Hourglass className={`w-4 h-4 ${themes[theme].text} opacity-60`} strokeWidth={1.5} />
+            <div className={`${monitorDims.compact ? 'w-10' : 'w-16'} h-1 rounded-full overflow-hidden ${
+              theme === 'dark' ? 'bg-zinc-800' : theme === 'blue' ? 'bg-blue-100/70' : 'bg-slate-200/80'
+            }`}>
               <div className="h-1 bg-blue-500" style={{ width: `${Math.round(progress * 100)}%` }} />
             </div>
-            <div className={`text-[10px] ${themes[theme].text} opacity-60 ${monitorDims.compact ? 'w-7' : 'w-8'} text-right`}>
+            <div className={`text-[10px] font-mono tabular-nums ${themes[theme].text} opacity-60 ${monitorDims.compact ? 'w-7' : 'w-8'} text-right`}>
               {isConnected ? `${Math.ceil(remainingMs / 1000)}s` : '--'}
             </div>
           </div>
@@ -534,16 +560,16 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
               type="button"
               onClick={triggerNow}
               disabled={!isConnected || !symbol}
-              className={`${themes[theme].secondary} rounded-md p-1 disabled:opacity-50 disabled:cursor-not-allowed`}
+              className={`${themes[theme].secondary} rounded-lg p-1 transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 hover:opacity-90`}
               aria-label="刷新行情"
               title="刷新行情"
             >
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className="w-4 h-4" strokeWidth={1.75} />
             </button>
             <button
               type="button"
               onClick={dockToRight}
-              className={`${themes[theme].secondary} rounded-md px-2 py-1 text-[11px]`}
+              className={`${themes[theme].secondary} rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors duration-150 active:scale-95 hover:opacity-90`}
               title="回到右侧默认位置"
             >
               靠右
@@ -553,42 +579,42 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
       </div>
 
       {/* Depth 5-level order book */}
-      <div className={`px-2 py-2 border-b ${themes[theme].border}`}>
-        <div className="flex items-center justify-between text-[10px] mb-1">
-          <div className="flex items-center gap-2">
-            <span className={`${themes[theme].text} opacity-75`}>买一</span>
-            <span className="font-mono text-rose-500 font-semibold">{typeof bestBid === 'number' ? bestBid.toFixed(4) : '-'}</span>
-            <span className={`${themes[theme].text} opacity-75`}>卖一</span>
-            <span className="font-mono text-emerald-500 font-semibold">{typeof bestAsk === 'number' ? bestAsk.toFixed(4) : '-'}</span>
+      <div className={`relative z-10 px-2.5 py-2.5 border-b ${themes[theme].border}`}>
+        <div className="flex items-center justify-between text-[10px] mb-1.5">
+          <div className="flex items-center gap-2.5">
+            <span className={`${themes[theme].text} opacity-70 font-medium`}>买一</span>
+            <span className="font-mono tabular-nums font-semibold text-rose-600 dark:text-rose-400">{typeof bestBid === 'number' ? bestBid.toFixed(4) : '-'}</span>
+            <span className={`${themes[theme].text} opacity-70 font-medium`}>卖一</span>
+            <span className="font-mono tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">{typeof bestAsk === 'number' ? bestAsk.toFixed(4) : '-'}</span>
           </div>
-          <div className={`${themes[theme].text} opacity-75 font-semibold`}>
+          <div className={`${themes[theme].text} opacity-70 font-semibold font-mono tabular-nums`}>
             {spread != null ? `点差 ${spread.toFixed(4)}` : '点差 -'}
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 mt-1 text-[10px]">
+        <div className="grid grid-cols-2 gap-2.5 mt-1 text-[10px]">
           {/* Buy side */}
           <div className="flex flex-col">
-            <div className={`text-center font-medium border-b ${themes[theme].border} mb-1 text-rose-500`}>买盘</div>
-            <div className="grid grid-cols-[14px_1fr_24px] gap-1 px-1 opacity-70 mb-1">
+            <div className={`text-center font-semibold border-b ${themes[theme].border} mb-1.5 text-rose-600 dark:text-rose-400 tracking-wide pb-0.5`}>买盘</div>
+            <div className="grid grid-cols-[14px_1fr_28px] gap-1 px-1 opacity-65 mb-1 text-[9px]">
               <div>档</div>
-              <div className="text-right">价</div>
-              <div className="text-right">量</div>
+              <div className="text-right font-medium">价</div>
+              <div className="text-right font-medium">量</div>
             </div>
             <div className="space-y-0.5">
               {bidRows.map((r) => (
-                <div key={`bid-${r.level}`} className="grid grid-cols-[14px_1fr_24px] gap-1 px-1 rounded items-center">
-                  <div className="text-left opacity-75 text-[9px]">{r.level}</div>
+                <div key={`bid-${r.level}`} className="grid grid-cols-[14px_1fr_28px] gap-1 px-1 rounded-md items-center transition-colors duration-100 hover:bg-rose-500/[0.03] dark:hover:bg-rose-500/[0.06]">
+                  <div className="text-left opacity-70 text-[9px] font-medium">{r.level}</div>
                   <div className="min-w-0">
-                    <div className="text-right text-rose-500 font-medium font-mono text-[10px]">{typeof r.price === 'number' ? r.price.toFixed(4) : '-'}</div>
-                    <div className="mt-0.5 h-0.5 overflow-hidden rounded-full bg-rose-100 dark:bg-rose-950/40">
+                    <div className="text-right font-medium font-mono tabular-nums text-[10px] text-rose-600 dark:text-rose-400">{typeof r.price === 'number' ? r.price.toFixed(4) : '-'}</div>
+                    <div className="mt-0.5 h-0.5 overflow-hidden rounded-full bg-rose-100/60 dark:bg-rose-950/40">
                       <div
                         className="h-full rounded-full bg-rose-500/80 transition-[width] duration-300"
                         style={{ width: `${Math.round(getVolumeRatio(r.vol) * 100)}%` }}
                       />
                     </div>
                   </div>
-                  <div className="text-right opacity-90 font-mono text-[9px] truncate">{r.vol ?? '-'}</div>
+                  <div className="text-right opacity-90 font-mono tabular-nums text-[9px] truncate">{r.vol ?? '-'}</div>
                 </div>
               ))}
             </div>
@@ -596,26 +622,26 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
 
           {/* Sell side */}
           <div className="flex flex-col">
-            <div className={`text-center font-medium border-b ${themes[theme].border} mb-1 text-emerald-500`}>卖盘</div>
-            <div className="grid grid-cols-[14px_1fr_24px] gap-1 px-1 opacity-70 mb-1">
+            <div className={`text-center font-semibold border-b ${themes[theme].border} mb-1.5 text-emerald-600 dark:text-emerald-400 tracking-wide pb-0.5`}>卖盘</div>
+            <div className="grid grid-cols-[14px_1fr_28px] gap-1 px-1 opacity-65 mb-1 text-[9px]">
               <div>档</div>
-              <div className="text-right">价</div>
-              <div className="text-right">量</div>
+              <div className="text-right font-medium">价</div>
+              <div className="text-right font-medium">量</div>
             </div>
             <div className="space-y-0.5">
               {askRows.map((r) => (
-                <div key={`ask-${r.level}`} className="grid grid-cols-[14px_1fr_24px] gap-1 px-1 rounded items-center">
-                  <div className="text-left opacity-75 text-[9px]">{r.level}</div>
+                <div key={`ask-${r.level}`} className="grid grid-cols-[14px_1fr_28px] gap-1 px-1 rounded-md items-center transition-colors duration-100 hover:bg-emerald-500/[0.03] dark:hover:bg-emerald-500/[0.06]">
+                  <div className="text-left opacity-70 text-[9px] font-medium">{r.level}</div>
                   <div className="min-w-0">
-                    <div className="text-right text-emerald-500 font-medium font-mono text-[10px]">{typeof r.price === 'number' ? r.price.toFixed(4) : '-'}</div>
-                    <div className="mt-0.5 h-0.5 overflow-hidden rounded-full bg-emerald-100 dark:bg-emerald-950/40">
+                    <div className="text-right font-medium font-mono tabular-nums text-[10px] text-emerald-600 dark:text-emerald-400">{typeof r.price === 'number' ? r.price.toFixed(4) : '-'}</div>
+                    <div className="mt-0.5 h-0.5 overflow-hidden rounded-full bg-emerald-100/60 dark:bg-emerald-950/40">
                       <div
                         className="h-full rounded-full bg-emerald-500/80 transition-[width] duration-300"
                         style={{ width: `${Math.round(getVolumeRatio(r.vol) * 100)}%` }}
                       />
                     </div>
                   </div>
-                  <div className="text-right opacity-90 font-mono text-[9px] truncate">{r.vol ?? '-'}</div>
+                  <div className="text-right opacity-90 font-mono tabular-nums text-[9px] truncate">{r.vol ?? '-'}</div>
                 </div>
               ))}
             </div>
@@ -623,26 +649,28 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
         </div>
       </div>
 
-      <div className="px-3 py-3">
+      <div className="relative z-10 px-3 py-3">
         <div className="mb-2 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
-            <div className={`text-[11px] font-medium ${themes[theme].text} opacity-75`}>最近走势</div>
+            <div className={`text-[11px] font-medium ${themes[theme].text} opacity-75 tracking-wide`}>最近走势</div>
             <span
-              className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] ${
+              className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-medium ring-1 ring-black/[0.03] dark:ring-white/[0.04] ${
                 isFreshTick
-                  ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300'
-                  : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
+                  ? 'bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400'
+                  : theme === 'dark'
+                    ? 'bg-zinc-800/60 text-zinc-400'
+                    : 'bg-slate-100 text-slate-600'
               } ${isFreshTick ? 'animate-pulse' : ''}`}
             >
               <span
-                className={`inline-block h-1.5 w-1.5 rounded-full ${
+                className={`inline-block h-1.5 w-1.5 rounded-full shadow-[0_0_0_2px_rgba(255,255,255,0.2)] dark:shadow-[0_0_0_2px_rgba(0,0,0,0.2)] ${
                   isFreshTick ? 'bg-sky-500' : (isConnected ? 'bg-emerald-500' : 'bg-amber-500')
                 }`}
               />
               {isFreshTick ? '刚刷新' : (isConnected ? '实时' : '等待连接')}
             </span>
           </div>
-          <div className={`text-[11px] ${themes[theme].text} opacity-50 text-right`}>
+          <div className={`text-[11px] font-mono tabular-nums ${themes[theme].text} opacity-50 text-right`}>
             {sparklineData
               ? `${sparklineData.min.toFixed(4)} - ${sparklineData.max.toFixed(4)}`
               : (isConnected ? '--' : '等待连接...')}
@@ -650,11 +678,11 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
         </div>
         {sparklineData ? (
           <div>
-            <svg viewBox="0 0 100 48" className="block h-12 w-full overflow-visible rounded">
+            <svg viewBox="0 0 100 48" className="block h-12 w-full overflow-visible rounded-lg">
               <polyline
                 fill="none"
-                stroke={sparklineData.up ? '#10b981' : '#ef4444'}
-                strokeWidth="2.5"
+                stroke={sparklineData.up ? '#10b981' : '#f43f5e'}
+                strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 points={sparklineData.points}
@@ -662,24 +690,24 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
               <circle
                 cx={sparklineData.latestX}
                 cy={sparklineData.latestY}
-                r="2.2"
-                fill={sparklineData.up ? '#10b981' : '#ef4444'}
+                r="2"
+                fill={sparklineData.up ? '#10b981' : '#f43f5e'}
               />
               <circle
                 cx={sparklineData.latestX}
                 cy={sparklineData.latestY}
-                r="2.2"
+                r="2"
                 fill="none"
-                stroke={sparklineData.up ? '#10b981' : '#ef4444'}
+                stroke={sparklineData.up ? '#10b981' : '#f43f5e'}
                 strokeWidth="1.25"
                 opacity="0.7"
               >
-                <animate attributeName="r" values="2.2;5.8;2.2" dur="1.8s" repeatCount="indefinite" />
+                <animate attributeName="r" values="2;5.2;2" dur="1.8s" repeatCount="indefinite" />
                 <animate attributeName="opacity" values="0.7;0;0.7" dur="1.8s" repeatCount="indefinite" />
               </circle>
             </svg>
-            <div className={`mt-1 flex items-start justify-between text-[10px] ${themes[theme].text} opacity-45`}>
-              <span>较早</span>
+            <div className={`mt-1.5 flex items-start justify-between text-[10px] ${themes[theme].text} opacity-45`}>
+              <span className="font-medium tracking-wide">较早</span>
               <div className="flex flex-1 items-start px-2 pt-0.5">
                 <div className="h-1 w-px bg-current" />
                 <div className="mt-0.5 h-px flex-1 bg-current" />
@@ -687,11 +715,17 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
                 <div className="mt-0.5 h-px flex-1 bg-current" />
                 <div className="h-1 w-px bg-current" />
               </div>
-              <span>刚刚</span>
+              <span className="font-medium tracking-wide">刚刚</span>
             </div>
           </div>
         ) : (
-          <div className="flex h-12 w-full items-center justify-center rounded bg-gray-100 text-[11px] text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+          <div className={`flex h-12 w-full items-center justify-center rounded-lg text-[11px] font-medium ${
+            theme === 'dark'
+              ? 'bg-zinc-900/40 text-zinc-500'
+              : theme === 'blue'
+                ? 'bg-blue-50/60 text-slate-500'
+                : 'bg-slate-100 text-slate-500'
+          }`}>
             {isConnected ? '--' : '等待连接...'}
           </div>
         )}

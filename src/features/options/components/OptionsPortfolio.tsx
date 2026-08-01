@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Calendar, Activity, RefreshCw } from 'lucide-react';
+import { Calendar, Activity, RefreshCw, Layers } from 'lucide-react';
 import { PortfolioActivityLog, ActivityLogEntry } from './PortfolioActivityLog';
 import { Theme, themes } from '../../../lib/theme';
 import { setCookie, getCookie } from '../../../shared/utils/cookie';
@@ -607,12 +607,24 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
 
   const computeCombosForPositions = (strategy: OptionsStrategy, type: 'call' | 'put') => computeCombosForStrategy(strategy, type);
 
+  const cardShadowFn = useMemo(() => {
+    if (theme === 'dark') return 'shadow-[0_1px_2px_rgba(0,0,0,0.25),0_12px_28px_-16px_rgba(0,0,0,0.45)]';
+    if (theme === 'blue') return 'shadow-[0_1px_2px_rgba(30,64,175,0.04),0_10px_28px_-16px_rgba(37,99,235,0.10)]';
+    return 'shadow-[0_1px_2px_rgba(15,23,42,0.04),0_10px_28px_-16px_rgba(15,23,42,0.08)]';
+  }, [theme]);
+
+  const floatingGlassBg = useMemo(() => {
+    if (theme === 'dark') return 'bg-zinc-900/70 border-zinc-800/60 text-zinc-100';
+    if (theme === 'blue') return 'bg-white/80 border-blue-100/80 text-slate-900';
+    return 'bg-white/80 border-slate-200/70 text-slate-900';
+  }, [theme]);
+
   if (isLoading && !portfolioData) {
     return (
-      <div className={`${themes[theme].card} rounded-lg shadow-md p-8`}>
+      <div className={`${themes[theme].card} rounded-xl ${cardShadowFn} p-8 border ${themes[theme].border}`}>
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className={`${themes[theme].text}`}>正在加载期权投资组合...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4 shadow-sm shadow-blue-500/20"></div>
+          <p className={`${themes[theme].text} font-medium`}>正在加载期权投资组合...</p>
         </div>
       </div>
     );
@@ -620,11 +632,16 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
 
   if (!portfolioData) {
     return (
-      <div className={`${themes[theme].card} rounded-lg shadow-md p-8`}>
+      <div className={`${themes[theme].card} rounded-xl ${cardShadowFn} p-8 border ${themes[theme].border} relative isolate overflow-hidden`}>
+        <div className={`absolute inset-x-0 top-0 h-px z-10 bg-gradient-to-r ${
+          theme === 'dark' ? 'from-zinc-800/60 via-zinc-900/20 to-transparent'
+          : theme === 'blue' ? 'from-blue-50/90 via-blue-50/40 to-transparent'
+          : 'from-slate-50/90 via-slate-50/40 to-transparent'
+        }`} aria-hidden="true" />
         <div className="text-center">
-          <Calendar className={`w-12 h-12 mx-auto mb-4 ${themes[theme].text} opacity-40`} />
-          <p className={`text-lg font-medium ${themes[theme].text}`}>暂无期权持仓</p>
-          <p className={`text-sm ${themes[theme].text} opacity-75`}>
+          <Calendar className={`w-12 h-12 mx-auto mb-4 ${themes[theme].text} opacity-40`} strokeWidth={1.5} />
+          <p className={`text-lg font-semibold tracking-tight ${themes[theme].text}`}>暂无期权持仓</p>
+          <p className={`text-sm ${themes[theme].text} opacity-65`}>
             您还没有任何期权持仓
           </p>
         </div>
@@ -658,15 +675,15 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   // 不再使用独立编辑器更新回调
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-5">
       {portfolioData.is_snapshot && (
-        <div className={`p-4 mb-4 ${themes[theme].semantic.snapshotBanner}`}>
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <Activity className={`h-5 w-5 ${themes[theme].semantic.snapshotIcon}`} aria-hidden="true" />
+        <div className={`px-4 py-3 sm:px-4 rounded-xl ${themes[theme].semantic.snapshotBanner} border ${themes[theme].border} ${cardShadowFn}`}>
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 pt-0.5">
+              <Activity className={`h-5 w-5 ${themes[theme].semantic.snapshotIcon}`} strokeWidth={1.75} aria-hidden="true" />
             </div>
-            <div className="ml-3 flex-1 min-w-0">
-              <p className={`text-sm sm:whitespace-nowrap ${themes[theme].semantic.snapshotText}`}>
+            <div className="flex-1 min-w-0">
+              <p className={`text-[13px] sm:text-sm font-medium whitespace-nowrap ${themes[theme].semantic.snapshotText}`}>
                 当前显示的数据为快照数据，可能与实时市场状态存在延迟。
               </p>
             </div>
@@ -699,20 +716,15 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         />
       )}
 
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-5">
         {(() => {
           return (
             <>
               {/* Floating Month TOC */}
               {!isMobile && months.length > 0 && (
-                <div className={`fixed right-6 top-[280px] z-45 flex flex-col items-center gap-1.5 p-2 rounded-2xl shadow-md border ${
-                  theme === 'dark'
-                    ? 'bg-zinc-900/80 border-zinc-800/80 text-zinc-100'
-                    : theme === 'blue'
-                      ? 'bg-white/80 border-blue-100 text-slate-900'
-                      : 'bg-white/80 border-slate-200/60 text-slate-900'
-                } backdrop-blur-md transition-all duration-200 select-none`}>
-                  <div className="text-[9px] uppercase tracking-wider font-bold opacity-30 px-1 py-0.5 border-b border-current/10 mb-1 w-full text-center">
+                <div className={`fixed right-5 top-[272px] z-45 flex flex-col items-center gap-1.5 p-2 rounded-2xl shadow-[0_8px_32px_-12px_rgba(15,23,42,0.18)] border ${floatingGlassBg} backdrop-blur-xl transition-all duration-200 select-none ring-1 ring-black/5 dark:ring-white/5`}
+                     style={{boxShadow: theme === 'dark' ? '0 12px 40px -16px rgba(0,0,0,0.5)' : undefined}}>
+                  <div className="text-[9px] uppercase tracking-wider font-bold opacity-25 px-1 py-0.5 border-b border-current/10 mb-0.5 w-full text-center">
                     月份
                   </div>
                   <div className="flex flex-col gap-1 max-h-[220px] overflow-y-auto pr-0.5 scrollbar-none">
@@ -728,13 +740,13 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                             if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                           }}
                           title={m.label}
-                          className={`text-center text-[10px] w-9 h-9 rounded-full transition-all duration-150 flex items-center justify-center font-semibold cursor-pointer ${
+                          className={`text-center text-[10px] w-9 h-9 rounded-full transition-all duration-150 flex items-center justify-center font-semibold cursor-pointer active:scale-95 ${
                             isActive
                               ? theme === 'dark'
-                                ? 'bg-blue-500/25 text-blue-400 font-bold shadow-sm'
-                                : 'bg-blue-50 text-blue-600 border border-blue-100/50 font-bold shadow-xs'
+                                ? 'bg-blue-500/25 text-blue-400 font-bold shadow-[0_0_0_1px_rgba(59,130,246,0.2)]'
+                                : 'bg-blue-50 text-blue-600 border border-blue-100/70 font-bold shadow-sm'
                               : theme === 'dark'
-                                ? 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+                                ? 'text-zinc-400 hover:bg-zinc-800/80 hover:text-zinc-200'
                                 : theme === 'blue'
                                   ? 'text-slate-600 hover:bg-blue-50 hover:text-blue-900'
                                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
@@ -802,19 +814,14 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
 
       {/* Mobile Floating TOC Menu */}
       {isMobile && months.length > 0 && (
-        <div className={`fixed bottom-24 right-8 z-40 transition-all duration-300 ${
-          showRefreshButton ? 'translate-y-0 opacity-100' : 'translate-y-16 opacity-0'
+        <div className={`fixed bottom-24 right-6 z-40 transition-all duration-300 ${
+          showRefreshButton ? 'translate-y-0 opacity-100' : 'translate-y-16 opacity-0 pointer-events-none'
         }`}>
           {/* Month list popover */}
           {mobileMonthMenuOpen && (
-            <div className={`absolute bottom-16 right-0 p-2 rounded-2xl shadow-xl border flex flex-col gap-1.5 min-w-[80px] max-h-[260px] overflow-y-auto ${
-              theme === 'dark'
-                ? 'bg-zinc-900 border-zinc-800 text-zinc-100'
-                : theme === 'blue'
-                  ? 'bg-white border-blue-100 text-slate-900'
-                  : 'bg-white border-slate-200 text-slate-900'
-            } backdrop-blur-md`}>
-              <div className="text-[9px] uppercase tracking-wider font-bold opacity-30 px-1 py-0.5 border-b border-current/10 mb-1 w-full text-center">
+            <div className={`absolute bottom-16 right-0 p-2 rounded-2xl shadow-[0_12px_40px_-12px_rgba(15,23,42,0.28)] border flex flex-col gap-1.5 min-w-[80px] max-h-[260px] overflow-y-auto ${floatingGlassBg} backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/5`}
+                 style={{boxShadow: theme === 'dark' ? '0 16px 48px -16px rgba(0,0,0,0.6)' : undefined}}>
+              <div className="text-[9px] uppercase tracking-wider font-bold opacity-25 px-1 py-0.5 border-b border-current/10 mb-0.5 w-full text-center">
                 月份
               </div>
               {months.map((m) => {
@@ -829,13 +836,13 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                       setMobileMonthMenuOpen(false);
                     }}
-                    className={`text-center text-xs py-1.5 px-3 rounded-lg transition-all duration-150 font-semibold ${
+                    className={`text-center text-xs py-1.5 px-3 rounded-lg transition-all duration-150 font-semibold active:scale-95 ${
                       isActive
                         ? theme === 'dark'
                           ? 'bg-blue-500/25 text-blue-400'
-                          : 'bg-blue-50 text-blue-600 border border-blue-100/50'
+                          : 'bg-blue-50 text-blue-600 border border-blue-100/70'
                         : theme === 'dark'
-                          ? 'text-zinc-400 hover:bg-zinc-800'
+                          ? 'text-zinc-400 hover:bg-zinc-800/80'
                           : theme === 'blue'
                             ? 'text-slate-600 hover:bg-blue-50'
                             : 'text-slate-600 hover:bg-slate-100'
@@ -851,11 +858,12 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
           {/* Trigger Button */}
           <button
             onClick={() => setMobileMonthMenuOpen(prev => !prev)}
-            className={`p-3 rounded-full shadow-lg ${themes[theme].card} ${themes[theme].border} border hover:bg-gray-100 dark:hover:bg-gray-700`}
+            className={`p-3 rounded-full shadow-[0_8px_24px_-8px_rgba(15,23,42,0.35)] ${themes[theme].card} ${themes[theme].border} border hover:bg-gray-100 dark:hover:bg-gray-700 active:scale-95 transition-all ring-1 ring-black/5 dark:ring-white/5 backdrop-blur-xl overflow-hidden relative`}
             aria-label="Toggle Expiry Months TOC"
             title="选择到期月份"
           >
-            <Layers className={`w-6 h-6 ${themes[theme].text}`} />
+            <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent dark:from-white/5 pointer-events-none" />
+            <Layers className={`w-6 h-6 relative ${themes[theme].text}`} strokeWidth={1.75} />
           </button>
         </div>
       )}
@@ -863,13 +871,14 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       {/* Scroll-following Refresh Button */}
       <button
         onClick={refreshPortfolioAndQuotes}
-        className={`fixed bottom-8 right-8 p-3 rounded-full shadow-lg transition-all duration-300 z-40 ${
-          showRefreshButton ? 'translate-y-0 opacity-100' : 'translate-y-16 opacity-0'
-        } ${themes[theme].card} ${themes[theme].border} border hover:bg-gray-100 dark:hover:bg-gray-700`}
+        className={`fixed bottom-8 right-6 p-3 rounded-full shadow-[0_8px_24px_-8px_rgba(15,23,42,0.35)] transition-all duration-300 z-40 ${
+          showRefreshButton ? 'translate-y-0 opacity-100' : 'translate-y-16 opacity-0 pointer-events-none'
+        } ${themes[theme].card} ${themes[theme].border} border hover:bg-gray-100 dark:hover:bg-gray-700 active:scale-95 ring-1 ring-black/5 dark:ring-white/5 backdrop-blur-xl relative overflow-hidden`}
         aria-label="Refresh Portfolio"
         title="刷新持仓"
       >
-        <RefreshCw className={`w-6 h-6 ${themes[theme].text}`} />
+        <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent dark:from-white/5 pointer-events-none" />
+        <RefreshCw className={`w-6 h-6 relative ${themes[theme].text}`} strokeWidth={1.75} />
       </button>
 
       {/* Activity Log Side Panel */}

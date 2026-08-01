@@ -101,23 +101,37 @@ function OptionSelectorModal({
   }, [optionsData.quotes, selectedExpiry]);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className={`${themes[theme].card} rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto`}>
-        <div className="p-6 border-b border-gray-200">
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
+      <div className="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-[2px]" onClick={onClose} />
+      <div className={`relative w-full rounded-t-2xl sm:rounded-2xl max-w-4xl
+        max-h-[92svh] sm:max-h-[90svh]
+        flex flex-col overflow-hidden
+        ${themes[theme].card}
+        ${theme === 'dark'
+          ? 'shadow-[0_-8px_32px_-8px_rgba(0,0,0,0.55)]'
+          : theme === 'blue'
+            ? 'shadow-[0_-10px_40px_-16px_rgba(37,99,235,0.18)]'
+            : 'shadow-[0_-10px_40px_-16px_rgba(15,23,42,0.18)]'
+        }`}>
+        {/* Grab handle */}
+        <div className="relative sm:hidden pt-3 pb-2 flex justify-center shrink-0">
+          <div className="w-10 h-1 rounded-full bg-current/15" aria-hidden="true" />
+        </div>
+        <div className="px-4 pb-3 pt-1 sm:px-6 sm:pb-4 sm:pt-0 border-b border-gray-200 shrink-0">
           <div className="flex justify-between items-center">
-            <h3 className={`text-xl font-bold ${themes[theme].text}`}>
+            <h3 className={`text-[17px] sm:text-xl font-semibold tracking-tight ${themes[theme].text}`}>
               选择期权合约 - {selectedSymbol}
             </h3>
-            <button onClick={onClose} className={`p-2 rounded-md ${themes[theme].secondary}`}>
-              <X className="w-5 h-5" />
+            <button onClick={onClose} className={`inline-flex items-center justify-center rounded-xl p-2 transition-colors active:scale-95 hover:opacity-90 ${themes[theme].secondary}`} aria-label="关闭">
+              <X className="w-5 h-5" strokeWidth={2} />
             </button>
           </div>
 
-          <div className="mt-2 text-sm opacity-80">
-            <span className={themes[theme].text}>Spot: {formatCurrency(currentStockPrice, currencyConfig)}</span>
+          <div className={`mt-1.5 sm:mt-2 text-[13px] sm:text-sm opacity-80 ${themes[theme].text}`}>
+            <span>Spot: {formatCurrency(currentStockPrice, currencyConfig)}</span>
           </div>
 
-          <div className="mt-4">
+          <div className="mt-3 sm:mt-4">
             <div className="flex flex-wrap gap-2">
               {uniqueExpiryDates.map(date => {
                 const isActive = date === selectedExpiry;
@@ -130,7 +144,7 @@ function OptionSelectorModal({
                       onPersistExpiry(date);
                     }}
                     className={[
-                      'px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                      'px-3 py-2 rounded-lg text-sm font-medium transition-colors active:scale-95',
                       isActive ? themes[theme].primary : themes[theme].secondary
                     ].join(' ')}
                   >
@@ -142,8 +156,8 @@ function OptionSelectorModal({
           </div>
         </div>
 
-        <div className="p-6">
-          <div className="overflow-x-auto">
+        <div className="px-4 pb-[calc(env(safe-area-inset-bottom)+20px)] sm:px-6 sm:pb-6 overflow-y-auto min-h-0 flex-1">
+          <div className="mt-3 sm:mt-0 overflow-x-auto">
             <table className="w-full">
               <thead className={`${themes[theme].background}`}>
                 <tr>
@@ -1176,24 +1190,39 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
   }, [optionPositions, stockPositions, cashPositions, currentStockPrice, theme, selectedSymbol, calculateTotalProfit, getThemedColors, currencyConfig, generateProfitLossData]);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40 p-4">
-      <div className={`${themes[theme].card} rounded-lg max-w-7xl w-full max-h-[95vh] overflow-y-auto`}>
-        <div className="sticky top-0 bg-inherit border-b border-gray-200 p-6 flex justify-between items-center">
-          <div className="flex items-center space-x-3">
-            <Calculator className="w-6 h-6 text-purple-500" />
-            <h2 className={`text-2xl font-bold ${themes[theme].text}`}>
+    <div className="fixed inset-0 z-40 flex items-end justify-center sm:items-center sm:p-4">
+      <div className="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-[2px]" onClick={onClose} />
+      <div className={`relative w-full rounded-t-2xl sm:rounded-2xl max-w-7xl
+        max-h-[95svh]
+        flex flex-col overflow-hidden
+        ${themes[theme].card}
+        ${theme === 'dark'
+          ? 'shadow-[0_-8px_32px_-8px_rgba(0,0,0,0.55)]'
+          : theme === 'blue'
+            ? 'shadow-[0_-10px_40px_-16px_rgba(37,99,235,0.18)]'
+            : 'shadow-[0_-10px_40px_-16px_rgba(15,23,42,0.18)]'
+        }`}>
+        {/* Grab handle */}
+        <div className="relative sm:hidden pt-3 pb-2 flex justify-center shrink-0">
+          <div className="w-10 h-1 rounded-full bg-current/15" aria-hidden="true" />
+        </div>
+        <div className="sticky top-0 z-10 bg-inherit border-b border-gray-200 px-4 pb-3 pt-1 sm:px-6 sm:pb-4 sm:pt-5 flex justify-between items-center shrink-0">
+          <div className="flex items-center space-x-3 min-w-0">
+            <Calculator className="w-5 h-5 sm:w-6 sm:h-6 text-purple-500 shrink-0" />
+            <h2 className={`text-[17px] sm:text-2xl font-semibold sm:font-bold tracking-tight ${themes[theme].text} truncate`}>
               期权收益计算器 - {selectedSymbol}
             </h2>
           </div>
           <button
             onClick={onClose}
-            className={`p-2 rounded-md ${themes[theme].secondary}`}
+            className={`inline-flex items-center justify-center rounded-xl p-2 transition-colors active:scale-95 hover:opacity-90 ${themes[theme].secondary}`}
+            aria-label="关闭"
           >
-            <X className="w-6 h-6" />
+            <X className="w-5 h-5 sm:w-6 sm:h-6" strokeWidth={2} />
           </button>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+20px)] sm:px-6 sm:pt-6 sm:pb-6 space-y-5 sm:space-y-6 overflow-y-auto min-h-0 flex-1">
           {/* 策略管理 */}
           <div className={`${themes[theme].background} rounded-lg p-4`}>
             <h3 className={`text-lg font-semibold ${themes[theme].text} mb-4`}>策略管理</h3>
@@ -1523,41 +1552,55 @@ export function OptionsCalculatorModal({ theme, optionsData, selectedSymbol, onC
         
         {/* 截图预览弹窗 */}
         {showScreenshotPreview && (
-          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-60 p-4">
-            <div className={`${themes[theme].card} rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto`}>
-              <div className="p-6 border-b border-gray-200">
+          <div className="fixed inset-0 z-60 flex items-end justify-center sm:items-center sm:p-4">
+            <div className="absolute inset-0 bg-black bg-opacity-75" onClick={() => setShowScreenshotPreview(false)} />
+            <div className={`relative w-full rounded-t-2xl sm:rounded-2xl max-w-4xl
+              max-h-[92svh] sm:max-h-[90svh]
+              flex flex-col overflow-hidden
+              ${themes[theme].card}
+              ${theme === 'dark'
+                ? 'shadow-[0_-8px_32px_-8px_rgba(0,0,0,0.55)]'
+                : theme === 'blue'
+                  ? 'shadow-[0_-10px_40px_-16px_rgba(37,99,235,0.18)]'
+                  : 'shadow-[0_-10px_40px_-16px_rgba(15,23,42,0.18)]'
+              }`}>
+              <div className="relative sm:hidden pt-3 pb-2 flex justify-center shrink-0">
+                <div className="w-10 h-1 rounded-full bg-current/15" aria-hidden="true" />
+              </div>
+              <div className="px-4 pb-3 pt-1 sm:px-6 sm:pb-4 sm:pt-5 border-b border-gray-200 shrink-0">
                 <div className="flex justify-between items-center">
-                  <h3 className={`text-xl font-bold ${themes[theme].text}`}>
+                  <h3 className={`text-[17px] sm:text-xl font-semibold sm:font-bold tracking-tight ${themes[theme].text}`}>
                     策略分析截图预览
                   </h3>
                   <button
                     onClick={() => setShowScreenshotPreview(false)}
-                    className={`p-2 rounded-md ${themes[theme].secondary}`}
+                    className={`inline-flex items-center justify-center rounded-xl p-2 transition-colors active:scale-95 hover:opacity-90 ${themes[theme].secondary}`}
+                    aria-label="关闭"
                   >
-                    <X className="w-5 h-5" />
+                    <X className="w-5 h-5" strokeWidth={2} />
                   </button>
                 </div>
               </div>
               
-              <div className="p-6">
+              <div className="px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+20px)] sm:px-6 sm:pt-6 sm:pb-6 overflow-y-auto min-h-0 flex-1">
                 <div className="text-center mb-4">
                   <img 
                     src={screenshotDataUrl} 
                     alt="策略分析截图" 
-                    className="max-w-full h-auto border rounded-lg shadow-lg"
+                    className="max-w-full h-auto border rounded-lg shadow-lg mx-auto"
                   />
                 </div>
                 
-                <div className="flex justify-center gap-4">
+                <div className="flex flex-col-reverse sm:flex-row sm:justify-center gap-2 sm:gap-4">
                   <button
                     onClick={() => setShowScreenshotPreview(false)}
-                    className={`px-4 py-2 rounded-md ${themes[theme].secondary}`}
+                    className={`w-full sm:w-auto px-4 py-2.5 rounded-lg transition-colors active:scale-95 ${themes[theme].secondary}`}
                   >
                     取消
                   </button>
                   <button
                     onClick={downloadScreenshot}
-                    className={`inline-flex items-center px-4 py-2 rounded-md ${themes[theme].primary}`}
+                    className={`w-full sm:w-auto inline-flex items-center justify-center px-4 py-2.5 rounded-lg transition-colors active:scale-95 ${themes[theme].primary}`}
                   >
                     <Download className="w-4 h-4 mr-2" />
                     保存截图

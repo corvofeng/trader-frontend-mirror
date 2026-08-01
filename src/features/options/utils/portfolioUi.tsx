@@ -66,13 +66,13 @@ export function getPositionTypeInfo2(
 export function getStatusColorClass(theme: Theme, status: OptionsPosition['status']): string {
   switch (status) {
     case 'open':
-      return theme === 'dark' ? 'bg-green-900 text-green-100' : 'bg-green-100 text-green-800';
+      return theme === 'dark' ? 'bg-emerald-900/30 text-emerald-400' : 'bg-emerald-50 text-emerald-700';
     case 'closed':
-      return theme === 'dark' ? 'bg-blue-900 text-blue-100' : 'bg-blue-100 text-blue-800';
+      return theme === 'dark' ? 'bg-blue-900/30 text-blue-400' : 'bg-blue-50 text-blue-700';
     case 'expired':
-      return theme === 'dark' ? 'bg-red-900 text-red-100' : 'bg-red-100 text-red-800';
+      return theme === 'dark' ? 'bg-rose-900/30 text-rose-400' : 'bg-rose-50 text-rose-700';
     default:
-      return theme === 'dark' ? 'bg-gray-700 text-gray-100' : 'bg-gray-100 text-gray-800';
+      return theme === 'dark' ? 'bg-zinc-800/60 text-zinc-400' : 'bg-slate-100 text-slate-700';
   }
 }
 
@@ -95,21 +95,21 @@ export function getTypeIcon(type: OptionsPosition['type']): ReactNode {
 }
 
 export function getDaysToExpiryColor(days: number): string {
-  if (days <= 7) return 'text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-900';
-  if (days <= 30) return 'text-yellow-600 bg-yellow-100 dark:text-yellow-400 dark:bg-yellow-900';
-  return 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-900';
+  if (days <= 7) return 'text-rose-600 bg-rose-50 dark:text-rose-400 dark:bg-rose-900/30';
+  if (days <= 30) return 'text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-900/30';
+  return 'text-emerald-600 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-900/30';
 }
 
 export function getMoneynessTagForPrice(p: OptionsPosition, price: number | null): MoneynessTag | null {
   if (price == null) return null;
   const thr = 0.005;
   const diffRatio = Math.abs(price - p.strike) / Math.max(p.strike, 1);
-  if (diffRatio <= thr) return { label: 'ATM', className: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100' };
+  if (diffRatio <= thr) return { label: 'ATM', className: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' };
   const isCall = p.type === 'call' || p.contract_type_zh === 'call';
   const isITM = isCall ? price > p.strike : price < p.strike;
   return isITM
-    ? { label: 'ITM', className: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100' }
-    : { label: 'OTM', className: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100' };
+    ? { label: 'ITM', className: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' }
+    : { label: 'OTM', className: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' };
 }
 
 export function getRowHighlightClassForTag(isSelected: boolean, tag: MoneynessTag | null): string {
