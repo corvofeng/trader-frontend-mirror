@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Activity, RefreshCw } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -14,7 +14,6 @@ import {
 import { Line } from 'react-chartjs-2';
 
 import { StockChart } from '../../../features/trading/components/StockChart';
-import { stockService } from '../../../lib/services';
 import type { StockPrice } from '../../../lib/services/types';
 import { type Theme, themes } from '../../../lib/theme';
 import {
@@ -146,151 +145,85 @@ function QuoteBlockWithWS({
   onSelectPrice,
 }: StockQuotePanelInnerProps) {
   const normalizedCode = stockCode.trim();
-  const { prices, isConnected, subscribe, lastErrorMessage, errorCount } = useStockPriceWebSocketContext();
+  const { prices, isConnected, subscribe, lastErrorMessage, errorCount, connect } = useStockPriceWebSocketContext();
 
-  const [restQuote, setRestQuote] = useState<StockPrice | null>(null);
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const autoRefreshIntervalMs = 1000;
-  const nextRunAtRef = useRef<number>(Date.now() + autoRefreshIntervalMs);
-  const [remainingMs, setRemainingMs] = useState(autoRefreshIntervalMs);
-  const tickIntervalRef = useRef<number | null>(null);
-  const cancelledRef = useRef(false);
-  const fetchPriceRef = useRef<() => Promise<void>>(async () => {});
+  const [subscribedAt, setSubscribedAt] = useState<number>(0);
 
   const wsPrice = prices[normalizedCode];
-  const useWs = Boolean(wsPrice && isConnected);
+  const hasWsData = Boolean(wsPrice && typeof wsPrice.price === 'number' && Number.isFinite(wsPrice.price));
   const wsHandshakeFailed = isConnected === false && (lastErrorMessage != null || errorCount > 0);
+  const wsWaiting = isConnected && !hasWsData;
+  const wsConnecting = !isConnected && !wsHandshakeFailed;
 
   const quote: StockPrice | null = useMemo(() => {
-    if (wsPrice) {
-      return {
-        stock_code: wsPrice.stock_code,
-        stock_name: restQuote?.stock_name || stockName || wsPrice.stock_code,
-        price: wsPrice.price,
-        last_price: wsPrice.last_price,
-        bid: wsPrice.bid,
-        ask: wsPrice.ask,
-        bid_price: wsPrice.bid_price,
-        bid_prices: wsPrice.bid_prices ?? wsPrice.bid_price,
-        bid_vol: wsPrice.bid_vol,
-        bid_volume: wsPrice.bid_volume ?? wsPrice.bid_vol,
-        ask_price: wsPrice.ask_price,
-        ask_prices: wsPrice.ask_prices ?? wsPrice.ask_price,
-        ask_vol: wsPrice.ask_vol,
-        ask_volume: wsPrice.ask_volume ?? wsPrice.ask_vol,
-      } satisfies StockPrice;
-    }
-    return restQuote;
-  }, [wsPrice, restQuote, stockName]);
-
-  const fetchPrice = useCallback(async () => {
-    if (!normalizedCode) return;
-    setIsLoading(true);
-    setError(null);
-    try {
-      const { data, error: fetchError } = await stockService.getCurrentPrice(normalizedCode);
-      if (cancelledRef.current) return;
-      if (fetchError) throw fetchError;
-      if (data && typeof data.price === 'number' && Number.isFinite(data.price)) {
-        setRestQuote(data as StockPrice);
-        const now = Date.now();
-        const nowLabel = new Date(now).toLocaleTimeString();
-        setLastUpdated(nowLabel);
-        setHistory((prev) => {
-          const lastItem = prev[prev.length - 1];
-          if (lastItem && lastItem.price === data.price && now - lastItem._ts < 2000) {
-            return prev;
-          }
-          const next = [...prev, { time: nowLabel, price: data.price, _ts: now }];
-          return next.length > 60 ? next.slice(next.length - 60) : next;
-        });
-      }
-    } catch (e) {
-      if (!cancelledRef.current) {
-        setError(e instanceof Error ? e.message : '获取行情失败');
-      }
-    } finally {
-      if (!cancelledRef.current) {
-        setIsLoading(false);
-      }
-    }
-  }, [normalizedCode]);
-
-  useEffect(() => {
-    fetchPriceRef.current = fetchPrice;
-  }, [fetchPrice]);
+    if (!wsPrice) return null;
+    return {
+      stock_code: wsPrice.stock_code ?? normalizedCode,
+      stock_name: wsPrice.stock_name || stockName || wsPrice.stock_code || normalizedCode,
+      price: wsPrice.price,
+      last_price: wsPrice.last_price,
+      bid: wsPrice.bid,
+      ask: wsPrice.ask,
+      bid_price: wsPrice.bid_price,
+      bid_prices: (wsPrice as { bid_prices?: (number | null)[] }).bid_prices ?? wsPrice.bid_price,
+      bid_vol: wsPrice.bid_vol,
+      bid_volume: (wsPrice as { bid_volume?: (number | null)[] }).bid_volume ?? wsPrice.bid_vol,
+      ask_price: wsPrice.ask_price,
+      ask_prices: (wsPrice as { ask_prices?: (number | null)[] }).ask_prices ?? wsPrice.ask_price,
+      ask_vol: wsPrice.ask_vol,
+      ask_volume: (wsPrice as { ask_volume?: (number | null)[] }).ask_volume ?? wsPrice.ask_vol,
+      pre_close: (wsPrice as { pre_close?: number }).pre_close,
+      open: (wsPrice as { open?: number }).open,
+      high: (wsPrice as { high?: number }).high,
+      low: (wsPrice as { low?: number }).low,
+      volume: (wsPrice as { volume?: number }).volume,
+      amount: (wsPrice as { amount?: number }).amount,
+    } satisfies StockPrice;
+  }, [wsPrice, stockName, normalizedCode]);
 
   useEffect(() => {
     if (!normalizedCode) return;
     if (isConnected) {
       subscribe([normalizedCode]);
+      setSubscribedAt(Date.now());
     }
   }, [isConnected, normalizedCode, subscribe]);
 
   useEffect(() => {
-    if (!wsPrice || !useWs) return;
+    if (!wsPrice) return;
     const p = wsPrice.price;
     if (typeof p !== 'number' || !Number.isFinite(p)) return;
-    const now = Date.now();
+    const ts = (wsPrice as { timestamp?: number }).timestamp;
+    const now = ts && Number.isFinite(ts) ? ts : Date.now();
     const nowLabel = new Date(now).toLocaleTimeString();
     setLastUpdated(nowLabel);
     setHistory((prev) => {
       const lastItem = prev[prev.length - 1];
-      if (lastItem && lastItem.price === p && now - lastItem._ts < 1500) return prev;
+      if (lastItem && lastItem.price === p && now - lastItem._ts < 800) return prev;
       const next = [...prev, { time: nowLabel, price: p, _ts: now }];
-      return next.length > 60 ? next.slice(next.length - 60) : next;
+      return next.length > 120 ? next.slice(next.length - 120) : next;
     });
-  }, [wsPrice, useWs]);
+  }, [wsPrice]);
 
   useEffect(() => {
-    cancelledRef.current = false;
     setHistory([]);
-    setRestQuote(null);
     setLastUpdated(null);
-    setError(null);
-    nextRunAtRef.current = Date.now() + autoRefreshIntervalMs;
-    setRemainingMs(autoRefreshIntervalMs);
-
-    void fetchPriceRef.current();
-
-    tickIntervalRef.current = window.setInterval(() => {
-      const now = Date.now();
-      const remaining = Math.max(0, nextRunAtRef.current - now);
-      setRemainingMs(remaining);
-      if (remaining <= 0 && !useWs) {
-        nextRunAtRef.current = now + autoRefreshIntervalMs;
-        setRemainingMs(autoRefreshIntervalMs);
-        void fetchPriceRef.current();
-      }
-    }, 250);
-
-    return () => {
-      cancelledRef.current = true;
-      if (tickIntervalRef.current !== null) {
-        window.clearInterval(tickIntervalRef.current);
-        tickIntervalRef.current = null;
-      }
-    };
-  }, [normalizedCode, useWs]);
+    setSubscribedAt(0);
+  }, [normalizedCode]);
 
   const triggerNow = useCallback(() => {
-    nextRunAtRef.current = Date.now() + autoRefreshIntervalMs;
-    setRemainingMs(autoRefreshIntervalMs);
-    if (isConnected) subscribe([normalizedCode]);
-    void fetchPriceRef.current();
-  }, [isConnected, normalizedCode, subscribe]);
-
-  const progress = useMemo(() => {
-    const ratio = 1 - remainingMs / autoRefreshIntervalMs;
-    return Math.max(0, Math.min(1, ratio));
-  }, [remainingMs]);
+    if (!isConnected) {
+      connect();
+    } else {
+      subscribe([normalizedCode]);
+      setSubscribedAt(Date.now());
+    }
+  }, [isConnected, connect, normalizedCode, subscribe]);
 
   const currentPrice = quote?.price ?? null;
-  const lastPrice = pickFirstNumber([quote?.last_price, quote?.price]);
+  const lastPrice = pickFirstNumber([quote?.last_price, quote?.pre_close, quote?.price]);
 
   const depth = 5;
   const rawBidPrices = useMemo(
@@ -427,76 +360,114 @@ function QuoteBlockWithWS({
     [theme]
   );
 
+  const statusBadge = useMemo(() => {
+    if (wsHandshakeFailed) {
+      return {
+        className: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
+        text: lastErrorMessage ? `WS 异常：${lastErrorMessage}` : 'WS 连接失败',
+        pulse: false,
+      };
+    }
+    if (wsConnecting) {
+      return {
+        className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+        text: 'WS 连接中',
+        pulse: true,
+      };
+    }
+    if (wsWaiting) {
+      return {
+        className: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
+        text: 'WS 已连接 · 等待首笔行情',
+        pulse: true,
+      };
+    }
+    return {
+      className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+      text: 'WS 实时',
+      pulse: false,
+    };
+  }, [wsHandshakeFailed, wsConnecting, wsWaiting, lastErrorMessage]);
+
+  const waitingElapsedSec = wsWaiting && subscribedAt > 0
+    ? Math.max(0, Math.floor((Date.now() - subscribedAt) / 1000))
+    : 0;
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    if (!wsWaiting) return;
+    const id = window.setInterval(() => forceTick((n) => n + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [wsWaiting]);
+
   return (
     <>
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span
-              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                error
-                  ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'
-                  : useWs
-                    ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300'
-                    : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-              }`}
+              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${statusBadge.className}`}
             >
-              <Activity className="mr-1 h-3 w-3" />
-              {error
-                ? '行情获取异常'
-                : wsHandshakeFailed
-                  ? 'WS 异常 · 已切 REST 兜底'
-                  : useWs
-                    ? `WS ${isConnected ? '已连接' : '连接中'}`
-                    : 'REST 轮询'}
+              <Activity className={`mr-1 h-3 w-3 ${statusBadge.pulse ? 'animate-pulse' : ''}`} />
+              {statusBadge.text}
             </span>
           </div>
           <div className={`mt-1 text-sm ${themes[theme].text}`}>
-            <span className="font-mono font-semibold">{normalizedCode}</span>
+            <span className="font-mono tabular-nums font-semibold">{normalizedCode}</span>
             {stockName ? <span className="ml-2 opacity-75">{stockName}</span> : null}
             {quote?.stock_name && quote.stock_name !== stockName ? (
               <span className="ml-2 opacity-75">{quote.stock_name}</span>
             ) : null}
           </div>
           <div className={`mt-1 text-xs ${themes[theme].text} opacity-60`}>
-            {lastUpdated ? `最近更新 ${lastUpdated}` : '等待行情返回...'}
-            {error ? ` · ${error}` : ''}
+            {lastUpdated
+              ? `最近更新 ${lastUpdated}`
+              : wsConnecting
+                ? '正在建立 WebSocket 连接...'
+                : wsWaiting
+                  ? `等待行情推送${waitingElapsedSec > 0 ? `（已等 ${waitingElapsedSec}s）` : '...'}`
+                  : '等待行情返回...'}
             {wsHandshakeFailed && lastErrorMessage ? (
-              <span className="ml-1 text-rose-500 dark:text-rose-400"> · 诊断：{lastErrorMessage}</span>
+              <span className="ml-1 text-rose-500 dark:text-rose-400"> · {lastErrorMessage}</span>
             ) : null}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <div className="min-w-[90px]">
             <div className={`text-[11px] uppercase tracking-wide ${themes[theme].text} opacity-60`}>最新价</div>
-            <div className={`text-2xl font-bold ${themes[theme].text}`}>
+            <div className={`text-2xl font-bold font-mono tabular-nums ${themes[theme].text}`}>
               {typeof currentPrice === 'number' ? currentPrice.toFixed(4) : '-'}
             </div>
           </div>
           <div className="min-w-[160px]">
             <div className="mb-1 flex items-center justify-between text-[11px]">
-              <span className={`${themes[theme].text} opacity-60`}>自动刷新</span>
+              <span className={`${themes[theme].text} opacity-60`}>数据模式</span>
               <span className={`${themes[theme].text} opacity-60`}>
-                {useWs ? '实时' : `${Math.ceil(remainingMs / 1000)}s`}
+                {wsHandshakeFailed ? '不可用' : 'WebSocket 实时'}
               </span>
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
               <div
-                className="h-full bg-blue-500"
-                style={{ width: `${useWs ? 100 : Math.round(progress * 100)}%` }}
+                className={`h-full transition-colors duration-300 ${
+                  hasWsData
+                    ? 'bg-emerald-500'
+                    : wsConnecting
+                      ? 'bg-amber-500 animate-pulse'
+                      : wsWaiting
+                        ? 'bg-sky-500 animate-pulse'
+                        : 'bg-rose-500'
+                }`}
+                style={{ width: hasWsData ? '100%' : wsHandshakeFailed ? '20%' : '60%' }}
               />
             </div>
           </div>
           <button
             type="button"
             onClick={triggerNow}
-            disabled={isLoading || !normalizedCode}
-            className={`inline-flex items-center rounded-md px-3 py-2 text-sm font-medium ${themes[theme].secondary} ${
-              isLoading ? 'cursor-not-allowed opacity-50' : ''
-            }`}
+            disabled={!normalizedCode}
+            className={`inline-flex items-center rounded-md px-3 py-2 text-sm font-medium ${themes[theme].secondary}`}
           >
-            <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-            刷新行情
+            <RefreshCw className="mr-2 h-4 w-4" />
+            {wsHandshakeFailed ? '重连 WS' : '重新订阅'}
           </button>
         </div>
       </div>
@@ -541,13 +512,13 @@ function QuoteBlockWithWS({
                           <button
                             type="button"
                             onClick={() => onSelectPrice?.(row.price as number, 'bid', row.level)}
-                            className="w-full text-right font-mono text-[12px] text-rose-500 hover:underline sm:text-[13px]"
+                            className="w-full text-right font-mono tabular-nums text-[12px] text-rose-500 hover:underline sm:text-[13px]"
                             title={`使用买${row.level} ${row.price.toFixed(4)} 回填`}
                           >
                             {row.price.toFixed(4)}
                           </button>
                         ) : (
-                          <div className="text-right font-mono text-rose-500">-</div>
+                          <div className="text-right font-mono tabular-nums text-rose-500">-</div>
                         )}
                         <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-rose-100 dark:bg-rose-950/40">
                           <div
@@ -556,7 +527,7 @@ function QuoteBlockWithWS({
                           />
                         </div>
                       </div>
-                      <div className={`text-right font-mono text-[10px] sm:text-xs ${themes[theme].text}`}>
+                      <div className={`text-right font-mono tabular-nums text-[10px] sm:text-xs ${themes[theme].text}`}>
                         {formatVolume(row.volume)}
                       </div>
                     </div>
@@ -586,13 +557,13 @@ function QuoteBlockWithWS({
                           <button
                             type="button"
                             onClick={() => onSelectPrice?.(row.price as number, 'ask', row.level)}
-                            className="w-full text-right font-mono text-[12px] text-emerald-500 hover:underline sm:text-[13px]"
+                            className="w-full text-right font-mono tabular-nums text-[12px] text-emerald-500 hover:underline sm:text-[13px]"
                             title={`使用卖${row.level} ${row.price.toFixed(4)} 回填`}
                           >
                             {row.price.toFixed(4)}
                           </button>
                         ) : (
-                          <div className="text-right font-mono text-emerald-500">-</div>
+                          <div className="text-right font-mono tabular-nums text-emerald-500">-</div>
                         )}
                         <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-emerald-100 dark:bg-emerald-950/40">
                           <div
@@ -601,7 +572,7 @@ function QuoteBlockWithWS({
                           />
                         </div>
                       </div>
-                      <div className={`text-right font-mono text-[10px] sm:text-xs ${themes[theme].text}`}>
+                      <div className={`text-right font-mono tabular-nums text-[10px] sm:text-xs ${themes[theme].text}`}>
                         {formatVolume(row.volume)}
                       </div>
                     </div>
@@ -623,26 +594,32 @@ function QuoteBlockWithWS({
                 <Line data={chartData} options={chartOptions} />
               ) : (
                 <div className={`flex h-full items-center justify-center rounded border border-dashed ${themes[theme].border} text-sm ${themes[theme].text} opacity-70`}>
-                  {isLoading ? '已发起请求，等待首个行情点...' : '暂无行情数据，稍后自动刷新...'}
+                  {wsConnecting
+                    ? '正在建立 WebSocket 连接...'
+                    : wsWaiting
+                      ? '已订阅，等待服务器推送首个行情点...'
+                      : wsHandshakeFailed
+                        ? 'WS 连接异常，尝试点击「重连 WS」'
+                        : '暂无行情数据'}
                 </div>
               )}
             </div>
             <div className={`mt-3 grid grid-cols-3 gap-3 text-xs ${themes[theme].text}`}>
               <div>
                 <div className="opacity-60">买一</div>
-                <div className="font-mono font-semibold text-rose-500">
+                <div className="font-mono tabular-nums font-semibold text-rose-500">
                   {typeof bestBid === 'number' ? bestBid.toFixed(4) : '-'}
                 </div>
               </div>
               <div>
                 <div className="opacity-60">卖一</div>
-                <div className="font-mono font-semibold text-emerald-500">
+                <div className="font-mono tabular-nums font-semibold text-emerald-500">
                   {typeof bestAsk === 'number' ? bestAsk.toFixed(4) : '-'}
                 </div>
               </div>
               <div>
                 <div className="opacity-60">点差</div>
-                <div className="font-mono font-semibold">
+                <div className="font-mono tabular-nums font-semibold">
                   {spread != null && Number.isFinite(spread) ? spread.toFixed(4) : '-'}
                 </div>
               </div>
