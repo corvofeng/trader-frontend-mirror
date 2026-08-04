@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Calendar, Activity, RefreshCw, Layers } from 'lucide-react';
 import { PortfolioActivityLog, ActivityLogEntry } from './PortfolioActivityLog';
 import { Theme, themes } from '../../../lib/theme';
@@ -619,33 +620,131 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     return 'bg-white/80 border-slate-200/70 text-slate-900';
   }, [theme]);
 
-  if (isLoading && !portfolioData) {
-    return (
-      <div className={`${themes[theme].card} rounded-xl ${cardShadowFn} p-8 border ${themes[theme].border}`}>
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4 shadow-sm shadow-blue-500/20"></div>
-          <p className={`${themes[theme].text} font-medium`}>正在加载期权投资组合...</p>
+  const refreshButton = useMemo(() => {
+    const btn = (
+      <button
+        onClick={refreshPortfolioAndQuotes}
+        disabled={isLoading}
+        style={{
+          position: 'fixed',
+          bottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
+          right: 'calc(16px + env(safe-area-inset-right, 0px))',
+          zIndex: 2147483000,
+        }}
+        className={`p-3 rounded-full shadow-[0_8px_24px_-8px_rgba(15,23,42,0.35)] transition-all duration-300 ${
+          isLoading ? 'opacity-70 cursor-wait' : 'hover:bg-gray-100 dark:hover:bg-gray-700 active:scale-95'
+        } ${themes[theme].card} ${themes[theme].border} border ring-1 ring-black/5 dark:ring-white/5 backdrop-blur-xl relative overflow-hidden`}
+        aria-label="Refresh Portfolio"
+        title="刷新持仓"
+      >
+        <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent dark:from-white/5 pointer-events-none" />
+        <RefreshCw className={`w-6 h-6 relative ${themes[theme].text} ${isLoading ? 'animate-spin' : ''}`} strokeWidth={1.75} />
+      </button>
+    );
+    if (typeof document === 'undefined') return btn;
+    return createPortal(btn, document.body);
+  }, [refreshPortfolioAndQuotes, isLoading, theme]);
+
+  const mobileMonthToc = useMemo(() => {
+    if (!isMobile || months.length === 0) return null;
+    const el = (
+      <div
+        className="transition-all duration-300"
+        style={{
+          position: 'fixed',
+          bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))',
+          right: 'calc(16px + env(safe-area-inset-right, 0px))',
+          zIndex: 2147482999,
+        }}
+      >
+        <div className="relative">
+          {mobileMonthMenuOpen && (
+            <div className={`absolute bottom-16 right-0 p-2 rounded-2xl shadow-[0_12px_40px_-12px_rgba(15,23,42,0.28)] border flex flex-col gap-1.5 min-w-[80px] max-h-[260px] overflow-y-auto ${floatingGlassBg} backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/5`}
+                 style={{boxShadow: theme === 'dark' ? '0 16px 48px -16px rgba(0,0,0,0.6)' : undefined}}>
+              <div className="text-[9px] uppercase tracking-wider font-bold opacity-25 px-1 py-0.5 border-b border-current/10 mb-0.5 w-full text-center">
+                月份
+              </div>
+              {months.map((m) => {
+                const isActive = activeMonthKey === m.key;
+                const monthNum = parseInt(m.key.split('-')[1], 10);
+                return (
+                  <button
+                    key={m.key}
+                    type="button"
+                    onClick={() => {
+                      const el = document.getElementById(`expiry-group-${m.firstExpiry}`);
+                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      setMobileMonthMenuOpen(false);
+                    }}
+                    className={`text-center text-xs py-1.5 px-3 rounded-lg transition-all duration-150 font-semibold active:scale-95 ${
+                      isActive
+                        ? theme === 'dark'
+                          ? 'bg-blue-500/25 text-blue-400'
+                          : 'bg-blue-50 text-blue-600 border border-blue-100/70'
+                        : theme === 'dark'
+                          ? 'text-zinc-400 hover:bg-zinc-800/80'
+                          : theme === 'blue'
+                            ? 'text-slate-600 hover:bg-blue-50'
+                            : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {monthNum}月
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <button
+            onClick={() => setMobileMonthMenuOpen(prev => !prev)}
+            className={`p-3 rounded-full shadow-[0_8px_24px_-8px_rgba(15,23,42,0.35)] ${themes[theme].card} ${themes[theme].border} border hover:bg-gray-100 dark:hover:bg-gray-700 active:scale-95 transition-all ring-1 ring-black/5 dark:ring-white/5 backdrop-blur-xl overflow-hidden relative`}
+            aria-label="Toggle Expiry Months TOC"
+            title="选择到期月份"
+          >
+            <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent dark:from-white/5 pointer-events-none" />
+            <Layers className={`w-6 h-6 relative ${themes[theme].text}`} strokeWidth={1.75} />
+          </button>
         </div>
       </div>
+    );
+    if (typeof document === 'undefined') return el;
+    return createPortal(el, document.body);
+  }, [isMobile, months, mobileMonthMenuOpen, activeMonthKey, floatingGlassBg, theme]);
+
+  if (isLoading && !portfolioData) {
+    return (
+      <>
+        <div className={`${themes[theme].card} rounded-xl ${cardShadowFn} p-8 border ${themes[theme].border}`}>
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4 shadow-sm shadow-blue-500/20"></div>
+            <p className={`${themes[theme].text} font-medium`}>正在加载期权投资组合...</p>
+          </div>
+        </div>
+        {mobileMonthToc}
+        {refreshButton}
+      </>
     );
   }
 
   if (!portfolioData) {
     return (
-      <div className={`${themes[theme].card} rounded-xl ${cardShadowFn} p-8 border ${themes[theme].border} relative isolate overflow-hidden`}>
-        <div className={`absolute inset-x-0 top-0 h-px z-10 bg-gradient-to-r ${
-          theme === 'dark' ? 'from-zinc-800/60 via-zinc-900/20 to-transparent'
-          : theme === 'blue' ? 'from-blue-50/90 via-blue-50/40 to-transparent'
-          : 'from-slate-50/90 via-slate-50/40 to-transparent'
-        }`} aria-hidden="true" />
-        <div className="text-center">
-          <Calendar className={`w-12 h-12 mx-auto mb-4 ${themes[theme].text} opacity-40`} strokeWidth={1.5} />
-          <p className={`text-lg font-semibold tracking-tight ${themes[theme].text}`}>暂无期权持仓</p>
-          <p className={`text-sm ${themes[theme].text} opacity-65`}>
-            您还没有任何期权持仓
-          </p>
+      <>
+        <div className={`${themes[theme].card} rounded-xl ${cardShadowFn} p-8 border ${themes[theme].border} relative isolate overflow-hidden`}>
+          <div className={`absolute inset-x-0 top-0 h-px z-10 bg-gradient-to-r ${
+            theme === 'dark' ? 'from-zinc-800/60 via-zinc-900/20 to-transparent'
+            : theme === 'blue' ? 'from-blue-50/90 via-blue-50/40 to-transparent'
+            : 'from-slate-50/90 via-slate-50/40 to-transparent'
+          }`} aria-hidden="true" />
+          <div className="text-center">
+            <Calendar className={`w-12 h-12 mx-auto mb-4 ${themes[theme].text} opacity-40`} strokeWidth={1.5} />
+            <p className={`text-lg font-semibold tracking-tight ${themes[theme].text}`}>暂无期权持仓</p>
+            <p className={`text-sm ${themes[theme].text} opacity-65`}>
+              您还没有任何期权持仓
+            </p>
+          </div>
         </div>
-      </div>
+        {mobileMonthToc}
+        {refreshButton}
+      </>
     );
   }
 
@@ -812,74 +911,10 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         <UnderlyingPriceMonitor symbol={activeSymbol} theme={theme} refreshNonce={wsRefreshNonce} isMobile={false} />
       )}
 
-      {/* Mobile Floating TOC Menu */}
-      {isMobile && months.length > 0 && (
-        <div className={`fixed bottom-24 right-6 z-40 transition-all duration-300 ${
-          showRefreshButton ? 'translate-y-0 opacity-100' : 'translate-y-16 opacity-0 pointer-events-none'
-        }`}>
-          {/* Month list popover */}
-          {mobileMonthMenuOpen && (
-            <div className={`absolute bottom-16 right-0 p-2 rounded-2xl shadow-[0_12px_40px_-12px_rgba(15,23,42,0.28)] border flex flex-col gap-1.5 min-w-[80px] max-h-[260px] overflow-y-auto ${floatingGlassBg} backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/5`}
-                 style={{boxShadow: theme === 'dark' ? '0 16px 48px -16px rgba(0,0,0,0.6)' : undefined}}>
-              <div className="text-[9px] uppercase tracking-wider font-bold opacity-25 px-1 py-0.5 border-b border-current/10 mb-0.5 w-full text-center">
-                月份
-              </div>
-              {months.map((m) => {
-                const isActive = activeMonthKey === m.key;
-                const monthNum = parseInt(m.key.split('-')[1], 10);
-                return (
-                  <button
-                    key={m.key}
-                    type="button"
-                    onClick={() => {
-                      const el = document.getElementById(`expiry-group-${m.firstExpiry}`);
-                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                      setMobileMonthMenuOpen(false);
-                    }}
-                    className={`text-center text-xs py-1.5 px-3 rounded-lg transition-all duration-150 font-semibold active:scale-95 ${
-                      isActive
-                        ? theme === 'dark'
-                          ? 'bg-blue-500/25 text-blue-400'
-                          : 'bg-blue-50 text-blue-600 border border-blue-100/70'
-                        : theme === 'dark'
-                          ? 'text-zinc-400 hover:bg-zinc-800/80'
-                          : theme === 'blue'
-                            ? 'text-slate-600 hover:bg-blue-50'
-                            : 'text-slate-600 hover:bg-slate-100'
-                    }`}
-                  >
-                    {monthNum}月
-                  </button>
-                );
-              })}
-            </div>
-          )}
+      {mobileMonthToc}
 
-          {/* Trigger Button */}
-          <button
-            onClick={() => setMobileMonthMenuOpen(prev => !prev)}
-            className={`p-3 rounded-full shadow-[0_8px_24px_-8px_rgba(15,23,42,0.35)] ${themes[theme].card} ${themes[theme].border} border hover:bg-gray-100 dark:hover:bg-gray-700 active:scale-95 transition-all ring-1 ring-black/5 dark:ring-white/5 backdrop-blur-xl overflow-hidden relative`}
-            aria-label="Toggle Expiry Months TOC"
-            title="选择到期月份"
-          >
-            <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent dark:from-white/5 pointer-events-none" />
-            <Layers className={`w-6 h-6 relative ${themes[theme].text}`} strokeWidth={1.75} />
-          </button>
-        </div>
-      )}
-
-      {/* Scroll-following Refresh Button */}
-      <button
-        onClick={refreshPortfolioAndQuotes}
-        className={`fixed bottom-8 right-6 p-3 rounded-full shadow-[0_8px_24px_-8px_rgba(15,23,42,0.35)] transition-all duration-300 z-40 ${
-          showRefreshButton ? 'translate-y-0 opacity-100' : 'translate-y-16 opacity-0 pointer-events-none'
-        } ${themes[theme].card} ${themes[theme].border} border hover:bg-gray-100 dark:hover:bg-gray-700 active:scale-95 ring-1 ring-black/5 dark:ring-white/5 backdrop-blur-xl relative overflow-hidden`}
-        aria-label="Refresh Portfolio"
-        title="刷新持仓"
-      >
-        <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent dark:from-white/5 pointer-events-none" />
-        <RefreshCw className={`w-6 h-6 relative ${themes[theme].text}`} strokeWidth={1.75} />
-      </button>
+      {/* Fixed Refresh Button */}
+      {refreshButton}
 
       {/* Activity Log Side Panel */}
       <PortfolioActivityLog
