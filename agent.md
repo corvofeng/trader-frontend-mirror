@@ -80,3 +80,10 @@
 
 - 不要只依赖 `option_type` 识别策略，应结合更多维度增强识别逻辑。
 - 移动端布局应避免过于碎片化；如果横向紧凑排布仍能保证可读性，应优先保持整体感。
+- **`fillContainer` + `h-full` 使用约束**（2026-08-10 Bug 复盘）：
+  - **触发场景**：`StockQuotePanel.tsx` → `KlineBlock` 中，对 `StockChart` 同时传入 `fillContainer` 和 `className="h-[420px] sm:h-[600px] w-full"`，但 `StockChart` 外层的包装 div 没有显式高度。
+  - **根因**：`fillContainer` 会在 `StockChart` 外层加 `h-full flex flex-col`（见 `StockChart.tsx` line 746）。`h-full` = `height: 100%`，要求父容器有明确高度；若父容器高度为 auto，则 `h-full` 与显式高度类（`h-[420px]`）冲突，**在移动端/Tailwind 生成顺序下 `h-full` 会覆盖显式高度**，导致外层 flex 容器塌缩为纯内容高度（仅工具栏），图表视口 `flex-1 min-h-0` 高度近 0，K 线不可见。桌面端仍能显示是因为 `sm:h-[600px]` 在更大屏幕的 media query 下有时能更高优先级生效。
+  - **修复模式（对齐 `StockAnalysisModal.tsx` 的正确用法）**：
+    1. 在 `<StockChart fillContainer />` 之外，再套一层 `div` 并给它显式高度（如 `h-[420px] sm:h-[600px] w-full`），然后 `StockChart` 自身不再传显式高度 className，让 `fillContainer` 的 `h-full` 正确填满父容器。
+    2. 或者：若使用场景中没有合适的 flex 父容器，直接对 `StockChart` 使用**非** `fillContainer` 模式，让它自带的 `h-[400px] sm:h-[500px] md:h-[600px]` 视口高度生效。
+  - **检查清单**：任何给 `<StockChart fillContainer />` 的调用点，都要沿着 DOM 向上核对——是否存在一条有明确高度（像素、vh、或 flex 链上带 `min-h-0` 的祖先）的高度约束链。缺失就加包装层。

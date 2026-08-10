@@ -121,16 +121,17 @@ function KlineBlock({
           近 6 个月 K 线与买卖点
         </div>
       </div>
-      <StockChart
-        stockCode={stockCode}
-        theme={theme}
-        userId={userId}
-        accountId={accountId}
-        fillContainer
-        compactMode
-        defaultVisibleMonths={6}
-        className="h-[420px] sm:h-[600px] w-full"
-      />
+      <div className="h-[420px] sm:h-[600px] w-full">
+        <StockChart
+          stockCode={stockCode}
+          theme={theme}
+          userId={userId}
+          accountId={accountId}
+          fillContainer
+          compactMode
+          defaultVisibleMonths={6}
+        />
+      </div>
     </div>
   );
 }
