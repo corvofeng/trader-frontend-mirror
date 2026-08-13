@@ -365,16 +365,33 @@ export function useTradeNotifications(options: UseTradeNotificationsOptions) {
 
   // ----------------------------------------------------------------- init
   useEffect(() => {
-    if (!accountAlias) return;
+    if (!accountAlias) {
+      setEnabled(false);
+      setPushSubscribed(false);
+      return;
+    }
     try {
       const raw = localStorage.getItem(getStorageKey(accountAlias, STORAGE_KEY_LAST_GUIDS));
       if (raw) {
         const parsed = JSON.parse(raw) as string[];
         lastSeenGuidsRef.current = new Set(parsed);
+      } else {
+        lastSeenGuidsRef.current = new Set();
       }
     } catch {
       lastSeenGuidsRef.current = new Set();
     }
+
+    // 重新读取新账户的订阅开启状态，重置 pushSubscribed 状态重新触发检测
+    try {
+      const isEnabled = localStorage.getItem(getStorageKey(accountAlias, STORAGE_KEY_ENABLED)) === '1';
+      logger.debug(`[TradeNotifications][init] accountAlias=${accountAlias} loaded enabled=${isEnabled}`);
+      setEnabled(isEnabled);
+    } catch {
+      setEnabled(false);
+    }
+    setPushSubscribed(false);
+
     initializedRef.current = false;
     // 重新评估 SW push 能力（跨账户共享即可，这里不影响）
     void isServiceWorkerPushCapable().then((r) => {
@@ -382,19 +399,6 @@ export function useTradeNotifications(options: UseTradeNotificationsOptions) {
       setPushCapableReason(r.reason);
     });
   }, [accountAlias]);
-
-  useEffect(() => {
-    if (!accountAlias) return;
-    try {
-      if (enabled) {
-        localStorage.setItem(getStorageKey(accountAlias, STORAGE_KEY_ENABLED), '1');
-      } else {
-        localStorage.removeItem(getStorageKey(accountAlias, STORAGE_KEY_ENABLED));
-      }
-    } catch {
-      /* noop */
-    }
-  }, [accountAlias, enabled]);
 
   // -------------------------------------------------- 监听 SW push 消息
   useEffect(() => {
@@ -466,7 +470,12 @@ export function useTradeNotifications(options: UseTradeNotificationsOptions) {
         try {
           const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : undefined;
           const sub = await reg?.pushManager.getSubscription();
-          if (!sub) setEnabled(false);
+          if (!sub) {
+            setEnabled(false);
+            try {
+              localStorage.removeItem(getStorageKey(accountAlias, STORAGE_KEY_ENABLED));
+            } catch {}
+          }
         } catch { /* ignore */ }
       }
     })();
@@ -763,7 +772,7 @@ export function useTradeNotifications(options: UseTradeNotificationsOptions) {
         }
       }
 
-      if (endpoint && pushServerBaseUrl) {
+      if (endpoint) {
         const url = `${pushServerBaseUrl}/api/push/unsubscribe`;
         step(`→ POST ${url}`, { account_alias: accountAlias, endpoint_prefix: endpoint.slice(0, 40) + '...' });
         try {
@@ -788,7 +797,7 @@ export function useTradeNotifications(options: UseTradeNotificationsOptions) {
           step('⚠ ' + msg);
         }
       } else {
-        step(`跳过后端 unsubscribe：${!endpoint ? 'endpoint 为空' : ''}${!pushServerBaseUrl ? 'pushServerBaseUrl 为空' : ''}`);
+        step(`跳过后端 unsubscribe：endpoint 为空`);
       }
 
       pushSubEndpointRef.current = null;
@@ -1026,6 +1035,9 @@ export function useTradeNotifications(options: UseTradeNotificationsOptions) {
       step('enabled=true，关闭订阅：调用 unsubscribeWebPush() 并标记 enabled=false');
       await unsubscribeWebPush();
       setEnabled(false);
+      try {
+        localStorage.removeItem(getStorageKey(accountAlias, STORAGE_KEY_ENABLED));
+      } catch {}
       return;
     }
 
@@ -1072,6 +1084,9 @@ export function useTradeNotifications(options: UseTradeNotificationsOptions) {
 
     initializedRef.current = false;
     setEnabled(true);
+    try {
+      localStorage.setItem(getStorageKey(accountAlias, STORAGE_KEY_ENABLED), '1');
+    } catch {}
     logger.info('[TradeNotifications][toggleEnabled] ✓ enabled=true，订阅流程完成！');
 
     sendInAppToastAndNotification({

@@ -631,7 +631,13 @@ export function Portfolio({
                           );
                           return;
                         }
-                        void notifications.toggleEnabled();
+                        if (notifications.enabled) {
+                          if (window.confirm('确认要取消 PWA 消息推送订阅吗？\n取消后，您将无法在后台或关闭页面时收到新成交通知。')) {
+                            void notifications.toggleEnabled();
+                          }
+                        } else {
+                          void notifications.toggleEnabled();
+                        }
                       }}
                       title={
                         notifications.enabled
@@ -642,9 +648,9 @@ export function Portfolio({
                           ? '当前环境不支持 Web Push（iOS 需添加到主屏幕，点击查看步骤）'
                           : '订阅 PWA Web Push（关闭页面也能收到新成交通知）'
                       }
-                      className={`relative inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all duration-200 ${
+                      className={`group relative inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all duration-200 ${
                         notifications.enabled
-                          ? 'bg-violet-50 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300 ring-1 ring-violet-500/30 hover:bg-violet-100 dark:hover:bg-violet-500/25'
+                          ? 'bg-violet-50 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300 ring-1 ring-violet-500/30 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-500/20 dark:hover:text-red-300 hover:ring-red-500/30'
                           : notifications.permission === 'denied'
                           ? 'bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-300 ring-1 ring-red-500/20 hover:bg-red-100 dark:hover:bg-red-500/20'
                           : notifications.permission === 'unsupported'
@@ -654,10 +660,21 @@ export function Portfolio({
                     >
                       {notifications.enabled ? (
                         <>
-                          <Bell className="w-3.5 h-3.5" />
-                          <span className="hidden sm:inline">
-                            {notifications.pushSubscribed ? '已订阅 PWA' : '订阅中…'}
-                          </span>
+                          {notifications.pushSubscribed ? (
+                            <>
+                              <Bell className="w-3.5 h-3.5 group-hover:hidden" />
+                              <BellOff className="w-3.5 h-3.5 hidden group-hover:inline" />
+                              <span className="hidden sm:inline">
+                                <span className="group-hover:hidden">已订阅 PWA</span>
+                                <span className="hidden group-hover:inline">取消 PWA 订阅</span>
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <Bell className="w-3.5 h-3.5 animate-pulse" />
+                              <span className="hidden sm:inline">订阅中…</span>
+                            </>
+                          )}
                         </>
                       ) : notifications.permission === 'denied' ? (
                         <>
@@ -686,9 +703,10 @@ export function Portfolio({
                       type="button"
                       onClick={() => setShowPushDebugModal(true)}
                       title="打开 PWA Push 调试面板（测试推送、环境诊断、清除计数等）"
-                      className={`p-1.5 rounded-md ${themes[theme].secondary} hover:opacity-90 ring-1 ring-zinc-500/20`}
+                      className={`inline-flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium ${themes[theme].secondary} hover:opacity-90 ring-1 ring-zinc-500/20`}
                     >
                       <Wrench className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
+                      <span className="hidden sm:inline">订阅调试</span>
                     </button>
                   </div>
                 )}
