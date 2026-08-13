@@ -9,7 +9,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "check:push-api": "node push_server/check-push-api.mjs"
   },
   "dependencies": {
     "chart.js": "^4.4.1",

@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import { resolve } from 'node:path';
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -59,6 +60,15 @@ export default defineConfig({
           },
         ],
       },
+      devOptions: {
+        // 默认在 dev 模式也启用 Service Worker（PWA Push 依赖 SW，没有 SW 就没有 pushManager）
+        // 注意：vite dev 下 SW 不会被 HMR，改完 sw-custom.js / Push 逻辑请 ⚠️ 刷新页面（或 chrome://serviceworker-internals → unregister）
+        enabled: true,
+        type: 'module',
+        navigateFallback: 'index.html',
+        resolveTempFolder: () => resolve(process.cwd(), 'node_modules', '.vite-pwa-dev'),
+        suppressWarnings: true,
+      },
       workbox: {
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [
@@ -69,6 +79,7 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest,woff2}'],
         skipWaiting: true,
         clientsClaim: true,
+        importScripts: ['/sw-custom.js'],
         runtimeCaching: [
           {
             urlPattern: /\/api(\/|$)/,

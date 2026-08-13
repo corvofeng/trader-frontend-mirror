@@ -149,13 +149,25 @@ if (isProduction) {
     };
   }
 } else if ('serviceWorker' in navigator) {
+  // Vite dev（:5173）+ vite-plugin-pwa devOptions.enabled=true 时，SW 会注册在 /sw.js（或带 vite 前缀的 /dev-sw.js?dev-sw）
+  // 我们不应该把「vite-plugin-pwa 生成的 dev SW」也 unregister，否则 PWA Push 永远用不了
   void navigator.serviceWorker.getRegistrations().then(registrations => {
-    registrations.forEach(registration => {
-      void registration.unregister();
+    registrations.forEach(reg => {
+      const activeUrl = (reg as ServiceWorkerRegistration & { active?: { scriptURL?: string } }).active?.scriptURL;
+      const installingUrl = (reg as ServiceWorkerRegistration & { installing?: { scriptURL?: string } }).installing?.scriptURL;
+      const waitingUrl = (reg as ServiceWorkerRegistration & { waiting?: { scriptURL?: string } }).waiting?.scriptURL;
+      const scriptUrl = activeUrl ?? installingUrl ?? waitingUrl ?? '';
+      const isVitePWADev = /\/(dev-sw\.js|sw\.js)/.test(scriptUrl) || scriptUrl.includes('vite');
+      if (!isVitePWADev) void reg.unregister();
     });
   });
   if ('caches' in window) {
-    void caches.keys().then(names => Promise.all(names.map(name => caches.delete(name))));
+    void caches.keys().then(names => Promise.all(
+      names
+        // 不要误删 vite-plugin-pwa workbox / 预缓存；只删可能遗留的旧 API cache
+        .filter((name) => /^workbox-precache-/i.test(name) === false || /api/i.test(name))
+        .map((name) => caches.delete(name))
+    ));
   }
 }
 
