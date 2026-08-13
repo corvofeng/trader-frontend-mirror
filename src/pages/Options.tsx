@@ -265,11 +265,15 @@ function OptionsContent({ theme }: OptionsProps) {
 
     if (requested && !allowed.has(requested)) {
       setAccountAccessError(`无权访问账户: ${requested}，已切换到默认账户`);
-      if (defaultAccountKey && defaultAccountKey !== selectedAccountId) {
-        setSelectedAccountId(defaultAccountKey);
-      } else if (!defaultAccountKey && selectedAccountId !== null) {
-        setSelectedAccountId(null);
+      const fallbackId = defaultAccountKey || null;
+      if (fallbackId !== selectedAccountId) {
+        setSelectedAccountId(fallbackId);
       }
+      // 从 URL 中删除无权访问的 account_alias 并重定向
+      const params = new URLSearchParams(location.search.startsWith('?') ? location.search.slice(1) : location.search);
+      params.delete('account_alias');
+      const nextQuery = params.toString();
+      navigate(nextQuery ? `/options?${nextQuery}` : '/options', { replace: true });
       return;
     }
 
