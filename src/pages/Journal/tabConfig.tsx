@@ -92,8 +92,8 @@ function JournalTradesTabContent({
   | 'onRefreshTodayOrders'
   | 'userId'
 >) {
-  const [selectedStockCode, setSelectedStockCode] = React.useState<string | null>(null);
-  const [selectedStockName, setSelectedStockName] = React.useState<string | null>(null);
+  const [selectedStockCode, setSelectedStockCode] = React.useState<string | null>('588000.SH');
+  const [selectedStockName, setSelectedStockName] = React.useState<string | null>('科创50ETF');
   const [selectedQuotePrice, setSelectedQuotePrice] = React.useState<number | null>(null);
   const [selectedQuoteSide, setSelectedQuoteSide] = React.useState<'bid' | 'ask' | null>(null);
   const [selectedQuoteLevel, setSelectedQuoteLevel] = React.useState<number | null>(null);
