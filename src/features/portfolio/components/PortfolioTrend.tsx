@@ -424,6 +424,73 @@ export function PortfolioTrend({ trendData, klineData, klineMetrics, theme, date
     return value.toFixed(digits);
   }, []);
 
+  const computedDrawdown = React.useMemo(() => {
+    if (klineData.length === 0) return null;
+
+    const series = klineData
+      .map((point) => {
+        let value: number | undefined;
+        if (klineSource === 'position') {
+          value = point.position_close ?? point.position_value;
+        } else if (klinePriceMode === 'nav') {
+          value = point.nav_close ?? point.nav_value ?? point.close;
+        } else if (klinePriceMode === 'adjusted') {
+          value = point.adjusted_close ?? point.adjusted_value;
+        } else {
+          value = point.close ?? point.value;
+        }
+
+        if (value === undefined || value === null || !Number.isFinite(value) || value <= 0) {
+          return null;
+        }
+        return {
+          date: point.date,
+          value: value,
+        };
+      })
+      .filter((item): item is { date: string; value: number } => item !== null)
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    if (series.length === 0) return null;
+
+    let maxDd = 0;
+    let peakValue = series[0].value;
+    let peakDate = series[0].date;
+
+    let currentPeakValue = series[0].value;
+    let currentPeakDate = series[0].date;
+
+    let troughDate = series[0].date;
+    let troughValue = series[0].value;
+
+    for (let i = 1; i < series.length; i++) {
+      const value = series[i].value;
+      const date = series[i].date;
+
+      if (value > currentPeakValue) {
+        currentPeakValue = value;
+        currentPeakDate = date;
+      } else {
+        const drawdown = (value - currentPeakValue) / currentPeakValue;
+        if (drawdown < maxDd) {
+          maxDd = drawdown;
+          peakValue = currentPeakValue;
+          peakDate = currentPeakDate;
+          troughValue = value;
+          troughDate = date;
+        }
+      }
+    }
+
+    return {
+      maxDrawdown: maxDd,
+      peakDate,
+      troughDate,
+      peakValue,
+      troughValue,
+    };
+  }, [klineData, klinePriceMode, klineSource]);
+
   const metricsItems = React.useMemo(() => {
     if (!klineMetrics) return [];
     return [
@@ -456,6 +523,9 @@ export function PortfolioTrend({ trendData, klineData, klineMetrics, theme, date
         label: '最大回撤',
         value: formatSignedPercent(klineMetrics.maxDrawdown),
         tooltip: '区间内从阶段高点回落到随后低点的最大跌幅，用来衡量最差回撤风险。',
+        subtitle: computedDrawdown && computedDrawdown.maxDrawdown < 0
+          ? `${computedDrawdown.peakDate} ~ ${computedDrawdown.troughDate}`
+          : undefined,
       },
       {
         label: '正收益日',
@@ -463,7 +533,7 @@ export function PortfolioTrend({ trendData, klineData, klineMetrics, theme, date
         tooltip: '统计区间内收益为正的交易日占比，反映组合日度上涨天数的比例。',
       },
     ];
-  }, [formatMetricNumber, formatPercent, formatSignedPercent, klineMetrics]);
+  }, [formatMetricNumber, formatPercent, formatSignedPercent, klineMetrics, computedDrawdown]);
 
   return (
     <>
@@ -655,6 +725,11 @@ export function PortfolioTrend({ trendData, klineData, klineMetrics, theme, date
                         <InfoTooltip theme={theme} content={item.tooltip} align="left" className="shrink-0" />
                       </div>
                       <div className={`mt-1 break-words text-sm font-semibold ${themes[theme].text}`}>{item.value}</div>
+                      {item.subtitle && (
+                        <div className={`mt-0.5 text-[10px] font-mono leading-tight ${themes[theme].text} opacity-50 whitespace-nowrap`}>
+                          {item.subtitle}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

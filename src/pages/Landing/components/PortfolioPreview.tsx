@@ -33,7 +33,6 @@ export function PortfolioPreview({ theme, user, lang = 'zh' }: PortfolioPreviewP
   const t = landingTranslations[lang].portfolioSnapshot;
   const [topHoldings, setTopHoldings] = useState<Holding[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [mainAccountName, setMainAccountName] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -49,10 +48,6 @@ export function PortfolioPreview({ theme, user, lang = 'zh' }: PortfolioPreviewP
 
         const mainAccount = accounts.find((acc) => acc.is_default) || accounts[0];
         const accountKey = mainAccount ? (mainAccount.alias || mainAccount.id) : undefined;
-
-        if (mainAccount && !cancelled) {
-          setMainAccountName(mainAccount.name || mainAccount.alias || null);
-        }
 
         // 2. Fetch holdings for the main account (or fallback to user ID)
         const holdingsResponse = await portfolioService.getHoldings(userId, accountKey);
@@ -88,9 +83,7 @@ export function PortfolioPreview({ theme, user, lang = 'zh' }: PortfolioPreviewP
             {t.title}
           </h2>
           <p className={`text-xs sm:text-sm ${themes[theme].text} opacity-70 mt-1`}>
-            {mainAccountName
-              ? t.subtitleWithAccount.replace('{name}', mainAccountName)
-              : t.subtitleDefault}
+            {t.subtitleDefault}
           </p>
         </div>
         <InternalLink

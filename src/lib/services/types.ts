@@ -94,6 +94,10 @@ export interface PortfolioKlinePoint {
   position_low?: number;
   position_close?: number;
   position_value?: number;
+  cash_flow?: number;
+  cash_flow_deposit?: number;
+  cash_flow_withdraw?: number;
+  cash_flow_adjustment?: number;
 }
 
 export interface PortfolioKlineMetrics {

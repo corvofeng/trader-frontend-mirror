@@ -770,6 +770,16 @@ const normalizePortfolioKlineList = (payload: unknown): PortfolioKlinePoint[] =>
       if (positionLow !== null) point.position_low = positionLow;
       if (positionClose !== null) point.position_close = positionClose;
       if (positionValue !== null) point.position_value = positionValue;
+
+      const cashFlow = toFiniteNumber(item.cash_flow);
+      const cashFlowDeposit = toFiniteNumber(item.cash_flow_deposit);
+      const cashFlowWithdraw = toFiniteNumber(item.cash_flow_withdraw);
+      const cashFlowAdjustment = toFiniteNumber(item.cash_flow_adjustment);
+      if (cashFlow !== null) point.cash_flow = cashFlow;
+      if (cashFlowDeposit !== null) point.cash_flow_deposit = cashFlowDeposit;
+      if (cashFlowWithdraw !== null) point.cash_flow_withdraw = cashFlowWithdraw;
+      if (cashFlowAdjustment !== null) point.cash_flow_adjustment = cashFlowAdjustment;
+
       return point;
     })
     .filter((item): item is PortfolioKlinePoint => item !== null);

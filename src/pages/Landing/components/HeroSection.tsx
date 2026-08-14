@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { TrendingUp, ArrowRight, ShieldCheck, Activity, LineChart, Zap } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { accountService, portfolioService } from '../../../lib/services';
-import type { Holding, User, Account, TrendData } from '../../../lib/services/types';
+import type { Holding, User, Account, PortfolioKlinePoint } from '../../../lib/services/types';
 import { landingTranslations, Language } from '../i18n';
 import { getCurrencySymbolFromCode } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
@@ -64,7 +64,9 @@ export function HeroSection({
     dailyChangePct: 1.20,
     currencySymbol: '$',
   });
-  const [winRate, setWinRate] = useState<number>(74.8);
+  const [winRate, setWinRate] = useState<number>(66.7);
+  const [winDays, setWinDays] = useState<number>(10);
+  const [totalDays, setTotalDays] = useState<number>(15);
   const [dailyBars, setDailyBars] = useState<DailyBarItem[]>(FALLBACK_DAILY_BARS);
   const [thirtyDayNetPnL, setThirtyDayNetPnL] = useState<number>(2580.00);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -83,14 +85,13 @@ export function HeroSection({
         const mainAccount = accounts.find((acc) => acc.is_default) || accounts[0];
         const accountKey = mainAccount ? (mainAccount.alias || mainAccount.id) : undefined;
         const currency = mainAccount?.currency || 'USD';
+        const currencySymbol = getCurrencySymbolFromCode(currency);
 
         // 2. Fetch holdings for main account
         const holdingsResponse = await portfolioService.getHoldings(userId, accountKey);
         const holdings: Holding[] = holdingsResponse.data || [];
 
         if (!cancelled) {
-          const currencySymbol = getCurrencySymbolFromCode(currency);
-          
           if (holdings.length > 0) {
             const totalValue = holdings.reduce((sum, h) => sum + (h.total_value ?? 0), 0);
             const totalDailyPnL = holdings.reduce((sum, h) => sum + (h.daily_profit_loss ?? 0), 0);
@@ -103,10 +104,6 @@ export function HeroSection({
               dailyChangePct,
               currencySymbol,
             });
-
-            const winningCount = holdings.filter((h) => (h.profit_loss ?? 0) >= 0).length;
-            const calculatedWinRate = Number(((winningCount / holdings.length) * 100).toFixed(1));
-            setWinRate(calculatedWinRate);
           } else {
             setPortfolioSummary({
               totalValue: 0,
@@ -114,24 +111,23 @@ export function HeroSection({
               dailyChangePct: 0,
               currencySymbol,
             });
-            setWinRate(0);
           }
         }
 
-        // 3. Fetch trend data for 30-day daily PnL bar chart
+        // 3. Fetch trend/kline data for 30-day daily PnL bar chart (adjusted for cash flows)
         if (accountKey) {
           const endDate = new Date().toISOString().split('T')[0];
           const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-          const trendResponse = await portfolioService.getTrendData(userId, startDate, endDate, accountKey);
-          const trend: TrendData[] = trendResponse.data || [];
+          const klineResponse = await portfolioService.getKlineData(userId, startDate, endDate, accountKey);
+          const candles: PortfolioKlinePoint[] = klineResponse.data || [];
 
-          if (trend.length >= 2 && !cancelled) {
+          if (candles.length >= 2 && !cancelled) {
             const calculatedBars: DailyBarItem[] = [];
-            for (let i = 1; i < trend.length; i++) {
-              const diff = trend[i].value - trend[i - 1].value;
+            for (let i = 1; i < candles.length; i++) {
+              const diff = candles[i].close - candles[i - 1].close - (candles[i].cash_flow ?? 0);
               calculatedBars.push({
                 change: diff,
-                dateStr: trend[i].date,
+                dateStr: candles[i].date,
               });
             }
 
@@ -139,8 +135,29 @@ export function HeroSection({
               // Take last 15-20 days for optimal bar chart resolution
               const sampledBars = calculatedBars.slice(-18);
               setDailyBars(featuredBars(sampledBars));
-              const netChange = trend[trend.length - 1].value - trend[0].value;
+              const netChange = calculatedBars.reduce((sum, bar) => sum + bar.change, 0);
               setThirtyDayNetPnL(netChange);
+
+              // Calculate daily win rate over the last 30 days
+              const positiveDaysCount = calculatedBars.filter((bar) => bar.change > 0).length;
+              const totalDaysCount = calculatedBars.length;
+              const calculatedWinRate = Number(((positiveDaysCount / totalDaysCount) * 100).toFixed(1));
+              setWinRate(calculatedWinRate);
+              setWinDays(positiveDaysCount);
+              setTotalDays(totalDaysCount);
+
+              // Overwrite portfolioSummary using total asset K-line values for perfect consistency
+              const lastCandle = candles[candles.length - 1];
+              const prevCandle = candles[candles.length - 2];
+              const todayPnL = lastCandle.close - prevCandle.close - (lastCandle.cash_flow ?? 0);
+              const todayPnLPct = prevCandle.close > 0 ? (todayPnL / prevCandle.close) * 100 : 0;
+
+              setPortfolioSummary({
+                totalValue: lastCandle.close,
+                dailyChange: todayPnL,
+                dailyChangePct: todayPnLPct,
+                currencySymbol,
+              });
             }
           }
         }
@@ -258,10 +275,12 @@ export function HeroSection({
                         {winRate.toFixed(1)}%
                       </div>
                       <div 
-                        className="text-[11px] mt-0.5 truncate"
+                        className="text-[11px] mt-0.5 truncate opacity-70"
                         style={{ color: regionalColors.upColor }}
                       >
-                        {t.winRateSub}
+                        {lang === 'zh' 
+                          ? `${winDays}天盈利 / 共${totalDays}个交易日` 
+                          : `${winDays} win days / ${totalDays} trading days`}
                       </div>
                     </div>
 
@@ -304,7 +323,7 @@ export function HeroSection({
 
                       {dailyBars.map((bar, i) => {
                         const isPos = bar.change >= 0;
-                        const barHeightPct = Math.max(18, Math.min(48, (Math.abs(bar.change) / maxAbsChange) * 48));
+                        const barHeightPct = bar.change === 0 ? 0 : Math.max(3, Math.min(48, (Math.abs(bar.change) / maxAbsChange) * 48));
 
                         return (
                           <div
