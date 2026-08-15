@@ -155,6 +155,18 @@ export function PortfolioPreview({ theme, user, lang = 'zh' }: PortfolioPreviewP
                   </div>
                 </div>
 
+                {/* Market Value Stat block */}
+                <div className="my-3 py-2 px-3 bg-slate-50/50 dark:bg-zinc-800/30 rounded-xl flex items-center justify-between text-xs">
+                  <span className={`opacity-60 ${themes[theme].text} font-medium`}>
+                    {t.holdingValue}
+                  </span>
+                  <span className={`font-bold font-mono ${themes[theme].text}`}>
+                    {currencySymbol}{typeof holding.total_value === 'number'
+                      ? holding.total_value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                      : '--'}
+                  </span>
+                </div>
+
                 <div className="flex justify-between items-baseline pt-2 border-t border-slate-200/50 dark:border-zinc-800/80">
                   <div className={`text-sm font-mono ${themes[theme].text} opacity-80 flex items-center`}>
                     <span className="mr-1 opacity-75 font-sans font-semibold">{currencySymbol}</span>
