@@ -59,6 +59,12 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
+    const root = document.documentElement;
+    root.classList.remove('light', 'dark', 'blue');
+    root.classList.add(theme);
+  }, [theme]);
+
+  useEffect(() => {
     const schedule = (fn: () => void) => {
       const w = window as unknown as { requestIdleCallback?: (cb: () => void, opts?: { timeout?: number }) => number };
       if (typeof w.requestIdleCallback === 'function') {
