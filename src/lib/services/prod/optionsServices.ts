@@ -10,8 +10,10 @@ import type {
   OptionsStrategy,
   OptionWhitelist,
   PriceDistributionData,
+  PriceDistributionForecast,
   SequentialTradeTask,
-  ServiceResponse
+  ServiceResponse,
+  OptionMarketStateData
 } from '../types';
 import type { CustomOptionsStrategy } from '../types';
 
@@ -502,7 +504,7 @@ export const optionsService: OptionsService = {
       })();
       // 检查 success=false（形态 c 或 (a)(b) 内嵌 success）
       if (inner && typeof inner === 'object') {
-        const i = inner as Record<string, unknown>;
+        const i = inner as unknown as Record<string, unknown>;
         if (i.success === false) {
           const errText = i.error && typeof i.error === 'string' ? i.error : 'price_distribution success=false';
           throw new Error(errText);
@@ -1429,6 +1431,48 @@ export const optionsService: OptionsService = {
       return { data: null, error: null };
     } catch (error) {
       console.error('Error restarting sequential trade:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  getOptionMarketState: async (symbol, params) => {
+    try {
+      const urlParams = new URLSearchParams();
+      urlParams.set('symbol', symbol);
+      if (params?.days) urlParams.set('days', String(params.days));
+      if (params?.windows) urlParams.set('windows', params.windows);
+      if (params?.top !== undefined) urlParams.set('top', String(params.top));
+      if (params?.wings !== undefined) urlParams.set('wings', String(params.wings));
+      if (params?.min_base_oi !== undefined) urlParams.set('min_base_oi', String(params.min_base_oi));
+      if (params?.as_of) urlParams.set('as_of', params.as_of);
+      if (params?.expiry) {
+        if (Array.isArray(params.expiry)) {
+          params.expiry.forEach(e => urlParams.append('expiry', e));
+        } else {
+          urlParams.set('expiry', params.expiry);
+        }
+      }
+      if (params?.refresh) {
+        urlParams.set('refresh', '1');
+      }
+
+      const response = await fetch(`/api/options/market-state?${urlParams.toString()}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch option market state: HTTP ${response.status}`);
+      }
+      const raw = await safeParseJson(response);
+      const rec = asRecord(raw);
+      if (!rec || rec.success === false) {
+        return { data: null, error: new Error(String(rec?.error || 'Invalid market state response')) };
+      }
+      const refreshApplied = response.headers.get('X-Refresh-Applied') === 'true';
+      return {
+        data: rec.data as OptionMarketStateData,
+        error: null,
+        meta: { refreshApplied }
+      };
+    } catch (error) {
+      console.error('Error fetching option market state:', error);
       return { data: null, error: error as Error };
     }
   }

@@ -1,4 +1,4 @@
-export const OPTIONS_TABS = ['data', 'portfolio', 'analysis', 'trading', 'management', 'whitelist', 'expiry-risk', 'risk'] as const;
+export const OPTIONS_TABS = ['data', 'portfolio', 'analysis', 'trading', 'management', 'whitelist', 'expiry-risk', 'risk', 'market-state'] as const;
 export type OptionsTab = (typeof OPTIONS_TABS)[number];
 export const OPTIONS_DEFAULT_TAB: OptionsTab = 'data';
 

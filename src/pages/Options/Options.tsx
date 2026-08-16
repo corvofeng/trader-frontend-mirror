@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { logger } from '../../shared/utils/logger';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { BarChart2, TrendingUp, Briefcase, Calculator, BookOpen } from 'lucide-react';
+import { BarChart2, TrendingUp, Briefcase, Calculator, BookOpen, Compass } from 'lucide-react';
 import { OptionsHeader } from './components/OptionsHeader';
 import { OptionsTabNavigation } from './components/OptionsTabNavigation';
 import { OptionsTabContent } from './components/OptionsTabContent';
@@ -12,12 +12,12 @@ import { Theme } from '../../lib/theme';
 import type { OptionsData } from '../../lib/services/types';
 import { OptionPriceWebSocketProvider } from '../../features/options/context/OptionPriceWebSocketContext';
 import { useAutoRefresh, useOptionPriceWebSocket } from '../../features/options/hooks/useOptionPriceWebSocket';
-
+ 
 interface OptionsProps {
   theme: Theme;
 }
 
-type OptionsTab = 'data' | 'portfolio' | 'trading' | 'management' | 'analysis';
+type OptionsTab = 'data' | 'portfolio' | 'trading' | 'management' | 'analysis' | 'market-state';
 
 export function Options({ theme }: OptionsProps) {
   return (
@@ -171,6 +171,7 @@ function OptionsInner({ theme }: OptionsProps) {
 
   const tabs = [
     { id: 'data' as OptionsTab, name: 'Options Data', icon: BarChart2 },
+    { id: 'market-state' as OptionsTab, name: 'Market State', icon: Compass },
     { id: 'portfolio' as OptionsTab, name: 'Portfolio', icon: Briefcase },
     { id: 'analysis' as OptionsTab, name: 'Analysis', icon: BookOpen },
     { id: 'trading' as OptionsTab, name: 'Trade Plans', icon: TrendingUp },

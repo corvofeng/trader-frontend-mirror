@@ -1,4 +1,4 @@
-import type { AdminOrdersDailyStats, OptionsService, OptionsPortfolioData, OptionsPosition, OptionsStrategy, RatioSpreadPlanResult, OptionWhitelist, ServiceResponse, AdvisedCombination, OptionOrder, SequentialTradeTask, SequentialTradeStatus, OptionPriceWebSocketClient, OptionPriceWebSocketHandlers, PriceDistributionData, PriceDistributionForecast } from '../types';
+import type { AdminOrdersDailyStats, OptionsService, OptionsPortfolioData, OptionsPosition, OptionsStrategy, RatioSpreadPlanResult, OptionWhitelist, ServiceResponse, AdvisedCombination, OptionOrder, SequentialTradeTask, SequentialTradeStatus, OptionPriceWebSocketClient, OptionPriceWebSocketHandlers, PriceDistributionData, PriceDistributionForecast, OptionMarketStateData } from '../types';
 import type { CustomOptionsStrategy } from '../types';
 
 // 支持的期权标的列表
@@ -2019,6 +2019,332 @@ export const optionsService: OptionsService = {
         legs_summary: []
       },
       error: null
+    };
+  },
+
+  getOptionMarketState: async (symbol: string, params?: { days?: number; windows?: string; top?: number; wings?: number; min_base_oi?: number; as_of?: string; expiry?: string | string[]; refresh?: boolean }) => {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    const asOfStr = params?.as_of || new Date().toISOString().split('T')[0];
+    const days = params?.days || 120;
+    const wings = params?.wings || 20;
+
+    const stressScore = Math.floor(Math.random() * 40) + 30; // 30 - 70
+    const positioningScore = Math.floor(Math.random() * 100) - 50; // -50 - 50
+
+    // Standard activity
+    const expiryDates = ['2026-09-23', '2026-12-23'];
+    const strikeBase = symbol === '588000.SH' ? 1.8 : 100.0;
+    const strikeStep = symbol === '588000.SH' ? 0.05 : 5.0;
+
+    const tQuotes: Record<string, any> = {};
+    for (const exp of expiryDates) {
+      const rows = [];
+      for (let i = -wings; i <= wings; i++) {
+        const strike = Number((strikeBase + i * strikeStep).toFixed(3));
+        rows.push({
+          strike_price: strike,
+          is_atm: i === 0,
+          call: {
+            contract_code: `${symbol === '588000.SH' ? '1001' : 'C'}${strike * 1000}`,
+            bid: Number((strike * 0.05).toFixed(4)),
+            ask: Number((strike * 0.052).toFixed(4)),
+            iv: Number((25 + Math.random() * 10).toFixed(2)),
+            delta: Number((0.5 - i * 0.08).toFixed(4)),
+            gamma: Number((0.15 - Math.abs(i) * 0.02).toFixed(4)),
+            oi: 15000 + Math.floor(Math.random() * 10000),
+            delta_oi: Math.floor(Math.random() * 4000) - 2000
+          },
+          put: {
+            contract_code: `${symbol === '588000.SH' ? '1002' : 'P'}${strike * 1000}`,
+            bid: Number((strike * 0.04).toFixed(4)),
+            ask: Number((strike * 0.042).toFixed(4)),
+            iv: Number((28 + Math.random() * 10).toFixed(2)),
+            delta: Number((-0.5 - i * 0.08).toFixed(4)),
+            gamma: Number((0.15 - Math.abs(i) * 0.02).toFixed(4)),
+            oi: 18000 + Math.floor(Math.random() * 10000),
+            delta_oi: Math.floor(Math.random() * 4000) - 2000
+          }
+        });
+      }
+      tQuotes[exp] = {
+        atm_strike: strikeBase,
+        underlying_price: strikeBase + 0.013,
+        rows
+      };
+    }
+
+    const baseData: OptionMarketStateData = {
+      meta: {
+        as_of: asOfStr,
+        generated_at: new Date().toISOString(),
+        lookback_days: days,
+        schema_version: '1.0',
+        source: 'InfluxDB Stock/option_tick',
+        source_updated_at: new Date().toISOString(),
+        symbol: symbol,
+        timezone: 'Asia/Hong_Kong',
+        trading_day_count: 81,
+        data_age_seconds: 120
+      },
+      state: {
+        label: '中性均衡',
+        regime: 'neutral',
+        stress_score: stressScore,
+        positioning_score: positioningScore,
+        confidence: 1.0,
+        summary: '综合流动性适中，平值 IV 定价相对稳定，未平仓量增加。',
+        signals: [
+          { code: 'ATM_IV_STABLE', direction: 'calm', message: 'ATM IV 处于历史 20% 分位，波动率定价稳定', severity: 'low' },
+          { code: 'PUT_OI_DOMINANT', direction: 'defensive', message: 'Put 未平仓量增加，下行保护需求高', severity: 'medium' }
+        ]
+      },
+      latest: {
+        underlying_price: {
+          change: symbol === '588000.SH' ? 0.012 : 0.5,
+          change_percent: symbol === '588000.SH' ? 0.66 : 0.5,
+          value: symbol === '588000.SH' ? 1.813 : 100.5
+        },
+        atm_iv: {
+          call: 33.6,
+          change: 0.75,
+          change_percent: 1.9,
+          percentile: 20.4,
+          put: 44.7,
+          value: 39.6
+        },
+        liquidity: {
+          average_spread_percent: 2.59,
+          change: -1.06,
+          change_percent: -2.0,
+          percentile: 1.0,
+          value: 51.5
+        },
+        open_interest: {
+          call: 220000,
+          call_change: 20000,
+          put: 230000,
+          put_call_ratio: 1.04,
+          put_change: 30000,
+          total: 450000,
+          total_change: 50000
+        },
+        volume: {
+          call: 55000,
+          put: 65000,
+          put_call_ratio: 1.18,
+          total: 120000
+        },
+        put_call_iv_skew: {
+          percentile: 37.7,
+          value: 10.15
+        },
+        concentration: {
+          dominant_expiry: '2026-08-26',
+          dominant_expiry_share: 51.3,
+          top_five_contract_share: 16.09
+        },
+        contract_count: 188,
+        expiry_count: 4
+      },
+      underlying_market: {
+        symbol: symbol,
+        as_of: asOfStr,
+        current_price: symbol === '588000.SH' ? 1.814 : 100.5,
+        change_5d: -1.41,
+        change_20d: 1.5,
+        change_60d: -2.47,
+        change_ytd: 20.5,
+        volatility_20d: 65.1,
+        volatility_60d: 62.1,
+        max_drawdown_20d: -18.85,
+        max_drawdown_60d: -30.2,
+        average_amount_20d: 10719688627,
+        ma20: symbol === '588000.SH' ? 1.81 : 100.2,
+        ma60: symbol === '588000.SH' ? 1.92 : 98.5,
+        ma120: symbol === '588000.SH' ? 1.73 : 95.4,
+        history_trading_days: 148
+      },
+      history: Array.from({ length: 10 }).map((_, idx) => {
+        const d = new Date();
+        d.setDate(d.getDate() - (10 - idx));
+        return {
+          date: d.toISOString().split('T')[0],
+          stress_score: 40 + Math.floor(Math.random() * 20),
+          positioning_score: -20 + Math.floor(Math.random() * 40),
+          underlying_price: symbol === '588000.SH' ? 1.78 + idx * 0.01 : 98 + idx * 0.5,
+          atm_iv: 32 + Math.floor(Math.random() * 8),
+          open_interest: 400000 + idx * 10000,
+          volume: 100000 + Math.floor(Math.random() * 50000)
+        };
+      }),
+      term_structure: [
+        { expiry: '2026-09-23', days_to_expiry: 39, atm_iv_percent: 34.2, liquidity_score: 91.2, volume: 80000, open_interest: 280000, skew_25d: 1.8 },
+        { expiry: '2026-12-23', days_to_expiry: 130, atm_iv_percent: 36.8, liquidity_score: 82.5, volume: 40000, open_interest: 170000, skew_25d: 3.1 }
+      ],
+      contract_activity: {
+        oi_increase: [
+          { contract_code: `${symbol === '588000.SH' ? '10011032' : 'C100'}`, delta_oi: 8500, delta_oi_percent: 23.5 },
+          { contract_code: `${symbol === '588000.SH' ? '10021041' : 'P105'}`, delta_oi: 6200, delta_oi_percent: 18.2 }
+        ],
+        oi_decrease: [
+          { contract_code: `${symbol === '588000.SH' ? '10011012' : 'C95'}`, delta_oi: -4200, delta_oi_percent: -12.4 }
+        ],
+        volume_active: [
+          { contract_code: `${symbol === '588000.SH' ? '10011032' : 'C100'}`, volume: 24518 }
+        ],
+        t_quotes: tQuotes
+      },
+      data_quality: {
+        coverage: 0.99,
+        confidence: 'high',
+        missing_fields: []
+      },
+      methodology: {
+        formula: '55% * IV_Percentile + 30% * (100 - Liq_Percentile) + 15% * Skew_Percentile',
+        limits: ['Data based on end of day snapshot, excludes active market trading intraday updates.']
+      }
+    };
+
+    if (params?.windows) {
+      const windowList = params.windows.split(',');
+      const tShapes: Record<string, any> = {};
+
+      for (const exp of expiryDates) {
+        const strikeBase = symbol === '588000.SH' ? 1.8 : 100.0;
+        const strikeStep = symbol === '588000.SH' ? 0.05 : 5.0;
+        const rows = [];
+        for (let i = -wings; i <= wings; i++) {
+          const strike = Number((strikeBase + i * strikeStep).toFixed(3));
+          
+          const callWindows: Record<string, any> = {};
+          const putWindows: Record<string, any> = {};
+          
+          for (const win of windowList) {
+            callWindows[win] = {
+              status: 'COMPARABLE',
+              baseline_date: '2026-08-07',
+              baseline_open_interest: 12000 + Math.floor(Math.random() * 5000),
+              delta_oi: Math.floor(Math.random() * 4000) - 1500,
+              delta_oi_percent: Number((Math.random() * 15 - 5).toFixed(2))
+            };
+            putWindows[win] = {
+              status: 'COMPARABLE',
+              baseline_date: '2026-08-07',
+              baseline_open_interest: 15000 + Math.floor(Math.random() * 5000),
+              delta_oi: Math.floor(Math.random() * 5000) - 1500,
+              delta_oi_percent: Number((Math.random() * 15 - 5).toFixed(2))
+            };
+          }
+
+          rows.push({
+            strike_price: strike,
+            is_atm: i === 0,
+            call: {
+              contract_code: `${symbol === '588000.SH' ? '10011' : 'C11'}${strike * 1000}`,
+              open_interest: 15000 + Math.floor(Math.random() * 10000),
+              daily_volume: 5000 + Math.floor(Math.random() * 20000),
+              implied_volatility_percent: Number((30 + Math.random() * 12).toFixed(1)),
+              windows: callWindows
+            },
+            put: {
+              contract_code: `${symbol === '588000.SH' ? '10021' : 'P11'}${strike * 1000}`,
+              open_interest: 18000 + Math.floor(Math.random() * 10000),
+              daily_volume: 4000 + Math.floor(Math.random() * 15000),
+              implied_volatility_percent: Number((32 + Math.random() * 12).toFixed(1)),
+              windows: putWindows
+            }
+          });
+        }
+
+        tShapes[exp] = {
+          atm_strike: strikeBase,
+          underlying_price: strikeBase + 0.013,
+          wings,
+          rows
+        };
+      }
+
+      const winRegime: Record<string, any> = {};
+      const summaryWin: Record<string, any> = {};
+
+      for (const win of windowList) {
+        winRegime[win] = {
+          status: 'COMPARABLE',
+          baseline_date: '2026-08-07',
+          current_atm_iv_percent: 38.73,
+          baseline_atm_iv_percent: 48.13,
+          delta_atm_iv_points: -9.4,
+          comparable_delta_oi: 184645,
+          signal_code: 'OI_UP_IV_DOWN',
+          label: '增仓 + 降波',
+          confidence: 'medium',
+          interpretation: `当前 ${win} 交易日观察窗口，期权未平仓量明显增长，而平值 implied volatility 从基准的 48.13% 回落至 38.73% （降幅 9.4 个波动点）。显示标的市场情绪降温、波动率溢价被主动压缩，但伴随持仓量的新增，属于买卖双方围绕当前标的区间进行的仓位累积期。`
+        };
+        summaryWin[win] = {
+          delta_oi: 184600 + Math.floor(Math.random() * 5000),
+          delta_oi_percent: Number((5 + Math.random() * 4).toFixed(2))
+        };
+      }
+
+      const termStructureOI: Record<string, any> = {
+        '2026-09-23': { expiry_date: '2026-09-23', call_oi: 220000, call_delta_oi_1d: 12000, call_delta_oi_3d: 25000, call_delta_oi_5d: 38000, put_oi: 250000, put_delta_oi_1d: 8000, put_delta_oi_3d: 18000, put_delta_oi_5d: 42000 },
+        '2026-12-23': { expiry_date: '2026-12-23', call_oi: 140000, call_delta_oi_1d: 5000, call_delta_oi_3d: 12000, call_delta_oi_5d: 15000, put_oi: 180000, put_delta_oi_1d: 9000, put_delta_oi_3d: 15000, put_delta_oi_5d: 22000 }
+      };
+
+      baseData.oi_analysis = {
+        meta: {
+          as_of: asOfStr,
+          generated_at: new Date().toISOString(),
+          expiry_dates: expiryDates
+        },
+        comparison_dates: {
+          '1': '2026-08-14',
+          '3': '2026-08-12',
+          '5': '2026-08-10'
+        },
+        volatility_regime: {
+          windows: winRegime
+        },
+        market_summary: {
+          current_total_oi: 450000,
+          windows: summaryWin
+        },
+        term_structure: termStructureOI,
+        t_shapes: tShapes,
+        rankings: {
+          absolute_increase: [
+            { contract_code: `${symbol === '588000.SH' ? '10011032' : 'C100'}`, delta_oi: 8500, expiry: '2026-09-23', strike: strikeBase, option_type: 'call' },
+            { contract_code: `${symbol === '588000.SH' ? '10021041' : 'P105'}`, delta_oi: 6200, expiry: '2026-09-23', strike: strikeBase + strikeStep, option_type: 'put' }
+          ],
+          absolute_decrease: [
+            { contract_code: `${symbol === '588000.SH' ? '10011012' : 'C95'}`, delta_oi: -4200, expiry: '2026-09-23', strike: strikeBase - strikeStep, option_type: 'call' }
+          ],
+          relative_increase: [
+            { contract_code: `${symbol === '588000.SH' ? '10011032' : 'C100'}`, delta_oi_percent: 23.5, expiry: '2026-09-23', strike: strikeBase, option_type: 'call' }
+          ],
+          relative_decrease: [
+            { contract_code: `${symbol === '588000.SH' ? '10011012' : 'C95'}`, delta_oi_percent: -12.4, expiry: '2026-09-23', strike: strikeBase - strikeStep, option_type: 'call' }
+          ]
+        },
+        interpretations: [
+          {
+            title: 'OI×IV联合分析：平值持仓稳健',
+            confidence: 'high',
+            possible_explanations: ['平值合约附近买方力量稳健, 降波中增仓表征卖方对波动上限的看低。'],
+            limitations: ['公开交易数据无法直接断定买卖交易方的意图'],
+            evidence: [
+              { code: 'ATM_IV_CHANGE', expiry_date: null, label: '5日 ATM IV 变化', unit: 'volatility_points', value: -9.2, window: 5 },
+              { code: 'FAR_OI_BUILD', expiry_date: null, label: '远期 Call/Put 持仓净流入', unit: 'contracts', value: 12000, window: 5 }
+            ]
+          }
+        ]
+      };
+    }
+
+    return {
+      data: baseData,
+      error: null,
+      meta: { refreshApplied: params?.refresh === true }
     };
   }
 };

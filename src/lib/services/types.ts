@@ -1024,9 +1024,274 @@ export interface PriceDistributionData {
   expiryDates?: string[];
 }
 
+export interface OptionMarketStateData {
+  meta: {
+    as_of: string;
+    generated_at: string;
+    lookback_days: number;
+    schema_version: string;
+    source: string;
+    source_updated_at: string;
+    symbol: string;
+    timezone: string;
+    trading_day_count: number;
+    data_age_seconds?: number;
+  };
+  state: {
+    label: string;
+    regime: string;
+    stress_score: number;
+    positioning_score: number;
+    confidence: number;
+    summary: string;
+    signals: Array<{
+      code: string;
+      direction: string;
+      message: string;
+      severity: string;
+    }>;
+  };
+  latest: {
+    underlying_price: {
+      change: number | null;
+      change_percent: number | null;
+      value: number;
+    };
+    atm_iv: {
+      call: number;
+      change: number;
+      change_percent: number;
+      percentile: number;
+      put: number;
+      value: number;
+    };
+    liquidity: {
+      average_spread_percent: number;
+      change: number;
+      change_percent: number;
+      percentile: number;
+      value: number;
+    };
+    open_interest: {
+      call: number;
+      call_change: number;
+      put: number;
+      put_call_ratio: number;
+      put_change: number;
+      total: number;
+      total_change: number;
+    };
+    volume: {
+      call: number;
+      put: number;
+      put_call_ratio: number;
+      total: number;
+    };
+    put_call_iv_skew: {
+      percentile: number;
+      value: number;
+    };
+    concentration: {
+      dominant_expiry: string;
+      dominant_expiry_share: number;
+      top_five_contract_share: number;
+    };
+    contract_count: number;
+    expiry_count: number;
+  };
+  underlying_market: {
+    symbol: string;
+    as_of: string;
+    current_price: number;
+    change_5d?: number;
+    change_20d?: number;
+    change_60d?: number;
+    change_ytd?: number;
+    volatility_20d?: number;
+    volatility_60d?: number;
+    max_drawdown_20d?: number;
+    max_drawdown_60d?: number;
+    average_amount_20d?: number;
+    ma20?: number;
+    ma60?: number;
+    ma120?: number;
+    history_trading_days?: number;
+  };
+  history?: Array<{
+    date: string;
+    stress_score?: number;
+    positioning_score?: number;
+    underlying_price?: number;
+    atm_iv?: number;
+    open_interest?: number;
+    volume?: number;
+  }>;
+  term_structure?: Array<{
+    expiry: string;
+    days_to_expiry: number;
+    atm_iv_percent: number;
+    liquidity_score: number;
+    volume: number;
+    open_interest: number;
+    skew_25d?: number;
+  }>;
+  contract_activity?: {
+    oi_increase?: Array<{ contract_code: string; delta_oi: number; delta_oi_percent: number }>;
+    oi_decrease?: Array<{ contract_code: string; delta_oi: number; delta_oi_percent: number }>;
+    volume_active?: Array<{ contract_code: string; volume: number }>;
+    t_quotes?: Record<string, {
+      atm_strike: number;
+      underlying_price: number;
+      rows: Array<{
+        strike_price: number;
+        is_atm: boolean;
+        call?: {
+          contract_code: string;
+          bid: number;
+          ask: number;
+          iv: number;
+          delta: number;
+          gamma: number;
+          oi: number;
+          delta_oi: number;
+        };
+        put?: {
+          contract_code: string;
+          bid: number;
+          ask: number;
+          iv: number;
+          delta: number;
+          gamma: number;
+          oi: number;
+          delta_oi: number;
+        };
+      }>;
+    }>;
+  };
+  data_quality?: {
+    coverage?: number;
+    confidence?: string;
+    missing_fields?: string[];
+  };
+  methodology?: {
+    formula?: string;
+    limits?: string[];
+  };
+  oi_analysis?: {
+    meta: {
+      as_of: string;
+      generated_at: string;
+      expiry_dates: string[];
+    };
+    comparison_dates: Record<string, string>;
+    volatility_regime: {
+      windows: Record<string, {
+        status: string;
+        baseline_date?: string;
+        current_atm_iv_percent?: number;
+        baseline_atm_iv_percent?: number;
+        delta_atm_iv_points?: number;
+        comparable_delta_oi?: number;
+        signal_code: string;
+        label: string;
+        confidence: string;
+        interpretation: string;
+      }>;
+    };
+    market_summary: {
+      current_total_oi: number;
+      windows: Record<string, {
+        delta_oi: number;
+        delta_oi_percent: number;
+      }>;
+    };
+    term_structure: Record<string, {
+      expiry_date: string;
+      call_oi: number;
+      call_delta_oi_1d?: number;
+      call_delta_oi_3d?: number;
+      call_delta_oi_5d?: number;
+      put_oi: number;
+      put_delta_oi_1d?: number;
+      put_delta_oi_3d?: number;
+      put_delta_oi_5d?: number;
+    }>;
+    t_shapes: Record<string, {
+      atm_strike: number;
+      underlying_price: number;
+      wings: number;
+      rows: Array<{
+        strike_price: number;
+        is_atm: boolean;
+        call: {
+          contract_code: string;
+          open_interest: number;
+          daily_volume: number;
+          implied_volatility_percent: number;
+          windows: Record<string, {
+            status: string;
+            baseline_date?: string;
+            baseline_open_interest?: number;
+            delta_oi?: number;
+            delta_oi_percent?: number;
+          }>;
+        };
+        put: {
+          contract_code: string;
+          open_interest: number;
+          daily_volume: number;
+          implied_volatility_percent: number;
+          windows: Record<string, {
+            status: string;
+            baseline_date?: string;
+            baseline_open_interest?: number;
+            delta_oi?: number;
+            delta_oi_percent?: number;
+          }>;
+        };
+      }>;
+    }>;
+    rankings: {
+      absolute_increase?: Array<{ contract_code: string; delta_oi: number; expiry: string; strike: number; option_type: string }>;
+      absolute_decrease?: Array<{ contract_code: string; delta_oi: number; expiry: string; strike: number; option_type: string }>;
+      relative_increase?: Array<{ contract_code: string; delta_oi_percent: number; expiry: string; strike: number; option_type: string }>;
+      relative_decrease?: Array<{ contract_code: string; delta_oi_percent: number; expiry: string; strike: number; option_type: string }>;
+    };
+    interpretations: Array<{
+      title: string;
+      confidence: string;
+      possible_explanations: string[];
+      limitations?: string[];
+      evidence: Array<{
+        code: string;
+        expiry_date: string | null;
+        label: string;
+        unit: string;
+        value: number;
+        window: number;
+      }>;
+    }>;
+    data_quality?: Record<string, any>;
+    methodology?: Record<string, any>;
+  };
+}
+
 export interface OptionsService {
   getOptionsData: (symbol?: string) => Promise<ServiceResponse<OptionsData>>;
   refreshOptionsData: (symbol?: string) => Promise<ServiceResponse<OptionsData>>;
+  getOptionMarketState: (
+    symbol: string,
+    params?: {
+      days?: number;
+      windows?: string;
+      top?: number;
+      wings?: number;
+      min_base_oi?: number;
+      as_of?: string;
+      expiry?: string | string[];
+      refresh?: boolean;
+    }
+  ) => Promise<ServiceResponse<OptionMarketStateData>>;
   getOptionContractDetail: (contractCode: string) => Promise<ServiceResponse<OptionContractDetail>>;
   getAvailableSymbols: () => Promise<ServiceResponse<string[]>>;
   getPriceDistribution: (

@@ -1,7 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { logger } from '../shared/utils/logger';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { BarChart2, TrendingUp, Briefcase, Calculator, RefreshCw, Shield, Activity, BookOpen, Hourglass, BellRing } from 'lucide-react';
+import { BarChart2, TrendingUp, Briefcase, Calculator, RefreshCw, Shield, Activity, BookOpen, Hourglass, BellRing, Compass } from 'lucide-react';
 import { Theme, themes } from '../lib/theme';
 import { OptionsChain } from '../features/options/components/OptionsChain';
 import { TimeValueChart } from '../features/options/components/TimeValueChart';
@@ -12,6 +12,7 @@ import { RiskAnalysis } from '../features/options/components/RiskAnalysis';
 import { OptionExpiryRiskReportsPanel } from '../features/options/components/OptionExpiryRiskReportsPanel';
 import { OptionsTradePlans } from '../features/options/components/OptionsTradePlans';
 import { OptionsCalculatorCard } from '../features/options/components/OptionsCalculatorCard';
+import { OptionMarketStatePanel } from '../features/options/components/OptionMarketStatePanel';
 import type { PayoffChartEngine } from '../features/options/components/OptionPayoffCalculatorChart';
 import { OptionsCalculatorModal } from './options/OptionsCalculatorModal';
 import { RelatedLinks, AccountSelector } from '../shared/components';
@@ -378,6 +379,7 @@ function OptionsContent({ theme }: OptionsProps) {
 
   const tabs = [
     { id: 'data' as OptionsTab, name: 'Market', icon: BarChart2 },
+    { id: 'market-state' as OptionsTab, name: '市场状态', icon: Compass },
     { id: 'portfolio' as OptionsTab, name: 'Portfolio', icon: Briefcase },
     { id: 'analysis' as OptionsTab, name: 'Analysis', icon: BookOpen },
     { id: 'trading' as OptionsTab, name: 'Plans', icon: TrendingUp },
@@ -573,6 +575,18 @@ function OptionsContent({ theme }: OptionsProps) {
             <RelatedLinks 
               theme={theme}
               currentPath="/options?tab=data" 
+              maxItems={4}
+              hideTradePlans={!isAuthenticated}
+            />
+          </div>
+        )}
+
+        {activeTab === 'market-state' && (
+          <div className="space-y-6">
+            <OptionMarketStatePanel theme={theme} selectedSymbol={selectedSymbol} />
+            <RelatedLinks 
+              theme={theme}
+              currentPath="/options?tab=market-state" 
               maxItems={4}
               hideTradePlans={!isAuthenticated}
             />

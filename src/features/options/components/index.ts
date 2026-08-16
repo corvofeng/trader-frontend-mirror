@@ -5,4 +5,4 @@ export { StrategyCreator } from './StrategyCreator';
 export { StrategyDisplay } from './StrategyDisplay';
 export { StrategyEditModal } from './StrategyEditModal';
 export { RiskAnalysis } from './RiskAnalysis';
-export { OptionsTradePlans } from './OptionsTradePlans';
+export { OptionMarketStatePanel } from './OptionMarketStatePanel';
