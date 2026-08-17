@@ -2303,7 +2303,47 @@ export const optionsService: OptionsService = {
           '5': '2026-08-10'
         },
         volatility_regime: {
-          windows: winRegime
+          atm_call_iv_percent: 33.66,
+          atm_iv_percent: 38.73,
+          atm_put_iv_percent: 43.81,
+          history_percentile: 13.6,
+          valid_history_samples: 81,
+          windows: winRegime,
+          history_summary: {
+            requested_calendar_days: 120,
+            start_date: '2026-04-20',
+            end_date: '2026-08-14',
+            valid_samples: 81,
+            metrics: {
+              atm_call_iv_percent: {
+                start_date: '2026-04-20',
+                end_date: '2026-08-14',
+                valid_samples: 81,
+                latest_daily_average_percent: 34.6138,
+                percentile: 29.0,
+                minimum: { value_percent: 26.3591, date: '2026-04-22' },
+                maximum: { value_percent: 54.281, date: '2026-07-20' }
+              },
+              atm_put_iv_percent: {
+                start_date: '2026-04-20',
+                end_date: '2026-08-14',
+                valid_samples: 81,
+                latest_daily_average_percent: 44.7604,
+                percentile: 19.1,
+                minimum: { value_percent: 32.7888, date: '2026-04-22' },
+                maximum: { value_percent: 73.0988, date: '2026-07-01' }
+              },
+              atm_iv_percent: {
+                start_date: '2026-04-20',
+                end_date: '2026-08-14',
+                valid_samples: 81,
+                latest_daily_average_percent: 39.6871,
+                percentile: 20.4,
+                minimum: { value_percent: 29.5739, date: '2026-04-22' },
+                maximum: { value_percent: 60.3907, date: '2026-07-01' }
+              }
+            }
+          }
         },
         market_summary: {
           current_total_oi: 450000,

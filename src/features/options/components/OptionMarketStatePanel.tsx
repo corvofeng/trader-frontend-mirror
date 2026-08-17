@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Theme, themes } from '../../../lib/theme';
-import { optionsService } from '../../../lib/services';
+import { optionsService, authService } from '../../../lib/services';
 import type { OptionMarketStateData } from '../../../lib/services/types';
 import { 
   Compass, 
@@ -51,6 +51,15 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
 
   // Active ranking tab
   const [activeRankingTab, setActiveRankingTab] = useState<'abs_inc' | 'abs_dec' | 'rel_inc' | 'rel_dec'>('abs_inc');
+
+  // Authentication status
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+
+  useEffect(() => {
+    authService.getUser().then(res => {
+      setIsLoggedIn(!!res?.data?.user);
+    }).catch(() => setIsLoggedIn(false));
+  }, []);
 
   // Enforce windows parameter limitation: only 588000.SH supports windows parameter in V1
   useEffect(() => {
@@ -362,7 +371,8 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
   return (
     <div className="space-y-6">
       {/* 1. Header Filter Controls Card */}
-      <div className={`${themes[theme].card} rounded-lg p-5 border ${themes[theme].border}`}>
+      {isLoggedIn && (
+        <div className={`${themes[theme].card} rounded-lg p-5 border ${themes[theme].border}`}>
         <div className="flex items-center justify-between mb-4 border-b pb-3 border-slate-100 dark:border-zinc-800">
           <div className="flex items-center gap-2">
             <Compass className="w-5 h-5 text-blue-500" />
@@ -499,6 +509,7 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
           </div>
         )}
       </div>
+      )}
 
       {/* 2. Loading & Error Overlay */}
       {isLoading && !marketStateData && (
@@ -713,7 +724,107 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
             </div>
           </div>
 
-          {/* C. Multi-Window Volatility Regime Joint Interpretations */}
+          {/* C. Volatility Percentile & History Summary Analysis */}
+          {marketStateData.oi_analysis?.volatility_regime?.history_summary && (() => {
+            const summary = marketStateData.oi_analysis.volatility_regime.history_summary;
+            const metrics = summary.metrics;
+            if (!metrics) return null;
+            
+            const getPercentileBadge = (pct: number) => {
+              if (pct < 25) return { text: '低波动区间', badge: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500 dark:text-emerald-400' };
+              if (pct > 75) return { text: '高波动区间', badge: 'bg-rose-500/10 border-rose-500/30 text-rose-500 dark:text-rose-400' };
+              return { text: '中波动区间', badge: 'bg-amber-500/10 border-amber-500/30 text-amber-500 dark:text-amber-400' };
+            };
+
+            const metricList = [
+              {
+                id: 'atm_iv',
+                label: '综合平值 IV (ATM IV)',
+                data: metrics.atm_iv_percent,
+                color: 'from-blue-500 to-indigo-500'
+              },
+              {
+                id: 'atm_call_iv',
+                label: '认购平值 IV (ATM Call IV)',
+                data: metrics.atm_call_iv_percent,
+                color: 'from-rose-500 to-pink-500'
+              },
+              {
+                id: 'atm_put_iv',
+                label: '认沽平值 IV (ATM Put IV)',
+                data: metrics.atm_put_iv_percent,
+                color: 'from-emerald-500 to-teal-500'
+              }
+            ];
+
+            return (
+              <div className={`${themes[theme].card} rounded-lg p-5 border ${themes[theme].border}`}>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
+                  <div className="flex items-center gap-2">
+                    <Award className="w-5 h-5 text-indigo-500" />
+                    <h3 className={`text-md font-bold ${textTheme}`}>波动率历史百分位分析</h3>
+                  </div>
+                  <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                    统计周期: <span className="font-semibold font-mono">{summary.requested_calendar_days}</span> 天 ({summary.start_date} ~ {summary.end_date})，有效样本数: <span className="font-semibold font-mono">{summary.valid_samples}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {metricList.map(metric => {
+                    const m = metric.data;
+                    if (!m) return null;
+                    const badgeInfo = getPercentileBadge(m.percentile);
+
+                    return (
+                      <div key={metric.id} className="p-4 rounded-lg bg-slate-50/50 dark:bg-zinc-800/10 border border-slate-100 dark:border-zinc-800/50 space-y-4">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 block">{metric.label}</span>
+                            <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">最新均值: {m.latest_daily_average_percent?.toFixed(2)}%</span>
+                          </div>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${badgeInfo.badge}`}>
+                            {badgeInfo.text} ({m.percentile?.toFixed(1)}%)
+                          </span>
+                        </div>
+
+                        {/* Percentile Progress Bar */}
+                        <div className="space-y-1">
+                          <div className="relative w-full h-2.5 bg-slate-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+                            {/* Fill bar */}
+                            <div 
+                              className={`absolute top-0 left-0 h-full bg-gradient-to-r ${metric.color} rounded-full transition-all duration-500`}
+                              style={{ width: `${m.percentile}%` }}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between text-[9px] text-zinc-400 dark:text-zinc-500 font-mono">
+                            <span>0% (低分位)</span>
+                            <span>50% (中位数)</span>
+                            <span>100% (高分位)</span>
+                          </div>
+                        </div>
+
+                        {/* Min / Max Range */}
+                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 dark:border-zinc-800/60 text-[10px]">
+                          <div className="space-y-0.5">
+                            <span className="text-zinc-500 dark:text-zinc-400 block">区间最低值</span>
+                            <span className="font-mono font-bold text-emerald-500">{m.minimum?.value_percent?.toFixed(2)}%</span>
+                            <span className="text-[9px] text-zinc-400 dark:text-zinc-500 block font-mono">({m.minimum?.date})</span>
+                          </div>
+                          <div className="space-y-0.5 text-right">
+                            <span className="text-zinc-500 dark:text-zinc-400 block">区间最高值</span>
+                            <span className="font-mono font-bold text-rose-500">{m.maximum?.value_percent?.toFixed(2)}%</span>
+                            <span className="text-[9px] text-zinc-400 dark:text-zinc-500 block font-mono">({m.maximum?.date})</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* D. Multi-Window Volatility Regime Joint Interpretations */}
           {useWindows && marketStateData.oi_analysis?.volatility_regime?.windows && (
             <div className={`${themes[theme].card} rounded-lg p-5 border ${themes[theme].border}`}>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3">

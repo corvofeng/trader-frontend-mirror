@@ -1197,6 +1197,46 @@ export interface OptionMarketStateData {
         confidence: string;
         interpretation: string;
       }>;
+      atm_call_iv_percent?: number;
+      atm_iv_percent?: number;
+      atm_put_iv_percent?: number;
+      history_percentile?: number;
+      valid_history_samples?: number;
+      history_summary?: {
+        requested_calendar_days: number;
+        start_date: string;
+        end_date: string;
+        valid_samples: number;
+        metrics: {
+          atm_call_iv_percent: {
+            start_date: string;
+            end_date: string;
+            valid_samples: number;
+            latest_daily_average_percent: number;
+            percentile: number;
+            minimum: { value_percent: number; date: string };
+            maximum: { value_percent: number; date: string };
+          };
+          atm_put_iv_percent: {
+            start_date: string;
+            end_date: string;
+            valid_samples: number;
+            latest_daily_average_percent: number;
+            percentile: number;
+            minimum: { value_percent: number; date: string };
+            maximum: { value_percent: number; date: string };
+          };
+          atm_iv_percent: {
+            start_date: string;
+            end_date: string;
+            valid_samples: number;
+            latest_daily_average_percent: number;
+            percentile: number;
+            minimum: { value_percent: number; date: string };
+            maximum: { value_percent: number; date: string };
+          };
+        };
+      };
     };
     market_summary: {
       current_total_oi: number;
