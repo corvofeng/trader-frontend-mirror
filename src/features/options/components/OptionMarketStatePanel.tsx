@@ -1,20 +1,19 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { Theme, themes } from '../../../lib/theme';
 import { optionsService, authService } from '../../../lib/services';
 import type { OptionMarketStateData } from '../../../lib/services/types';
+import * as echarts from 'echarts';
 import { 
   Compass, 
   RefreshCw, 
   AlertTriangle, 
-  Info, 
   Check, 
   AlertCircle, 
   ChevronDown, 
   ChevronUp, 
   HelpCircle,
-  Award,
-  Layers,
-  Calendar
+  Calendar,
+  LineChart
 } from 'lucide-react';
 
 interface OptionMarketStatePanelProps {
@@ -25,11 +24,6 @@ interface OptionMarketStatePanelProps {
 export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketStatePanelProps) {
   // Query parameters state
   const [days, setDays] = useState<number>(120);
-  const [useWindows, setUseWindows] = useState<boolean>(selectedSymbol === '588000.SH');
-  const [windows, setWindows] = useState<string>('1,3,5');
-  const [top, setTop] = useState<number>(10);
-  const [wings, setWings] = useState<number>(20);
-  const [minBaseOi, setMinBaseOi] = useState<number>(1000);
   const [asOf, setAsOf] = useState<string>('');
   const [expiryFilter, setExpiryFilter] = useState<string>('');
   
@@ -42,30 +36,22 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
   const [refreshApplied, setRefreshApplied] = useState<boolean | null>(null);
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
   
-  // Selected visual window for joint analysis
-  const [activeAnalysisWindow, setActiveAnalysisWindow] = useState<string>('5');
-  
   // Expiry Month Group filter
   const [selectedMonthTab, setSelectedMonthTab] = useState<string>('all');
   const [expandedExpiries, setExpandedExpiries] = useState<Record<string, boolean>>({});
 
-  // Active ranking tab
-  const [activeRankingTab, setActiveRankingTab] = useState<'abs_inc' | 'abs_dec' | 'rel_inc' | 'rel_dec'>('abs_inc');
-
   // Authentication status
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+
+  // Chart refs
+  const ivChartRef = useRef<HTMLDivElement | null>(null);
+  const ivChartInstanceRef = useRef<echarts.ECharts | null>(null);
 
   useEffect(() => {
     authService.getUser().then(res => {
       setIsLoggedIn(!!res?.data?.user);
     }).catch(() => setIsLoggedIn(false));
   }, []);
-
-  // Enforce windows parameter limitation: only 588000.SH supports windows parameter in V1
-  useEffect(() => {
-    const isSh = selectedSymbol === '588000.SH';
-    setUseWindows(isSh);
-  }, [selectedSymbol]);
 
   // Load market state data
   const loadMarketState = async (forceRefresh: boolean = false) => {
@@ -85,10 +71,6 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
 
       const res = await optionsService.getOptionMarketState(selectedSymbol, {
         days,
-        windows: useWindows && selectedSymbol === '588000.SH' ? windows : undefined,
-        top: useWindows ? top : undefined,
-        wings: useWindows ? wings : undefined,
-        min_base_oi: useWindows ? minBaseOi : undefined,
         as_of: asOf || undefined,
         expiry: expArray,
         refresh: forceRefresh
@@ -125,30 +107,211 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
     }
   };
 
-  // Fetch when dependency props or query params change (except window specific settings)
+  // Fetch when dependency props or query params change
   useEffect(() => {
     loadMarketState(false);
-  }, [selectedSymbol, days, useWindows, asOf, expiryFilter]);
+  }, [selectedSymbol, days, asOf, expiryFilter]);
 
   // Expand expiries by default when data loads
   useEffect(() => {
     if (!marketStateData) return;
-    const expiries = Object.keys(marketStateData.oi_analysis?.t_shapes || marketStateData.contract_activity?.t_quotes || {});
+    const expiries = marketStateData.term_structure?.map(t => t.expiry)
+      || Object.keys(marketStateData.contract_activity?.by_expiry || {})
+      || [];
     const initialExpanded: Record<string, boolean> = {};
     expiries.forEach((exp, idx) => {
       initialExpanded[exp] = idx === 0; // expand first one by default
     });
     setExpandedExpiries(initialExpanded);
-
-    // Set first available window as active analysis window
-    if (marketStateData.oi_analysis?.volatility_regime?.windows) {
-      const wins = Object.keys(marketStateData.oi_analysis.volatility_regime.windows);
-      if (wins.length > 0) {
-        // Prefer '5' if exists, otherwise the first one
-        setActiveAnalysisWindow(wins.includes('5') ? '5' : wins[0]);
-      }
-    }
   }, [marketStateData]);
+
+  // Clean up chart instance on unmount
+  useEffect(() => {
+    return () => {
+      if (ivChartInstanceRef.current) {
+        ivChartInstanceRef.current.dispose();
+        ivChartInstanceRef.current = null;
+      }
+    };
+  }, []);
+
+  // Initialize and update historical IV chart
+  useEffect(() => {
+    if (!ivChartRef.current || !marketStateData?.history || marketStateData.history.length === 0) {
+      if (ivChartInstanceRef.current) {
+        ivChartInstanceRef.current.dispose();
+        ivChartInstanceRef.current = null;
+      }
+      return;
+    }
+
+    const chart = ivChartInstanceRef.current ?? echarts.init(ivChartRef.current);
+    ivChartInstanceRef.current = chart;
+
+    const isDark = theme === 'dark';
+    const textLight = isDark ? '#e5e7eb' : '#1f2937';
+    const borderLight = isDark ? '#374151' : '#e5e7eb';
+
+    const historyData = marketStateData.history;
+    const dates = historyData.map(h => h.date);
+    const atmIv = historyData.map(h => h.atm_iv ?? 0);
+    const callIv = historyData.map(h => h.atm_call_iv ?? 0);
+    const putIv = historyData.map(h => h.atm_put_iv ?? 0);
+
+    const option: echarts.EChartsOption = {
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: isDark ? '#18181b' : '#ffffff',
+        borderColor: borderLight,
+        borderWidth: 1,
+        textStyle: {
+          color: textLight,
+          fontSize: 12
+        },
+        shadowColor: 'rgba(0,0,0,0.1)',
+        shadowBlur: 8,
+        formatter: (params: any) => {
+          if (!params || params.length === 0) return '';
+          const dateStr = params[0].name;
+          let tooltipHtml = `<div style="font-family: sans-serif; padding: 4px;">
+            <div style="font-weight: 700; color: ${isDark ? '#a1a1aa' : '#71717a'}; margin-bottom: 6px;">${dateStr}</div>`;
+          
+          params.forEach((param: any) => {
+            const val = typeof param.value === 'number' ? `${param.value.toFixed(2)}%` : '--';
+            tooltipHtml += `<div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 4px;">
+              <span style="display: flex; align-items: center; gap: 6px;">
+                <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: ${param.color};"></span>
+                <span style="color: ${isDark ? '#e4e4e7' : '#3f3f46'}; font-size: 12px;">${param.seriesName}</span>
+              </span>
+              <span style="font-family: monospace; font-weight: 700; color: ${isDark ? '#f4f4f5' : '#18181b'};">${val}</span>
+            </div>`;
+          });
+          
+          const matched = historyData.find(h => h.date === dateStr);
+          if (matched) {
+            const changeStr = matched.atm_iv_change !== undefined && matched.atm_iv_change !== null
+              ? `${matched.atm_iv_change >= 0 ? '+' : ''}${matched.atm_iv_change.toFixed(2)}%` 
+              : '--';
+            const changeColor = matched.atm_iv_change !== undefined && matched.atm_iv_change !== null && matched.atm_iv_change >= 0 ? '#ef4444' : '#10b981';
+            
+            tooltipHtml += `<div style="border-top: 1px dashed ${isDark ? '#3f3f46' : '#e4e4e7'}; margin-top: 8px; padding-top: 6px; font-size: 11px; color: ${isDark ? '#a1a1aa' : '#71717a'};">
+              <div style="display: flex; justify-content: space-between; gap: 12px; margin-bottom: 3px;">
+                <span>ATM IV 日变化</span>
+                <span style="font-family: monospace; color: ${changeColor}; font-weight: 600;">${changeStr}</span>
+              </div>`;
+            if (matched.iv_percentile !== undefined) {
+              tooltipHtml += `<div style="display: flex; justify-content: space-between; gap: 12px;">
+                <span>120日历史分位</span>
+                <span style="font-family: monospace; font-weight: 600; color: ${isDark ? '#f4f4f5' : '#18181b'};">${matched.iv_percentile}%</span>
+              </div>`;
+            }
+            tooltipHtml += `</div>`;
+          }
+          tooltipHtml += `</div>`;
+          return tooltipHtml;
+        }
+      },
+      legend: {
+        data: ['综合平值 ATM IV', '认购 ATM Call IV', '认沽 ATM Put IV'],
+        textStyle: {
+          color: isDark ? '#a1a1aa' : '#4b5563',
+          fontSize: 11
+        },
+        top: 0
+      },
+      grid: {
+        left: '2%',
+        right: '3%',
+        bottom: '2%',
+        top: '15%',
+        containLabel: true
+      },
+      xAxis: {
+        type: 'category',
+        boundaryGap: false,
+        data: dates,
+        axisLine: {
+          lineStyle: {
+            color: borderLight
+          }
+        },
+        axisLabel: {
+          color: isDark ? '#71717a' : '#9ca3af',
+          fontSize: 10
+        }
+      },
+      yAxis: {
+        type: 'value',
+        axisLabel: {
+          formatter: '{value}%',
+          color: isDark ? '#71717a' : '#9ca3af',
+          fontSize: 10
+        },
+        splitLine: {
+          lineStyle: {
+            color: isDark ? '#27272a' : '#f1f5f9'
+          }
+        }
+      },
+      series: [
+        {
+          name: '综合平值 ATM IV',
+          type: 'line',
+          data: atmIv,
+          smooth: true,
+          showSymbol: false,
+          lineStyle: {
+            width: 2.5,
+            color: '#3b82f6'
+          },
+          itemStyle: {
+            color: '#3b82f6'
+          }
+        },
+        {
+          name: '认购 ATM Call IV',
+          type: 'line',
+          data: callIv,
+          smooth: true,
+          showSymbol: false,
+          lineStyle: {
+            width: 1.5,
+            color: '#ec4899'
+          },
+          itemStyle: {
+            color: '#ec4899'
+          }
+        },
+        {
+          name: '认沽 ATM Put IV',
+          type: 'line',
+          data: putIv,
+          smooth: true,
+          showSymbol: false,
+          lineStyle: {
+            width: 1.5,
+            color: '#10b981'
+          },
+          itemStyle: {
+            color: '#10b981'
+          }
+        }
+      ]
+    };
+
+    chart.setOption(option);
+
+    const handleResize = () => {
+      chart.resize();
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [marketStateData?.history, theme]);
 
   const toggleExpiry = (exp: string) => {
     setExpandedExpiries(prev => ({ ...prev, [exp]: !prev[exp] }));
@@ -156,7 +319,9 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
 
   // Group Expiration Dates by Month
   const groupedExpiries = useMemo(() => {
-    const dates = Object.keys(marketStateData?.oi_analysis?.t_shapes || marketStateData?.contract_activity?.t_quotes || {});
+    const dates = marketStateData?.term_structure?.map(t => t.expiry)
+      || Object.keys(marketStateData?.contract_activity?.by_expiry || {})
+      || [];
     const groups: Record<string, string[]> = {};
     
     dates.forEach(d => {
@@ -180,7 +345,9 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
 
   // Filtered Expiration Dates according to selected Month Tab
   const filteredExpiries = useMemo(() => {
-    const allDates = Object.keys(marketStateData?.oi_analysis?.t_shapes || marketStateData?.contract_activity?.t_quotes || {}).sort();
+    const allDates = (marketStateData?.term_structure?.map(t => t.expiry)
+      || Object.keys(marketStateData?.contract_activity?.by_expiry || {})
+      || []).sort();
     if (selectedMonthTab === 'all') {
       return allDates;
     }
@@ -201,169 +368,7 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
     return { text: '平稳宽裕', color: 'text-green-500 dark:text-green-400 bg-green-100 dark:bg-green-950/30' };
   };
 
-  // Joint signal styling helper
-  const getSignalBadgeStyle = (code: string) => {
-    switch (code) {
-      case 'OI_UP_IV_UP':
-        return 'bg-red-500/10 border-red-500/30 text-red-500';
-      case 'OI_UP_IV_DOWN':
-        return 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500';
-      case 'OI_DOWN_IV_UP':
-        return 'bg-orange-500/10 border-orange-500/30 text-orange-500';
-      case 'OI_DOWN_IV_DOWN':
-        return 'bg-blue-500/10 border-blue-500/30 text-blue-500';
-      default:
-        return 'bg-zinc-500/10 border-zinc-500/30 text-zinc-500';
-    }
-  };
 
-  // Rendering standard T-Quotes row values
-  const renderStandardRow = (row: any, isDark: boolean) => {
-    const callVal = row.call;
-    const putVal = row.put;
-    const textTheme = isDark ? 'text-zinc-100' : 'text-slate-900';
-
-    return (
-      <tr key={row.strike_price} className={`border-b ${themes[theme].border} hover:bg-slate-50/50 dark:hover:bg-zinc-800/30 transition-colors ${row.is_atm ? 'bg-blue-50/30 dark:bg-blue-950/10 border-y border-blue-200 dark:border-blue-900' : ''}`}>
-        {/* Call Columns */}
-        <td className="px-3 py-2.5 text-left text-xs font-mono">
-          <div className={textTheme}>{callVal?.oi?.toLocaleString() ?? '--'}</div>
-          {callVal?.delta_oi !== undefined && (
-            <div className={`text-[10px] ${callVal.delta_oi >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-              {callVal.delta_oi >= 0 ? `+${callVal.delta_oi.toLocaleString()}` : callVal.delta_oi.toLocaleString()}
-            </div>
-          )}
-        </td>
-        <td className="px-3 py-2.5 text-center text-xs font-mono text-zinc-500">{callVal?.volume?.toLocaleString() ?? '--'}</td>
-        <td className="px-3 py-2.5 text-center text-xs font-mono text-zinc-500">{callVal?.iv ? `${callVal.iv}%` : '--'}</td>
-        <td className="px-2 py-2.5 text-center text-[10px] font-mono text-zinc-400 hidden lg:table-cell">{callVal?.delta ?? '--'}</td>
-        <td className="px-2 py-2.5 text-center text-[10px] font-mono text-zinc-400 hidden lg:table-cell">{callVal?.gamma ?? '--'}</td>
-
-        {/* Center Strike Price */}
-        <td className="px-4 py-2.5 text-center font-bold text-sm bg-slate-100/50 dark:bg-zinc-800/50">
-          <div className="flex items-center justify-center gap-1">
-            <span className={row.is_atm ? 'text-blue-600 dark:text-blue-400 font-extrabold' : textTheme}>
-              {row.strike_price.toFixed(3)}
-            </span>
-            {row.is_atm && (
-              <span className="px-1 py-0.2 text-[8px] bg-blue-500 text-white rounded shrink-0">ATM</span>
-            )}
-          </div>
-        </td>
-
-        {/* Put Columns */}
-        <td className="px-2 py-2.5 text-center text-[10px] font-mono text-zinc-400 hidden lg:table-cell">{putVal?.gamma ?? '--'}</td>
-        <td className="px-2 py-2.5 text-center text-[10px] font-mono text-zinc-400 hidden lg:table-cell">{putVal?.delta ?? '--'}</td>
-        <td className="px-3 py-2.5 text-center text-xs font-mono text-zinc-500">{putVal?.iv ? `${putVal.iv}%` : '--'}</td>
-        <td className="px-3 py-2.5 text-center text-xs font-mono text-zinc-500">{putVal?.volume?.toLocaleString() ?? '--'}</td>
-        <td className="px-3 py-2.5 text-right text-xs font-mono">
-          <div className={textTheme}>{putVal?.oi?.toLocaleString() ?? '--'}</div>
-          {putVal?.delta_oi !== undefined && (
-            <div className={`text-[10px] ${putVal.delta_oi >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-              {putVal.delta_oi >= 0 ? `+${putVal.delta_oi.toLocaleString()}` : putVal.delta_oi.toLocaleString()}
-            </div>
-          )}
-        </td>
-      </tr>
-    );
-  };
-
-  // Rendering Multi-window OI Analysis T-Shapes row values
-  const renderAnalysisRow = (row: any, isDark: boolean, activeWins: string[]) => {
-    const callVal = row.call;
-    const putVal = row.put;
-    const textTheme = isDark ? 'text-zinc-100' : 'text-slate-900';
-
-    const getStatusText = (status: string, deltaOi?: number, deltaPercent?: number) => {
-      switch (status) {
-        case 'COMPARABLE':
-          if (deltaOi === undefined) return '--';
-          const prefix = deltaOi >= 0 ? '+' : '';
-          const pct = deltaPercent !== undefined ? ` (${deltaPercent > 0 ? '+' : ''}${deltaPercent}%)` : '';
-          return `${prefix}${deltaOi.toLocaleString()}${pct}`;
-        case 'FIRST_SEEN':
-          return '新增合约';
-        case 'BASELINE_MISSING':
-          return '缺少基准';
-        case 'ZERO_BASE':
-          if (deltaOi === undefined) return '0';
-          return `${deltaOi >= 0 ? '+' : ''}${deltaOi.toLocaleString()} (N/A)`;
-        case 'INSUFFICIENT_WINDOW':
-          return '数据不足';
-        default:
-          return '--';
-      }
-    };
-
-    const getStatusColor = (status: string, deltaOi?: number) => {
-      if (status === 'FIRST_SEEN') return 'text-blue-500 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/20 px-1 py-0.5 rounded text-[9px] font-semibold';
-      if (status === 'BASELINE_MISSING' || status === 'INSUFFICIENT_WINDOW') return 'text-zinc-400';
-      if (deltaOi === undefined || deltaOi === 0) return 'text-zinc-500';
-      return deltaOi > 0 ? 'text-emerald-500 dark:text-emerald-400 font-medium' : 'text-rose-500 dark:text-rose-400 font-medium';
-    };
-
-    return (
-      <tr key={row.strike_price} className={`border-b ${themes[theme].border} hover:bg-slate-50/50 dark:hover:bg-zinc-800/30 transition-colors ${row.is_atm ? 'bg-blue-50/30 dark:bg-blue-950/10 border-y border-blue-200 dark:border-blue-900' : ''}`}>
-        {/* Call Side */}
-        <td className="px-3 py-2 text-left text-xs font-mono">
-          <div className={textTheme}>{callVal?.open_interest?.toLocaleString() ?? '--'}</div>
-        </td>
-        <td className="px-2 py-2 text-center text-xs font-mono text-zinc-500 hidden sm:table-cell">{callVal?.daily_volume?.toLocaleString() ?? '--'}</td>
-        <td className="px-2 py-2 text-center text-xs font-mono text-zinc-500 hidden sm:table-cell">{callVal?.implied_volatility_percent ? `${callVal.implied_volatility_percent}%` : '--'}</td>
-        
-        {/* Call multi-windows deltas */}
-        {activeWins.map(w => {
-          const winData = callVal?.windows?.[w];
-          const delta = winData?.delta_oi;
-          const status = winData?.status;
-          return (
-            <td key={w} className="px-2 py-2 text-center text-[10px] font-mono whitespace-nowrap">
-              {winData ? (
-                <span className={getStatusColor(status, delta)}>
-                  {getStatusText(status, delta, winData.delta_oi_percent)}
-                </span>
-              ) : '--'}
-            </td>
-          );
-        })}
-
-        {/* Center Strike Price */}
-        <td className="px-4 py-2 text-center font-bold text-sm bg-slate-100/50 dark:bg-zinc-800/50">
-          <div className="flex items-center justify-center gap-1">
-            <span className={row.is_atm ? 'text-blue-600 dark:text-blue-400 font-extrabold' : textTheme}>
-              {row.strike_price.toFixed(3)}
-            </span>
-            {row.is_atm && (
-              <span className="px-1 py-0.2 text-[8px] bg-blue-500 text-white rounded shrink-0">ATM</span>
-            )}
-          </div>
-        </td>
-
-        {/* Put multi-windows deltas */}
-        {[...activeWins].reverse().map(w => {
-          const winData = putVal?.windows?.[w];
-          const delta = winData?.delta_oi;
-          const status = winData?.status;
-          return (
-            <td key={w} className="px-2 py-2 text-center text-[10px] font-mono whitespace-nowrap">
-              {winData ? (
-                <span className={getStatusColor(status, delta)}>
-                  {getStatusText(status, delta, winData.delta_oi_percent)}
-                </span>
-              ) : '--'}
-            </td>
-          );
-        })}
-
-        {/* Put Side */}
-        <td className="px-2 py-2 text-center text-xs font-mono text-zinc-500 hidden sm:table-cell">{putVal?.implied_volatility_percent ? `${putVal.implied_volatility_percent}%` : '--'}</td>
-        <td className="px-2 py-2 text-center text-xs font-mono text-zinc-500 hidden sm:table-cell">{putVal?.daily_volume?.toLocaleString() ?? '--'}</td>
-        <td className="px-3 py-2 text-right text-xs font-mono">
-          <div className={textTheme}>{putVal?.open_interest?.toLocaleString() ?? '--'}</div>
-        </td>
-      </tr>
-    );
-  };
 
   const isDark = theme === 'dark';
   const textTheme = isDark ? 'text-zinc-100' : 'text-slate-900';
@@ -431,83 +436,11 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
               type="text"
               value={expiryFilter}
               onChange={(e) => setExpiryFilter(e.target.value)}
-              placeholder="e.g. 2026-09-23,2026-12-23"
+              placeholder="e.g. 2026-08-26,2026-09-23"
               className={`px-3 py-1.5 rounded text-xs border ${themes[theme].input}`}
             />
           </div>
-
-          {selectedSymbol === '588000.SH' ? (
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-medium text-zinc-500">OI 分析多窗口 (Windows)</label>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="checkbox"
-                    id="use-windows"
-                    checked={useWindows}
-                    onChange={(e) => setUseWindows(e.target.checked)}
-                    className="rounded border-gray-300 dark:border-zinc-800 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
-                  />
-                  <label htmlFor="use-windows" className="text-[10px] font-semibold text-zinc-400">启用</label>
-                </div>
-              </div>
-              <input
-                type="text"
-                disabled={!useWindows}
-                value={windows}
-                onChange={(e) => setWindows(e.target.value)}
-                placeholder="e.g. 1,3,5"
-                className={`px-3 py-1.5 rounded text-xs border ${themes[theme].input} ${!useWindows ? 'opacity-50 cursor-not-allowed bg-slate-100 dark:bg-zinc-800/30' : ''}`}
-              />
-            </div>
-          ) : (
-            <div className="flex flex-col gap-1.5 bg-slate-50 dark:bg-zinc-800/20 p-2.5 rounded border border-dashed border-slate-200 dark:border-zinc-800 justify-center">
-              <div className="flex items-center gap-1 text-zinc-400 text-[10px]">
-                <Info className="w-3.5 h-3.5 shrink-0 text-blue-500" />
-                <span>OI分析多窗口参数仅支持 588000.SH，其他标的已自动切换为标准行情T型表展示。</span>
-              </div>
-            </div>
-          )}
         </div>
-
-        {useWindows && selectedSymbol === '588000.SH' && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 pt-3 border-t border-slate-100 dark:border-zinc-800">
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-semibold text-zinc-500">行权价 ATM 挡数 (Wings)</label>
-              <input
-                type="number"
-                min="1"
-                max="50"
-                value={wings}
-                onChange={(e) => setWings(Number(e.target.value))}
-                className={`px-3 py-1 rounded text-xs border ${themes[theme].input}`}
-              />
-            </div>
-            
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-semibold text-zinc-500">基准排名最低 OI (Min Base OI)</label>
-              <input
-                type="number"
-                min="0"
-                value={minBaseOi}
-                onChange={(e) => setMinBaseOi(Number(e.target.value))}
-                className={`px-3 py-1 rounded text-xs border ${themes[theme].input}`}
-              />
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-semibold text-zinc-500">排名返回条数 (Top Ranks)</label>
-              <input
-                type="number"
-                min="1"
-                max="50"
-                value={top}
-                onChange={(e) => setTop(Number(e.target.value))}
-                className={`px-3 py-1 rounded text-xs border ${themes[theme].input}`}
-              />
-            </div>
-          </div>
-        )}
       </div>
       )}
 
@@ -724,230 +657,50 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
             </div>
           </div>
 
-          {/* C. Volatility Percentile & History Summary Analysis */}
-          {marketStateData.oi_analysis?.volatility_regime?.history_summary && (() => {
-            const summary = marketStateData.oi_analysis.volatility_regime.history_summary;
-            const metrics = summary.metrics;
-            if (!metrics) return null;
-            
-            const getPercentileBadge = (pct: number) => {
-              if (pct < 25) return { text: '低波动区间', badge: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500 dark:text-emerald-400' };
-              if (pct > 75) return { text: '高波动区间', badge: 'bg-rose-500/10 border-rose-500/30 text-rose-500 dark:text-rose-400' };
-              return { text: '中波动区间', badge: 'bg-amber-500/10 border-amber-500/30 text-amber-500 dark:text-amber-400' };
-            };
 
-            const metricList = [
-              {
-                id: 'atm_iv',
-                label: '综合平值 IV (ATM IV)',
-                data: metrics.atm_iv_percent,
-                color: 'from-blue-500 to-indigo-500'
-              },
-              {
-                id: 'atm_call_iv',
-                label: '认购平值 IV (ATM Call IV)',
-                data: metrics.atm_call_iv_percent,
-                color: 'from-rose-500 to-pink-500'
-              },
-              {
-                id: 'atm_put_iv',
-                label: '认沽平值 IV (ATM Put IV)',
-                data: metrics.atm_put_iv_percent,
-                color: 'from-emerald-500 to-teal-500'
-              }
-            ];
 
-            return (
-              <div className={`${themes[theme].card} rounded-lg p-5 border ${themes[theme].border}`}>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
-                  <div className="flex items-center gap-2">
-                    <Award className="w-5 h-5 text-indigo-500" />
-                    <h3 className={`text-md font-bold ${textTheme}`}>波动率历史百分位分析</h3>
-                  </div>
-                  <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                    统计周期: <span className="font-semibold font-mono">{summary.requested_calendar_days}</span> 天 ({summary.start_date} ~ {summary.end_date})，有效样本数: <span className="font-semibold font-mono">{summary.valid_samples}</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {metricList.map(metric => {
-                    const m = metric.data;
-                    if (!m) return null;
-                    const badgeInfo = getPercentileBadge(m.percentile);
-
-                    return (
-                      <div key={metric.id} className="p-4 rounded-lg bg-slate-50/50 dark:bg-zinc-800/10 border border-slate-100 dark:border-zinc-800/50 space-y-4">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 block">{metric.label}</span>
-                            <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">最新均值: {m.latest_daily_average_percent?.toFixed(2)}%</span>
-                          </div>
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${badgeInfo.badge}`}>
-                            {badgeInfo.text} ({m.percentile?.toFixed(1)}%)
-                          </span>
-                        </div>
-
-                        {/* Percentile Progress Bar */}
-                        <div className="space-y-1">
-                          <div className="relative w-full h-2.5 bg-slate-200 dark:bg-zinc-800 rounded-full overflow-hidden">
-                            {/* Fill bar */}
-                            <div 
-                              className={`absolute top-0 left-0 h-full bg-gradient-to-r ${metric.color} rounded-full transition-all duration-500`}
-                              style={{ width: `${m.percentile}%` }}
-                            />
-                          </div>
-                          <div className="flex items-center justify-between text-[9px] text-zinc-400 dark:text-zinc-500 font-mono">
-                            <span>0% (低分位)</span>
-                            <span>50% (中位数)</span>
-                            <span>100% (高分位)</span>
-                          </div>
-                        </div>
-
-                        {/* Min / Max Range */}
-                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 dark:border-zinc-800/60 text-[10px]">
-                          <div className="space-y-0.5">
-                            <span className="text-zinc-500 dark:text-zinc-400 block">区间最低值</span>
-                            <span className="font-mono font-bold text-emerald-500">{m.minimum?.value_percent?.toFixed(2)}%</span>
-                            <span className="text-[9px] text-zinc-400 dark:text-zinc-500 block font-mono">({m.minimum?.date})</span>
-                          </div>
-                          <div className="space-y-0.5 text-right">
-                            <span className="text-zinc-500 dark:text-zinc-400 block">区间最高值</span>
-                            <span className="font-mono font-bold text-rose-500">{m.maximum?.value_percent?.toFixed(2)}%</span>
-                            <span className="text-[9px] text-zinc-400 dark:text-zinc-500 block font-mono">({m.maximum?.date})</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* D. Multi-Window Volatility Regime Joint Interpretations */}
-          {useWindows && marketStateData.oi_analysis?.volatility_regime?.windows && (
-            <div className={`${themes[theme].card} rounded-lg p-5 border ${themes[theme].border}`}>
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3">
+          {/* C2. IV Historical Trend Chart */}
+          {marketStateData?.history && marketStateData.history.length > 0 && (
+            <div className={`${themes[theme].card} rounded-lg p-5 border ${themes[theme].border} space-y-4`}>
+              <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-zinc-800/60">
                 <div className="flex items-center gap-2">
-                  <Layers className="w-5 h-5 text-blue-500" />
-                  <h3 className={`text-md font-bold ${textTheme}`}>多窗口 IV × OI 联合分析</h3>
+                  <LineChart className="w-5 h-5 text-blue-500" />
+                  <h3 className={`text-md font-bold ${textTheme}`}>IV 历史走势分析 ({marketStateData.history.length}D)</h3>
                 </div>
-                
-                {/* Select window buttons */}
-                <div className="flex gap-1.5 p-0.5 bg-slate-100 dark:bg-zinc-800/80 rounded-md self-start">
-                  {Object.keys(marketStateData.oi_analysis.volatility_regime.windows).map(w => (
-                    <button
-                      key={w}
-                      onClick={() => setActiveAnalysisWindow(w)}
-                      className={`px-3 py-1 rounded text-xs font-semibold transition-all ${
-                        activeAnalysisWindow === w
-                          ? 'bg-white dark:bg-zinc-900 shadow-xs text-blue-600 dark:text-blue-400'
-                          : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
-                      }`}
-                    >
-                      {w}D 窗口
-                    </button>
-                  ))}
+                <div className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">
+                  最近 {marketStateData.history.length} 个自然日
                 </div>
               </div>
-
-              {/* Joint Regime Details */}
-              {marketStateData.oi_analysis.volatility_regime.windows[activeAnalysisWindow] ? (() => {
-                const regime = marketStateData.oi_analysis.volatility_regime.windows[activeAnalysisWindow];
-                
-                if (regime.status !== 'COMPARABLE') {
-                  return (
-                    <div className="text-center py-6 text-xs text-zinc-500 italic">
-                      该窗口的数据不可比：状态 {regime.status}
-                    </div>
-                  );
-                }
-
-                return (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                      <div className="p-3 bg-slate-50 dark:bg-zinc-800/20 rounded border border-slate-100 dark:border-zinc-800">
-                        <div className="text-[10px] text-zinc-500 mb-1">联合判定信号</div>
-                        <div className={`px-2 py-0.5 inline-block text-xs rounded border ${getSignalBadgeStyle(regime.signal_code)}`}>
-                          {regime.label} ({regime.signal_code})
-                        </div>
-                      </div>
-
-                      <div className="p-3 bg-slate-50 dark:bg-zinc-800/20 rounded border border-slate-100 dark:border-zinc-800">
-                        <div className="text-[10px] text-zinc-500 mb-1">平值 IV 变动</div>
-                        <div className={`text-md font-bold font-mono ${regime.delta_atm_iv_points && regime.delta_atm_iv_points >= 0 ? 'text-red-500' : 'text-emerald-500'}`}>
-                          {regime.delta_atm_iv_points && regime.delta_atm_iv_points >= 0 ? '+' : ''}{regime.delta_atm_iv_points} 个波点
-                        </div>
-                        <div className="text-[9px] text-zinc-500">基准平值IV: {regime.baseline_atm_iv_percent}% 至 当前: {regime.current_atm_iv_percent}%</div>
-                      </div>
-
-                      <div className="p-3 bg-slate-50 dark:bg-zinc-800/20 rounded border border-slate-100 dark:border-zinc-800">
-                        <div className="text-[10px] text-zinc-500 mb-1">可比未平仓量变动 (OI)</div>
-                        <div className={`text-md font-bold font-mono ${regime.comparable_delta_oi && regime.comparable_delta_oi >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                          {regime.comparable_delta_oi && regime.comparable_delta_oi >= 0 ? '+' : ''}{regime.comparable_delta_oi?.toLocaleString()} 张
-                        </div>
-                        <div className="text-[9px] text-zinc-500">基准交易日: {regime.baseline_date}</div>
-                      </div>
-
-                      <div className="p-3 bg-slate-50 dark:bg-zinc-800/20 rounded border border-slate-100 dark:border-zinc-800">
-                        <div className="text-[10px] text-zinc-500 mb-1">解读置信度</div>
-                        <div className={`text-md font-extrabold uppercase ${
-                          regime.confidence === 'high' ? 'text-emerald-500' : regime.confidence === 'medium' ? 'text-blue-500' : 'text-amber-500'
-                        }`}>
-                          {regime.confidence || '中等'}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="p-4 bg-slate-50 dark:bg-zinc-800/20 rounded-lg border border-slate-100 dark:border-zinc-800 space-y-2">
-                      <div className="text-xs font-semibold flex items-center gap-1">
-                        <Info className="w-3.5 h-3.5 text-blue-500" />
-                        联合分析解读：
-                      </div>
-                      <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed pl-4 border-l-2 border-blue-500/50">
-                        {regime.interpretation}
-                      </p>
-                    </div>
-
-                    {marketStateData.oi_analysis.interpretations && marketStateData.oi_analysis.interpretations.length > 0 && (
-                      <div className="space-y-2">
-                        <div className="text-xs font-semibold">详细可解释性证据：</div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {marketStateData.oi_analysis.interpretations.map((inter, i) => (
-                            <div key={i} className="p-3 border rounded border-slate-100 dark:border-zinc-800 text-xs space-y-1.5 bg-white dark:bg-zinc-900/40">
-                              <div className="flex items-center justify-between">
-                                <span className="font-bold text-blue-500 text-[10px]">{inter.title || '状态解读'}</span>
-                                <span className="px-1.5 py-0.2 rounded text-[8px] bg-zinc-100 dark:bg-zinc-800 text-zinc-500">置信: {inter.confidence}</span>
-                              </div>
-                              {inter.possible_explanations?.map((exp: string, idx: number) => (
-                                <p key={idx} className="font-medium text-zinc-700 dark:text-zinc-300">{exp}</p>
-                              ))}
-                              {inter.evidence && inter.evidence.length > 0 && (
-                                <ul className="list-disc pl-4 text-[10px] text-zinc-400 space-y-0.5 mt-1.5">
-                                  {inter.evidence.map((ev: any, ei: number) => (
-                                    <li key={ei}>
-                                      {ev.label || ev.code}: {ev.value !== undefined ? (typeof ev.value === 'number' ? ev.value.toLocaleString() : ev.value) : ''} {ev.unit || ''}
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })() : null}
+              
+              <div className="relative w-full h-[320px]">
+                <div ref={ivChartRef} className="w-full h-full" />
+              </div>
+              
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 justify-center text-[10px] text-zinc-500 pt-2 border-t border-slate-100 dark:border-zinc-800/60">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6] inline-block"></span>
+                  <span>综合平值 ATM IV (Call & Put 均值)</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#ec4899] inline-block"></span>
+                  <span>认购平值 ATM Call IV</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#10b981] inline-block"></span>
+                  <span>认自由/认沽平值 ATM Put IV</span>
+                </span>
+              </div>
             </div>
           )}
 
-          {/* D. Expiration Date T-Quotes Split by Month */}
+
+
+          {/* D. Expiration Date Contract Activity Split by Month */}
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 dark:border-zinc-800 pb-2">
               <div className="flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-blue-500" />
-                <h3 className={`text-md font-bold ${textTheme}`}>T型持仓与变化明细</h3>
+                <h3 className={`text-md font-bold ${textTheme}`}>各到期日主力合约异动明细</h3>
               </div>
               
               {/* Expiry Month Tabs Selector */}
@@ -968,21 +721,13 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
               </div>
             </div>
 
-            {/* Displaying T-shape tables */}
+            {/* Displaying Expiry Activity Blocks */}
             {filteredExpiries.length > 0 ? (
               <div className="space-y-4">
                 {filteredExpiries.map(exp => {
                   const isExpanded = expandedExpiries[exp] ?? false;
-                  
-                  // Get Quote details depending on layout mode
-                  const hasAnalysis = useWindows && selectedSymbol === '588000.SH' && marketStateData.oi_analysis?.t_shapes?.[exp];
-                  const quoteDetails = hasAnalysis
-                    ? marketStateData.oi_analysis!.t_shapes[exp]
-                    : marketStateData.contract_activity?.t_quotes?.[exp];
-
-                  if (!quoteDetails) return null;
-
-                  const parsedWins = useWindows ? windows.split(',').map(w => w.trim()) : [];
+                  const termDetails = marketStateData.term_structure?.find(t => t.expiry === exp);
+                  const activity = marketStateData.contract_activity?.by_expiry?.[exp];
 
                   return (
                     <div 
@@ -992,81 +737,125 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
                       {/* Expiry header bar */}
                       <div 
                         onClick={() => toggleExpiry(exp)}
-                        className={`p-4 flex items-center justify-between cursor-pointer transition-colors bg-slate-50/50 dark:bg-zinc-800/20 hover:bg-slate-100/50 dark:hover:bg-zinc-800/40 border-b ${themes[theme].border}`}
+                        className={`p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between cursor-pointer transition-colors bg-slate-50/50 dark:bg-zinc-800/20 hover:bg-slate-100/50 dark:hover:bg-zinc-800/40 border-b ${themes[theme].border} gap-2`}
                       >
                         <div className="flex items-center gap-3">
-                          <div className={`p-1.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs font-bold font-mono`}>
+                          <div className={`p-1.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 text-sm font-bold font-mono`}>
                             {exp}
                           </div>
-                          <div className="text-xs text-zinc-500">
-                            平值行权价: <span className="font-mono font-bold text-zinc-700 dark:text-zinc-300">{quoteDetails.atm_strike}</span>
-                            <span className="mx-2">|</span>
-                            标的参考价: <span className="font-mono font-bold text-zinc-700 dark:text-zinc-300">{quoteDetails.underlying_price}</span>
-                            {hasAnalysis && (
-                              <>
-                                <span className="mx-2">|</span>
-                                <span className="text-[10px] bg-emerald-500/10 text-emerald-500 px-1 py-0.2 rounded border border-emerald-500/20">多窗口OI分析已启用</span>
-                              </>
-                            )}
-                          </div>
+                          {termDetails && (
+                            <div className="text-sm text-zinc-500 dark:text-zinc-400 flex flex-wrap items-center gap-x-3 gap-y-1">
+                              <span>剩余 <span className="font-mono font-extrabold text-zinc-800 dark:text-zinc-200">{termDetails.days_to_expiry}</span> 天</span>
+                              <span className="text-zinc-300 dark:text-zinc-800">|</span>
+                              <span>Call IV: <span className="font-mono font-extrabold text-pink-600 dark:text-pink-400">{termDetails.atm_call_iv?.toFixed(2)}%</span></span>
+                              <span className="text-zinc-300 dark:text-zinc-800">|</span>
+                              <span>Put IV: <span className="font-mono font-extrabold text-emerald-600 dark:text-emerald-400">{termDetails.atm_put_iv?.toFixed(2)}%</span></span>
+                              {termDetails.put_skew_25d !== undefined && (
+                                <>
+                                  <span className="text-zinc-300 dark:text-zinc-800">|</span>
+                                  <span>Put Skew: <span className="font-mono font-extrabold text-indigo-600 dark:text-indigo-400">{termDetails.put_skew_25d?.toFixed(2)}%</span></span>
+                                </>
+                              )}
+                              {termDetails.put_call_oi_ratio !== undefined && (
+                                <>
+                                  <span className="text-zinc-300 dark:text-zinc-800">|</span>
+                                  <span>P/C 持仓比: <span className="font-mono font-extrabold text-zinc-800 dark:text-zinc-200">{termDetails.put_call_oi_ratio}</span></span>
+                                </>
+                              )}
+                            </div>
+                          )}
                         </div>
                         {isExpanded ? (
-                          <ChevronUp className="w-4 h-4 text-zinc-400" />
+                          <ChevronUp className="w-4 h-4 text-zinc-400 self-end sm:self-auto" />
                         ) : (
-                          <ChevronDown className="w-4 h-4 text-zinc-400" />
+                          <ChevronDown className="w-4 h-4 text-zinc-400 self-end sm:self-auto" />
                         )}
                       </div>
 
-                      {/* Expandable Table Content */}
-                      {isExpanded && (
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-left border-collapse table-auto">
-                            <thead>
-                              <tr className={`border-b ${themes[theme].border} bg-slate-100/30 dark:bg-zinc-800/10 text-[10px] text-zinc-500 tracking-wider uppercase`}>
-                                {/* Call Side Columns */}
-                                <th className="px-3 py-2 text-left font-bold w-24">Call 持仓 (OI)</th>
-                                <th className="px-2 py-2 text-center font-bold hidden sm:table-cell w-20">Call 成交</th>
-                                <th className="px-2 py-2 text-center font-bold hidden sm:table-cell w-16">Call IV</th>
-                                
-                                {hasAnalysis && parsedWins.map(w => (
-                                  <th key={w} className="px-2 py-2 text-center font-bold text-blue-500 dark:text-blue-400 w-24">{w}D ΔOI</th>
-                                ))}
-                                {!hasAnalysis && (
-                                  <>
-                                    <th className="px-2 py-2 text-center font-bold hidden lg:table-cell w-16">Call Delta</th>
-                                    <th className="px-2 py-2 text-center font-bold hidden lg:table-cell w-16">Call Gamma</th>
-                                  </>
-                                )}
+                      {/* Expandable Activity Content */}
+                      {isExpanded && (() => {
+                        if (!activity) {
+                          return (
+                            <div className="p-6 text-center text-xs text-zinc-500 italic">
+                              暂无该到期日的合约异动数据
+                            </div>
+                          );
+                        }
 
-                                {/* Center Strike Price */}
-                                <th className="px-4 py-2 text-center font-bold bg-slate-100/50 dark:bg-zinc-800/50 w-24">行权价 (Strike)</th>
+                        const renderActivityTable = (title: string, list: any[], type: 'build' | 'unwind' | 'active') => {
+                          return (
+                            <div className="space-y-2 flex-1 min-w-[285px] p-4 rounded-lg bg-slate-50/50 dark:bg-zinc-800/10 border border-slate-100 dark:border-zinc-800/50">
+                              <div className="text-sm font-bold text-zinc-800 dark:text-zinc-200 border-b border-slate-200 dark:border-zinc-800 pb-1.5 flex justify-between items-center">
+                                <span>{title}</span>
+                                <span className="text-[10px] bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400 font-medium font-mono">TOP 5</span>
+                              </div>
+                              
+                              {list && list.length > 0 ? (
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-left border-collapse text-xs">
+                                    <thead>
+                                      <tr className="text-zinc-400 text-[10px] sm:text-xs uppercase font-bold border-b border-slate-200 dark:border-zinc-800">
+                                        <th className="pb-1.5 pl-1">合约行权价</th>
+                                        <th className="pb-1.5 text-center">类型</th>
+                                        <th className="pb-1.5 text-right">
+                                          {type === 'active' ? '成交量' : '持仓变化'}
+                                        </th>
+                                        <th className="pb-1.5 text-right">IV</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/40">
+                                      {list.map((item: any) => {
+                                        const isPut = item.option_type?.toLowerCase() === 'put';
+                                        const changeVal = type === 'active'
+                                          ? item.volume?.toLocaleString()
+                                          : `${item.open_interest_change >= 0 ? '+' : ''}${item.open_interest_change?.toLocaleString()}`;
+                                        
+                                        return (
+                                          <tr key={item.contract_code} className="hover:bg-slate-100/30 dark:hover:bg-zinc-800/20">
+                                            <td className="py-2.5 pl-1 font-medium font-mono text-xs" title={item.contract_name}>
+                                              <span className="font-bold text-zinc-850 dark:text-zinc-150">{item.strike_price}</span>
+                                              <span className="block text-[9px] sm:text-[10px] text-zinc-400 dark:text-zinc-500 font-mono font-normal">#{item.contract_code}</span>
+                                            </td>
+                                            <td className="py-2.5 text-center">
+                                              <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                                                isPut 
+                                                  ? 'bg-blue-500/10 border-blue-500/20 text-blue-500 dark:text-blue-400' 
+                                                  : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500 dark:text-emerald-400'
+                                              }`}>
+                                                {isPut ? '认沽' : '认购'}
+                                              </span>
+                                            </td>
+                                            <td className={`py-2.5 text-right font-mono font-extrabold text-xs sm:text-sm ${
+                                              type === 'active' 
+                                                ? 'text-zinc-700 dark:text-zinc-300' 
+                                                : item.open_interest_change >= 0 ? 'text-emerald-500' : 'text-rose-500'
+                                            }`}>
+                                              {changeVal}
+                                            </td>
+                                            <td className="py-2.5 text-right font-mono text-xs text-zinc-600 dark:text-zinc-400">
+                                              {item.implied_volatility ? `${item.implied_volatility.toFixed(1)}%` : '--'}
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              ) : (
+                                <div className="text-center py-6 text-[10px] text-zinc-400 italic">暂无合约</div>
+                              )}
+                            </div>
+                          );
+                        };
 
-                                {/* Put Side Columns */}
-                                {hasAnalysis && [...parsedWins].reverse().map(w => (
-                                  <th key={w} className="px-2 py-2 text-center font-bold text-blue-500 dark:text-blue-400 w-24">{w}D ΔOI</th>
-                                ))}
-                                {!hasAnalysis && (
-                                  <>
-                                    <th className="px-2 py-2 text-center font-bold hidden lg:table-cell w-16">Put Gamma</th>
-                                    <th className="px-2 py-2 text-center font-bold hidden lg:table-cell w-16">Put Delta</th>
-                                  </>
-                                )}
-                                
-                                <th className="px-2 py-2 text-center font-bold hidden sm:table-cell w-16">Put IV</th>
-                                <th className="px-2 py-2 text-center font-bold hidden sm:table-cell w-20">Put 成交</th>
-                                <th className="px-3 py-2 text-right font-bold w-24">Put 持仓 (OI)</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-zinc-800">
-                              {quoteDetails.rows?.map((row: any) => {
-                                return hasAnalysis
-                                  ? renderAnalysisRow(row, isDark, parsedWins)
-                                  : renderStandardRow(row, isDark);
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
+                        return (
+                          <div className="p-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+                            {renderActivityTable("主力增仓排行 (Largest Builds)", activity.largest_builds || [], 'build')}
+                            {renderActivityTable("主力减仓排行 (Largest Unwinds)", activity.largest_unwinds || [], 'unwind')}
+                            {renderActivityTable("活跃成交排行 (Most Active)", activity.most_active || [], 'active')}
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })}
@@ -1077,111 +866,6 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
               </div>
             )}
           </div>
-
-          {/* E. OI Rankings Section */}
-          {useWindows && marketStateData.oi_analysis?.rankings && (
-            <div className={`${themes[theme].card} rounded-lg p-5 border ${themes[theme].border}`}>
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 border-b pb-3 border-slate-100 dark:border-zinc-800 gap-3">
-                <div className="flex items-center gap-2">
-                  <Award className="w-5 h-5 text-blue-500" />
-                  <h3 className={`text-md font-bold ${textTheme}`}>持仓变化异动排名</h3>
-                </div>
-
-                {/* Rankings type selector */}
-                <div className="flex flex-wrap gap-1.5">
-                  {[
-                    { id: 'abs_inc', label: '绝对增仓' },
-                    { id: 'abs_dec', label: '绝对减仓' },
-                    { id: 'rel_inc', label: '相对增仓%' },
-                    { id: 'rel_dec', label: '相对减仓%' }
-                  ].map(tab => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveRankingTab(tab.id as any)}
-                      className={`px-2.5 py-1 rounded text-xs transition-all ${
-                        activeRankingTab === tab.id
-                          ? 'bg-blue-600 text-white font-semibold'
-                          : `text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 ${themes[theme].secondary}`
-                      }`}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Displaying Rankings List */}
-              {(() => {
-                const getRankList = () => {
-                  const ranks = marketStateData.oi_analysis!.rankings;
-                  switch (activeRankingTab) {
-                    case 'abs_inc': return ranks.absolute_increase || [];
-                    case 'abs_dec': return ranks.absolute_decrease || [];
-                    case 'rel_inc': return ranks.relative_increase || [];
-                    case 'rel_dec': return ranks.relative_decrease || [];
-                  }
-                };
-
-                const list = getRankList();
-                if (list.length === 0) {
-                  return (
-                    <div className="text-center py-8 text-xs text-zinc-500 italic">
-                      该类型下暂无进入排名的异动合约
-                    </div>
-                  );
-                }
-
-                return (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse table-auto text-xs">
-                      <thead>
-                        <tr className="border-b border-slate-100 dark:border-zinc-800 text-[10px] text-zinc-400 font-bold tracking-wider uppercase">
-                          <th className="pb-2 w-10 text-center">排名</th>
-                          <th className="pb-2 pl-4">合约代码</th>
-                          <th className="pb-2 text-center">类型</th>
-                          <th className="pb-2 text-center">到期日</th>
-                          <th className="pb-2 text-center">行权价</th>
-                          <th className="pb-2 text-right">变化值</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-50 dark:divide-zinc-800/40">
-                        {list.map((item, idx) => {
-                          const isPut = item.option_type?.toLowerCase() === 'put';
-                          const anyItem = item as any;
-                          const deltaVal = (activeRankingTab === 'abs_inc' || activeRankingTab === 'abs_dec')
-                            ? `${anyItem.delta_oi >= 0 ? '+' : ''}${anyItem.delta_oi?.toLocaleString()} 张`
-                            : `${anyItem.delta_oi_percent >= 0 ? '+' : ''}${anyItem.delta_oi_percent}%`;
-                          
-                          return (
-                            <tr key={item.contract_code} className="hover:bg-slate-50/50 dark:hover:bg-zinc-800/10">
-                              <td className="py-2 text-center font-mono font-bold text-zinc-400">{idx + 1}</td>
-                              <td className="py-2 pl-4 font-mono font-medium">{item.contract_code}</td>
-                              <td className="py-2 text-center">
-                                <span className={`px-1.5 py-0.2 text-[10px] rounded font-semibold ${
-                                  isPut 
-                                    ? 'bg-blue-500/10 text-blue-500' 
-                                    : 'bg-emerald-500/10 text-emerald-500'
-                                }`}>
-                                  {isPut ? 'Put' : 'Call'}
-                                </span>
-                              </td>
-                              <td className="py-2 text-center font-mono">{item.expiry}</td>
-                              <td className="py-2 text-center font-mono font-bold">{item.strike?.toFixed(3)}</td>
-                              <td className={`py-2 text-right font-mono font-semibold ${
-                                (activeRankingTab.includes('inc')) ? 'text-emerald-500' : 'text-rose-500'
-                              }`}>
-                                {deltaVal}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                );
-              })()}
-            </div>
-          )}
 
           {/* F. Methodology Footer Section */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs text-zinc-400 dark:text-zinc-500 pt-4">

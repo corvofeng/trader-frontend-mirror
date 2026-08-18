@@ -2164,19 +2164,55 @@ export const optionsService: OptionsService = {
         ma120: symbol === '588000.SH' ? 1.73 : 95.4,
         history_trading_days: 148
       },
-      history: Array.from({ length: 10 }).map((_, idx) => {
-        const d = new Date();
-        d.setDate(d.getDate() - (10 - idx));
-        return {
-          date: d.toISOString().split('T')[0],
-          stress_score: 40 + Math.floor(Math.random() * 20),
-          positioning_score: -20 + Math.floor(Math.random() * 40),
-          underlying_price: symbol === '588000.SH' ? 1.78 + idx * 0.01 : 98 + idx * 0.5,
-          atm_iv: 32 + Math.floor(Math.random() * 8),
-          open_interest: 400000 + idx * 10000,
-          volume: 100000 + Math.floor(Math.random() * 50000)
-        };
-      }),
+      history: (() => {
+        const historyDays = 120;
+        let lastAtmIv = symbol === '588000.SH' ? 38.73 : 28.5;
+        return Array.from({ length: historyDays }).map((_, idx) => {
+          const d = new Date();
+          d.setDate(d.getDate() - (historyDays - idx));
+          
+          // Generate a smooth daily random walk for IV
+          const change = (Math.random() - 0.5) * 1.8;
+          const currentAtm = Number((lastAtmIv + change).toFixed(2));
+          lastAtmIv = Math.max(15, Math.min(80, currentAtm));
+          
+          const callIv = Number((lastAtmIv - 3.5 - Math.random() * 2).toFixed(2));
+          const putIv = Number((lastAtmIv + 4.5 + Math.random() * 2).toFixed(2));
+          const percentile = Number((15 + Math.sin(idx / 15) * 5 + Math.random() * 3).toFixed(2));
+          
+          const callOI = 200000 + idx * 500 + Math.floor(Math.random() * 10000);
+          const putOI = 190000 + idx * 450 + Math.floor(Math.random() * 10000);
+          const callVol = 50000 + Math.floor(Math.random() * 20000);
+          const putVol = 45000 + Math.floor(Math.random() * 18000);
+
+          return {
+            date: d.toISOString().split('T')[0],
+            stress_score: idx % 10 === 0 ? null : Math.floor(Math.random() * 10),
+            positioning_score: idx % 10 === 0 ? null : Math.floor((Math.random() - 0.5) * 40),
+            underlying_price: symbol === '588000.SH' ? Number((1.75 + idx * 0.001 + Math.sin(idx/10)*0.03).toFixed(3)) : Number((95 + idx * 0.1 + Math.sin(idx/10)*3).toFixed(2)),
+            underlying_price_change: idx === 0 ? null : 0.01,
+            underlying_price_change_percent: idx === 0 ? null : 0.55,
+            atm_iv: lastAtmIv,
+            atm_call_iv: callIv,
+            atm_put_iv: putIv,
+            atm_iv_change: idx === 0 ? null : Number(change.toFixed(4)),
+            atm_iv_change_percent: idx === 0 ? null : Number((change / lastAtmIv * 100).toFixed(2)),
+            iv_percentile: percentile,
+            call_open_interest: callOI,
+            put_open_interest: putOI,
+            total_open_interest: callOI + putOI,
+            total_open_interest_change: idx === 0 ? null : 15000,
+            total_open_interest_change_percent: idx === 0 ? null : 3.5,
+            call_volume: callVol,
+            put_volume: putVol,
+            total_volume: callVol + putVol,
+            put_call_iv_skew: 5.0 + Math.random() * 5,
+            put_call_oi_ratio: Number((putOI / callOI).toFixed(4)),
+            put_call_volume_ratio: Number((putVol / callVol).toFixed(4)),
+            spread_percent: 0.1 + Math.random() * 0.2
+          };
+        });
+      })(),
       term_structure: [
         { expiry: '2026-09-23', days_to_expiry: 39, atm_iv_percent: 34.2, liquidity_score: 91.2, volume: 80000, open_interest: 280000, skew_25d: 1.8 },
         { expiry: '2026-12-23', days_to_expiry: 130, atm_iv_percent: 36.8, liquidity_score: 82.5, volume: 40000, open_interest: 170000, skew_25d: 3.1 }
