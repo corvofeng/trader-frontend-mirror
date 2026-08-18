@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import { Theme, themes } from '../../../lib/theme';
 import type { Trade } from '../../../lib/services/types';
 import { formatCurrency } from '../../../shared/utils/format';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, TrendingUp } from 'lucide-react';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 
 interface TradesTableProps {
@@ -19,6 +19,7 @@ interface TradesTableProps {
   sort: { field: string; direction: 'asc' | 'desc' };
   // 新增：可选是否显示内部标题
   showHeader?: boolean;
+  onAnalyzeStock?: (code: string, name: string) => void;
 }
 
 export function TradesTable({
@@ -33,6 +34,7 @@ export function TradesTable({
   sort,
   onSort,
   showHeader = true,
+  onAnalyzeStock,
 }: TradesTableProps) {
   const { currencyConfig } = useCurrency();
 
@@ -120,6 +122,11 @@ export function TradesTable({
               <th className={`hidden sm:table-cell px-6 py-4 text-right text-sm font-bold ${themes[theme].text} uppercase tracking-wider`}>
                 金额
               </th>
+              {onAnalyzeStock && (
+                <th className={`hidden sm:table-cell px-6 py-4 text-right text-sm font-bold ${themes[theme].text} uppercase tracking-wider`}>
+                  详情
+                </th>
+              )}
             </tr>
           </thead>
           <tbody className={`divide-y ${themes[theme].border}`}>
@@ -131,9 +138,12 @@ export function TradesTable({
                 <td className="px-3 sm:px-6 py-2 sm:py-4 align-top">
                   <div className="min-w-0">
                     <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
+                      <div 
+                        onClick={() => onAnalyzeStock?.(trade.stock_code, trade.stock_name || trade.stock_code)}
+                        className={`group min-w-0 ${onAnalyzeStock ? 'cursor-pointer' : ''}`}
+                      >
                         <div className="flex items-center gap-2 min-w-0">
-                          <div className={`text-xs sm:text-base font-medium ${themes[theme].text} font-mono`}>
+                          <div className={`text-xs sm:text-base font-semibold font-mono ${onAnalyzeStock ? 'text-blue-600 dark:text-blue-400 group-hover:underline' : themes[theme].text}`}>
                             {trade.stock_code}
                           </div>
                           <span
@@ -150,10 +160,23 @@ export function TradesTable({
                           {trade.stock_name}
                         </div>
                       </div>
-                      <div className="sm:hidden shrink-0 text-[11px] text-right font-mono">
-                        <div className={`${themes[theme].text} opacity-60 leading-4`}>
+                      <div className="sm:hidden shrink-0 text-right flex flex-col items-end gap-1.5 font-mono">
+                        <div className={`${themes[theme].text} opacity-60 leading-4 text-[11px]`}>
                           {format(new Date(trade.created_at), 'MM-dd HH:mm')}
                         </div>
+                        {onAnalyzeStock && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onAnalyzeStock(trade.stock_code, trade.stock_name || trade.stock_code);
+                            }}
+                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium ${themes[theme].secondary} opacity-80 hover:opacity-100 transition-opacity`}
+                          >
+                            <TrendingUp size={12} />
+                            <span>详情</span>
+                          </button>
+                        )}
                       </div>
                     </div>
                     <div className="sm:hidden mt-2 grid grid-cols-3 gap-x-3 gap-y-1 text-[11px]">
@@ -196,6 +219,20 @@ export function TradesTable({
                 <td className={`hidden sm:table-cell px-6 py-4 text-right text-base font-mono ${themes[theme].text}`}>
                   {formatCurrency(trade.target_price * trade.quantity, currencyConfig)}
                 </td>
+                {onAnalyzeStock && (
+                  <td className="hidden sm:table-cell px-6 py-4 text-right align-middle">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAnalyzeStock(trade.stock_code, trade.stock_name || trade.stock_code);
+                      }}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold ${themes[theme].secondary} opacity-80 hover:opacity-100 transition-opacity whitespace-nowrap`}
+                    >
+                      <TrendingUp size={14} />
+                      <span>详情</span>
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

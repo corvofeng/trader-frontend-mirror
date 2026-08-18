@@ -776,6 +776,7 @@ export function Portfolio({
                 sort={tradesSort}
                 onSort={handleTradesSort}
                 showHeader={false}
+                onAnalyzeStock={(code, name) => setSelectedStockForAnalysis({ code, name })}
               />
             </div>
           )}
