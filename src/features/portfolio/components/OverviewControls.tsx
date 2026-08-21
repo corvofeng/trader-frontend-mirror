@@ -10,7 +10,6 @@ interface OverviewControlsProps {
   onDateRangeChange: (range: { startDate: string; endDate: string }) => void;
   isSharedView?: boolean;
   portfolioUuid?: string | null;
-  onQuickSelect: (days: number) => void;
   onRefresh?: () => void;
   isLoggedIn?: boolean;
   onScreenshot?: () => void;
@@ -22,7 +21,6 @@ export function OverviewControls({
   onDateRangeChange,
   isSharedView,
   portfolioUuid,
-  onQuickSelect,
   onRefresh,
   isLoggedIn = true,
   onScreenshot,
@@ -36,32 +34,6 @@ export function OverviewControls({
       {isLoggedIn && (!isSharedView || portfolioUuid) && (
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center w-full md:w-auto">
           <div className="flex flex-wrap gap-2 items-center w-full sm:w-auto">
-            <div className="flex gap-1.5 sm:gap-2">
-              <button
-                onClick={() => onQuickSelect(7)}
-                className={`px-2.5 py-1 rounded-md text-sm ${themes[theme].secondary}`}
-              >
-                1W
-              </button>
-              <button
-                onClick={() => onQuickSelect(30)}
-                className={`px-2.5 py-1 rounded-md text-sm ${themes[theme].secondary}`}
-              >
-                1M
-              </button>
-              <button
-                onClick={() => onQuickSelect(90)}
-                className={`px-2.5 py-1 rounded-md text-sm ${themes[theme].secondary}`}
-              >
-                3M
-              </button>
-              <button
-                onClick={() => onQuickSelect(180)}
-                className={`px-2.5 py-1 rounded-md text-sm ${themes[theme].secondary}`}
-              >
-                6M
-              </button>
-            </div>
             
             <div className="flex gap-2 ml-auto sm:ml-0">
               {onRefresh && (

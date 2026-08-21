@@ -94,7 +94,7 @@ describe('portfolioUtils', () => {
 
       expect(result).toEqual({
         shouldUseAssetKlineDefaultRange: true,
-        klineStartDate: '2025-12-21',
+        klineStartDate: '2026-01-01',
         klineEndDate: '2026-06-19',
         metricsEndDate: '2026-02-01',
       });

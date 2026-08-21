@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { Theme, themes } from '../../../lib/theme';
 import { authService, portfolioService } from '../../../lib/services';
@@ -150,7 +150,7 @@ export function DailyTradeHistory({ theme, startDate, endDate, selectedStockCode
                                   <tbody className={`divide-y ${themes[theme].border}`}>
                                     {items
                                       .slice()
-                                      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+                                      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
                                       .map((t) => (
                                         <tr key={`${t.id}-${t.created_at}`} className={themes[theme].cardHover}>
                                           <td className={`px-3 py-2 text-sm ${themes[theme].text}`}>{format(new Date(t.created_at), 'HH:mm')}</td>

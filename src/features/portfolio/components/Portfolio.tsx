@@ -220,17 +220,6 @@ export function Portfolio({
     }
   };
 
-  const setQuickDateRange = (days: number) => {
-    if (isSharedView && !portfolioUuid) return; // Disable date range changes in shared view without UUID
-
-    const endDate = new Date();
-    const startDate = new Date(endDate);
-    startDate.setDate(endDate.getDate() - days);
-    onDateRangeChange({
-      startDate: startDate.toISOString().split('T')[0],
-      endDate: endDate.toISOString().split('T')[0]
-    });
-  };
 
   const sortedHoldings = sortPortfolioHoldings(holdings, holdingsSort);
   const sortedTrades = sortPortfolioTrades(recentTrades, tradesSort);
@@ -485,7 +474,6 @@ export function Portfolio({
             onDateRangeChange={onDateRangeChange}
             isSharedView={isSharedView}
             portfolioUuid={portfolioUuid}
-            onQuickSelect={setQuickDateRange}
             onRefresh={refreshAll}
             isLoggedIn={!!user}
             onScreenshot={handleScreenshot}

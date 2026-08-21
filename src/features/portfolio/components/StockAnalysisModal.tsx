@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { X, LineChart } from 'lucide-react';
 import { format } from 'date-fns';
-import { Theme, themes } from '../../../shared/constants/theme';
+import { Theme, themes } from '../../../lib/theme';
 import { StockChart } from '../../trading/components/StockChart';
 import type { Trade } from '../../../lib/services/types';
 
@@ -65,7 +65,9 @@ export function StockAnalysisModal({ stockCode, stockName, theme, userId, accoun
                     </tr>
                   </thead>
                   <tbody className={`divide-y ${themes[theme].border} ${themes[theme].text}`}>
-                    {trades.map(trade => (
+                    {[...trades]
+                      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                      .map(trade => (
                       <tr key={trade.id} className={`transition-colors hover:${theme === 'dark' ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
                         <td className="px-6 py-4 whitespace-nowrap font-medium">
                           {format(new Date(trade.created_at), 'yyyy-MM-dd HH:mm')}

@@ -1,4 +1,3 @@
-import { subDays } from 'date-fns';
 import type { Holding, Trade, TrendData } from '../../../lib/services/types';
 
 export const DEFAULT_ASSET_KLINE_DAYS = 180;
@@ -61,7 +60,7 @@ export function resolvePortfolioKlineRequestDates(
   return {
     shouldUseAssetKlineDefaultRange,
     klineStartDate: shouldUseAssetKlineDefaultRange
-      ? toIsoDate(subDays(now, DEFAULT_ASSET_KLINE_DAYS))
+      ? '2026-01-01'
       : dateRange.startDate,
     klineEndDate: shouldUseAssetKlineDefaultRange ? toIsoDate(now) : dateRange.endDate,
     metricsEndDate: dateRange.endDate,
