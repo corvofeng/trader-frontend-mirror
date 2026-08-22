@@ -1,6 +1,7 @@
 import React, { useCallback, useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { format } from 'date-fns';
-import { ChevronDown, ChevronUp, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, X, HelpCircle } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
 import type { OptionsPosition, OptionsStrategy, AdvisedCombination, OptionsData, OptionQuote, OptionWhitelist } from '../../../lib/services/types';
@@ -11,6 +12,7 @@ import toast from 'react-hot-toast';
 import { useAutoRefresh, useOptionPriceWebSocket } from '../hooks/useOptionPriceWebSocket';
 import { AnimatedFlash } from './AnimatedFlash';
 import { RealTimeSpreadChart } from './RealTimeSpreadChart';
+import { getComboStatus } from '../utils/portfolioUi';
 
 const STANDARD_ETF_OPTION_CONTRACT_UNIT = 10000;
 const STANDARD_ETF_OPTION_UNDERLYINGS = new Set([
@@ -178,6 +180,7 @@ export function ExpiryGroupCard({
   const [contractNameMap, setContractNameMap] = useState<Record<string, string>>({});
   const [isPageLocked, setIsPageLocked] = useState(false);
   const [isDetailsSectionExpanded, setIsDetailsSectionExpanded] = useState(false);
+  const allSinglePositions = useMemo(() => (allExpiryBuckets || []).flatMap(bucket => bucket.single), [allExpiryBuckets]);
   const [isMobileViewport, setIsMobileViewport] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth < 768 : false
   ));
@@ -186,9 +189,22 @@ export function ExpiryGroupCard({
   const requestedContractUnitRef = useRef<Record<string, number>>({});
   const tBoardScrollRef = useRef<HTMLDivElement | null>(null);
   const strikeHeaderRef = useRef<HTMLTableCellElement | null>(null);
+  
+
+
+  // Body scroll lock effect
+  useEffect(() => {
+    if (confirmData || advisedModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [confirmData, advisedModal]);
   const hasUserAdjustedTBoardRef = useRef(false);
   const isProgrammaticTBoardScrollRef = useRef(false);
-  const allSinglePositions = useMemo(() => (allExpiryBuckets || []).flatMap(bucket => bucket.single), [allExpiryBuckets]);
   const basePositions = useMemo(() => filterAndSortPositions(group.single), [filterAndSortPositions, group.single]);
 
   const filteredPositions = useMemo(() => selectedSymbol
@@ -754,13 +770,26 @@ export function ExpiryGroupCard({
       const normalizedSpreadWidth = spreadWidth / strikeScale;
       const normalizedTickSize = tickSize != null ? tickSize / strikeScale : null;
 
+      const isCall = optionType === 'call';
+      const isCredit = isCall ? (sellStrike < buyStrike) : (sellStrike > buyStrike);
+
       // Keep the dialog on a normalized "single combo" basis.
-      const maxProfit = normalizedSpreadWidth * contractUnit;
-      const currentSpreadValue = est?.perHedge != null ? Math.max(0, est.perHedge * contractUnit) : null;
-      const remainingProfit = currentSpreadValue != null ? Math.max(0, maxProfit - currentSpreadValue) : null;
+      const premiumDiff = Number(sellLeg.premium || 0) - Number(buyLeg.premium || 0);
+      const maxProfit = isCredit
+        ? (premiumDiff > 0 ? premiumDiff * contractUnit : (strategy.maxReward && Number.isFinite(strategy.maxReward) ? (strategy.maxReward / comboCount) : normalizedSpreadWidth * contractUnit))
+        : normalizedSpreadWidth * contractUnit;
+
+      const currentSpreadValue = est?.perHedge != null
+        ? Math.max(0, (isCredit ? -est.perHedge : est.perHedge) * contractUnit)
+        : null;
+      const remainingProfit = currentSpreadValue != null
+        ? (isCredit ? currentSpreadValue : Math.max(0, maxProfit - currentSpreadValue))
+        : null;
       const profitRealizationPct =
         currentSpreadValue != null && maxProfit > 0
-          ? Math.max(0, Math.min(100, (currentSpreadValue / maxProfit) * 100))
+          ? (isCredit
+              ? Math.max(0, Math.min(100, ((maxProfit - currentSpreadValue) / maxProfit) * 100))
+              : Math.max(0, Math.min(100, (currentSpreadValue / maxProfit) * 100)))
           : null;
 
       return {
@@ -1144,7 +1173,10 @@ export function ExpiryGroupCard({
       const legEstimates = legs.map((p) => {
         const closeSide: 'buy' | 'sell' = p.position_type === 'buy' ? 'sell' : 'buy';
         const update = resolvePriceUpdate([p.contract_code_full, p.contract_code, p.symbol]);
-        const px = getCounterpartyTopPrice(update, closeSide);
+        let px = getCounterpartyTopPrice(update, closeSide);
+        if (px == null && p.currentValue != null) {
+          px = Number(p.currentValue);
+        }
         const qty = Math.max(1, Number(p.leg_quantity ?? p.selectedQuantity ?? p.quantity ?? 1) || 1);
         const amt = px != null ? (closeSide === 'sell' ? px * qty : -px * qty) : null;
         return { pos: p, closeSide, px, qty, amt, ts: update?.timestamp || 0 };
@@ -1711,6 +1743,170 @@ export function ExpiryGroupCard({
     userId
   ]);
 
+  const renderStatusBadge = useCallback((item: OptionsStrategy | OptionsPosition, type: 'complex' | 'single') => {
+    const dte = group.daysToExpiry;
+    const itemSymbol = type === 'complex' 
+      ? (item as OptionsStrategy).positions[0]?.opt_undl_code_full || selectedSymbol || ''
+      : (item as OptionsPosition).opt_undl_code_full || selectedSymbol || '';
+
+    let overrideProfitRatio: number | undefined = undefined;
+    let resolvedItem = item;
+    if (type === 'complex') {
+      const s = item as OptionsStrategy;
+      const resolvedPositions = (s.positions || [])
+        .map(p => resolveDisplayPosition(p))
+        .filter((p): p is OptionsPosition => !!p);
+      resolvedItem = {
+        ...s,
+        positions: resolvedPositions
+      };
+      const est = estimateCloseForStrategy(resolvedItem);
+      const perf = getStrategyPerformanceMetrics(resolvedItem, est);
+      if (perf.profitRealizationPct != null) {
+        overrideProfitRatio = perf.profitRealizationPct / 100;
+      }
+    }
+
+    const statusRes = getComboStatus(resolvedItem, type, dte, itemSymbol, allSinglePositions, overrideProfitRatio);
+    let badgeClass = '';
+    let label = '';
+    let explanation = '';
+
+    const prPercent = Math.round(statusRes.profitRatio * 100);
+
+    if (statusRes.status === 'AUTO') {
+      badgeClass = 'bg-red-100 text-red-800 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-900/30';
+      label = 'AUTO';
+      explanation = `已达止盈且成本检查通过。收益率: ${prPercent}% (目标: 90%)`;
+    } else if (statusRes.status === 'PROFIT') {
+      badgeClass = 'bg-green-100 text-green-800 border-green-200 dark:bg-green-950/40 dark:text-green-400 dark:border-green-900/30';
+      label = 'PROFIT';
+      explanation = `收益率已达 80% 止盈阈值。收益率: ${prPercent}%`;
+    } else if (statusRes.status === 'WATCH') {
+      badgeClass = 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-950/40 dark:text-yellow-400 dark:border-yellow-900/30';
+      label = 'WATCH';
+      explanation = `收益监控中（已达 50% 监控阈值）。收益率: ${prPercent}%`;
+    } else {
+      const pr = statusRes.profitRatio;
+      if (pr >= 0.90) {
+        badgeClass = 'bg-red-50 text-red-700 border-red-100 dark:bg-red-950/20 dark:text-red-400 dark:border-red-900/20';
+        label = '90%+';
+        explanation = `利润实现率已达: ${prPercent}%`;
+      } else if (pr >= 0.80) {
+        badgeClass = 'bg-green-50 text-green-700 border-green-100 dark:bg-green-950/20 dark:text-green-400 dark:border-green-900/20';
+        label = '80%+';
+        explanation = `利润实现率已达: ${prPercent}%`;
+      } else if (pr >= 0.50) {
+        badgeClass = 'bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/20';
+        label = '50%+';
+        explanation = `利润实现率已达: ${prPercent}%`;
+      } else {
+        return null;
+      }
+    }
+
+    return (
+      <span 
+        className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border ${badgeClass} cursor-help shrink-0`}
+        title={explanation}
+      >
+        {label}
+      </span>
+    );
+  }, [group.daysToExpiry, selectedSymbol, allSinglePositions, resolveDisplayPosition, estimateCloseForStrategy, getStrategyPerformanceMetrics]);
+
+  const comboStatuses = useMemo(() => {
+    const list: ReturnType<typeof getComboStatus>[] = [];
+    const dte = group.daysToExpiry;
+    const grpSymbol = group.single[0]?.opt_undl_code_full || group.complex[0]?.positions[0]?.opt_undl_code_full || selectedSymbol || '';
+    
+    group.complex.forEach(strategy => {
+      const resolvedPositions = (strategy.positions || [])
+        .map(p => resolveDisplayPosition(p))
+        .filter((p): p is OptionsPosition => !!p);
+      const resolvedStrategy = {
+        ...strategy,
+        positions: resolvedPositions
+      };
+      
+      const est = estimateCloseForStrategy(resolvedStrategy);
+      const perf = getStrategyPerformanceMetrics(resolvedStrategy, est);
+      const calculatedProfitRatio = perf.profitRealizationPct != null ? perf.profitRealizationPct / 100 : 0;
+      
+      const statusRes = getComboStatus(resolvedStrategy, 'complex', dte, grpSymbol, allSinglePositions, calculatedProfitRatio);
+      
+      const summaries = getStrategyStrikeGapSummary(resolvedStrategy);
+      let formattedStrikeRange = '';
+      if (summaries.length > 0) {
+        formattedStrikeRange = summaries.map(s => `${s.startStrikeText}-${s.endStrikeText}`).join(', ');
+      } else {
+        const strikes = resolvedPositions
+          .map(p => p.strike)
+          .filter(s => s > 0)
+          .sort((a, b) => a - b);
+        formattedStrikeRange = strikes.join('-');
+      }
+      
+      statusRes.strikeLabel = formattedStrikeRange;
+      list.push(statusRes);
+    });
+    
+    group.single.forEach(position => {
+      const resolvedPosition = resolveDisplayPosition(position) ?? position;
+      const statusRes = getComboStatus(resolvedPosition, 'single', dte, grpSymbol, allSinglePositions);
+      statusRes.strikeLabel = String(resolvedPosition.strike);
+      list.push(statusRes);
+    });
+    return list;
+  }, [group, selectedSymbol, allSinglePositions, resolveDisplayPosition, getStrategyStrikeGapSummary, estimateCloseForStrategy, getStrategyPerformanceMetrics]);
+
+  const statusCounts = useMemo(() => {
+    const counts = {
+      watch: [] as typeof comboStatuses,
+      profit: [] as typeof comboStatuses,
+      auto: [] as typeof comboStatuses
+    };
+    comboStatuses.forEach(c => {
+      if (c.status === 'AUTO') counts.auto.push(c);
+      else if (c.status === 'PROFIT') counts.profit.push(c);
+      else if (c.status === 'WATCH') counts.watch.push(c);
+    });
+    return counts;
+  }, [comboStatuses]);
+
+  const sortedStrategies = useMemo(() => {
+    const arr = [...(confirmData?.meta?.strategies || [])];
+    
+    return arr.sort((a, b) => {
+      const resolvedA = {
+        ...a.strategy,
+        positions: (a.strategy.positions || [])
+          .map(p => resolveDisplayPosition(p))
+          .filter((p): p is OptionsPosition => !!p)
+      };
+      const resolvedB = {
+        ...b.strategy,
+        positions: (b.strategy.positions || [])
+          .map(p => resolveDisplayPosition(p))
+          .filter((p): p is OptionsPosition => !!p)
+      };
+      
+      const estA = estimateCloseForStrategy(resolvedA);
+      const perfA = getStrategyPerformanceMetrics(resolvedA, estA);
+      
+      const estB = estimateCloseForStrategy(resolvedB);
+      const perfB = getStrategyPerformanceMetrics(resolvedB, estB);
+      
+      const valA = perfA.profitRealizationPct;
+      const valB = perfB.profitRealizationPct;
+      
+      if (valA == null && valB == null) return 0;
+      if (valA == null) return 1;
+      if (valB == null) return -1;
+      return valB - valA; // Descending by profit realization percentage
+    });
+  }, [confirmData?.meta?.strategies, resolveDisplayPosition, estimateCloseForStrategy, getStrategyPerformanceMetrics]);
+
   return (
     <div className={`${themes[theme].card} ${themes[theme].border} relative isolate rounded-xl border overflow-hidden
       ${theme === 'dark'
@@ -1748,6 +1944,96 @@ export function ExpiryGroupCard({
                     <span className="inline-flex items-center rounded-full px-2.5 sm:px-3 py-1 text-[10px] sm:text-xs font-medium bg-amber-500/10 text-amber-600 dark:text-amber-300 font-mono">
                       保证金 {formatCurrency(totalMargin, currencyConfig, 0)}
                     </span>
+                  )}
+                  {statusCounts.auto.length > 0 && (
+                    <div className="relative group/autotip inline-flex items-center shrink-0">
+                      <span className="inline-flex items-center rounded-full px-2 sm:px-2.5 py-0.5 text-[10px] sm:text-xs font-medium bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-400 border border-red-200/20 shrink-0 cursor-help">
+                        AUTO: {statusCounts.auto.length}
+                      </span>
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/autotip:block w-72 p-3 bg-slate-900 dark:bg-zinc-950 border border-slate-750 dark:border-zinc-800 text-white rounded-xl shadow-xl text-left z-50 pointer-events-none">
+                        <div className="text-[11px] font-bold text-red-400 mb-1.5">AUTO 组合列表</div>
+                        <div className="space-y-1.5 text-[10px] leading-relaxed text-zinc-300">
+                          {statusCounts.auto.map((c, idx) => (
+                            <div key={idx} className="flex justify-between items-center border-b border-zinc-805/40 dark:border-zinc-800/40 pb-1 last:border-0 last:pb-0">
+                              <span className="truncate max-w-[170px]" title={c.name}>{c.name}</span>
+                              <span className="font-mono text-zinc-400 text-[9px]">{c.strikeLabel || '--'}</span>
+                              <span className="font-mono text-red-400 font-bold ml-1.5">{Math.round(c.profitRatio * 100)}%</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900 dark:border-t-zinc-950"></div>
+                      </div>
+                    </div>
+                  )}
+                  {statusCounts.profit.length > 0 && (
+                    <div className="relative group/profittip inline-flex items-center shrink-0">
+                      <span className="inline-flex items-center rounded-full px-2 sm:px-2.5 py-0.5 text-[10px] sm:text-xs font-medium bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-400 border border-green-200/20 shrink-0 cursor-help">
+                        PROFIT: {statusCounts.profit.length}
+                      </span>
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/profittip:block w-72 p-3 bg-slate-900 dark:bg-zinc-950 border border-slate-750 dark:border-zinc-800 text-white rounded-xl shadow-xl text-left z-50 pointer-events-none">
+                        <div className="text-[11px] font-bold text-green-400 mb-1.5">PROFIT 组合列表</div>
+                        <div className="space-y-1.5 text-[10px] leading-relaxed text-zinc-300">
+                          {statusCounts.profit.map((c, idx) => (
+                            <div key={idx} className="flex justify-between items-center border-b border-zinc-805/40 dark:border-zinc-800/40 pb-1 last:border-0 last:pb-0">
+                              <span className="truncate max-w-[170px]" title={c.name}>{c.name}</span>
+                              <span className="font-mono text-zinc-400 text-[9px]">{c.strikeLabel || '--'}</span>
+                              <span className="font-mono text-green-400 font-bold ml-1.5">{Math.round(c.profitRatio * 100)}%</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900 dark:border-t-zinc-950"></div>
+                      </div>
+                    </div>
+                  )}
+                  {statusCounts.watch.length > 0 && (
+                    <div className="relative group/watchtip inline-flex items-center shrink-0">
+                      <span className="inline-flex items-center rounded-full px-2 sm:px-2.5 py-0.5 text-[10px] sm:text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-400 border border-yellow-200/20 shrink-0 cursor-help">
+                        WATCH: {statusCounts.watch.length}
+                      </span>
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/watchtip:block w-72 p-3 bg-slate-900 dark:bg-zinc-950 border border-slate-750 dark:border-zinc-800 text-white rounded-xl shadow-xl text-left z-50 pointer-events-none">
+                        <div className="text-[11px] font-bold text-yellow-400 mb-1.5">WATCH 组合列表</div>
+                        <div className="space-y-1.5 text-[10px] leading-relaxed text-zinc-300">
+                          {statusCounts.watch.map((c, idx) => (
+                            <div key={idx} className="flex justify-between items-center border-b border-zinc-805/40 dark:border-zinc-800/40 pb-1 last:border-0 last:pb-0">
+                              <span className="truncate max-w-[170px]" title={c.name}>{c.name}</span>
+                              <span className="font-mono text-zinc-400 text-[9px]">{c.strikeLabel || '--'}</span>
+                              <span className="font-mono text-yellow-400 font-bold ml-1.5">{Math.round(c.profitRatio * 100)}%</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900 dark:border-t-zinc-950"></div>
+                      </div>
+                    </div>
+                  )}
+                  {(statusCounts.auto.length > 0 || statusCounts.profit.length > 0 || statusCounts.watch.length > 0) && (
+                    <div className="relative group/tooltip inline-flex items-center shrink-0">
+                      <button
+                        type="button"
+                        className="inline-flex items-center justify-center p-0.5 rounded-full text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800/60 transition-colors cursor-help"
+                        aria-label="查看期权监控规则说明"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <HelpCircle className="w-3.5 h-3.5" />
+                      </button>
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/tooltip:block w-72 p-3 bg-slate-900 dark:bg-zinc-950 border border-slate-750 dark:border-zinc-800 text-white rounded-xl shadow-xl text-left z-50 pointer-events-none">
+                        <div className="text-[11px] font-bold text-blue-400 mb-1">期权到期监控规则 (W/P/A)</div>
+                        <div className="space-y-1 text-[10px] leading-relaxed text-zinc-300">
+                          <p><strong className="text-yellow-400">WATCH</strong>: 收益率达到到期日动态阈值。</p>
+                          <p><strong className="text-green-400">PROFIT</strong>: 达标且由于剩余天数较长，剩余收益衰减效率偏低 (&lt;0.3%/天)。</p>
+                          <p><strong className="text-red-400">AUTO</strong>: 收益率 &ge; 90% 且当前剩余可获取的利润大于平仓交易成本。</p>
+                          <div className="border-t border-zinc-800 pt-1 mt-1 text-[9px] text-zinc-400">
+                            <strong>到期日动态阈值标准 (DTE)：</strong>
+                            <div className="grid grid-cols-2 gap-x-2 mt-0.5 font-mono">
+                              <div>DTE &gt; 90天: 80%</div>
+                              <div>DTE 60-90天: 85%</div>
+                              <div>DTE 30-60天: 88%</div>
+                              <div>DTE &lt; 30天: 90%</div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900 dark:border-t-zinc-950"></div>
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
@@ -2103,6 +2389,7 @@ export function ExpiryGroupCard({
                                               ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
                                             </div>
                                             <div className="flex flex-wrap items-center justify-end gap-1 sm:gap-2 mt-1">
+                                              {renderStatusBadge(position, 'single')}
                                               <span className={`inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${getStatusColor(position.status)}`}>
                                                 {position.status === 'open' ? '持仓中' : position.status === 'closed' ? '已平仓' : '已到期'}
                                               </span>
@@ -2172,6 +2459,7 @@ export function ExpiryGroupCard({
                                               ({position.profitLossPercentage >= 0 ? '+' : ''}{position.profitLossPercentage.toFixed(2)}%)
                                             </div>
                                             <div className="flex flex-wrap items-center justify-end gap-1 sm:gap-2 mt-1">
+                                              {renderStatusBadge(position, 'single')}
                                               <span className={`inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${getStatusColor(position.status)}`}>
                                                 {position.status === 'open' ? '持仓中' : position.status === 'closed' ? '已平仓' : '已到期'}
                                               </span>
@@ -2208,8 +2496,9 @@ export function ExpiryGroupCard({
                                 return (
                                   <div key={`${strategy.id ?? 'nostrategy'}-${strategyIndex}`} className={`${themes[theme].background} rounded-lg p-3 sm:p-4 border-l-4 border-purple-500`}>
                                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-3 mb-2 sm:mb-3">
-                                      <div className={`text-[11px] sm:text-sm ${themes[theme].text} opacity-75`}>
-                                        {strategy.name} （{legCount} 腿，组合数 {comboCount}）
+                                      <div className={`text-[11px] sm:text-sm ${themes[theme].text} opacity-75 flex items-center gap-2`}>
+                                        <span>{strategy.name} （{legCount} 腿，组合数 {comboCount}）</span>
+                                        {renderStatusBadge(strategy, 'complex')}
                                       </div>
                                       <div className="flex gap-3 sm:text-right text-xs sm:text-sm shrink-0">
                                         <div className={`font-medium ${themes[theme].text}`}>
@@ -2280,8 +2569,8 @@ export function ExpiryGroupCard({
           })()}
         </div>
       </div>
-  {confirmData && (
-    <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center">
+  {confirmData && createPortal(
+    <div className="fixed inset-0 z-[2147483010] flex items-end justify-center md:items-center">
       <div
         className="absolute inset-0 bg-black/45 backdrop-blur-[2px]"
         onClick={() => {
@@ -2329,7 +2618,7 @@ export function ExpiryGroupCard({
             <X className="w-5 h-5" strokeWidth={2} />
           </button>
         </div>
-        <div className={`${confirmData.meta?.action === 'combo_manage' ? 'mt-0' : 'mt-0'} px-4 pb-[calc(env(safe-area-inset-bottom)+20px)] sm:px-6 sm:pb-6 overflow-y-auto min-h-0 flex-1 space-y-2`}>
+        <div className={`mt-0 px-4 pb-[calc(env(safe-area-inset-bottom)+20px)] sm:px-6 sm:pb-6 overflow-y-auto min-h-0 flex-1 space-y-2`}>
           {confirmData.meta?.action === 'unwind_combo_selection' || confirmData.meta?.action === 'combo_manage' ? (
             <div className="space-y-4">
               {confirmData.meta?.action === 'combo_manage' && embeddedComboDraft ? (
@@ -2344,8 +2633,8 @@ export function ExpiryGroupCard({
                 {confirmData.meta?.action === 'combo_manage' ? (
                   <div className={`text-sm font-semibold ${themes[theme].text}`}>解除已有组合</div>
                 ) : null}
-                {(confirmData.meta.strategies || []).length > 0 ? (
-                  (confirmData.meta.strategies || []).map((item, idx) => (
+                {sortedStrategies.length > 0 ? (
+                  sortedStrategies.map((item, idx) => (
                     <div
                       key={`strat-select-${idx}`}
                       className={`p-3 rounded border ${themes[theme].border}`}
@@ -2399,9 +2688,10 @@ export function ExpiryGroupCard({
                             <>
                               <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                                 <div className="min-w-0">
-                                  <div className={`font-semibold ${themes[theme].text}`}>
-                                    {item.strategy.name}
-                                    <span className="ml-2 text-xs font-normal opacity-50">{item.strategy.id}</span>
+                                  <div className={`font-semibold ${themes[theme].text} flex items-center gap-2 flex-wrap`}>
+                                    <span>{item.strategy.name}</span>
+                                    <span className="text-xs font-normal opacity-50">{item.strategy.id}</span>
+                                    {renderStatusBadge(item.strategy, 'complex')}
                                   </div>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -3480,10 +3770,11 @@ export function ExpiryGroupCard({
         </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   )}
-  {advisedModal && (
-    <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center">
+  {advisedModal && createPortal(
+    <div className="fixed inset-0 z-[2147483010] flex items-end justify-center md:items-center">
       <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" onClick={() => setAdvisedModal(null)}></div>
       <div
         className={`relative w-full rounded-t-2xl border-t border-x sm:border sm:rounded-2xl sm:max-w-2xl sm:w-[min(90vw,820px)]
@@ -3525,7 +3816,8 @@ export function ExpiryGroupCard({
           {renderComboDraftPanel(advisedModal)}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )}
   {isPageLocked && (
     <div className="fixed inset-0 z-[60] flex items-center justify-center">

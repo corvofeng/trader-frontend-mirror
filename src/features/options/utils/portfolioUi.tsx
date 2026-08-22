@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Activity, Shield, Target, TrendingDown, TrendingUp } from 'lucide-react';
 import type { Theme } from '../../../lib/theme';
-import type { OptionsPosition } from '../../../lib/services/types';
+import type { OptionsPosition, OptionsStrategy } from '../../../lib/services/types';
 
 export type MoneynessTag = { label: 'ATM' | 'ITM' | 'OTM'; className: string };
 
@@ -211,4 +211,228 @@ export function inferStrategyFromLegsWithSelection(
   }
 
   return { nameZh: '自选组合', category: 'neutral', confidence: 0.5 };
+}
+
+export interface ComboStatusResult {
+  id: string;
+  name: string;
+  type: 'complex' | 'single';
+  expiry: string;
+  dte: number;
+  profitRatio: number;
+  threshold: number;
+  remainingEfficiency: number;
+  isCostCheckPassed: boolean;
+  status: 'WATCH' | 'PROFIT' | 'AUTO' | 'HOLD';
+  profitLoss: number;
+  premium: number;
+  currentValue: number;
+  symbol: string;
+  strikeLabel: string;
+}
+
+const safeParseFloat = (val: any): number => {
+  if (val == null) return 0;
+  const parsed = parseFloat(val);
+  return Number.isNaN(parsed) ? 0 : parsed;
+};
+
+const safeParseInt = (val: any): number => {
+  if (val == null) return 0;
+  const parsed = parseInt(val, 10);
+  return Number.isNaN(parsed) ? 0 : parsed;
+};
+
+export function getComboStatus(
+  item: OptionsStrategy | OptionsPosition,
+  type: 'complex' | 'single',
+  dte: number,
+  symbol: string,
+  allSinglePositions?: OptionsPosition[],
+  overrideProfitRatio?: number
+): ComboStatusResult {
+  const isUS = symbol ? (/[a-zA-Z]/.test(symbol) || symbol.startsWith('US.')) : false;
+  const contractUnit = isUS ? 100 : 10000;
+  const costPerContract = isUS ? 2.0 : 3.0;
+
+  let profitLoss = 0;
+  let name = '';
+  let id = '';
+  let legs: OptionsPosition[] = [];
+
+  if (type === 'complex') {
+    const s = item as OptionsStrategy;
+    name = s.name;
+    id = s.id;
+    legs = s.positions || [];
+    profitLoss = s.profitLoss;
+  } else {
+    const p = item as OptionsPosition;
+    name = `${p.symbol} ${p.strike} ${p.type.toUpperCase()}`;
+    id = p.id;
+    legs = [p];
+    profitLoss = p.profitLoss;
+  }
+
+  // Resolve legs against allSinglePositions to get actual strike and currentValue
+  if (allSinglePositions && allSinglePositions.length > 0) {
+    legs = legs.map(leg => {
+      const matched = allSinglePositions.find(single => 
+        (leg.contract_code_full && single.contract_code_full === leg.contract_code_full) ||
+        (leg.contract_code && single.contract_code === leg.contract_code) ||
+        (leg.contract_code_full && single.contract_code === leg.contract_code_full) ||
+        (leg.contract_code && single.contract_code_full === leg.contract_code) ||
+        (leg.id && single.id === leg.id)
+      );
+      if (!matched) return leg;
+      const merged = { ...matched };
+      Object.entries(leg).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          (merged as any)[key] = value;
+        }
+      });
+      return merged as OptionsPosition;
+    });
+  }
+
+  // Calculate profitRatio
+  let creditOpen = 0;
+  let creditCurrent = 0;
+  let totalQty = 0;
+  let shortCurrentVal = 0;
+  let shortQty = 0;
+
+  legs.forEach(p => {
+    const pPremium = safeParseFloat(p.premium);
+    const pCurrentValue = safeParseFloat(p.currentValue);
+    const pQuantity = safeParseInt(p.quantity);
+
+    const factor = p.position_type === 'sell' ? 1 : -1;
+    creditOpen += pPremium * pQuantity * factor;
+    creditCurrent += pCurrentValue * pQuantity * factor;
+    totalQty += pQuantity;
+    if (p.position_type === 'sell') {
+      shortCurrentVal += pCurrentValue * pQuantity;
+      shortQty += pQuantity;
+    }
+  });
+
+  // If there are no short option legs (shortQty === 0), it is a net long position/strategy with uncapped profit.
+  // These positions are not monitored for capped-profit W/P/A thresholds.
+  if (shortQty === 0) {
+    return {
+      id,
+      name,
+      type,
+      expiry: legs[0]?.expiry || '',
+      dte,
+      profitRatio: 0,
+      threshold: 0.95,
+      remainingEfficiency: 0,
+      isCostCheckPassed: true,
+      status: 'HOLD',
+      profitLoss,
+      premium: creditOpen,
+      currentValue: creditCurrent,
+      symbol,
+      strikeLabel: type === 'complex' ? '' : String(legs[0]?.strike || '')
+    };
+  }
+
+  // Check if it's a vertical spread (exactly 2 legs of same option type Call/Put, one buy, one sell)
+  let isVerticalSpread = false;
+  let spreadWidth = 0;
+  if (type === 'complex' && legs.length === 2) {
+    const buyLeg = legs.find(p => p.position_type === 'buy');
+    const sellLeg = legs.find(p => p.position_type === 'sell');
+    if (buyLeg && sellLeg) {
+      const type1 = buyLeg.type || buyLeg.contract_type_zh || '';
+      const type2 = sellLeg.type || sellLeg.contract_type_zh || '';
+      const isSameType = (type1.toLowerCase().includes('call') && type2.toLowerCase().includes('call')) ||
+                         (type1.toLowerCase().includes('put') && type2.toLowerCase().includes('put')) ||
+                         (type1 === type2);
+      if (isSameType) {
+        const buyStrike = safeParseFloat(buyLeg.contract_strike_price ?? buyLeg.strike);
+        const sellStrike = safeParseFloat(sellLeg.contract_strike_price ?? sellLeg.strike);
+        spreadWidth = Math.abs(sellStrike - buyStrike);
+        if (spreadWidth > 0) {
+          isVerticalSpread = true;
+        }
+      }
+    }
+  }
+
+  let profitRatio = 0;
+  if (overrideProfitRatio != null) {
+    profitRatio = overrideProfitRatio;
+  } else if (isVerticalSpread) {
+    if (creditOpen > 0) {
+      // Credit vertical spread: profit is capped at the net credit received
+      const maxProfit = creditOpen;
+      if (maxProfit > 0) {
+        profitRatio = profitLoss / maxProfit;
+      }
+    } else {
+      // Debit vertical spread: profit realization is spread value / maximum spread value
+      const maxSpreadVal = spreadWidth * contractUnit;
+      const debitCurrent = -creditCurrent;
+      if (maxSpreadVal > 0) {
+        profitRatio = debitCurrent / maxSpreadVal;
+      }
+    }
+  } else {
+    // Standard single option or other complex strategies
+    if (creditOpen > 0) {
+      profitRatio = (creditOpen - creditCurrent) / creditOpen;
+    } else if (creditOpen < 0) {
+      const debitOpen = -creditOpen;
+      const debitCurrent = -creditCurrent;
+      profitRatio = (debitCurrent - debitOpen) / debitOpen;
+    }
+  }
+
+  // Cost check passes if remaining profit (current short option value in cash) > transaction cost of short legs
+  const totalCost = costPerContract * shortQty;
+  const remainingProfitCash = shortCurrentVal * contractUnit;
+  const isCostCheckPassed = shortQty === 0 || remainingProfitCash > totalCost;
+
+  // Efficiency: remaining profit percentage / DTE
+  const remainingEfficiency = (1 - profitRatio) / Math.max(1, dte);
+
+  // Get threshold
+  const threshold = 0.50;
+
+  let status: 'WATCH' | 'PROFIT' | 'AUTO' | 'HOLD' = 'HOLD';
+  if (profitRatio >= 0.90 && isCostCheckPassed) {
+    status = 'AUTO';
+  } else if (profitRatio >= 0.80) {
+    status = 'PROFIT';
+  } else if (profitRatio >= 0.50) {
+    status = 'WATCH';
+  }
+
+  const strikeLabel = legs
+    .map(p => safeParseFloat(p.contract_strike_price ?? p.strike))
+    .filter(s => s > 0)
+    .sort((a, b) => a - b)
+    .map(s => String(s))
+    .join('-');
+
+  return {
+    id,
+    name,
+    type,
+    expiry: legs[0]?.expiry || '',
+    dte,
+    profitRatio,
+    threshold,
+    remainingEfficiency,
+    isCostCheckPassed,
+    status,
+    profitLoss,
+    premium: creditOpen,
+    currentValue: creditCurrent,
+    symbol,
+    strikeLabel
+  };
 }

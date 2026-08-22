@@ -17,7 +17,7 @@ import { PortfolioOverview } from './PortfolioOverview';
 import { SubjectPositionsPanel } from './SubjectPositionsPanel';
 import { StockKlineChart } from './StockKlineChart';
 import { TodayOrderFlowPanel } from './TodayComboPanel';
-import { getDaysToExpiryColor, getPositionTypeInfo2, getStatusColorClass, getTypeIcon } from '../utils/portfolioUi';
+import { getDaysToExpiryColor, getPositionTypeInfo2, getStatusColorClass, getTypeIcon, getComboStatus } from '../utils/portfolioUi';
 
 interface OptionsPortfolioProps {
   theme: Theme;
@@ -81,8 +81,6 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   // State for active expiry group in viewport (ScrollSpy)
   const [activeExpiry, setActiveExpiry] = useState<string | null>(null);
   
-  // State for scroll-following refresh button
-  const [showRefreshButton, setShowRefreshButton] = useState(false);
   const [wsRefreshNonce, setWsRefreshNonce] = useState(0);
 
   // State for mobile month navigation popover
@@ -129,6 +127,53 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     return parts.length >= 2 ? `${parts[0]}-${parts[1]}` : null;
   }, [activeExpiry]);
 
+  const comboStatusesByExpiry = useMemo(() => {
+    const map: Record<string, ReturnType<typeof getComboStatus>[]> = {};
+    const allSinglePositions = groups.flatMap(g => g.single);
+    groups.forEach(group => {
+      const list: ReturnType<typeof getComboStatus>[] = [];
+      const dte = group.daysToExpiry;
+      const grpSymbol = group.single[0]?.opt_undl_code_full || group.complex[0]?.positions[0]?.opt_undl_code_full || activeSymbol || '';
+      
+      group.complex.forEach(strategy => {
+        list.push(getComboStatus(strategy, 'complex', dte, grpSymbol, allSinglePositions));
+      });
+      group.single.forEach(position => {
+        list.push(getComboStatus(position, 'single', dte, grpSymbol, allSinglePositions));
+      });
+      map[group.expiry] = list;
+    });
+    return map;
+  }, [groups, activeSymbol]);
+
+  const monthlyStatusCounts = useMemo(() => {
+    const counts: Record<string, { watch: number; profit: number; auto: number; hold: number; total: number; items: ReturnType<typeof getComboStatus>[] }> = {};
+    
+    months.forEach(m => {
+      counts[m.key] = { watch: 0, profit: 0, auto: 0, hold: 0, total: 0, items: [] };
+    });
+
+    Object.entries(comboStatusesByExpiry).forEach(([expiry, statuses]) => {
+      const parts = expiry.split('-');
+      if (parts.length >= 2) {
+        const yearMonth = `${parts[0]}-${parts[1]}`;
+        const mCount = counts[yearMonth];
+        if (mCount) {
+          statuses.forEach(statusRes => {
+            mCount.total += 1;
+            mCount.items.push(statusRes);
+            if (statusRes.status === 'AUTO') mCount.auto += 1;
+            else if (statusRes.status === 'PROFIT') mCount.profit += 1;
+            else if (statusRes.status === 'WATCH') mCount.watch += 1;
+            else mCount.hold += 1;
+          });
+        }
+      }
+    });
+
+    return counts;
+  }, [comboStatusesByExpiry, months]);
+
   // Persist expanded groups to cookie whenever it changes
   useEffect(() => {
     setCookie('options_portfolio_expanded_groups', JSON.stringify(expandedExpiryGroups), 30);
@@ -171,8 +216,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     if (!portfolioData) return;
 
     const handleScrollSpy = () => {
-      // Update refresh button visibility
-      setShowRefreshButton(window.scrollY > 300);
+      // Update active expiry status from ScrollSpy
 
       const groups = portfolioData.expiryBuckets || portfolioData.expiryGroups || [];
       if (groups.length === 0) return;
@@ -667,29 +711,52 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
               {months.map((m) => {
                 const isActive = activeMonthKey === m.key;
                 const monthNum = parseInt(m.key.split('-')[1], 10);
+                const counts = monthlyStatusCounts[m.key] || { watch: 0, profit: 0, auto: 0, total: 0 };
+                const hasAlerts = counts.watch > 0 || counts.profit > 0 || counts.auto > 0;
+                
                 return (
-                  <button
-                    key={m.key}
-                    type="button"
-                    onClick={() => {
-                      const el = document.getElementById(`expiry-group-${m.firstExpiry}`);
-                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                      setMobileMonthMenuOpen(false);
-                    }}
-                    className={`text-center text-xs py-1.5 px-3 rounded-lg transition-all duration-150 font-semibold active:scale-95 ${
-                      isActive
-                        ? theme === 'dark'
-                          ? 'bg-blue-500/25 text-blue-400'
-                          : 'bg-blue-50 text-blue-600 border border-blue-100/70'
-                        : theme === 'dark'
-                          ? 'text-zinc-400 hover:bg-zinc-800/80'
-                          : theme === 'blue'
-                            ? 'text-slate-600 hover:bg-blue-50'
-                            : 'text-slate-600 hover:bg-slate-100'
-                    }`}
-                  >
-                    {monthNum}月
-                  </button>
+                  <div key={m.key} className="flex items-center justify-between gap-3 px-1 py-0.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const el = document.getElementById(`expiry-group-${m.firstExpiry}`);
+                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        setMobileMonthMenuOpen(false);
+                      }}
+                      className={`text-center text-xs py-1 px-2.5 rounded-lg transition-all duration-150 font-semibold active:scale-95 ${
+                        isActive
+                          ? theme === 'dark'
+                            ? 'bg-blue-500/25 text-blue-400'
+                            : 'bg-blue-50 text-blue-600 border border-blue-100/70'
+                          : theme === 'dark'
+                            ? 'text-zinc-400 hover:bg-zinc-800/80'
+                            : theme === 'blue'
+                              ? 'text-slate-600 hover:bg-blue-50'
+                              : 'text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      {monthNum}月
+                    </button>
+                    {hasAlerts && (
+                      <div className="flex gap-0.5 shrink-0">
+                        {counts.auto > 0 && (
+                          <span className="w-4.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-400">
+                            {counts.auto}
+                          </span>
+                        )}
+                        {counts.profit > 0 && (
+                          <span className="w-4.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-green-100 text-green-800 dark:bg-green-950/60 dark:text-green-400">
+                            {counts.profit}
+                          </span>
+                        )}
+                        {counts.watch > 0 && (
+                          <span className="w-4.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-950/60 dark:text-yellow-400">
+                            {counts.watch}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>
@@ -826,38 +893,64 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                   <div className="text-[9px] uppercase tracking-wider font-bold opacity-25 px-1 py-0.5 border-b border-current/10 mb-0.5 w-full text-center">
                     月份
                   </div>
-                  <div className="flex flex-col gap-1 max-h-[220px] overflow-y-auto pr-0.5 scrollbar-none">
+                  <div className="flex flex-col gap-1.5 max-h-[240px] overflow-y-auto pr-0.5 scrollbar-none">
                     {months.map((m) => {
                       const isActive = activeMonthKey === m.key;
                       const monthNum = parseInt(m.key.split('-')[1], 10);
+                      const counts = monthlyStatusCounts[m.key] || { watch: 0, profit: 0, auto: 0, total: 0 };
+                      const hasAlerts = counts.watch > 0 || counts.profit > 0 || counts.auto > 0;
+                      
                       return (
-                        <button
-                          key={m.key}
-                          type="button"
-                          onClick={() => {
-                            const el = document.getElementById(`expiry-group-${m.firstExpiry}`);
-                            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                          }}
-                          title={m.label}
-                          className={`text-center text-[10px] w-9 h-9 rounded-full transition-all duration-150 flex items-center justify-center font-semibold cursor-pointer active:scale-95 ${
-                            isActive
-                              ? theme === 'dark'
-                                ? 'bg-blue-500/25 text-blue-400 font-bold shadow-[0_0_0_1px_rgba(59,130,246,0.2)]'
-                                : 'bg-blue-50 text-blue-600 border border-blue-100/70 font-bold shadow-sm'
-                              : theme === 'dark'
-                                ? 'text-zinc-400 hover:bg-zinc-800/80 hover:text-zinc-200'
-                                : theme === 'blue'
-                                  ? 'text-slate-600 hover:bg-blue-50 hover:text-blue-900'
-                                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                          }`}
-                        >
-                          {monthNum}月
-                        </button>
+                        <div key={m.key} className="flex items-center gap-2 px-1 py-0.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const el = document.getElementById(`expiry-group-${m.firstExpiry}`);
+                              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }}
+                            title={m.label}
+                            className={`text-center text-[10px] w-9 h-9 rounded-full transition-all duration-150 flex items-center justify-center font-semibold cursor-pointer active:scale-95 ${
+                              isActive
+                                ? theme === 'dark'
+                                  ? 'bg-blue-500/25 text-blue-400 font-bold shadow-[0_0_0_1px_rgba(59,130,246,0.2)]'
+                                  : 'bg-blue-50 text-blue-600 border border-blue-100/70 font-bold shadow-sm'
+                                : theme === 'dark'
+                                  ? 'text-zinc-400 hover:bg-zinc-800/80 hover:text-zinc-200'
+                                  : theme === 'blue'
+                                    ? 'text-slate-600 hover:bg-blue-50 hover:text-blue-900'
+                                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                            }`}
+                          >
+                            {monthNum}月
+                          </button>
+                          
+                          {hasAlerts && (
+                            <div className="flex flex-col gap-0.5 shrink-0">
+                              {counts.auto > 0 && (
+                                <span className="w-4.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-400" title={`AUTO: ${counts.auto}`}>
+                                  {counts.auto}
+                                </span>
+                              )}
+                              {counts.profit > 0 && (
+                                <span className="w-4.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-green-100 text-green-800 dark:bg-green-950/60 dark:text-green-400" title={`PROFIT: ${counts.profit}`}>
+                                  {counts.profit}
+                                </span>
+                              )}
+                              {counts.watch > 0 && (
+                                <span className="w-4.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-950/60 dark:text-yellow-400" title={`WATCH: ${counts.watch}`}>
+                                  {counts.watch}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       );
                     })}
                   </div>
                 </div>
               )}
+
+
               {groups.map((group) => {
                 return (
                 <div key={group.expiry} id={`expiry-group-${group.expiry}`}>
