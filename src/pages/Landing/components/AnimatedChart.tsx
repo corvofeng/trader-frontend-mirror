@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { logger } from '../../../shared/utils/logger';
 import { createChart, ColorType, IChartApi, ISeriesApi } from 'lightweight-charts';
 import { Theme } from '../../../lib/theme';
@@ -6,6 +6,14 @@ import { accountService, portfolioService } from '../../../lib/services';
 import type { User, Account } from '../../../lib/services/types';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { landingTranslations, Language } from '../i18n';
+
+const formatCompactNumber = (value: number) => {
+  const abs = Math.abs(value);
+  if (abs >= 1e8) return `${(value / 1e8).toFixed(2)}亿`;
+  if (abs >= 1e4) return `${(value / 1e4).toFixed(1)}万`;
+  if (abs >= 1e3) return `${(value / 1e3).toFixed(1)}k`;
+  return value.toFixed(0);
+};
 
 interface AnimatedChartProps {
   theme: Theme;
@@ -22,11 +30,24 @@ export function AnimatedChart({ theme, lang = 'zh', user }: AnimatedChartProps) 
   const [error, setError] = useState<string | null>(null);
   const [containerReady, setContainerReady] = useState(false);
   const { getThemedColors } = useCurrency();
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
+
+  const formatAxisValue = useCallback((value: number) => {
+    return isMobile ? formatCompactNumber(value) : value.toFixed(2);
+  }, [isMobile]);
 
   useEffect(() => {
     if (chartContainerRef.current) {
       setContainerReady(true);
     }
+  }, []);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 640);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   useEffect(() => {
@@ -53,6 +74,9 @@ export function AnimatedChart({ theme, lang = 'zh', user }: AnimatedChartProps) 
           background: { type: ColorType.Solid, color: 'transparent' },
           textColor: isDark ? '#e5e7eb' : '#374151',
           fontSize: 12,
+        },
+        localization: {
+          priceFormatter: formatAxisValue,
         },
         grid: {
           vertLines: { color: isDark ? '#374151' : '#e5e7eb' },
@@ -85,6 +109,7 @@ export function AnimatedChart({ theme, lang = 'zh', user }: AnimatedChartProps) 
           borderColor: isDark ? '#374151' : '#e5e7eb',
           textColor: isDark ? '#e5e7eb' : '#374151',
           autoScale: true,
+          minimumWidth: isMobile ? 44 : 80,
           scaleMargins: {
             top: 0.1,
             bottom: 0.1,
@@ -102,6 +127,11 @@ export function AnimatedChart({ theme, lang = 'zh', user }: AnimatedChartProps) 
         borderVisible: false,
         wickUpColor: chartColors.upColor,
         wickDownColor: chartColors.downColor,
+        priceFormat: {
+          type: 'custom',
+          formatter: formatAxisValue,
+          minMove: 0.01,
+        },
       });
 
       candlestickSeriesRef.current = candlestickSeries;
@@ -219,7 +249,7 @@ export function AnimatedChart({ theme, lang = 'zh', user }: AnimatedChartProps) 
         cancelAnimationFrame(animationFrame);
       }
     };
-  }, [theme, containerReady, getThemedColors, user]);
+  }, [theme, containerReady, getThemedColors, user, isMobile, formatAxisValue]);
 
   return (
     <div className="w-full h-[400px] relative">
