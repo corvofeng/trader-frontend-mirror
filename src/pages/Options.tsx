@@ -1,6 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { logger } from '../shared/utils/logger';
 import { useLocation, useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { BarChart2, TrendingUp, Briefcase, Calculator, RefreshCw, Shield, Activity, BookOpen, Hourglass, BellRing, Compass } from 'lucide-react';
 import { Theme, themes } from '../lib/theme';
 import { OptionsChain } from '../features/options/components/OptionsChain';
@@ -424,6 +425,7 @@ function OptionsContent({ theme }: OptionsProps) {
                       }
                     }
                     setRefreshKey((k) => k + 1);
+                    toast.success('已触发行情数据刷新！', { id: 'options-refresh-toast' });
                   }}
                   className={`inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm whitespace-nowrap ${themes[theme].secondary}`}
                 >
@@ -469,9 +471,10 @@ function OptionsContent({ theme }: OptionsProps) {
                       onClick={() => {
                         if (wsCountdownEnabled) {
                           triggerWsNow();
-                          return;
+                        } else {
+                          setRefreshKey((k) => k + 1);
                         }
-                        setRefreshKey((k) => k + 1);
+                        toast.success('期权数据刷新请求已发送！', { id: 'options-refresh-toast' });
                       }}
                       disabled={!selectedSymbol}
                       className={`${themes[theme].secondary} rounded-md p-1 disabled:opacity-50 disabled:cursor-not-allowed`}

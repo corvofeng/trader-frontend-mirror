@@ -91,6 +91,14 @@ export function Navigation({
   const navigate = useNavigate();
   const location = useLocation();
   const isActivePath = (path: string) => location.pathname === path;
+
+  useEffect(() => {
+    if (sessionStorage.getItem('sw_refreshed') === 'true') {
+      sessionStorage.removeItem('sw_refreshed');
+      toast.success('页面及 Service Worker 缓存已成功刷新！', { id: 'sw-refresh-success' });
+    }
+  }, []);
+
   const [noticesOpen, setNoticesOpen] = useState(false);
   const [noticesLoading, setNoticesLoading] = useState(false);
   const [noticesError, setNoticesError] = useState<string | null>(null);
@@ -160,16 +168,25 @@ export function Navigation({
       toast.error('当前浏览器不支持 Service Worker');
       return;
     }
+    const toastId = toast.loading('正在刷新缓存及检测更新...');
     try {
       const w = window as unknown as { __pwaUpdateSW?: (reload?: boolean) => Promise<void> };
       if (typeof w.__pwaUpdateSW === 'function') {
+        sessionStorage.setItem('sw_refreshed', 'true');
         await w.__pwaUpdateSW(true);
+        // 如果没有触发 reload，则代表已是最新
+        toast.dismiss(toastId);
+        toast.success('已是最新版本，缓存刷新成功！', { id: 'sw-refresh-latest' });
+        sessionStorage.removeItem('sw_refreshed');
         return;
       }
       const reg = await navigator.serviceWorker.getRegistration();
+      sessionStorage.setItem('sw_refreshed', 'true');
       await reg?.update();
       window.location.reload();
     } catch (e) {
+      toast.dismiss(toastId);
+      sessionStorage.removeItem('sw_refreshed');
       toast.error(e instanceof Error ? e.message : '刷新 Service Worker 失败');
     }
   }, []);

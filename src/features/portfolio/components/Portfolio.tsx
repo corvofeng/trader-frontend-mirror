@@ -205,6 +205,7 @@ export function Portfolio({
       return;
     }
     setIsRefreshing(true);
+    const toastId = toast.loading('正在刷新资产数据...');
     try {
       const [, , trendResp] = await Promise.all([
         portfolioService.getHoldings(userId, selectedAccountId),
@@ -215,6 +216,10 @@ export function Portfolio({
       if (trendResp?.data) setTrendData(trendResp.data);
       // 轻微抖动日期，触发父层useEffect刷新持仓/交易
       onDateRangeChange({ ...dateRange });
+      toast.success('资产数据已成功刷新！', { id: toastId });
+    } catch (e) {
+      console.error(e);
+      toast.error('刷新资产数据失败', { id: toastId });
     } finally {
       setIsRefreshing(false);
     }
