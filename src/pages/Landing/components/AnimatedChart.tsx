@@ -5,15 +5,10 @@ import { Theme } from '../../../lib/theme';
 import { accountService, portfolioService } from '../../../lib/services';
 import type { User, Account } from '../../../lib/services/types';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
+import { formatCompactNumber } from '../../../shared/utils/format';
 import { landingTranslations, Language } from '../i18n';
 
-const formatCompactNumber = (value: number) => {
-  const abs = Math.abs(value);
-  if (abs >= 1e8) return `${(value / 1e8).toFixed(2)}亿`;
-  if (abs >= 1e4) return `${(value / 1e4).toFixed(1)}万`;
-  if (abs >= 1e3) return `${(value / 1e3).toFixed(1)}k`;
-  return value.toFixed(0);
-};
+
 
 interface AnimatedChartProps {
   theme: Theme;
@@ -29,12 +24,12 @@ export function AnimatedChart({ theme, lang = 'zh', user }: AnimatedChartProps) 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [containerReady, setContainerReady] = useState(false);
-  const { getThemedColors } = useCurrency();
+  const { getThemedColors, currencyConfig } = useCurrency();
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
 
   const formatAxisValue = useCallback((value: number) => {
-    return isMobile ? formatCompactNumber(value) : value.toFixed(2);
-  }, [isMobile]);
+    return formatCompactNumber(value, currencyConfig?.region);
+  }, [currencyConfig?.region]);
 
   useEffect(() => {
     if (chartContainerRef.current) {

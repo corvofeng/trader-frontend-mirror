@@ -8,7 +8,7 @@ import { themes } from '../../../lib/theme';
 import { stockService } from '../../../lib/services';
 import { InfoTooltip } from '../../../shared/components';
 import type { PortfolioKlineMetrics, PortfolioKlinePoint, TrendData } from '../../../lib/services/types';
-import { formatCurrency } from '../../../shared/utils/format';
+import { formatCurrency, formatCompactCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { PortfolioKlineChart } from './PortfolioKlineChart';
 
@@ -354,7 +354,7 @@ export function PortfolioTrend({ trendData, klineData, klineMetrics, theme, date
             if (viewMode === 'return') {
               return value.toFixed(1) + '%';
             } else {
-              return formatCurrency(value, currencyConfig);
+              return formatCompactCurrency(value, currencyConfig);
             }
           }
         }

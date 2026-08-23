@@ -12,7 +12,7 @@ import {
 import type { Theme } from '../../../lib/theme';
 import { themes } from '../../../lib/theme';
 import type { PortfolioKlinePoint } from '../../../lib/services/types';
-import { formatCurrency } from '../../../shared/utils/format';
+import { formatCurrency, formatCompactNumber } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 
 interface PortfolioKlineChartProps {
@@ -50,13 +50,7 @@ const toTimestamp = (date: string) => {
   return Math.floor(ts / 1000) as UTCTimestamp;
 };
 
-const formatCompactNumber = (value: number) => {
-  const abs = Math.abs(value);
-  if (abs >= 1e8) return `${(value / 1e8).toFixed(2)}亿`;
-  if (abs >= 1e4) return `${(value / 1e4).toFixed(1)}万`;
-  if (abs >= 1e3) return `${(value / 1e3).toFixed(1)}k`;
-  return value.toFixed(0);
-};
+
 
 export function PortfolioKlineChart({ theme, klineData, source, priceMode }: PortfolioKlineChartProps) {
   const viewportRef = React.useRef<HTMLDivElement | null>(null);
@@ -208,15 +202,15 @@ export function PortfolioKlineChart({ theme, klineData, source, priceMode }: Por
     if (effectivePriceMode === 'nav') {
       return value.toFixed(4);
     }
-    return formatCompactNumber(value);
+    return formatCompactNumber(value, currencyConfig?.region);
   };
 
   const formatAxisValue = React.useCallback((value: number) => {
     if (effectivePriceMode === 'nav') {
       return isMobile ? value.toFixed(4) : value.toFixed(6);
     }
-    return isMobile ? formatCompactNumber(value) : value.toFixed(2);
-  }, [effectivePriceMode, isMobile]);
+    return formatCompactNumber(value, currencyConfig?.region);
+  }, [effectivePriceMode, currencyConfig?.region]);
 
   React.useEffect(() => {
     const container = containerRef.current;
