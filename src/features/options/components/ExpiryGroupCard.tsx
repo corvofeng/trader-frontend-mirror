@@ -1423,17 +1423,17 @@ export function ExpiryGroupCard({
     [normalizeCodeList, spreadWatchPositions]
   );
 
+  const spreadWatchCodesKey = useMemo(() => spreadWatchCodes.join(','), [spreadWatchCodes]);
+
   const spreadWatchStatusText = useMemo(
     () => getSpreadWatchStatusText(spreadWatchCodes),
     [getSpreadWatchStatusText, spreadWatchCodes]
   );
 
-
   useEffect(() => {
-    if (!activeComboDraft) {
-      if (spreadHistory.length > 0) setSpreadHistory([]);
-    }
-  }, [activeComboDraft, spreadHistory.length]);
+    setSpreadHistory([]);
+    lastKnownSpreadPriceRef.current = null;
+  }, [spreadWatchCodesKey]);
 
   useEffect(() => {
     if (!activeComboDraft) return;
@@ -1629,10 +1629,20 @@ export function ExpiryGroupCard({
         const strikeDiff = Math.abs(draft.combo.sell_strike - draft.combo.buy_strike);
         const costRatio = strikeDiff > 0 && net != null ? (Math.abs(net) / strikeDiff) * 100 : null;
 
+        const buyPos = draft.combo.buy_position?.position;
+        const sellPos = draft.combo.sell_position?.position;
+        const buyLegUnitInfo = getEffectiveContractUnitForPosition(buyPos);
+        const sellLegUnitInfo = getEffectiveContractUnitForPosition(sellPos);
+        const activeComboContractUnit = buyLegUnitInfo.effectiveUnit ?? sellLegUnitInfo.effectiveUnit ?? 1;
+
         const label = net == null ? '对手方一档价未就绪' : (net >= 0 ? '预计收到' : '预计支付');
-        const amountText = net == null ? '--' : formatCurrency(Math.abs(net * qty), currencyConfig, 4);
+        
+        const displayNet = net != null ? net * activeComboContractUnit : 0;
+        const displayPerHedge = p.perHedge != null ? p.perHedge * activeComboContractUnit : 0;
+
+        const amountText = net == null ? '--' : formatCurrency(Math.abs(displayNet * qty), currencyConfig, 4);
         const hedgeText =
-          p.perHedge == null ? '--' : `${p.perHedge >= 0 ? '+' : '-'}${formatCurrency(Math.abs(p.perHedge), currencyConfig, 4)}`;
+          p.perHedge == null ? '--' : `${p.perHedge >= 0 ? '+' : '-'}${formatCurrency(Math.abs(displayPerHedge), currencyConfig, 4)}`;
         const tsText = p.ts ? format(new Date(p.ts), 'HH:mm:ss') : '--';
         return (
           <div className={`mt-3 rounded border p-3 ${themes[theme].border} ${themes[theme].background}`}>
@@ -1680,8 +1690,17 @@ export function ExpiryGroupCard({
                 ) : null}
                 <RealTimeSpreadChart
                   theme={theme}
-                  data={spreadHistory}
+                  data={spreadHistory.map((point) => ({
+                    ...point,
+                    price: point.price == null ? null : point.price * activeComboContractUnit,
+                  }))}
                   title="组合价差走势"
+                  formatValue={(value) => {
+                    if (value == null) return '--';
+                    const abs = Math.abs(value);
+                    const decimals = abs < 100 ? 2 : 0;
+                    return formatCurrency(value, currencyConfig, decimals);
+                  }}
                 />
               </div>
             )}
@@ -1695,7 +1714,9 @@ export function ExpiryGroupCard({
                   <span className="opacity-70">{p.buy.amt == null ? '' : (p.buy.amt >= 0 ? '收到' : '支付')}</span>
                   <AnimatedFlash
                     value={
-                      p.buy.amt == null ? '--' : `${p.buy.amt >= 0 ? '+' : '-'}${formatCurrency(Math.abs(p.buy.amt * qty), currencyConfig, 4)}`
+                      p.buy.amt == null
+                        ? '--'
+                        : `${p.buy.amt >= 0 ? '+' : '-'}${formatCurrency(Math.abs(p.buy.amt * qty * activeComboContractUnit), currencyConfig, 4)}`
                     }
                     type="price"
                   />
@@ -1710,7 +1731,9 @@ export function ExpiryGroupCard({
                   <span className="opacity-70">{p.sell.amt == null ? '' : (p.sell.amt >= 0 ? '收到' : '支付')}</span>
                   <AnimatedFlash
                     value={
-                      p.sell.amt == null ? '--' : `${p.sell.amt >= 0 ? '+' : '-'}${formatCurrency(Math.abs(p.sell.amt * qty), currencyConfig, 4)}`
+                      p.sell.amt == null
+                        ? '--'
+                        : `${p.sell.amt >= 0 ? '+' : '-'}${formatCurrency(Math.abs(p.sell.amt * qty * activeComboContractUnit), currencyConfig, 4)}`
                     }
                     type="price"
                   />
