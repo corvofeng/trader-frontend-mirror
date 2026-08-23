@@ -2214,8 +2214,8 @@ export const optionsService: OptionsService = {
         });
       })(),
       term_structure: [
-        { expiry: '2026-09-23', days_to_expiry: 39, atm_iv_percent: 34.2, liquidity_score: 91.2, volume: 80000, open_interest: 280000, skew_25d: 1.8 },
-        { expiry: '2026-12-23', days_to_expiry: 130, atm_iv_percent: 36.8, liquidity_score: 82.5, volume: 40000, open_interest: 170000, skew_25d: 3.1 }
+        { expiry: '2026-09-23', days_to_expiry: 39, atm_call_iv: 34.2, atm_put_iv: 34.5, liquidity: 91.2, call_volume: 40000, put_volume: 40000, call_open_interest: 140000, put_open_interest: 140000, put_skew_25d: 1.8 },
+        { expiry: '2026-12-23', days_to_expiry: 130, atm_call_iv: 36.8, atm_put_iv: 37.1, liquidity: 82.5, call_volume: 20000, put_volume: 20000, call_open_interest: 85000, put_open_interest: 85000, put_skew_25d: 3.1 }
       ],
       contract_activity: {
         oi_increase: [
@@ -2228,7 +2228,32 @@ export const optionsService: OptionsService = {
         volume_active: [
           { contract_code: `${symbol === '588000.SH' ? '10011032' : 'C100'}`, volume: 24518 }
         ],
-        t_quotes: tQuotes
+        t_quotes: tQuotes,
+        by_expiry: {
+          '2026-09-23': {
+            largest_builds: [
+              { contract_code: `${symbol === '588000.SH' ? '10011032' : 'C100'}`, contract_name: `${symbol} Call 100`, expiry: '2026-09-23', strike_price: String(strikeBase), option_type: 'call', open_interest: 38500, open_interest_change: 8500, implied_volatility: 35.2, volume: 15000 },
+              { contract_code: `${symbol === '588000.SH' ? '10021041' : 'P105'}`, contract_name: `${symbol} Put 105`, expiry: '2026-09-23', strike_price: String(strikeBase + strikeStep), option_type: 'put', open_interest: 34200, open_interest_change: 6200, implied_volatility: 38.5, volume: 12000 }
+            ],
+            largest_unwinds: [
+              { contract_code: `${symbol === '588000.SH' ? '10011012' : 'C95'}`, contract_name: `${symbol} Call 95`, expiry: '2026-09-23', strike_price: String(strikeBase - strikeStep), option_type: 'call', open_interest: 29800, open_interest_change: -4200, implied_volatility: 32.4, volume: 8000 }
+            ],
+            most_active: [
+              { contract_code: `${symbol === '588000.SH' ? '10011032' : 'C100'}`, contract_name: `${symbol} Call 100`, expiry: '2026-09-23', strike_price: String(strikeBase), option_type: 'call', open_interest: 38500, open_interest_change: 8500, implied_volatility: 35.2, volume: 24518 }
+            ]
+          },
+          '2026-12-23': {
+            largest_builds: [
+              { contract_code: `${symbol === '588000.SH' ? '10011200' : 'C120'}`, contract_name: `${symbol} Call 120`, expiry: '2026-12-23', strike_price: String(strikeBase + 4 * strikeStep), option_type: 'call', open_interest: 22000, open_interest_change: 5000, implied_volatility: 36.8, volume: 9000 }
+            ],
+            largest_unwinds: [
+              { contract_code: `${symbol === '588000.SH' ? '10021200' : 'P120'}`, contract_name: `${symbol} Put 120`, expiry: '2026-12-23', strike_price: String(strikeBase + 4 * strikeStep), option_type: 'put', open_interest: 25000, open_interest_change: -3500, implied_volatility: 37.2, volume: 7500 }
+            ],
+            most_active: [
+              { contract_code: `${symbol === '588000.SH' ? '10011200' : 'C120'}`, contract_name: `${symbol} Call 120`, expiry: '2026-12-23', strike_price: String(strikeBase + 4 * strikeStep), option_type: 'call', open_interest: 22000, open_interest_change: 5000, implied_volatility: 36.8, volume: 11000 }
+            ]
+          }
+        }
       },
       data_quality: {
         coverage: 0.99,

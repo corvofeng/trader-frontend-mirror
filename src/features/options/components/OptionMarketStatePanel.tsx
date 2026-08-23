@@ -806,9 +806,27 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
                                     <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/40">
                                       {list.map((item: any) => {
                                         const isPut = item.option_type?.toLowerCase() === 'put';
-                                        const changeVal = type === 'active'
-                                          ? item.volume?.toLocaleString()
-                                          : `${item.open_interest_change >= 0 ? '+' : ''}${item.open_interest_change?.toLocaleString()}`;
+                                        let changeVal = '';
+                                        let changePctStr = '';
+                                        
+                                        if (type === 'active') {
+                                          changeVal = item.volume?.toLocaleString();
+                                        } else {
+                                          changeVal = `${item.open_interest_change >= 0 ? '+' : ''}${item.open_interest_change?.toLocaleString()}`;
+                                          const baseOI = (item.open_interest || 0) - (item.open_interest_change || 0);
+                                          const oiChange = item.open_interest_change || 0;
+                                          if (oiChange !== 0) {
+                                            let pct = 0;
+                                            if (baseOI > 0) {
+                                              pct = (oiChange / baseOI) * 100;
+                                            } else if (item.open_interest > 0) {
+                                              pct = 100;
+                                            }
+                                            changePctStr = `${oiChange >= 0 ? '+' : ''}${pct.toFixed(1)}%`;
+                                          } else {
+                                            changePctStr = '0.0%';
+                                          }
+                                        }
                                         
                                         return (
                                           <tr key={item.contract_code} className="hover:bg-slate-100/30 dark:hover:bg-zinc-800/20">
@@ -825,12 +843,23 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
                                                 {isPut ? '认沽' : '认购'}
                                               </span>
                                             </td>
-                                            <td className={`py-2.5 text-right font-mono font-extrabold text-xs sm:text-sm ${
-                                              type === 'active' 
-                                                ? 'text-zinc-700 dark:text-zinc-300' 
-                                                : item.open_interest_change >= 0 ? 'text-emerald-500' : 'text-rose-500'
-                                            }`}>
-                                              {changeVal}
+                                            <td className="py-2.5 text-right font-mono text-xs sm:text-sm">
+                                              {type === 'active' ? (
+                                                <span className="font-extrabold text-zinc-700 dark:text-zinc-300">
+                                                  {changeVal}
+                                                </span>
+                                              ) : (
+                                                <div className="flex flex-col items-end leading-tight">
+                                                  <span className={`font-extrabold ${
+                                                    item.open_interest_change >= 0 ? 'text-emerald-500' : 'text-rose-500'
+                                                  }`}>
+                                                    {changeVal}
+                                                  </span>
+                                                  <span className="text-[10px] font-normal text-zinc-400 dark:text-zinc-500 mt-0.5">
+                                                    {changePctStr}
+                                                  </span>
+                                                </div>
+                                              )}
                                             </td>
                                             <td className="py-2.5 text-right font-mono text-xs text-zinc-600 dark:text-zinc-400">
                                               {item.implied_volatility ? `${item.implied_volatility.toFixed(1)}%` : '--'}
