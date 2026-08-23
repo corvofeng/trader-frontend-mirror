@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Activity, Calendar, RefreshCw, BookOpen, History as HistoryIcon, ListChecks, HeartPulse, Bell, Upload, X } from 'lucide-react';
+import { Activity, Calendar, RefreshCw, BookOpen, History as HistoryIcon, ListChecks, HeartPulse, Bell, Upload, X, Play, Copy } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, addMonths, isSameMonth, isSameDay, differenceInCalendarDays } from 'date-fns';
 import { logger } from '../shared/utils/logger';
 import { Theme, themes } from '../lib/theme';
@@ -71,6 +72,33 @@ const adminNoticeBucketLabel: Record<AdminNoticeTimeBucket, string> = {
   recent3days: '最近 3 天',
   older: '超过 3 天',
   unknown: '未知时间'
+};
+
+interface NoticeLeg {
+  symbol?: string;
+  contract_code?: string;
+  contractCode?: string;
+  side?: string;
+  price?: number | string;
+  quantity?: number | string;
+}
+
+interface NoticeAction {
+  account_id_alias?: string;
+  action?: string;
+  action_id?: string | number | null;
+  combo_id?: string;
+  comboId?: string;
+  expiry_date?: string;
+  expiryDate?: string;
+  legs?: NoticeLeg[];
+}
+
+const actionNames: Record<string, string> = {
+  'RELEASE_COMBINATION': '解除组合',
+  'CLOSE_STRATEGY': '策略平仓',
+  'PLACE_ORDERS': '下单执行',
+  'SYNC_POSITIONS': '同步持仓',
 };
 
 export function Admin({ theme }: AdminProps) {
@@ -205,6 +233,13 @@ export function Admin({ theme }: AdminProps) {
   const [adminNoticesLatencyMs, setAdminNoticesLatencyMs] = useState<number | null>(null);
   const [expandedAdminNoticeKey, setExpandedAdminNoticeKey] = useState<string | null>(null);
   const adminNoticesAbortRef = React.useRef<AbortController | null>(null);
+
+  const handleExecuteNoticeAction = React.useCallback((noticeItem: Record<string, unknown>, actionItem: NoticeAction) => {
+    console.log('Execute notice action clicked:', { notice: noticeItem, action: actionItem });
+    const comboId = actionItem.combo_id || actionItem.comboId || '-';
+    const actionVal = actionItem.action || '';
+    toast.success(`已触发动作: ${actionNames[actionVal] || actionVal || '未知'}${comboId !== '-' ? `, 组合ID: ${comboId}` : ''} (等待处理)`);
+  }, []);
 
   const handleTabChange = (newTab: AdminTab) => {
     setActiveTab(newTab);
@@ -951,6 +986,25 @@ export function Admin({ theme }: AdminProps) {
                       const quantity = parsed.quantity || parsed.actionParsed?.quantity || (item.quantity !== undefined ? String(item.quantity) : '-');
                       const gridHint = parsed.gridHint || String(item.grid ?? item.gridHint ?? '-');
 
+                      let actionDataList: NoticeAction[] = [];
+                      const rawActionData = item.action_data ?? item.actionData;
+                      if (Array.isArray(rawActionData)) {
+                        actionDataList = rawActionData as NoticeAction[];
+                      } else if (typeof rawActionData === 'string') {
+                        try {
+                          const parsedJson = JSON.parse(rawActionData) as Record<string, unknown>;
+                          if (Array.isArray(parsedJson)) {
+                            actionDataList = parsedJson as NoticeAction[];
+                          } else if (parsedJson && Array.isArray(parsedJson.notices)) {
+                            actionDataList = (parsedJson.notices as Array<Record<string, unknown>>).flatMap(
+                              (n) => (n.action_data ?? n.actionData ?? []) as NoticeAction[]
+                            );
+                          }
+                        } catch {
+                          // ignore
+                        }
+                      }
+
                       const isActionableRaw = item.is_actionable ?? item.isActionable ?? null;
                       const isActionable =
                         typeof isActionableRaw === 'boolean'
@@ -1038,10 +1092,116 @@ export function Admin({ theme }: AdminProps) {
                                       <div className="text-xs font-medium text-gray-500 mb-1">原文</div>
                                       <div className="whitespace-pre-wrap break-words">{text || '-'}</div>
                                     </div>
+
+                                    {actionDataList.length > 0 && (
+                                      <div className="mt-4 border-t border-gray-200 dark:border-gray-800 pt-3">
+                                        <div className="text-xs font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center gap-1.5">
+                                          <ListChecks className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                                          <span>可执行动作 ({actionDataList.length})</span>
+                                        </div>
+                                        <div className="space-y-3">
+                                          {actionDataList.map((act: NoticeAction, actIdx: number) => {
+                                            const actionName = act.action || 'UNKNOWN_ACTION';
+                                            const actionLabel = actionNames[actionName] || actionName;
+                                            const comboId = act.combo_id || act.comboId || '-';
+                                            const expiryDate = act.expiry_date || act.expiryDate || '-';
+                                            const legs = Array.isArray(act.legs) ? act.legs : [];
+
+                                            return (
+                                              <div key={actIdx} className="bg-white dark:bg-gray-950 border border-gray-100 dark:border-gray-900 rounded-lg p-3 shadow-sm">
+                                                <div className="flex flex-wrap items-center justify-between gap-2 mb-2 pb-2 border-b border-gray-100 dark:border-gray-900">
+                                                  <div className="flex items-center gap-2 text-xs">
+                                                    <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 rounded font-semibold text-[10px]">
+                                                      {actionLabel}
+                                                    </span>
+                                                    {comboId !== '-' && (
+                                                      <span className="text-gray-500 dark:text-gray-400">
+                                                        组合: <strong className="text-gray-700 dark:text-gray-300 font-mono">{comboId}</strong>
+                                                      </span>
+                                                    )}
+                                                    {expiryDate !== '-' && (
+                                                      <span className="text-gray-500 dark:text-gray-400 ml-2">
+                                                        到期日: <span className="text-gray-700 dark:text-gray-300">{expiryDate}</span>
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                  <button
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      handleExecuteNoticeAction(item, act);
+                                                    }}
+                                                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-[11px] font-medium shadow-sm transition-all active:scale-95"
+                                                  >
+                                                    <Play className="w-3 h-3" />
+                                                    <span>执行该动作</span>
+                                                  </button>
+                                                </div>
+
+                                                {legs.length > 0 ? (
+                                                  <div className="overflow-x-auto">
+                                                    <table className="min-w-full divide-y divide-gray-100 dark:divide-gray-900">
+                                                      <thead>
+                                                        <tr className="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                          <th className="px-2 py-1 text-left font-normal">合约/标的</th>
+                                                          <th className="px-2 py-1 text-left font-normal">方向</th>
+                                                          <th className="px-2 py-1 text-right font-normal">价格</th>
+                                                          <th className="px-2 py-1 text-right font-normal">数量</th>
+                                                        </tr>
+                                                      </thead>
+                                                      <tbody className="divide-y divide-gray-100 dark:divide-gray-900">
+                                                        {legs.map((leg: NoticeLeg, legIdx: number) => {
+                                                          const symbol = leg.symbol || leg.contract_code || leg.contractCode || '-';
+                                                          const side = String(leg.side || '').toUpperCase();
+                                                          const sideLabel = side === 'BUY' ? '买入' : side === 'SELL' ? '卖出' : side || '-';
+                                                          const sideClass = side === 'BUY'
+                                                            ? 'text-emerald-600 dark:text-emerald-400 font-semibold'
+                                                            : side === 'SELL'
+                                                              ? 'text-rose-600 dark:text-rose-400 font-semibold'
+                                                              : 'text-gray-600 dark:text-gray-400';
+                                                          
+                                                          return (
+                                                            <tr key={legIdx} className="text-[11px]">
+                                                              <td className="px-2 py-1 text-gray-700 dark:text-gray-300 font-mono">{symbol}</td>
+                                                              <td className={`px-2 py-1 ${sideClass}`}>{sideLabel}</td>
+                                                              <td className="px-2 py-1 text-right text-gray-700 dark:text-gray-300">{leg.price !== undefined ? leg.price : '-'}</td>
+                                                              <td className="px-2 py-1 text-right text-gray-700 dark:text-gray-300">{leg.quantity !== undefined ? leg.quantity : '-'}</td>
+                                                            </tr>
+                                                          );
+                                                        })}
+                                                      </tbody>
+                                                    </table>
+                                                  </div>
+                                                ) : (
+                                                  <div className="text-[11px] text-gray-500 italic">无成分腿数据</div>
+                                                )}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
                                   <div>
-                                    <div className="text-xs font-medium text-gray-500 mb-1">原始数据</div>
-                                    <pre className="text-[11px] leading-4 whitespace-pre-wrap break-words bg-white/60 dark:bg-black/20 border border-gray-200 dark:border-gray-700 rounded-md p-2">
+                                    <div className="flex items-center justify-between mb-1">
+                                      <span className="text-xs font-medium text-gray-500">原始数据</span>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const jsonStr = JSON.stringify(item, null, 2);
+                                          navigator.clipboard.writeText(jsonStr)
+                                            .then(() => toast.success('JSON 已复制到剪贴板'))
+                                            .catch((err) => {
+                                              console.error('Failed to copy JSON:', err);
+                                              toast.error('复制失败');
+                                            });
+                                        }}
+                                        className="inline-flex items-center gap-1 text-[10px] text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium px-1.5 py-0.5 rounded hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors"
+                                      >
+                                        <Copy className="w-3 h-3" />
+                                        <span>复制 JSON</span>
+                                      </button>
+                                    </div>
+                                    <pre className="text-[11px] leading-4 max-h-[300px] overflow-y-auto whitespace-pre-wrap break-words bg-white/60 dark:bg-black/20 border border-gray-200 dark:border-gray-700 rounded-md p-2 font-mono scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-800">
                                       {JSON.stringify(item, null, 2)}
                                     </pre>
                                   </div>
