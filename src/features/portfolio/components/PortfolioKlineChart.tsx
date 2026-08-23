@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import {
   ColorType,
   CrosshairMode,
@@ -14,12 +15,14 @@ import { themes } from '../../../lib/theme';
 import type { PortfolioKlinePoint } from '../../../lib/services/types';
 import { formatCurrency, formatCompactNumber } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
+import { Maximize2, Minimize2 } from 'lucide-react';
 
 interface PortfolioKlineChartProps {
   theme: Theme;
   klineData: PortfolioKlinePoint[];
   source: 'asset' | 'position';
   priceMode?: 'adjusted' | 'raw' | 'nav';
+  sseData?: Array<{ date: string; close: number; returnRate: number }>;
 }
 
 type MovingAveragePeriod = 5 | 10 | 20;
@@ -42,7 +45,7 @@ const MA_PERIODS: MovingAveragePeriod[] = [20];
 const MA_COLORS: Record<MovingAveragePeriod, string> = {
   5: 'rgba(245, 158, 11, 0.80)',
   10: 'rgba(167, 139, 250, 0.72)',
-  20: 'rgba(56, 189, 248, 0.68)',
+  20: '#f59e0b',
 };
 
 const toTimestamp = (date: string) => {
@@ -52,7 +55,7 @@ const toTimestamp = (date: string) => {
 
 
 
-export function PortfolioKlineChart({ theme, klineData, source, priceMode }: PortfolioKlineChartProps) {
+export function PortfolioKlineChart({ theme, klineData, source, priceMode, sseData = [] }: PortfolioKlineChartProps) {
   const viewportRef = React.useRef<HTMLDivElement | null>(null);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const highlightBandRef = React.useRef<HTMLDivElement | null>(null);
@@ -64,6 +67,27 @@ export function PortfolioKlineChart({ theme, klineData, source, priceMode }: Por
   const [hoveredPoint, setHoveredPoint] = React.useState<PreparedPoint | null>(null);
   const [isMobile, setIsMobile] = React.useState(() => window.innerWidth < 640);
   const [isInteractive, setIsInteractive] = React.useState(false);
+  const [isFullscreen, setIsFullscreen] = React.useState(false);
+
+  React.useEffect(() => {
+    if (isFullscreen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isFullscreen]);
   const { currencyConfig, getThemedColors } = useCurrency();
 
   const effectivePriceMode = source === 'position' ? 'raw' : (priceMode ?? 'adjusted');
@@ -135,6 +159,55 @@ export function PortfolioKlineChart({ theme, klineData, source, priceMode }: Por
     return result;
   }, [preparedData]);
 
+  const scaledSseData = React.useMemo(() => {
+    if (!sseData || sseData.length === 0 || preparedData.length === 0) {
+      return [];
+    }
+
+    let basePortfolioClose = 0;
+    let baseSseClose = 0;
+    
+    for (const point of preparedData) {
+      const ssePoint = sseData.find(s => s.date === point.labelDate);
+      if (ssePoint && ssePoint.close > 0 && point.close > 0) {
+        basePortfolioClose = point.close;
+        baseSseClose = ssePoint.close;
+        break;
+      }
+    }
+
+    if (basePortfolioClose === 0 || baseSseClose === 0) {
+      return [];
+    }
+
+    return preparedData.map(point => {
+      const ssePoint = sseData.find(s => s.date === point.labelDate);
+      if (!ssePoint) return null;
+      
+      const scaledClose = (ssePoint.close / baseSseClose) * basePortfolioClose;
+      return {
+        time: point.time,
+        close: scaledClose
+      };
+    }).filter((item): item is { time: UTCTimestamp; close: number } => item !== null);
+  }, [preparedData, sseData]);
+
+  const sseMA20 = React.useMemo(() => {
+    if (scaledSseData.length === 0) return [];
+    
+    const period = 20;
+    return scaledSseData.map((point, index) => {
+      if (index + 1 < period) return null;
+      const window = scaledSseData.slice(index + 1 - period, index + 1);
+      const sum = window.reduce((acc, item) => acc + item.close, 0);
+      return {
+        time: point.time,
+        value: sum / period
+      };
+    }).filter((item): item is { time: UTCTimestamp; value: number } => item !== null);
+  }, [scaledSseData]);
+
+
   React.useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth < 640);
@@ -189,7 +262,7 @@ export function PortfolioKlineChart({ theme, klineData, source, priceMode }: Por
         pinch: isInteractive,
       },
     });
-  }, [isInteractive]);
+  }, [isInteractive, isFullscreen]);
 
   const formatDisplayValue = (value: number) => {
     if (effectivePriceMode === 'nav') {
@@ -348,6 +421,33 @@ export function PortfolioKlineChart({ theme, klineData, source, priceMode }: Por
       maSeriesRefs.current[period] = maSeries;
     });
 
+    if (scaledSseData.length > 0) {
+      // Note: We hid the SSE raw close price line per user request to keep K-line chart clean.
+
+      if (sseMA20.length > 0) {
+        const sseMaSeries = chart.addLineSeries({
+          color: '#3b82f6', // Clear blue matching 🔹
+          lineWidth: 1,
+          lineStyle: LineStyle.Dashed,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          crosshairMarkerVisible: false,
+          priceFormat: {
+            type: 'custom',
+            formatter: formatAxisValue,
+            minMove: effectivePriceMode === 'nav' ? 0.0001 : 0.01,
+          },
+        });
+        sseMaSeries.priceScale().applyOptions({
+          scaleMargins: {
+            top: isMobile ? 0.22 : 0.18,
+            bottom: 0.08,
+          },
+        });
+        sseMaSeries.setData(sseMA20);
+      }
+    }
+
     chart.timeScale().fitContent();
     setHoveredPoint(preparedData[preparedData.length - 1] ?? null);
 
@@ -417,7 +517,7 @@ export function PortfolioKlineChart({ theme, klineData, source, priceMode }: Por
       chartRef.current = null;
       chart.remove();
     };
-  }, [effectivePriceMode, formatAxisValue, getThemedColors, isInteractive, isMobile, movingAverages, preparedData, theme]);
+  }, [effectivePriceMode, formatAxisValue, getThemedColors, isInteractive, isMobile, movingAverages, preparedData, theme, scaledSseData, sseMA20, isFullscreen]);
 
   if (preparedData.length === 0) {
     return (
@@ -440,6 +540,14 @@ export function PortfolioKlineChart({ theme, klineData, source, priceMode }: Por
     });
   }, [movingAverages, referencePoint.time]);
 
+  const sseDisplay = React.useMemo(() => {
+    if (scaledSseData.length === 0) return null;
+    const targetTime = referencePoint.time;
+    const close = scaledSseData.find(point => point.time === targetTime)?.close ?? null;
+    const ma = sseMA20.find(point => point.time === targetTime)?.value ?? null;
+    return { close, ma };
+  }, [scaledSseData, sseMA20, referencePoint.time]);
+
   const overlayPanelClass = theme === 'dark'
     ? 'bg-slate-900/56 border border-slate-700/45 text-slate-200'
     : theme === 'blue'
@@ -457,8 +565,16 @@ export function PortfolioKlineChart({ theme, klineData, source, priceMode }: Por
         boxShadow: 'inset 1px 0 0 rgba(148,163,184,0.18), inset -1px 0 0 rgba(148,163,184,0.18), 0 0 10px rgba(148,163,184,0.04)',
       };
 
-  return (
-    <div className={isMobile ? 'relative' : `relative overflow-hidden rounded-2xl border ${themes[theme].border} ${themes[theme].card}`}>
+  const chartContent = (
+    <div
+      className={
+        isFullscreen
+          ? `fixed inset-0 z-[9999] w-full h-full flex flex-col p-4 md:p-6 overflow-hidden ${themes[theme].card}`
+          : isMobile
+            ? 'relative'
+            : `relative overflow-hidden rounded-2xl border ${themes[theme].border} ${themes[theme].card}`
+      }
+    >
       <div className={`pointer-events-none absolute left-3 top-3 z-10 ${isMobile ? 'right-16' : 'right-28'}`}>
         <div className={`${overlayPanelClass} inline-flex max-w-full flex-wrap items-center gap-x-2.5 gap-y-1 rounded-xl px-3 py-1.5 text-[10px] sm:text-[11px] backdrop-blur-sm`}>
           <span className={overlayMutedClass}>{overlayDate}</span>
@@ -476,11 +592,53 @@ export function PortfolioKlineChart({ theme, klineData, source, priceMode }: Por
               M{period} {value !== null ? (isMobile ? formatCompactDisplayValue(value) : formatDisplayValue(value)) : '--'}
             </span>
           ))}
+          {sseDisplay && sseDisplay.ma !== null && (
+            <span style={{ color: '#60a5fa' }}>
+              上证 M20 {isMobile ? formatCompactDisplayValue(sseDisplay.ma) : formatDisplayValue(sseDisplay.ma)}
+            </span>
+          )}
         </div>
       </div>
+
+      <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
+        {sseDisplay && (
+          <div className={`flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-[10px] sm:text-[11px] backdrop-blur-sm ${overlayPanelClass}`}>
+            <span className="flex items-center gap-1 cursor-help" title="MA20：20日收盘价简单移动平均线（现价与前19日收盘价均值）">
+              <span>🔸</span>
+              <span>MA20</span>
+            </span>
+            <span className="flex items-center gap-1 cursor-help" title="上证 MA20：上证指数的20日收盘价归一化移动平均线">
+              <span>🔹</span>
+              <span>上证 MA20</span>
+            </span>
+          </div>
+        )}
+        <button
+          onClick={() => setIsFullscreen(prev => !prev)}
+          className={`flex items-center justify-center rounded-xl p-1.5 backdrop-blur-sm border transition-all duration-200 hover:scale-[1.05] active:scale-[0.95] ${
+            theme === 'dark'
+              ? 'bg-slate-900/56 border-slate-700/45 text-slate-200 hover:bg-slate-800/60'
+              : theme === 'blue'
+                ? 'bg-white/74 border-blue-100/55 text-slate-900 hover:bg-blue-50/80'
+                : 'bg-white/74 border-slate-200/60 text-slate-900 hover:bg-slate-50/80'
+          }`}
+          title={isFullscreen ? "退出全屏" : "全屏图表"}
+        >
+          {isFullscreen ? (
+            <Minimize2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+          ) : (
+            <Maximize2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+          )}
+        </button>
+      </div>
+
       <div
         ref={viewportRef}
-        className="relative h-[390px] sm:h-[410px] md:h-[430px] overflow-hidden rounded-2xl"
+        className={`relative overflow-hidden rounded-2xl ${
+          isFullscreen
+            ? 'flex-1 min-h-0 mt-4'
+            : 'h-[390px] sm:h-[410px] md:h-[430px]'
+        }`}
         style={{ touchAction: 'pan-y' }}
         onPointerDownCapture={() => setIsInteractive(true)}
         role="application"
@@ -495,4 +653,10 @@ export function PortfolioKlineChart({ theme, klineData, source, priceMode }: Por
       </div>
     </div>
   );
+
+  if (isFullscreen) {
+    return createPortal(chartContent, document.body);
+  }
+
+  return chartContent;
 }

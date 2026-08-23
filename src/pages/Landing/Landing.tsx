@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Globe } from 'lucide-react';
+import { Globe, AlertTriangle } from 'lucide-react';
 import { HeroSection } from './components/HeroSection';
 import { MarketOverview } from './components/MarketOverview';
 import { PortfolioPreview } from './components/PortfolioPreview';
 import { FeaturesGrid } from './components/FeaturesGrid';
 import { Theme, themes } from '../../lib/theme';
 import type { User } from '../../lib/services/types';
-import { Language } from './i18n';
+import { Language, landingTranslations } from './i18n';
 
 interface LandingProps {
   theme: Theme;
@@ -60,6 +60,14 @@ export function Landing({ theme, onThemeChange, user }: LandingProps) {
         </div>
       </div>
 
+      {/* Top Disclaimer Alert Bar */}
+      <div className="bg-amber-500/10 dark:bg-amber-500/5 border-b border-amber-500/20 dark:border-amber-500/10 py-2.5 transition-colors duration-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-center gap-2 text-xs font-semibold text-amber-800 dark:text-amber-300">
+          <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-500 shrink-0" />
+          <span>{landingTranslations[lang].hero.disclaimer}</span>
+        </div>
+      </div>
+
       {/* 1. Hero Section with Live Market Monitor */}
       <HeroSection 
         theme={theme} 
@@ -88,6 +96,20 @@ export function Landing({ theme, onThemeChange, user }: LandingProps) {
           />
         </div>
       </main>
+
+      {/* Footer Disclaimer */}
+      <footer className={`${themes[theme].background} border-t ${themes[theme].border} transition-colors duration-200 py-8 mt-auto`}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-3">
+          <p className={`text-xs ${themes[theme].text} opacity-60 leading-relaxed max-w-2xl mx-auto`}>
+            {lang === 'zh' 
+              ? '免责声明：本网站内容仅作为分享，不构成任何投资意见。交易有风险，入市需谨慎。' 
+              : 'Disclaimer: The content on this website is for sharing only and does not constitute any investment advice. Trading involves risks; please proceed with caution.'}
+          </p>
+          <p className={`text-[10px] ${themes[theme].text} opacity-40`}>
+            &copy; {new Date().getFullYear()} Trader Analytics. All rights reserved.
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }

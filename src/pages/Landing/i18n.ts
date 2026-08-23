@@ -18,6 +18,7 @@ export const landingTranslations = {
       dailyPnLSub: '今日盈亏变动',
       optionDelta: '期权 Delta (Δ)',
       unrealizedPnL: '近 30 日每日盈亏变动',
+      disclaimer: '仅作为分享，不构成任何投资意见',
     },
     portfolioSnapshot: {
       title: '持仓快照',
@@ -83,6 +84,7 @@ export const landingTranslations = {
       dailyPnLSub: 'Daily change value',
       optionDelta: 'Option Delta (Δ)',
       unrealizedPnL: '30-Day Daily PnL Fluctuations',
+      disclaimer: 'For sharing only, does not constitute any investment advice',
     },
     portfolioSnapshot: {
       title: 'Portfolio Snapshot',

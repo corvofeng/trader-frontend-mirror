@@ -93,3 +93,117 @@ export function sortPortfolioTrades(trades: Trade[], tradesSort: SortState): Tra
     }
   });
 }
+
+export interface BenchmarkMetrics {
+  totalReturn: number;
+  annualizedReturn: number;
+  annualizedVolatility: number;
+  sharpeRatio: number;
+  maxDrawdown: number;
+  calmarRatio: number;
+  positiveDayRatio: number;
+}
+
+export function calculateBenchmarkMetrics(
+  points: Array<{ date: string; close: number }>,
+): BenchmarkMetrics | null {
+  const sorted = [...points]
+    .filter((point) => !!point?.date)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const series = sorted
+    .map((point) => ({ date: point.date.slice(0, 10), value: point.close }))
+    .filter(
+      (item): item is { date: string; value: number } =>
+        !!item.date &&
+        typeof item.value === 'number' &&
+        Number.isFinite(item.value) &&
+        item.value > 0,
+    );
+
+  if (series.length < 2) return null;
+
+  const startDate = series[0].date;
+  const endDate = series[series.length - 1].date;
+  const days = Math.round(
+    (new Date(endDate).getTime() - new Date(startDate).getTime()) / (24 * 60 * 60 * 1000),
+  );
+
+  const dailyReturns: number[] = [];
+  for (let i = 1; i < series.length; i += 1) {
+    const prev = series[i - 1].value;
+    const curr = series[i].value;
+    dailyReturns.push(prev > 0 ? (curr - prev) / prev : 0);
+  }
+
+  const riskFreeRate = 0;
+  const totalReturn = series[series.length - 1].value / series[0].value - 1;
+
+  const annualizedMethod = days >= 365 ? 'cagr' : 'period_return';
+  const annualizedReturn =
+    annualizedMethod === 'period_return'
+      ? totalReturn
+      : days > 0
+        ? Math.pow(series[series.length - 1].value / series[0].value, 365 / days) - 1
+        : 0;
+
+  const mean = dailyReturns.reduce((sum, value) => sum + value, 0) / dailyReturns.length;
+  const variance =
+    dailyReturns.length > 1
+      ? dailyReturns.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) /
+        (dailyReturns.length - 1)
+      : 0;
+  const tradingDaysPerYear = 252;
+  const annualizedVolatility = Math.sqrt(variance) * Math.sqrt(tradingDaysPerYear);
+
+  const sharpeRatio =
+    annualizedVolatility > 0 ? (annualizedReturn - riskFreeRate) / annualizedVolatility : 0;
+
+  let peak = series[0].value;
+  let maxDrawdown = 0;
+  for (const item of series) {
+    if (item.value > peak) peak = item.value;
+    const drawdown = peak > 0 ? item.value / peak - 1 : 0;
+    if (drawdown < maxDrawdown) maxDrawdown = drawdown;
+  }
+
+  const calmarRatio = maxDrawdown < 0 ? annualizedReturn / Math.abs(maxDrawdown) : 0;
+  const positiveDayRatio =
+    dailyReturns.length > 0
+      ? dailyReturns.filter((value) => value > 0).length / dailyReturns.length
+      : 0;
+
+  return {
+    totalReturn,
+    annualizedReturn,
+    annualizedVolatility,
+    sharpeRatio,
+    maxDrawdown,
+    calmarRatio,
+    positiveDayRatio,
+  };
+}
+
+export function calculateSMA(
+  data: Array<number | null>,
+  period: number = 20,
+): Array<number | null> {
+  const result: Array<number | null> = [];
+  for (let i = 0; i < data.length; i++) {
+    if (i + 1 < period) {
+      result.push(null);
+      continue;
+    }
+    const slice = data.slice(i + 1 - period, i + 1);
+    const validValues = slice.filter((v): v is number => v !== null && Number.isFinite(v));
+    if (validValues.length < period) {
+      result.push(null);
+    } else {
+      const sum = validValues.reduce((acc, val) => acc + val, 0);
+      result.push(sum / period);
+    }
+  }
+  return result;
+}
+
+
