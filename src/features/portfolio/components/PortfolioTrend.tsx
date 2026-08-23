@@ -1,7 +1,7 @@
 import React from 'react';
 import { format } from 'date-fns';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { BarChart3, RefreshCw, SlidersHorizontal } from 'lucide-react';
+import { BarChart3, RefreshCw, SlidersHorizontal, ChevronDown, ChevronUp } from 'lucide-react';
 import { Line } from 'react-chartjs-2';
 import type { Theme } from '../../../lib/theme';
 import { themes } from '../../../lib/theme';
@@ -39,6 +39,7 @@ export function PortfolioTrend({ trendData, klineData, klineMetrics, theme, date
   const [sseMetrics, setSseMetrics] = React.useState<BenchmarkMetrics | null>(null);
   const [isLoadingSSE, setIsLoadingSSE] = React.useState(false);
   const [showControls, setShowControls] = React.useState(false);
+  const [showAllMetrics, setShowAllMetrics] = React.useState(false);
   const controlsRef = React.useRef<HTMLDivElement | null>(null);
   const controlsButtonRef = React.useRef<HTMLButtonElement | null>(null);
   const searchParams = React.useMemo(() => new URLSearchParams(location.search), [location.search]);
@@ -548,16 +549,16 @@ export function PortfolioTrend({ trendData, klineData, klineMetrics, theme, date
     };
   }, [klineData, klinePriceMode, klineSource]);
 
+  const getReturnColorClass = React.useCallback((val: number) => {
+    if (val > 0) return 'text-green-600 dark:text-green-400';
+    if (val < 0) return 'text-red-600 dark:text-red-400';
+    return '';
+  }, []);
+
   const metricsItems = React.useMemo(() => {
     if (!klineMetrics) return [];
 
-    const getReturnColorClass = (val: number) => {
-      if (val > 0) return 'text-green-600 dark:text-green-400';
-      if (val < 0) return 'text-red-600 dark:text-red-400';
-      return '';
-    };
-
-    return [
+    const allItems = [
       {
         label: '年化收益',
         value: formatSignedPercent(klineMetrics.annualizedReturn),
@@ -610,7 +611,12 @@ export function PortfolioTrend({ trendData, klineData, klineMetrics, theme, date
         sseValue: sseMetrics ? formatPercent(sseMetrics.positiveDayRatio, 1) : undefined,
       },
     ];
-  }, [formatMetricNumber, formatPercent, formatSignedPercent, klineMetrics, computedDrawdown, sseMetrics]);
+
+    if (!showAllMetrics) {
+      return allItems.filter(item => item.label === '区间收益' || item.label === '最大回撤');
+    }
+    return allItems;
+  }, [formatMetricNumber, formatPercent, formatSignedPercent, klineMetrics, computedDrawdown, sseMetrics, showAllMetrics]);
 
   return (
     <>
@@ -760,80 +766,130 @@ export function PortfolioTrend({ trendData, klineData, klineMetrics, theme, date
         )}
 
         {klineMetrics && metricsItems.length > 0 && (
-          <div className={`mt-4 rounded-2xl border ${themes[theme].border} ${themes[theme].card} p-3 shadow-sm`}>
-            <div className="flex flex-wrap items-end justify-between gap-2">
-              <div className="flex items-center gap-1.5">
-                <div className={`text-sm font-semibold ${themes[theme].text}`}>组合表现指标</div>
-                <InfoTooltip
-                  theme={theme}
-                  align="left"
-                  content="这些指标基于当前 K 线统计窗口和有效交易日计算，用来帮助你从收益、波动和回撤几个角度评估组合表现。"
-                />
-              </div>
-              <div className={`text-[11px] ${themes[theme].text} opacity-60`}>
-                {klineMetrics.calculationStartDate} ~ {klineMetrics.calculationEndDate}
-                {' · '}
-                {klineMetrics.calculationDays} 天
-                {' · '}
-                {klineMetrics.tradingDays} 交易日
-                {' · '}
-                {klineMetrics.observations} 点
-                {(klineMetrics.calculationStartDate !== klineMetrics.startDate ||
-                  klineMetrics.calculationEndDate !== klineMetrics.endDate) && (
-                  <>
-                    {' · '}
-                    有效区间 {klineMetrics.startDate} ~ {klineMetrics.endDate}
-                  </>
-                )}
-                {(klineMetrics.annualizedCalculationStartDate !== klineMetrics.calculationStartDate ||
-                  klineMetrics.annualizedCalculationEndDate !== klineMetrics.calculationEndDate ||
-                  klineMetrics.annualizedCalculationDays !== klineMetrics.calculationDays) && (
-                  <>
-                    {' · '}
-                    年化窗口 {klineMetrics.annualizedCalculationStartDate} ~ {klineMetrics.annualizedCalculationEndDate}
-                  </>
-                )}
+          !showAllMetrics ? (
+            <div className={`mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 px-3 py-1.5 rounded-xl border border-dashed ${themes[theme].border} ${themes[theme].card} text-[11px] sm:text-xs no-print`}>
+              <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-1">
+                <span className={`font-semibold ${themes[theme].text} whitespace-nowrap`}>
+                  <span className="hidden sm:inline">组合表现指标</span>
+                  <span className="inline sm:hidden">表现</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowAllMetrics(true)}
+                  className="inline-flex items-center gap-0.5 text-sky-600 dark:text-sky-400 hover:underline text-[11px] sm:text-xs font-medium select-none whitespace-nowrap"
+                >
+                  <span className="hidden sm:inline">展开全部</span>
+                  <span className="inline sm:hidden">展开</span>
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+                <span className="text-zinc-300 dark:text-zinc-700">|</span>
+                <span className={`${themes[theme].text} opacity-70 whitespace-nowrap`}>
+                  <span className="hidden sm:inline">区间收益 </span>
+                  <span className="inline sm:hidden">收益 </span>
+                  <span className={`font-bold ${getReturnColorClass(klineMetrics.totalReturn)}`}>
+                    {formatSignedPercent(klineMetrics.totalReturn)}
+                  </span>
+                </span>
+                <span className="text-zinc-300 dark:text-zinc-700">|</span>
+                <span className={`${themes[theme].text} opacity-70 whitespace-nowrap`}>
+                  <span className="hidden sm:inline">最大回撤 </span>
+                  <span className="inline sm:hidden">回撤 </span>
+                  <span className={`font-bold ${getReturnColorClass(klineMetrics.maxDrawdown)}`}>
+                    {formatSignedPercent(klineMetrics.maxDrawdown)}
+                  </span>
+                </span>
+                <span className={`text-[10px] ${themes[theme].text} opacity-40 hidden md:inline`}>
+                  ({klineMetrics.calculationStartDate} ~ {klineMetrics.calculationEndDate} · {klineMetrics.tradingDays} 交易日)
+                </span>
               </div>
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
-              {metricsItems.map((item) => (
-                <div
-                  key={item.label}
-                  className={`min-w-0 rounded-xl border ${themes[theme].border} ${themes[theme].secondary} px-3 py-2 flex flex-col justify-between`}
-                >
-                  <div>
-                    <div className="flex items-start gap-1">
-                      <div className={`min-w-0 flex-1 text-[11px] leading-tight whitespace-normal break-words ${themes[theme].text} opacity-60`}>
-                        {item.label}
-                      </div>
-                      <InfoTooltip theme={theme} content={item.tooltip} align="left" className="shrink-0" />
-                    </div>
-
-                    {item.sseValue !== undefined ? (
-                      <div className="mt-2 space-y-1">
-                        <div className="flex items-baseline justify-between gap-1.5">
-                          <span className={`text-[10px] ${themes[theme].text} opacity-50`}>组合</span>
-                          <span className={`break-words text-sm font-semibold ${item.valueClass || themes[theme].text}`}>{item.value}</span>
-                        </div>
-                        <div className="flex items-baseline justify-between gap-1.5 border-t border-dashed border-gray-500/10 pt-1">
-                          <span className={`text-[10px] ${themes[theme].text} opacity-50`}>上证</span>
-                          <span className={`break-words text-xs font-semibold ${item.sseValueClass || themes[theme].text}`}>{item.sseValue}</span>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className={`mt-1.5 break-words text-base font-bold ${item.valueClass || themes[theme].text}`}>{item.value}</div>
-                    )}
+          ) : (
+            <div className={`mt-4 rounded-2xl border ${themes[theme].border} ${themes[theme].card} p-3 shadow-sm`}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-sm font-semibold ${themes[theme].text}`}>组合表现指标</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowAllMetrics(false)}
+                      className="inline-flex items-center gap-0.5 text-sky-600 dark:text-sky-400 hover:underline text-[11px] sm:text-xs font-medium select-none"
+                    >
+                      <span className="hidden sm:inline">收起指标</span>
+                      <span className="inline sm:hidden">收起</span>
+                      <ChevronUp className="w-3.5 h-3.5" />
+                    </button>
+                    <InfoTooltip
+                      theme={theme}
+                      align="left"
+                      content="这些指标基于当前 K 线统计窗口和有效交易日计算，用来帮助你从收益、波动和回撤几个角度评估组合表现。"
+                    />
                   </div>
-
-                  {item.subtitle && (
-                    <div className={`mt-1.5 text-[9px] font-mono leading-tight ${themes[theme].text} opacity-50 whitespace-normal break-all`}>
-                      {item.subtitle}
-                    </div>
+                </div>
+                <div className={`text-[11px] ${themes[theme].text} opacity-60`}>
+                  {klineMetrics.calculationStartDate} ~ {klineMetrics.calculationEndDate}
+                  {' · '}
+                  {klineMetrics.calculationDays} 天
+                  {' · '}
+                  {klineMetrics.tradingDays} 交易日
+                  {' · '}
+                  {klineMetrics.observations} 点
+                  {(klineMetrics.calculationStartDate !== klineMetrics.startDate ||
+                    klineMetrics.calculationEndDate !== klineMetrics.endDate) && (
+                    <>
+                      {' · '}
+                      有效区间 {klineMetrics.startDate} ~ {klineMetrics.endDate}
+                    </>
+                  )}
+                  {(klineMetrics.annualizedCalculationStartDate !== klineMetrics.calculationStartDate ||
+                    klineMetrics.annualizedCalculationEndDate !== klineMetrics.calculationEndDate ||
+                    klineMetrics.annualizedCalculationDays !== klineMetrics.calculationDays) && (
+                    <>
+                      {' · '}
+                      年化窗口 {klineMetrics.annualizedCalculationStartDate} ~ {klineMetrics.annualizedCalculationEndDate}
+                    </>
                   )}
                 </div>
-              ))}
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+                {metricsItems.map((item) => (
+                  <div
+                    key={item.label}
+                    className={`min-w-0 rounded-xl border ${themes[theme].border} ${themes[theme].secondary} px-3 py-2 flex flex-col justify-between`}
+                  >
+                    <div>
+                      <div className="flex items-start gap-1">
+                        <div className={`min-w-0 flex-1 text-[11px] leading-tight whitespace-normal break-words ${themes[theme].text} opacity-60`}>
+                          {item.label}
+                        </div>
+                        <InfoTooltip theme={theme} content={item.tooltip} align="left" className="shrink-0" />
+                      </div>
+
+                      {item.sseValue !== undefined ? (
+                        <div className="mt-2 space-y-1">
+                          <div className="flex items-baseline justify-between gap-1.5">
+                            <span className={`text-[10px] ${themes[theme].text} opacity-50`}>组合</span>
+                            <span className={`break-words text-sm font-semibold ${item.valueClass || themes[theme].text}`}>{item.value}</span>
+                          </div>
+                          <div className="flex items-baseline justify-between gap-1.5 border-t border-dashed border-gray-500/10 pt-1">
+                            <span className={`text-[10px] ${themes[theme].text} opacity-50`}>上证</span>
+                            <span className={`break-words text-xs font-semibold ${item.sseValueClass || themes[theme].text}`}>{item.sseValue}</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className={`mt-1.5 break-words text-base font-bold ${item.valueClass || themes[theme].text}`}>{item.value}</div>
+                      )}
+                    </div>
+
+                    {item.subtitle && (
+                      <div className={`mt-1.5 text-[9px] font-mono leading-tight ${themes[theme].text} opacity-50 whitespace-normal break-all`}>
+                        {item.subtitle}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )
         )}
       </div>
     </>
