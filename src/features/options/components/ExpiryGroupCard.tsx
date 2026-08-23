@@ -180,6 +180,7 @@ export function ExpiryGroupCard({
   const [contractNameMap, setContractNameMap] = useState<Record<string, string>>({});
   const [isPageLocked, setIsPageLocked] = useState(false);
   const [isDetailsSectionExpanded, setIsDetailsSectionExpanded] = useState(false);
+  const [expandedComboIds, setExpandedComboIds] = useState<Record<string, boolean>>({});
   const allSinglePositions = useMemo(() => (allExpiryBuckets || []).flatMap(bucket => bucket.single), [allExpiryBuckets]);
   const [isMobileViewport, setIsMobileViewport] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth < 768 : false
@@ -430,7 +431,9 @@ export function ExpiryGroupCard({
     };
   }, [comboManageQuantity, confirmData]);
 
-  const activeComboDraft = advisedModal ?? embeddedComboDraft;
+  const activeComboDraft = confirmData?.meta?.action === 'combo_manage' && confirmData.meta.comboCandidate
+    ? embeddedComboDraft
+    : advisedModal;
 
   const resolveDisplayPosition = useCallback((position?: OptionsPosition | null) => {
     if (!position) return null;
@@ -1425,10 +1428,6 @@ export function ExpiryGroupCard({
     [getSpreadWatchStatusText, spreadWatchCodes]
   );
 
-  const spreadWatchQuoteLines = useMemo(
-    () => getSpreadWatchQuoteLines(spreadWatchPositions),
-    [getSpreadWatchQuoteLines, spreadWatchPositions]
-  );
 
   useEffect(() => {
     if (!activeComboDraft) {
@@ -1525,6 +1524,99 @@ export function ExpiryGroupCard({
   const expandHandleButtonClass = `absolute right-1.5 top-1/2 z-10 inline-flex h-12 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200/80 bg-gradient-to-b from-white/95 via-white/90 to-slate-100/90 text-slate-500 shadow-[0_8px_22px_rgba(15,23,42,0.12)] backdrop-blur transition-all duration-200 hover:text-slate-700 hover:shadow-[0_10px_28px_rgba(15,23,42,0.18)] dark:border-slate-700/80 dark:from-slate-800/95 dark:via-slate-900/90 dark:to-slate-950/90 dark:text-slate-300 dark:hover:text-slate-100 sm:right-2 sm:h-16 sm:w-9`;
   const sectionToggleButtonClass = `flex w-full items-center justify-between gap-2 rounded-xl border ${themes[theme].border} ${themes[theme].background} px-3 py-2 text-left transition-colors hover:opacity-90`;
 
+  const updateComboSellStrike = useCallback((newSellStrike: number, isEmbedded: boolean) => {
+    const currentCombo = isEmbedded ? confirmData?.meta?.comboCandidate : advisedModal?.combo;
+    if (!currentCombo) return;
+
+    const comboType = currentCombo.buy_position.position.type as 'call' | 'put';
+    
+    const findQuote = (data: OptionsData, strike: number) => data.quotes?.find(q => q.expiry === group.expiry && getQuoteStrike(q) === strike);
+    const getQuoteByStrike = (strike: number) => {
+      const activeData = optionsData || localOptionsData;
+      if (activeData) { const q = findQuote(activeData, strike); if (q) return q; }
+      if (optionsDataMap) { for (const data of Object.values(optionsDataMap)) { const q = findQuote(data, strike); if (q) return q; } }
+      if (localOptionsData) { const q = findQuote(localOptionsData, strike); if (q) return q; }
+      return undefined;
+    };
+
+    const sellQuote = getQuoteByStrike(newSellStrike);
+    if (!sellQuote) {
+      toast.error(`未找到行权价 ${newSellStrike} 的期权行情`);
+      return;
+    }
+
+    const sellFullCode = comboType === 'call' ? sellQuote.call_contract_code_full : sellQuote.put_contract_code_full;
+    const sellCode = comboType === 'call' ? sellQuote.call_contract_code : sellQuote.put_contract_code;
+    
+    const undl = selectedSymbol || optionsData?.opt_undl_code_full || localOptionsData?.opt_undl_code_full || '';
+    const now = new Date().toISOString();
+    const sellLeg = {
+      id: `combo-manual-${comboType}-sell-${group.expiry}-${newSellStrike}`,
+      symbol: sellFullCode || sellCode || '',
+      opt_undl_code_full: undl || undefined,
+      strategy: '组合购买',
+      type: comboType,
+      option_type: comboType,
+      position_type: 'sell' as const,
+      strike: newSellStrike,
+      strike_price: String(newSellStrike),
+      expiry: group.expiry,
+      quantity: 1,
+      premium: 0,
+      currentValue: 0,
+      profitLoss: 0,
+      profitLossPercentage: 0,
+      impliedVolatility: 0,
+      delta: 0,
+      gamma: 0,
+      theta: 0,
+      vega: 0,
+      status: 'open' as const,
+      openDate: now,
+      contract_code: sellCode || undefined,
+      contract_code_full: sellFullCode || undefined,
+      contract_strike_price: newSellStrike,
+      contract_type_zh: comboType,
+      position_type_zh: '义务' as const,
+      leg_quantity: 1,
+    };
+
+    const buyStrike = currentCombo.buy_strike;
+    const isBullish = comboType === 'call' ? newSellStrike > buyStrike : newSellStrike < buyStrike;
+    const description = comboType === 'call'
+      ? `${isBullish ? '认购牛市价差' : '认购熊市价差'} ${buyStrike}-${newSellStrike}`
+      : `${isBullish ? '认沽熊市价差' : '认沽牛市价差'} ${buyStrike}-${newSellStrike}`;
+
+    const updatedCombo: AdvisedCombination = {
+      ...currentCombo,
+      description,
+      type: comboType === 'call' ? (isBullish ? 'bull_call_spread' : 'bear_call_spread') : (isBullish ? 'bear_put_spread' : 'bull_put_spread'),
+      sell_strike: newSellStrike,
+      sell_position: {
+        code: sellFullCode || sellCode || '',
+        name: sellFullCode || sellCode || '',
+        position: sellLeg,
+        strike: newSellStrike,
+        volume: Number(sellQuote.putVolume || sellQuote.callVolume || 0)
+      }
+    };
+
+    if (isEmbedded) {
+      setConfirmData(prev => {
+        if (!prev || !prev.meta) return prev;
+        return {
+          ...prev,
+          meta: {
+            ...prev.meta,
+            comboCandidate: updatedCombo
+          }
+        };
+      });
+    } else {
+      setAdvisedModal(prev => prev ? { ...prev, combo: updatedCombo } : null);
+    }
+  }, [advisedModal, confirmData, group.expiry, localOptionsData, optionsData, optionsDataMap, selectedSymbol]);
+
   const renderComboDraftPanel = useCallback((draft: ComboDraftState, embedded = false) => (
     <>
       <div className={`text-lg font-semibold ${themes[theme].text}`}>{draft.combo.description}</div>
@@ -1533,19 +1625,30 @@ export function ExpiryGroupCard({
         const p = advisedPricePreview;
         if (!p) return null;
         const net = p.net;
+        const qty = draft.quantity;
+        const strikeDiff = Math.abs(draft.combo.sell_strike - draft.combo.buy_strike);
+        const costRatio = strikeDiff > 0 && net != null ? (Math.abs(net) / strikeDiff) * 100 : null;
+
         const label = net == null ? '对手方一档价未就绪' : (net >= 0 ? '预计收到' : '预计支付');
-        const amountText = net == null ? '--' : formatCurrency(Math.abs(net), currencyConfig, 4);
+        const amountText = net == null ? '--' : formatCurrency(Math.abs(net * qty), currencyConfig, 4);
         const hedgeText =
           p.perHedge == null ? '--' : `${p.perHedge >= 0 ? '+' : '-'}${formatCurrency(Math.abs(p.perHedge), currencyConfig, 4)}`;
         const tsText = p.ts ? format(new Date(p.ts), 'HH:mm:ss') : '--';
         return (
           <div className={`mt-3 rounded border p-3 ${themes[theme].border} ${themes[theme].background}`}>
             <div className={`text-sm ${themes[theme].text} flex items-center justify-between gap-3`}>
-              <div className="font-semibold whitespace-nowrap">{label}</div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold whitespace-nowrap">{label}</span>
+                {costRatio != null && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border border-purple-500/20 bg-purple-500/10 text-purple-600 dark:text-purple-300" title="开仓价格与最大价值的比例">
+                    成本/价差比 {costRatio.toFixed(1)}%
+                  </span>
+                )}
+              </div>
               <div className="flex items-baseline gap-2 min-w-0">
                 <AnimatedFlash value={amountText} className="font-mono whitespace-nowrap" type="price" />
                 <span className="text-[11px] opacity-60 truncate flex items-baseline gap-1">
-                  {p.perHedge == null || (p.pairedQty || 0) <= 0 ? null : (
+                  {p.perHedge == null || qty <= 0 ? null : (
                     <>
                       <span>（</span>
                       <AnimatedFlash
@@ -1553,7 +1656,7 @@ export function ExpiryGroupCard({
                         className={`font-mono font-bold whitespace-nowrap ${p.perHedge != null && p.perHedge >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}
                         type="price"
                       />
-                      <span className="whitespace-nowrap">× {p.pairedQty || 0}）</span>
+                      <span className="whitespace-nowrap">× {qty}）</span>
                     </>
                   )}
                   <span className="whitespace-nowrap">{`WS ${tsText}`}</span>
@@ -1575,16 +1678,6 @@ export function ExpiryGroupCard({
                     {spreadWatchStatusText}
                   </div>
                 ) : null}
-                {spreadWatchQuoteLines.length > 0 ? (
-                  <div className={`mb-1 space-y-1 text-[11px] ${themes[theme].text} opacity-60`}>
-                    {spreadWatchQuoteLines.map((line) => (
-                      <div key={line.key} className={`rounded border px-2 py-1 ${themes[theme].border}`}>
-                        <div>{line.contractName}</div>
-                        <div className="font-mono opacity-80">{line.quoteText}</div>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
                 <RealTimeSpreadChart
                   theme={theme}
                   data={spreadHistory}
@@ -1594,7 +1687,7 @@ export function ExpiryGroupCard({
             )}
             <div className="mt-2 grid grid-cols-1 gap-1 text-xs">
               <div className="grid grid-cols-[minmax(0,1fr)_84px_minmax(0,140px)] items-center gap-3">
-                <div className={`${themes[theme].text} opacity-80`}>买入腿（ASK1）x{p.buy.qty}</div>
+                <div className={`${themes[theme].text} opacity-80`}>买入腿（ASK1）x{p.buy.qty * qty}</div>
                 <div className={`text-right font-mono ${themes[theme].text}`}>
                   <AnimatedFlash value={p.buy.px == null ? '--' : p.buy.px.toFixed(4)} type="price" />
                 </div>
@@ -1602,14 +1695,14 @@ export function ExpiryGroupCard({
                   <span className="opacity-70">{p.buy.amt == null ? '' : (p.buy.amt >= 0 ? '收到' : '支付')}</span>
                   <AnimatedFlash
                     value={
-                      p.buy.amt == null ? '--' : `${p.buy.amt >= 0 ? '+' : '-'}${formatCurrency(Math.abs(p.buy.amt), currencyConfig, 4)}`
+                      p.buy.amt == null ? '--' : `${p.buy.amt >= 0 ? '+' : '-'}${formatCurrency(Math.abs(p.buy.amt * qty), currencyConfig, 4)}`
                     }
                     type="price"
                   />
                 </div>
               </div>
               <div className="grid grid-cols-[minmax(0,1fr)_84px_minmax(0,140px)] items-center gap-3">
-                <div className={`${themes[theme].text} opacity-80`}>卖出腿（BID1）x{p.sell.qty}</div>
+                <div className={`${themes[theme].text} opacity-80`}>卖出腿（BID1）x{p.sell.qty * qty}</div>
                 <div className={`text-right font-mono ${themes[theme].text}`}>
                   <AnimatedFlash value={p.sell.px == null ? '--' : p.sell.px.toFixed(4)} type="price" />
                 </div>
@@ -1617,7 +1710,7 @@ export function ExpiryGroupCard({
                   <span className="opacity-70">{p.sell.amt == null ? '' : (p.sell.amt >= 0 ? '收到' : '支付')}</span>
                   <AnimatedFlash
                     value={
-                      p.sell.amt == null ? '--' : `${p.sell.amt >= 0 ? '+' : '-'}${formatCurrency(Math.abs(p.sell.amt), currencyConfig, 4)}`
+                      p.sell.amt == null ? '--' : `${p.sell.amt >= 0 ? '+' : '-'}${formatCurrency(Math.abs(p.sell.amt * qty), currencyConfig, 4)}`
                     }
                     type="price"
                   />
@@ -1648,50 +1741,81 @@ export function ExpiryGroupCard({
             />
           </div>
         </div>
-        <div className={`${themes[theme].background} rounded p-3 border ${themes[theme].border}`}>
-          <div className={`text-sm font-medium ${themes[theme].text}`}>买入腿</div>
-          {(() => {
-            const p = draft.combo.buy_position.position;
-            const contractName = getContractNameForPosition(p);
-            return contractName ? (
-              <div className={`text-xs ${themes[theme].text} opacity-85 mt-1 font-medium`}>
-                {contractName}
+
+        <div className={`rounded p-3 border ${themes[theme].border} ${themes[theme].background} space-y-3`}>
+          <div className={`text-sm font-semibold ${themes[theme].text}`}>组合腿配置</div>
+          
+          {/* Buy Leg (权利仓) */}
+          <div className="flex flex-col gap-1 text-xs pb-2 border-b border-dashed border-current/10">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded text-[10px]">买入 (权利)</span>
+                <span className={`font-semibold ${themes[theme].text}`}>
+                  {(() => {
+                    const p = draft.combo.buy_position.position;
+                    return getContractNameForPosition(p) || p.symbol;
+                  })()}
+                </span>
               </div>
-            ) : null;
-          })()}
-          <div className={`text-xs ${themes[theme].text} opacity-75 mt-1`}>
-            {draft.combo.buy_position.position.symbol} {draft.combo.buy_position.position.strike} {String(draft.combo.buy_position.position.type).toUpperCase()} • {draft.combo.buy_position.position.position_type === 'buy' ? '买入' : '卖出'}
-          </div>
-          <div className={`text-xs ${themes[theme].text} opacity-60 mt-1`}>
-            {(() => {
-              const p = draft.combo.buy_position.position;
-              const avail = Number(p.available ?? p.quantity);
-              const qty = p.quantity;
-              return <>数量 {qty}{avail !== qty ? `（${avail}）` : ''}</>;
-            })()}
-          </div>
-        </div>
-        <div className={`${themes[theme].background} rounded p-3 border ${themes[theme].border}`}>
-          <div className={`text-sm font-medium ${themes[theme].text}`}>卖出腿</div>
-          {(() => {
-            const p = draft.combo.sell_position.position;
-            const contractName = getContractNameForPosition(p);
-            return contractName ? (
-              <div className={`text-xs ${themes[theme].text} opacity-85 mt-1 font-medium`}>
-                {contractName}
+              <div className={`${themes[theme].text} opacity-80 font-mono`}>
+                {(() => {
+                  const p = draft.combo.buy_position.position;
+                  const avail = Number(p.available ?? p.quantity);
+                  const legQty = draft.quantity;
+                  return `数量 ${legQty}${avail !== legQty ? ` (可用 ${avail})` : ''}`;
+                })()}
               </div>
-            ) : null;
-          })()}
-          <div className={`text-xs ${themes[theme].text} opacity-75 mt-1`}>
-            {draft.combo.sell_position.position.symbol} {draft.combo.sell_position.position.strike} {String(draft.combo.sell_position.position.type).toUpperCase()} • {draft.combo.sell_position.position.position_type === 'buy' ? '买入' : '卖出'}
+            </div>
+            <div className={`text-[11px] ${themes[theme].text} opacity-50 font-mono ml-[64px]`}>
+              {draft.combo.buy_position.position.symbol} • Strike: {draft.combo.buy_strike}
+            </div>
           </div>
-          <div className={`text-xs ${themes[theme].text} opacity-60 mt-1`}>
-            {(() => {
-              const p = draft.combo.sell_position.position;
-              const avail = Number(p.available ?? p.quantity);
-              const qty = p.quantity;
-              return <>数量 {qty}{avail !== qty ? `（${avail}）` : ''}</>;
-            })()}
+
+          {/* Sell Leg (义务仓) */}
+          <div className="flex flex-col gap-1 text-xs">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-semibold text-rose-600 dark:text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded text-[10px]">卖出 (义务)</span>
+                <span className={`font-semibold ${themes[theme].text}`}>
+                  {(() => {
+                    const p = draft.combo.sell_position.position;
+                    return getContractNameForPosition(p) || p.symbol;
+                  })()}
+                </span>
+                
+                {/* Strike Selector for Sell Leg */}
+                <div className="flex items-center gap-1.5 ml-2">
+                  <span className="opacity-50 text-[10px]">切换行权价:</span>
+                  <select
+                    value={draft.combo.sell_strike}
+                    onChange={(e) => {
+                      const nextStrike = Number(e.target.value);
+                      updateComboSellStrike(nextStrike, embedded);
+                    }}
+                    className={`px-1.5 py-0.5 rounded text-[11px] font-mono border ${themes[theme].border} ${themes[theme].input} ${themes[theme].text} focus:outline-none`}
+                  >
+                    {expiryStrikeLadder
+                      .filter(s => s !== draft.combo.buy_strike)
+                      .map(s => (
+                        <option key={s} value={s}>
+                          {formatStrikeNumber(s)}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+              <div className={`${themes[theme].text} opacity-80 font-mono`}>
+                {(() => {
+                  const p = draft.combo.sell_position.position;
+                  const avail = Number(p.available ?? p.quantity);
+                  const legQty = draft.quantity;
+                  return `数量 ${legQty}${avail !== legQty ? ` (可用 ${avail})` : ''}`;
+                })()}
+              </div>
+            </div>
+            <div className={`text-[11px] ${themes[theme].text} opacity-50 font-mono ml-[64px]`}>
+              {draft.combo.sell_position.position.symbol} • Strike: {draft.combo.sell_strike}
+            </div>
           </div>
         </div>
       </div>
@@ -1737,10 +1861,11 @@ export function ExpiryGroupCard({
     selectedAccountId,
     spreadHistory,
     spreadStatus,
-    spreadWatchQuoteLines,
-    spreadWatchStatusText,
     theme,
-    userId
+    userId,
+    expiryStrikeLadder,
+    formatStrikeNumber,
+    updateComboSellStrike
   ]);
 
   const renderStatusBadge = useCallback((item: OptionsStrategy | OptionsPosition, type: 'complex' | 'single') => {
@@ -2634,331 +2759,516 @@ export function ExpiryGroupCard({
                   <div className={`text-sm font-semibold ${themes[theme].text}`}>解除已有组合</div>
                 ) : null}
                 {sortedStrategies.length > 0 ? (
-                  sortedStrategies.map((item, idx) => (
-                    <div
-                      key={`strat-select-${idx}`}
-                      className={`p-3 rounded border ${themes[theme].border}`}
-                    >
-                      <div className="min-w-0">
-                        {(() => {
-                          const strikeGapSummary = getStrategyStrikeGapSummary(item.strategy);
-                          const est = estimateCloseForStrategy(item.strategy);
-                          const strategyId = item.strategy.id;
-                          const strategyHistory = comboSpreadHistories[strategyId] || [];
-                          const strategyStatus = comboSpreadStatuses[strategyId];
-                          const strategyWatchCodes = getStrategyWatchCodes(item.strategy);
-                          const strategyWatchStatusText = getSpreadWatchStatusText(strategyWatchCodes);
-                          const strategyWatchQuoteLines = getSpreadWatchQuoteLines(item.strategy.positions || []);
-                          const perf = getStrategyPerformanceMetrics(item.strategy, est);
-                          const net = est.net;
-                          const label = net == null ? '对手方一档价未就绪' : (net >= 0 ? '预计收到' : '预计支付');
-                          const amountText = net == null ? '--' : formatCurrency(Math.abs(net), currencyConfig, 4);
-                          const hedgeText =
-                            est.perHedge == null
-                              ? '--'
-                              : `${est.perHedge >= 0 ? '+' : '-'}${formatCurrency(Math.abs(est.perHedge), currencyConfig, 4)}`;
-                          const tsText = est.ts ? format(new Date(est.ts), 'HH:mm:ss') : '--';
-                          const pairedQty = est.pairedQty || 0;
-                          const maxProfitText = perf.hasInfiniteMaxProfit
-                            ? '无限'
-                            : perf.maxProfit == null
-                              ? '--'
-                              : formatCurrency(perf.maxProfit, currencyConfig, 4);
-                          const currentProfitText = perf.currentProfit == null
-                            ? '--'
-                            : `${perf.currentProfit >= 0 ? '+' : '-'}${formatCurrency(Math.abs(perf.currentProfit), currencyConfig, 4)}`;
-                          const remainingProfitText = perf.remainingProfit == null
-                            ? '--'
-                            : formatCurrency(perf.remainingProfit, currencyConfig, 4);
-                          const profitRealizationText = perf.profitRealizationPct == null
-                            ? '--'
-                            : `${perf.profitRealizationPct.toFixed(1)}%`;
-                          const contractUnitText = perf.contractUnit == null
-                            ? '--'
-                            : perf.rawContractUnit != null && perf.rawContractUnit !== perf.contractUnit
-                              ? `${perf.contractUnit}（原始 ${perf.rawContractUnit}）`
-                              : String(perf.contractUnit);
-                          const chartData = perf.mode === 'spread_value' && perf.contractUnit != null
-                            ? strategyHistory.map((point) => ({
-                                ...point,
-                                price: point.price == null ? null : point.price * perf.contractUnit,
-                              }))
-                            : strategyHistory;
+                  (() => {
+                    const enrichedStrategies = sortedStrategies.map(item => {
+                      const strikeGapSummary = getStrategyStrikeGapSummary(item.strategy);
+                      const est = estimateCloseForStrategy(item.strategy);
+                      const strategyId = item.strategy.id;
+                      const strategyHistory = comboSpreadHistories[strategyId] || [];
+                      const strategyStatus = comboSpreadStatuses[strategyId];
+                      const strategyWatchCodes = getStrategyWatchCodes(item.strategy);
+                      const strategyWatchStatusText = getSpreadWatchStatusText(strategyWatchCodes);
+                      const strategyWatchQuoteLines = getSpreadWatchQuoteLines(item.strategy.positions || []);
+                      const perf = getStrategyPerformanceMetrics(item.strategy, est);
+                      const net = est.net;
+                      const label = net == null ? '对手方一档价未就绪' : (net >= 0 ? '预计收到' : '预计支付');
+                      const amountText = net == null ? '--' : formatCurrency(Math.abs(net), currencyConfig, 4);
+                      const hedgeText =
+                        est.perHedge == null
+                          ? '--'
+                          : `${est.perHedge >= 0 ? '+' : '-'}${formatCurrency(Math.abs(est.perHedge), currencyConfig, 4)}`;
+                      const tsText = est.ts ? format(new Date(est.ts), 'HH:mm:ss') : '--';
+                      const pairedQty = est.pairedQty || 0;
+                      const maxProfitText = perf.hasInfiniteMaxProfit
+                        ? '无限'
+                        : perf.maxProfit == null
+                          ? '--'
+                          : formatCurrency(perf.maxProfit, currencyConfig, 4);
+                      const currentProfitText = perf.currentProfit == null
+                        ? '--'
+                        : `${perf.currentProfit >= 0 ? '+' : '-'}${formatCurrency(Math.abs(perf.currentProfit), currencyConfig, 4)}`;
+                      const remainingProfitText = perf.remainingProfit == null
+                        ? '--'
+                        : formatCurrency(perf.remainingProfit, currencyConfig, 4);
+                      const profitRealizationText = perf.profitRealizationPct == null
+                        ? '--'
+                        : `${perf.profitRealizationPct.toFixed(1)}%`;
+                      const contractUnitText = perf.contractUnit == null
+                        ? '--'
+                        : perf.rawContractUnit != null && perf.rawContractUnit !== perf.contractUnit
+                          ? `${perf.contractUnit}（原始 ${perf.rawContractUnit}）`
+                          : String(perf.contractUnit);
+                      const chartData = perf.mode === 'spread_value' && perf.contractUnit != null
+                        ? strategyHistory.map((point) => ({
+                            ...point,
+                            price: point.price == null ? null : point.price * perf.contractUnit,
+                          }))
+                        : strategyHistory;
+
+                      const rangeText = strikeGapSummary.map(s => {
+                        const start = s.buyStrikeText || s.startStrikeText;
+                        const end = s.sellStrikeText || s.endStrikeText;
+                        return start && end ? `${start}-${end}` : '';
+                      }).filter(Boolean).join(', ');
+
+                      // Resolve status
+                      const dte = group.daysToExpiry;
+                      const itemSymbol = item.strategy.positions[0]?.opt_undl_code_full || selectedSymbol || '';
+                      const resolvedPositions = (item.strategy.positions || [])
+                        .map(p => resolveDisplayPosition(p))
+                        .filter((p): p is OptionsPosition => !!p);
+                      const resolvedStrategy = {
+                        ...item.strategy,
+                        positions: resolvedPositions
+                      };
+                      const calculatedProfitRatio = perf.profitRealizationPct != null ? perf.profitRealizationPct / 100 : undefined;
+                      const statusRes = getComboStatus(resolvedStrategy, 'complex', dte, itemSymbol, allSinglePositions, calculatedProfitRatio);
+                      const status = statusRes.status; // 'AUTO' | 'PROFIT' | 'WATCH' | 'HOLD'
+
+                      return {
+                        item,
+                        strategyId,
+                        strikeGapSummary,
+                        est,
+                        strategyHistory,
+                        strategyStatus,
+                        strategyWatchCodes,
+                        strategyWatchStatusText,
+                        strategyWatchQuoteLines,
+                        perf,
+                        net,
+                        label,
+                        amountText,
+                        hedgeText,
+                        tsText,
+                        pairedQty,
+                        maxProfitText,
+                        currentProfitText,
+                        remainingProfitText,
+                        profitRealizationText,
+                        contractUnitText,
+                        chartData,
+                        rangeText,
+                        status
+                      };
+                    });
+
+                    // Group by status
+                    const groups: Record<
+                      'AUTO' | 'PROFIT' | 'WATCH' | 'HOLD',
+                      typeof enrichedStrategies
+                    > = {
+                      AUTO: [],
+                      PROFIT: [],
+                      WATCH: [],
+                      HOLD: []
+                    };
+
+                    enrichedStrategies.forEach(enriched => {
+                      if (groups[enriched.status]) {
+                        groups[enriched.status].push(enriched);
+                      } else {
+                        groups.HOLD.push(enriched);
+                      }
+                    });
+
+                    const sectionConfigs: Array<{
+                      key: 'AUTO' | 'PROFIT' | 'WATCH' | 'HOLD';
+                      title: string;
+                      badgeClass: string;
+                    }> = [
+                      {
+                        key: 'AUTO',
+                        title: '自动止盈 (AUTO)',
+                        badgeClass: 'bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20'
+                      },
+                      {
+                        key: 'PROFIT',
+                        title: '可止盈 (PROFIT)',
+                        badgeClass: 'bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20'
+                      },
+                      {
+                        key: 'WATCH',
+                        title: '监控中 (WATCH)',
+                        badgeClass: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/20'
+                      },
+                      {
+                        key: 'HOLD',
+                        title: '普通持有 (HOLD)',
+                        badgeClass: 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/20'
+                      }
+                    ];
+
+                    return (
+                      <div className="space-y-6">
+                        {sectionConfigs.map(config => {
+                          const items = groups[config.key];
+                          if (items.length === 0) return null;
+
                           return (
-                            <>
-                              <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                                <div className="min-w-0">
-                                  <div className={`font-semibold ${themes[theme].text} flex items-center gap-2 flex-wrap`}>
-                                    <span>{item.strategy.name}</span>
-                                    <span className="text-xs font-normal opacity-50">{item.strategy.id}</span>
-                                    {renderStatusBadge(item.strategy, 'complex')}
-                                  </div>
-                                </div>
-                                <div className="flex flex-wrap items-center gap-2 shrink-0">
-                                  <button
-                                    disabled={isPageLocked}
-                                    className="px-3 py-1.5 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[92px]"
-                                    onClick={async () => {
-                                       if (!selectedAccountId) {
-                                          toast.error('未选择账户');
-                                          return;
-                                       }
-                                       const { error } = await optionsService.clearCombination(selectedAccountId, item.strategy.id);
-                                       if (error) {
-                                         toast.error('清仓失败: ' + error.message);
-                                       } else {
-                                         toast.success('已启动清仓任务');
-                                         setConfirmData(null);
-                                         onRefresh?.();
-                                       }
-                                    }}
-                                  >清仓</button>
-                                  <button
-                                    disabled={isPageLocked}
-                                    className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[92px]"
-                                    onClick={async () => {
-                                      if (pageLockRef.current) return;
-                                      if (!selectedAccountId) {
-                                        toast.error('未选择账户');
-                                        return;
-                                      }
-
-                                      const payload = {
-                                        strategy_id: item.strategy.id,
-                                        comb_id: item.strategy.id,
-                                        positions: item.strategy.positions,
-                                        meta: {
-                                          ...(confirmData.meta || {}),
-                                          action: 'release_combination',
-                                          strategyIds: [item.strategy.id],
-                                        },
-                                        overrides: {},
-                                      };
-
-                                      pageLockRef.current = true;
-                                      setIsPageLocked(true);
-                                      try {
-                                        const resp = await optionsService.closeCombination(payload, selectedAccountId || null, userId || null);
-                                        if (resp.error) {
-                                          toast.error('解除组合失败: ' + resp.error.message);
-                                        } else {
-                                          toast.success('解除组合成功');
-                                          setConfirmData(null);
-                                          onRefresh?.();
-                                        }
-                                      } finally {
-                                        pageLockRef.current = false;
-                                        setIsPageLocked(false);
-                                      }
-                                    }}
-                                  >解除组合</button>
-                                </div>
-                              </div>
-                              <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
-                                <span className={`inline-flex items-center rounded-full border px-2.5 py-1 font-medium ${themes[theme].border} ${themes[theme].text}`}>
-                                  数量 {item.qty}
+                            <div key={config.key} className="space-y-2">
+                              {/* Section Title */}
+                              <div className="flex items-center gap-2 px-1">
+                                <span className={`text-xs font-bold px-2 py-0.5 rounded ${config.badgeClass}`}>
+                                  {config.title}
                                 </span>
-                                {strikeGapSummary.map((summary) => (
-                                  <div key={`strike-gap-${idx}-${summary.key}`} className="contents">
-                                    <span className={`inline-flex items-center rounded-full border px-2.5 py-1 ${themes[theme].border} ${themes[theme].text}`}>
-                                      <span className="font-semibold">{summary.optionTypeLabel}</span>
-                                      <span className="ml-1 opacity-80">
-                                        {summary.buyStrikeText && summary.sellStrikeText
-                                          ? `买 ${summary.buyStrikeText} / 卖 ${summary.sellStrikeText}`
-                                          : `${summary.startStrikeText} -> ${summary.endStrikeText}`}
-                                      </span>
-                                    </span>
-                                    {summary.tickCount != null && summary.tickCount > 0 ? (
-                                      <span className="inline-flex items-center rounded-full bg-rose-500/12 px-2.5 py-1 font-semibold text-rose-600 dark:text-rose-300">
-                                        跨 {summary.tickCount} 档
-                                      </span>
-                                    ) : null}
-                                    <span className={`inline-flex items-center rounded-full border px-2.5 py-1 ${themes[theme].border} ${themes[theme].text}`}>
-                                      行权价差 {summary.priceDiffText}
-                                    </span>
-                                  </div>
-                                ))}
-                                {perf.mode === 'spread_value' && perf.contractUnit != null ? (
-                                  <span className={`inline-flex items-center rounded-full border px-2.5 py-1 ${themes[theme].border} ${themes[theme].text}`}>
-                                    合约单位 {contractUnitText}
-                                  </span>
-                                ) : null}
+                                <span className={`text-xs opacity-50 ${themes[theme].text}`}>
+                                  ({items.length} 个组合)
+                                </span>
                               </div>
-                              <div className={`mt-2 text-xs opacity-50 ${themes[theme].text}`}>
-                                {item.strategy.positions.map(p => `${getPositionContractLabel(p)} x ${p.quantity}`).join(', ')}
-                              </div>
-                              {perf.mode === 'spread_value' && perf.usedStandardContractUnit ? (
-                                <div className={`mt-1 text-[11px] ${themes[theme].text} opacity-60`}>
-                                  标准 ETF 合约按 10000 计算
-                                </div>
-                              ) : null}
-                              <div className="mt-3 grid grid-cols-1 gap-2 text-xs md:grid-cols-[minmax(0,1.05fr)_minmax(0,1.95fr)]">
-                                <div className={`${themes[theme].background} rounded border ${themes[theme].border} p-2`}>
-                                  <div className={`opacity-60 ${themes[theme].text}`}>最大盈利</div>
-                                  <div className={`mt-1 font-mono ${themes[theme].text}`}>{maxProfitText}</div>
-                                  {perf.mode === 'spread_value' && perf.tickCount != null && perf.tickCount > 0 && perf.tickSize != null && perf.contractUnit != null ? (
-                                    <>
-                                      <div className="mt-2 flex flex-wrap gap-1.5 text-[10px]">
-                                        <span className="inline-flex items-center rounded-full bg-rose-500/12 px-2 py-0.5 font-semibold text-rose-600 dark:text-rose-300">
-                                          {perf.tickCount} 档
-                                        </span>
-                                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 ${themes[theme].border} ${themes[theme].text}`}>
-                                          每档 {formatStrikeNumber(perf.tickSize)}
-                                        </span>
-                                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 ${themes[theme].border} ${themes[theme].text}`}>
-                                          合约单位 {contractUnitText}
-                                        </span>
-                                      </div>
-                                      <div className={`mt-1 text-[10px] ${themes[theme].text} opacity-60 font-mono`}>
-                                        {`${perf.tickCount} 档 × ${formatStrikeNumber(perf.tickSize)} × ${perf.contractUnit}${perf.strikeScale && perf.strikeScale !== 1 ? ` (÷${perf.strikeScale})` : ''}`}
-                                      </div>
-                                    </>
-                                  ) : null}
-                                </div>
-                                <div className={`${themes[theme].background} rounded border ${themes[theme].border} p-3`}>
-                                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                                    <div className="min-w-0">
-                                      <div className={`opacity-60 ${themes[theme].text}`}>收益进度</div>
-                                      <div className={`mt-1 font-mono text-lg ${perf.currentProfit != null && perf.currentProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                                        {currentProfitText}
-                                      </div>
-                                      <div className={`mt-1 text-[11px] ${themes[theme].text} opacity-60`}>
-                                        {perf.currentLabel}
-                                      </div>
-                                    </div>
-                                    <div className="shrink-0">
-                                      <div className={`text-[11px] ${themes[theme].text} opacity-60`}>利润实现率</div>
-                                      <div className={`mt-1 font-mono text-base ${themes[theme].text}`}>{profitRealizationText}</div>
-                                    </div>
-                                  </div>
-                                  <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
-                                    <div className={`rounded border px-3 py-2 ${themes[theme].card} ${themes[theme].border}`}>
-                                      <div className={`text-[11px] ${themes[theme].text} opacity-60`}>距最大盈利</div>
-                                      <div className={`mt-1 font-mono ${themes[theme].text}`}>{remainingProfitText}</div>
-                                    </div>
-                                    <div className={`rounded border px-3 py-2 ${themes[theme].card} ${themes[theme].border}`}>
-                                      <div className={`text-[11px] ${themes[theme].text} opacity-60`}>盈利空间</div>
-                                      <div className={`mt-1 font-mono ${themes[theme].text}`}>
-                                        {maxProfitText}
-                                        <span className="ml-2 text-[11px] opacity-60">上限</span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                  {perf.profitRealizationPct != null ? (
-                                    <div className="mt-3">
-                                      <div className={`mb-1 flex items-center justify-between text-[11px] ${themes[theme].text} opacity-60`}>
-                                        <span>进度</span>
-                                        <span>{profitRealizationText}</span>
-                                      </div>
-                                      <div className={`h-2 overflow-hidden rounded-full ${themes[theme].border} border ${themes[theme].card}`}>
-                                        <div
-                                          className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-blue-500"
-                                          style={{ width: `${Math.max(0, Math.min(100, perf.profitRealizationPct))}%` }}
-                                        />
-                                      </div>
-                                    </div>
-                                  ) : null}
-                                </div>
-                              </div>
-                              <div className={`mt-3 rounded border p-2 ${themes[theme].border} ${themes[theme].background}`}>
-                                {perf.calcStatus !== 'ok' ? (
-                                  <div className={`mb-2 text-[11px] ${themes[theme].text} opacity-70`}>
-                                    最大盈利线未显示：{perf.calcStatusText}
-                                  </div>
-                                ) : null}
-                                <div className={`mb-1 text-[11px] ${themes[theme].text} opacity-70 flex items-center justify-between`}>
-                                  <span>点数 {strategyHistory.length}</span>
-                                  <span>
-                                    {strategyStatus
-                                      ? `采样 ${format(new Date(strategyStatus.ts), 'HH:mm:ss')} • ${strategyStatus.source === 'snapshot' ? 'WS' : (strategyStatus.source === 'last_known' ? '沿用' : '等待')}`
-                                      : '采样 --'}
-                                  </span>
-                                </div>
-                                {strategyWatchStatusText ? (
-                                  <div className={`mb-1 text-[11px] ${themes[theme].text} opacity-60`}>
-                                    {strategyWatchStatusText}
-                                  </div>
-                                ) : null}
-                                {strategyWatchQuoteLines.length > 0 ? (
-                                  <div className={`mb-1 space-y-1 text-[11px] ${themes[theme].text} opacity-60`}>
-                                    {strategyWatchQuoteLines.map((line) => (
-                                      <div key={`${strategyId}-${line.key}`} className={`rounded border px-2 py-1 ${themes[theme].border}`}>
-                                        <div>{line.contractName}</div>
-                                        <div className="font-mono opacity-80">{line.quoteText}</div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : null}
-                                <RealTimeSpreadChart
-                                  theme={theme}
-                                  data={chartData}
-                                  title={perf.mode === 'spread_value' ? '组合价值走势' : '组合价差走势'}
-                                  height={164}
-                                  referenceLines={
-                                    perf.mode === 'spread_value' && perf.maxProfit != null
-                                      ? [{ value: perf.maxProfit, label: '最大盈利', color: '#ef4444', dashArray: '6 4' }]
-                                      : []
-                                  }
-                                  formatValue={(value) => {
-                                    if (value == null) return '--';
-                                    const abs = Math.abs(value);
-                                    const decimals =
-                                      perf.mode === 'spread_value'
-                                        ? (abs < 100 ? 2 : 0)
-                                        : 4;
-                                    return formatCurrency(value, currencyConfig, decimals);
-                                  }}
-                                />
-                              </div>
-                              <div className={`mt-2 text-xs ${themes[theme].text} opacity-80`}>
-                                <div className="flex items-center justify-between gap-3">
-                                  <span className="font-semibold whitespace-nowrap">{label}</span>
-                                  <div className="flex items-baseline gap-2 min-w-0">
-                                    <AnimatedFlash value={amountText} className="font-mono whitespace-nowrap" type="price" />
-                                    <span className="text-[11px] opacity-60 truncate flex items-baseline gap-1">
-                                      {est.perHedge == null || pairedQty <= 0 ? null : (
-                                        <>
-                                          <span>（</span>
-                                          <AnimatedFlash
-                                            value={hedgeText}
-                                            className={`font-mono font-bold whitespace-nowrap ${est.perHedge != null && est.perHedge >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}
-                                            type="price"
-                                          />
-                                          <span className="whitespace-nowrap">× {pairedQty}）</span>
-                                        </>
-                                      )}
-                                      <span className="whitespace-nowrap">{`WS ${tsText}`}</span>
-                                    </span>
-                                  </div>
-                                </div>
-                                <div className="mt-1 grid grid-cols-1 gap-1">
-                                  {est.legs.map((l, i) => {
-                                    const legAmtText =
-                                      l.amt == null ? '--' : `${l.amt >= 0 ? '+' : '-'}${formatCurrency(Math.abs(l.amt), currencyConfig, 4)}`;
-                                    const legAmtLabel = l.amt == null ? '' : (l.amt >= 0 ? '收到' : '支付');
-                                    return (
-                                      <div key={`leg-est-${idx}-${i}`} className="grid grid-cols-[minmax(0,1fr)_84px_minmax(0,140px)] items-center gap-3">
-                                        <div className="truncate opacity-80">
-                                          {getPositionContractLabel(l.pos)} • {l.closeSide === 'buy' ? '买入' : '卖出'} • x{l.qty}
+
+                              {/* Section Items */}
+                              <div className="space-y-2.5">
+                                {items.map((enriched, idx) => {
+                                  const {
+                                    item,
+                                    strategyId,
+                                    strikeGapSummary,
+                                    est,
+                                    strategyHistory,
+                                    strategyStatus,
+                                    strategyWatchCodes,
+                                    strategyWatchStatusText,
+                                    strategyWatchQuoteLines,
+                                    perf,
+                                    net,
+                                    label,
+                                    amountText,
+                                    hedgeText,
+                                    tsText,
+                                    pairedQty,
+                                    maxProfitText,
+                                    currentProfitText,
+                                    remainingProfitText,
+                                    profitRealizationText,
+                                    contractUnitText,
+                                    chartData,
+                                    rangeText
+                                  } = enriched;
+
+                                  const isExpanded = !!expandedComboIds[strategyId];
+                                  const toggleExpanded = () => {
+                                    setExpandedComboIds(prev => ({
+                                      ...prev,
+                                      [strategyId]: !prev[strategyId]
+                                    }));
+                                  };
+
+                                  return (
+                                    <div
+                                      key={strategyId}
+                                      className={`p-3 rounded border ${themes[theme].border} transition-all duration-200 bg-current/[0.01]`}
+                                    >
+                                      <div className="min-w-0">
+                                        <div className="space-y-3">
+                                          {/* Minimal Header */}
+                                          <div
+                                            className="flex items-center justify-between gap-4 w-full cursor-pointer select-none"
+                                            onClick={toggleExpanded}
+                                          >
+                                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                              <span className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
+                                                <ChevronDown className="w-4 h-4 opacity-70" />
+                                              </span>
+                                              <div className="flex items-center gap-2 flex-wrap min-w-0">
+                                                <span className={`font-semibold ${themes[theme].text} truncate`}>{item.strategy.name}</span>
+                                                {rangeText && (
+                                                  <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${themes[theme].border} border ${themes[theme].text} opacity-85`}>
+                                                    {rangeText}
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-4 shrink-0">
+                                              <div className="flex items-center gap-2">
+                                                <span className={`text-xs ${themes[theme].text} opacity-50`}>实现率</span>
+                                                <span className={`text-xs md:text-sm font-bold font-mono ${themes[theme].text}`}>{profitRealizationText}</span>
+                                                {perf.currentProfit != null && (
+                                                  <span className={`font-mono text-xs md:text-sm font-bold px-2 py-0.5 rounded ${perf.currentProfit >= 0 ? 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/12 text-rose-600 dark:text-rose-400 border border-rose-500/20'}`}>
+                                                    {currentProfitText}
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                              <button
+                                                disabled={isPageLocked}
+                                                className="px-3 py-1.5 bg-red-600 text-white rounded text-xs hover:bg-red-700 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed min-w-[92px]"
+                                                onClick={async () => {
+                                                  if (!selectedAccountId) {
+                                                    toast.error('未选择账户');
+                                                    return;
+                                                  }
+                                                  const { error } = await optionsService.clearCombination(selectedAccountId, item.strategy.id);
+                                                  if (error) {
+                                                    toast.error('清仓失败: ' + error.message);
+                                                  } else {
+                                                    toast.success('已启动清仓任务');
+                                                    setConfirmData(null);
+                                                    onRefresh?.();
+                                                  }
+                                                }}
+                                              >清仓</button>
+                                              <button
+                                                disabled={isPageLocked}
+                                                className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed min-w-[92px]"
+                                                onClick={async () => {
+                                                  if (pageLockRef.current) return;
+                                                  if (!selectedAccountId) {
+                                                    toast.error('未选择账户');
+                                                    return;
+                                                  }
+
+                                                  const payload = {
+                                                    strategy_id: item.strategy.id,
+                                                    comb_id: item.strategy.id,
+                                                    positions: item.strategy.positions,
+                                                    meta: {
+                                                      ...(confirmData.meta || {}),
+                                                      action: 'release_combination',
+                                                      strategyIds: [item.strategy.id],
+                                                    },
+                                                    overrides: {},
+                                                  };
+
+                                                  pageLockRef.current = true;
+                                                  setIsPageLocked(true);
+                                                  try {
+                                                    const resp = await optionsService.closeCombination(payload, selectedAccountId || null, userId || null);
+                                                    if (resp.error) {
+                                                      toast.error('解除组合失败: ' + resp.error.message);
+                                                    } else {
+                                                      toast.success('解除组合成功');
+                                                      setConfirmData(null);
+                                                      onRefresh?.();
+                                                    }
+                                                  } finally {
+                                                    pageLockRef.current = false;
+                                                    setIsPageLocked(false);
+                                                  }
+                                                }}
+                                              >解除组合</button>
+                                            </div>
+                                          </div>
+
+                                          {/* Expanded Content */}
+                                          {isExpanded && (
+                                            <div className={`pt-3 border-t ${themes[theme].border} space-y-3`}>
+                                              <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                                                <span className={`inline-flex items-center rounded-full border px-2.5 py-1 font-medium ${themes[theme].border} ${themes[theme].text}`}>
+                                                  数量 {item.qty}
+                                                </span>
+                                                {strikeGapSummary.map((summary) => (
+                                                  <div key={`strike-gap-${strategyId}-${summary.key}`} className="contents">
+                                                    <span className={`inline-flex items-center rounded-full border px-2.5 py-1 ${themes[theme].border} ${themes[theme].text}`}>
+                                                      <span className="font-semibold">{summary.optionTypeLabel}</span>
+                                                      <span className="ml-1 opacity-80">
+                                                        {summary.buyStrikeText && summary.sellStrikeText
+                                                          ? `买 ${summary.buyStrikeText} / 卖 ${summary.sellStrikeText}`
+                                                          : `${summary.startStrikeText} -> ${summary.endStrikeText}`}
+                                                      </span>
+                                                    </span>
+                                                    {summary.tickCount != null && summary.tickCount > 0 ? (
+                                                      <span className="inline-flex items-center rounded-full bg-rose-500/12 px-2.5 py-1 font-semibold text-rose-600 dark:text-rose-300">
+                                                        跨 {summary.tickCount} 档
+                                                      </span>
+                                                    ) : null}
+                                                    <span className={`inline-flex items-center rounded-full border px-2.5 py-1 ${themes[theme].border} ${themes[theme].text}`}>
+                                                      行权价差 {summary.priceDiffText}
+                                                    </span>
+                                                  </div>
+                                                ))}
+                                                {perf.mode === 'spread_value' && perf.contractUnit != null ? (
+                                                  <span className={`inline-flex items-center rounded-full border px-2.5 py-1 ${themes[theme].border} ${themes[theme].text}`}>
+                                                    合约单位 {contractUnitText}
+                                                  </span>
+                                                ) : null}
+                                              </div>
+                                              <div className={`text-xs opacity-50 ${themes[theme].text}`}>
+                                                {item.strategy.positions.map(p => `${getPositionContractLabel(p)} x ${p.quantity}`).join(', ')}
+                                              </div>
+                                              {perf.mode === 'spread_value' && perf.usedStandardContractUnit ? (
+                                                <div className={`text-[11px] ${themes[theme].text} opacity-60`}>
+                                                  标准 ETF 合约按 10000 计算
+                                                </div>
+                                              ) : null}
+                                              <div className="mt-3 grid grid-cols-1 gap-2 text-xs md:grid-cols-[minmax(0,1.05fr)_minmax(0,1.95fr)]">
+                                                <div className={`${themes[theme].background} rounded border ${themes[theme].border} p-2`}>
+                                                  <div className={`opacity-60 ${themes[theme].text}`}>最大盈利</div>
+                                                  <div className={`mt-1 font-mono ${themes[theme].text}`}>{maxProfitText}</div>
+                                                  {perf.mode === 'spread_value' && perf.tickCount != null && perf.tickCount > 0 && perf.tickSize != null && perf.contractUnit != null ? (
+                                                    <>
+                                                      <div className="mt-2 flex flex-wrap gap-1.5 text-[10px]">
+                                                        <span className="inline-flex items-center rounded-full bg-rose-500/12 px-2 py-0.5 font-semibold text-rose-600 dark:text-rose-300">
+                                                          {perf.tickCount} 档
+                                                        </span>
+                                                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 ${themes[theme].border} ${themes[theme].text}`}>
+                                                          每档 {formatStrikeNumber(perf.tickSize)}
+                                                        </span>
+                                                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 ${themes[theme].border} ${themes[theme].text}`}>
+                                                          合约单位 {contractUnitText}
+                                                        </span>
+                                                      </div>
+                                                      <div className={`mt-1 text-[10px] ${themes[theme].text} opacity-60 font-mono`}>
+                                                        {`${perf.tickCount} 档 × ${formatStrikeNumber(perf.tickSize)} × ${perf.contractUnit}${perf.strikeScale && perf.strikeScale !== 1 ? ` (÷${perf.strikeScale})` : ''}`}
+                                                      </div>
+                                                    </>
+                                                  ) : null}
+                                                </div>
+                                                <div className={`${themes[theme].background} rounded border ${themes[theme].border} p-3`}>
+                                                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                                    <div className="min-w-0">
+                                                      <div className={`opacity-60 ${themes[theme].text}`}>收益进度</div>
+                                                      <div className={`mt-1 font-mono text-lg ${perf.currentProfit != null && perf.currentProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                                                        {currentProfitText}
+                                                      </div>
+                                                      <div className={`mt-1 text-[11px] ${themes[theme].text} opacity-60`}>
+                                                        {perf.currentLabel}
+                                                      </div>
+                                                    </div>
+                                                    <div className="shrink-0">
+                                                      <div className={`text-[11px] ${themes[theme].text} opacity-60`}>利润实现率</div>
+                                                      <div className={`mt-1 font-mono text-base ${themes[theme].text}`}>{profitRealizationText}</div>
+                                                    </div>
+                                                  </div>
+                                                  <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+                                                    <div className={`rounded border px-3 py-2 ${themes[theme].card} ${themes[theme].border}`}>
+                                                      <div className={`text-[11px] ${themes[theme].text} opacity-60`}>距最大盈利</div>
+                                                      <div className={`mt-1 font-mono ${themes[theme].text}`}>{remainingProfitText}</div>
+                                                    </div>
+                                                    <div className={`rounded border px-3 py-2 ${themes[theme].card} ${themes[theme].border}`}>
+                                                      <div className={`text-[11px] ${themes[theme].text} opacity-60`}>盈利空间</div>
+                                                      <div className={`mt-1 font-mono ${themes[theme].text}`}>
+                                                        {maxProfitText}
+                                                        <span className="ml-2 text-[11px] opacity-60">上限</span>
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                  {perf.profitRealizationPct != null ? (
+                                                    <div className="mt-3">
+                                                      <div className={`mb-1 flex items-center justify-between text-[11px] ${themes[theme].text} opacity-60`}>
+                                                        <span>进度</span>
+                                                        <span>{profitRealizationText}</span>
+                                                      </div>
+                                                      <div className={`h-2 overflow-hidden rounded-full ${themes[theme].border} border ${themes[theme].card}`}>
+                                                        <div
+                                                          className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-blue-500"
+                                                          style={{ width: `${Math.max(0, Math.min(100, perf.profitRealizationPct))}%` }}
+                                                        />
+                                                      </div>
+                                                    </div>
+                                                  ) : null}
+                                                </div>
+                                              </div>
+                                              <div className={`mt-3 rounded border p-2 ${themes[theme].border} ${themes[theme].background}`}>
+                                                {perf.calcStatus !== 'ok' ? (
+                                                  <div className={`mb-2 text-[11px] ${themes[theme].text} opacity-70`}>
+                                                    最大盈利线未显示：{perf.calcStatusText}
+                                                  </div>
+                                                ) : null}
+                                                <div className={`mb-1 text-[11px] ${themes[theme].text} opacity-70 flex items-center justify-between`}>
+                                                  <span>点数 {strategyHistory.length}</span>
+                                                  <span>
+                                                    {strategyStatus
+                                                      ? `采样 ${format(new Date(strategyStatus.ts), 'HH:mm:ss')} • ${strategyStatus.source === 'snapshot' ? 'WS' : (strategyStatus.source === 'last_known' ? '沿用' : '等待')}`
+                                                      : '采样 --'}
+                                                  </span>
+                                                </div>
+                                                {strategyWatchStatusText ? (
+                                                  <div className={`mb-1 text-[11px] ${themes[theme].text} opacity-60`}>
+                                                    {strategyWatchStatusText}
+                                                  </div>
+                                                ) : null}
+                                                {strategyWatchQuoteLines.length > 0 ? (
+                                                  <div className={`mb-1 space-y-1 text-[11px] ${themes[theme].text} opacity-60`}>
+                                                    {strategyWatchQuoteLines.map((line) => (
+                                                      <div key={`${strategyId}-${line.key}`} className={`rounded border px-2 py-1 ${themes[theme].border}`}>
+                                                        <div>{line.contractName}</div>
+                                                        <div className="font-mono opacity-80">{line.quoteText}</div>
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                ) : null}
+                                                <RealTimeSpreadChart
+                                                  theme={theme}
+                                                  data={chartData}
+                                                  title={perf.mode === 'spread_value' ? '组合价值走势' : '组合价差走势'}
+                                                  height={164}
+                                                  referenceLines={
+                                                    perf.mode === 'spread_value' && perf.maxProfit != null
+                                                      ? [{ value: perf.maxProfit, label: '最大盈利', color: '#ef4444', dashArray: '6 4' }]
+                                                      : []
+                                                  }
+                                                  formatValue={(value) => {
+                                                    if (value == null) return '--';
+                                                    const abs = Math.abs(value);
+                                                    const decimals =
+                                                      perf.mode === 'spread_value'
+                                                        ? (abs < 100 ? 2 : 0)
+                                                        : 4;
+                                                    return formatCurrency(value, currencyConfig, decimals);
+                                                  }}
+                                                />
+                                              </div>
+                                              <div className={`text-xs ${themes[theme].text} opacity-80`}>
+                                                <div className="flex items-center justify-between gap-3">
+                                                  <span className="font-semibold whitespace-nowrap">{label}</span>
+                                                  <div className="flex items-baseline gap-2 min-w-0">
+                                                    <AnimatedFlash value={amountText} className="font-mono whitespace-nowrap" type="price" />
+                                                    <span className="text-[11px] opacity-60 truncate flex items-baseline gap-1">
+                                                      {est.perHedge == null || pairedQty <= 0 ? null : (
+                                                        <>
+                                                          <span>（</span>
+                                                          <AnimatedFlash
+                                                            value={hedgeText}
+                                                            className={`font-mono font-bold whitespace-nowrap ${est.perHedge != null && est.perHedge >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}
+                                                            type="price"
+                                                          />
+                                                          <span className="whitespace-nowrap">× {pairedQty}）</span>
+                                                        </>
+                                                      )}
+                                                      <span className="whitespace-nowrap">{`WS ${tsText}`}</span>
+                                                    </span>
+                                                  </div>
+                                                </div>
+                                                <div className="mt-1 grid grid-cols-1 gap-1">
+                                                  {est.legs.map((l, i) => {
+                                                    const legAmtText =
+                                                      l.amt == null ? '--' : `${l.amt >= 0 ? '+' : '-'}${formatCurrency(Math.abs(l.amt), currencyConfig, 4)}`;
+                                                    const legAmtLabel = l.amt == null ? '' : (l.amt >= 0 ? '收到' : '支付');
+                                                    return (
+                                                      <div key={`leg-est-${strategyId}-${i}`} className="grid grid-cols-[minmax(0,1fr)_84px_minmax(0,140px)] items-center gap-3">
+                                                        <div className="truncate opacity-80">
+                                                          {getPositionContractLabel(l.pos)} • {l.closeSide === 'buy' ? '买入' : '卖出'} • x{l.qty}
+                                                        </div>
+                                                        <div className="text-right font-mono">
+                                                          <AnimatedFlash value={l.px == null ? '--' : l.px.toFixed(4)} type="price" />
+                                                        </div>
+                                                        <div className="flex items-center justify-end gap-1 font-mono">
+                                                          <span className="opacity-70">{legAmtLabel}</span>
+                                                          <AnimatedFlash value={legAmtText} type="price" />
+                                                        </div>
+                                                      </div>
+                                                    );
+                                                  })}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          )}
                                         </div>
-                                        <div className="text-right font-mono">
-                                          <AnimatedFlash value={l.px == null ? '--' : l.px.toFixed(4)} type="price" />
-                                        </div>
-                                        <div className="flex items-center justify-end gap-1 font-mono">
-                                          <span className="opacity-70">{legAmtLabel}</span>
-                                          <AnimatedFlash value={legAmtText} type="price" />
-                                        </div>
                                       </div>
-                                    );
-                                  })}
-                                </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
-                            </>
+                            </div>
                           );
-                        })()}
+                        })}
                       </div>
-                    </div>
-                  ))
+                    );
+                  })()
                 ) : confirmData.meta?.action === 'combo_manage' ? (
                   <div className={`rounded-lg border border-dashed p-4 text-sm ${themes[theme].border} ${themes[theme].text} opacity-75`}>
                     当前行权价暂无已建组合，可直接在上方创建新组合。
