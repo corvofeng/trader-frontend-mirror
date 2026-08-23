@@ -435,7 +435,14 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
             </thead>
             <tbody className={`divide-y ${themes[theme].border} ${themes[theme].text}`}>
               {historyTrades.map((trade) => (
-                <tr key={trade.id}>
+                <tr 
+                  key={trade.id}
+                  className={`transition-colors ${
+                    trade.operation === 'buy'
+                      ? 'bg-green-50/40 dark:bg-green-950/10 hover:bg-green-100/40 dark:hover:bg-green-950/25'
+                      : 'bg-red-50/40 dark:bg-red-950/10 hover:bg-red-100/40 dark:hover:bg-red-950/25'
+                  }`}
+                >
                   <td className="px-4 py-3 whitespace-nowrap font-medium">
                     {format(new Date(trade.created_at), 'yyyy-MM-dd HH:mm')}
                   </td>
@@ -451,11 +458,15 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
                   <td className="px-4 py-3 text-right whitespace-nowrap font-mono">
                     {trade.target_price.toFixed(2)}
                   </td>
-                  <td className="px-4 py-3 text-right whitespace-nowrap font-mono">
-                    {trade.quantity.toLocaleString()}
+                  <td className={`px-4 py-3 text-right whitespace-nowrap font-mono font-medium ${
+                    trade.operation === 'buy' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                  }`}>
+                    {trade.operation === 'buy' ? '+' : '-'}{trade.quantity.toLocaleString()}
                   </td>
-                  <td className="px-4 py-3 text-right whitespace-nowrap font-mono opacity-75">
-                    {(trade.target_price * trade.quantity).toFixed(2)}
+                  <td className={`px-4 py-3 text-right whitespace-nowrap font-mono font-medium ${
+                    trade.operation === 'buy' ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'
+                  }`}>
+                    {trade.operation === 'buy' ? '-' : '+'}{(trade.target_price * trade.quantity).toFixed(2)}
                   </td>
                 </tr>
               ))}

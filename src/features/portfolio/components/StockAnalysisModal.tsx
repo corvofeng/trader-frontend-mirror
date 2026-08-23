@@ -68,7 +68,14 @@ export function StockAnalysisModal({ stockCode, stockName, theme, userId, accoun
                     {[...trades]
                       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
                       .map(trade => (
-                      <tr key={trade.id} className={`transition-colors hover:${theme === 'dark' ? 'bg-gray-800/50' : 'bg-gray-50'}`}>
+                      <tr 
+                        key={trade.id} 
+                        className={`transition-colors ${
+                          trade.operation === 'buy'
+                            ? 'bg-green-50/40 dark:bg-green-950/10 hover:bg-green-100/40 dark:hover:bg-green-950/25'
+                            : 'bg-red-50/40 dark:bg-red-950/10 hover:bg-red-100/40 dark:hover:bg-red-950/25'
+                        }`}
+                      >
                         <td className="px-6 py-4 whitespace-nowrap font-medium">
                           {format(new Date(trade.created_at), 'yyyy-MM-dd HH:mm')}
                         </td>
@@ -84,11 +91,15 @@ export function StockAnalysisModal({ stockCode, stockName, theme, userId, accoun
                         <td className="px-6 py-4 text-right whitespace-nowrap font-mono">
                           {trade.target_price.toFixed(2)}
                         </td>
-                        <td className="px-6 py-4 text-right whitespace-nowrap font-mono">
-                          {trade.quantity.toLocaleString()}
+                        <td className={`px-6 py-4 text-right whitespace-nowrap font-mono font-medium ${
+                          trade.operation === 'buy' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                        }`}>
+                          {trade.operation === 'buy' ? '+' : '-'}{trade.quantity.toLocaleString()}
                         </td>
-                        <td className="px-6 py-4 text-right whitespace-nowrap font-mono opacity-75">
-                          {(trade.target_price * trade.quantity).toFixed(2)}
+                        <td className={`px-6 py-4 text-right whitespace-nowrap font-mono font-medium ${
+                          trade.operation === 'buy' ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'
+                        }`}>
+                          {trade.operation === 'buy' ? '-' : '+'}{(trade.target_price * trade.quantity).toFixed(2)}
                         </td>
                       </tr>
                     ))}

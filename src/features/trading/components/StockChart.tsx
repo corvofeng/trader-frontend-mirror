@@ -105,7 +105,7 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const onTradesLoadedRef = useRef<typeof onTradesLoaded>(onTradesLoaded);
   const chartRef = useRef<IChartApi | null>(null);
-  const candlestickSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const candlestickSeriesRef = useRef<ISeriesApi<any> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const costBasisSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const priceLinesRef = useRef<PriceLineHandle[]>([]);
@@ -119,7 +119,7 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
 
   const [chartType, setChartType] = useState<ChartType>('candlestick');
   const [isLocked, setIsLocked] = useState(false);
-  const [showVolume, setShowVolume] = useState(true);
+  const [showVolume, setShowVolume] = useState(false);
   const [showGrid, setShowGrid] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [autoScale, setAutoScale] = useState(true);
@@ -179,19 +179,26 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
     onTradesLoadedRef.current = onTradesLoaded;
   }, [onTradesLoaded]);
 
+  // Lock body scroll and handle Escape key for CSS-based fullscreen mode
   useEffect(() => {
-    const handleFullscreenChange = () => {
-      if (!document.fullscreenElement && !isDisposed.current) {
+    if (isFullscreen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen) {
         setIsFullscreen(false);
       }
     };
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
     
+    window.addEventListener('keydown', handleKeyDown);
     return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', handleKeyDown);
     };
-  }, []);
+  }, [isFullscreen]);
 
   const calculateCostBasis = (trades: Trade[]): CostBasisPoint[] => {
     const sortedTrades = [...trades].sort((a, b) => 
@@ -228,13 +235,7 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
   };
 
   const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      chartContainerRef.current?.requestFullscreen();
-      setIsFullscreen(true);
-    } else {
-      document.exitFullscreen();
-      setIsFullscreen(false);
-    }
+    setIsFullscreen(!isFullscreen);
   };
 
   const handleZoom = (direction: 'in' | 'out') => {
@@ -554,6 +555,8 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
       },
       priceScaleId: '',
       visible: showVolume,
+      lastValueVisible: false,
+      priceLineVisible: false,
     });
 
     volumeSeriesRef.current = volumeSeries;
@@ -742,8 +745,17 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
     }
   }, [showVolume]);
 
+  const btnTextClass = 'h-7 sm:h-8 px-2.5 sm:px-3 text-xs sm:text-sm font-medium rounded-md flex items-center justify-center transition-all duration-200 hover:scale-[1.02] active:scale-[0.96] disabled:opacity-50 disabled:pointer-events-none';
+  const btnIconClass = 'h-7 sm:h-8 w-7 sm:w-8 rounded-md flex items-center justify-center transition-all duration-200 hover:scale-[1.05] active:scale-[0.94] disabled:opacity-50 disabled:pointer-events-none';
+
   return (
-    <div className={`${themes[theme].card} rounded-lg shadow-md p-2 sm:p-4 ${fillContainer ? 'h-full flex flex-col' : ''} ${className || ''}`}>
+    <div 
+      className={`${themes[theme].card} ${
+        isFullscreen 
+          ? 'fixed inset-0 z-[9999] w-full h-full flex flex-col p-4 md:p-6 bg-white dark:bg-zinc-950 overflow-hidden' 
+          : `rounded-lg shadow-md p-2 sm:p-4 ${fillContainer ? 'h-full flex flex-col' : ''} ${className || ''}`
+      }`}
+    >
       <div className="flex flex-col gap-2 sm:gap-4">
         <div className={`flex items-baseline gap-2 ${themes[theme].text}`}>
           <h2 className="text-lg sm:text-xl font-bold">{stockInfo?.stock_code}</h2>
@@ -754,7 +766,7 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowCostBasis(!showCostBasis)}
-              className={`px-2 sm:px-3 py-1 rounded text-xs sm:text-sm ${
+              className={`${btnTextClass} ${
                 showCostBasis ? themes[theme].primary : themes[theme].secondary
               }`}
             >
@@ -762,7 +774,7 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
             </button>
             <button
               onClick={() => setShowVolume(!showVolume)}
-              className={`px-2 sm:px-3 py-1 rounded text-xs sm:text-sm ${
+              className={`${btnTextClass} ${
                 showVolume ? themes[theme].primary : themes[theme].secondary
               }`}
             >
@@ -770,38 +782,41 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
             </button>
             <button
               onClick={() => setShowGrid(!showGrid)}
-              className={`px-2 sm:px-3 py-1 rounded text-xs sm:text-sm ${
+              className={`${btnIconClass} ${
                 showGrid ? themes[theme].primary : themes[theme].secondary
               }`}
             >
-              <Grid className="w-3 h-3 sm:w-4 sm:h-4" />
+              <Grid className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
           </div>
           
           <div className="flex items-center gap-2">
             <button
               onClick={() => updateChartType('candlestick')}
-              className={`p-1 sm:p-2 rounded ${
+              className={`${btnIconClass} ${
                 chartType === 'candlestick' ? themes[theme].primary : themes[theme].secondary
               }`}
+              title="Candlestick Chart"
             >
-              <CandlestickChart className="w-3 h-3 sm:w-4 sm:h-4" />
+              <CandlestickChart className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
             <button
               onClick={() => updateChartType('line')}
-              className={`p-1 sm:p-2 rounded ${
+              className={`${btnIconClass} ${
                 chartType === 'line' ? themes[theme].primary : themes[theme].secondary
               }`}
+              title="Line Chart"
             >
-              <LineChart className="w-3 h-3 sm:w-4 sm:h-4" />
+              <LineChart className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
             <button
               onClick={() => updateChartType('bar')}
-              className={`p-1 sm:p-2 rounded ${
+              className={`${btnIconClass} ${
                 chartType === 'bar' ? themes[theme].primary : themes[theme].secondary
               }`}
+              title="Bar Chart"
             >
-              <BarChart className="w-3 h-3 sm:w-4 sm:h-4" />
+              <BarChart className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
           </div>
         </div>
@@ -810,30 +825,33 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
           <div className="flex items-center gap-2">
             <button
               onClick={() => handleZoom('in')}
-              className={`p-1 sm:p-2 rounded ${themes[theme].secondary}`}
+              className={`${btnIconClass} ${themes[theme].secondary}`}
               disabled={isLocked}
+              title="Zoom In"
             >
-              <ZoomIn className="w-3 h-3 sm:w-4 sm:h-4" />
+              <ZoomIn className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
             <button
               onClick={() => handleZoom('out')}
-              className={`p-1 sm:p-2 rounded ${themes[theme].secondary}`}
+              className={`${btnIconClass} ${themes[theme].secondary}`}
               disabled={isLocked}
+              title="Zoom Out"
             >
-              <ZoomOut className="w-3 h-3 sm:w-4 sm:h-4" />
+              <ZoomOut className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
             <button
               onClick={() => setIsLocked(!isLocked)}
-              className={`p-1 sm:p-2 rounded ${isLocked ? themes[theme].primary : themes[theme].secondary}`}
+              className={`${btnIconClass} ${isLocked ? themes[theme].primary : themes[theme].secondary}`}
+              title={isLocked ? "Unlock Chart Controls" : "Lock Chart Controls"}
             >
-              {isLocked ? <Lock className="w-3 h-3 sm:w-4 sm:h-4" /> : <Unlock className="w-3 h-3 sm:w-4 sm:h-4" />}
+              {isLocked ? <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Unlock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
             </button>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               onClick={() => setAutoScale(!autoScale)}
-              className={`px-2 sm:px-3 py-1 rounded text-xs sm:text-sm ${
+              className={`${btnTextClass} ${
                 autoScale ? themes[theme].primary : themes[theme].secondary
               }`}
             >
@@ -841,9 +859,10 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
             </button>
             <button
               onClick={toggleFullscreen}
-              className={`p-1 sm:p-2 rounded ${themes[theme].secondary}`}
+              className={`${btnIconClass} ${themes[theme].secondary}`}
+              title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
             >
-              {isFullscreen ? <Minimize2 className="w-3 h-3 sm:w-4 sm:h-4" /> : <Maximize2 className="w-3 h-3 sm:w-4 sm:h-4" />}
+              {isFullscreen ? <Minimize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
             </button>
           </div>
         </div>
@@ -851,7 +870,7 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
 
       <div 
         className={`relative mt-2 sm:mt-4 overflow-hidden rounded-md ${
-          isFullscreen ? 'fixed inset-0 z-50 bg-white dark:bg-gray-900' : 
+          isFullscreen ? 'flex-1 min-h-0' : 
           fillContainer ? 'flex-1 min-h-0' : 'h-[400px] sm:h-[500px] md:h-[600px]'
         }`} 
         ref={chartViewportRef}
