@@ -3365,6 +3365,166 @@ export function ExpiryGroupCard({
           ) : confirmData.meta?.action === 'sync_category' ? (
             <div className="space-y-2">
               {(() => {
+                const s = Number(confirmData.meta?.strike || 0);
+                const category = String(confirmData.meta?.category || '') as
+                  | 'call_right'
+                  | 'call_obligation'
+                  | 'put_right'
+                  | 'put_obligation'
+                  | 'call_covered'
+                  | 'put_covered';
+                
+                const isCall = category.startsWith('call');
+                const type = isCall ? 'call' : 'put';
+
+                // 1. Find reference position to get delta if available
+                let refPos = filteredPositions.find(p =>
+                  p.expiry === (confirmData.meta?.expiry || group.expiry) &&
+                  Number(p.contract_strike_price ?? p.strike) === s &&
+                  (p.type === type || p.contract_type_zh === type)
+                );
+                if (!refPos) {
+                  const allSingles = (allExpiryBuckets || []).flatMap(b => b.single);
+                  refPos = allSingles.find(p =>
+                    p.expiry === group.expiry &&
+                    Number(p.contract_strike_price ?? p.strike) === s &&
+                    (p.type === type || p.contract_type_zh === type)
+                  );
+                }
+                if (!refPos) {
+                  const allComplexPositions = (allExpiryBuckets || []).flatMap(b => b.complex.flatMap(strategy => strategy.positions));
+                  refPos = allComplexPositions.find(p =>
+                    p.expiry === group.expiry &&
+                    Number(p.contract_strike_price ?? p.strike) === s &&
+                    (p.type === type || p.contract_type_zh === type)
+                  );
+                }
+
+                // 2. Resolve Delta value
+                let contractDelta = 0;
+                let isEstimated = false;
+
+                if (refPos && typeof refPos.delta === 'number' && !isNaN(refPos.delta)) {
+                  contractDelta = refPos.delta;
+                } else if (underlyingPrice != null && underlyingPrice > 0) {
+                  isEstimated = true;
+                  const findQuote = (data: OptionsData) => data.quotes?.find(q => q.expiry === (confirmData.meta?.expiry || group.expiry) && getQuoteStrike(q) === s);
+                  let q: OptionQuote | undefined;
+                  if (optionsData) q = findQuote(optionsData);
+                  if (!q && optionsDataMap) {
+                    for (const data of Object.values(optionsDataMap)) { q = findQuote(data); if (q) break; }
+                  }
+                  if (!q && localOptionsData) q = findQuote(localOptionsData);
+                  
+                  const iv = (isCall ? q?.callImpliedVol : q?.putImpliedVol) || 0.25;
+                  const T = Math.max(0.01, group.daysToExpiry) / 365;
+                  const S = underlyingPrice;
+                  const K = s;
+                  const r = 0.03;
+
+                  try {
+                    const normCdf = (x: number) => {
+                      const a1 = 0.254829592;
+                      const a2 = -0.284496736;
+                      const a3 = 1.421413741;
+                      const a4 = -1.453152027;
+                      const a5 = 1.061405429;
+                      const p = 0.3275911;
+                      const sign = x < 0 ? -1 : 1;
+                      const absX = Math.abs(x) / Math.sqrt(2.0);
+                      const t = 1.0 / (1.0 + p * absX);
+                      const erf = 1.0 - (((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t) * Math.exp(-absX * absX);
+                      return 0.5 * (1.0 + sign * erf);
+                    };
+                    const d1 = (Math.log(S / K) + (r + 0.5 * iv * iv) * T) / (iv * Math.sqrt(T));
+                    const delta = isCall ? normCdf(d1) : (normCdf(d1) - 1);
+                    contractDelta = Number(delta.toFixed(3));
+                  } catch (err) {
+                    const isITM = isCall ? (S > K) : (S < K);
+                    contractDelta = isCall ? (isITM ? 0.75 : 0.25) : (isITM ? -0.75 : -0.25);
+                  }
+                } else {
+                  contractDelta = isCall ? 0.5 : -0.5;
+                }
+
+                // Calculate direction multiplier: Call long (+) / short (-), Put long (-) / short (+)
+                const isLong = category.endsWith('right');
+                const positionDirection = isLong ? 1 : -1;
+                const deltaContribution = contractDelta * positionDirection;
+
+                // Target quantities
+                const ids = collectIdsForCategory(category, s);
+                const currentSum = ids.reduce((acc, id) => {
+                  const pos = filteredPositions.find(x => x.id === id);
+                  const qty = Number(pos?.selectedQuantity ?? pos?.leg_quantity ?? pos?.quantity) || 0;
+                  return acc + qty;
+                }, 0);
+                const key = confirmData.ids[0];
+                const targetQty = qtyOverrides[key] ?? currentSum;
+                const qtyChange = targetQty - currentSum;
+                const deltaChange = qtyChange * deltaContribution;
+
+                const formatDelta = (val: number) => {
+                  const sign = val >= 0 ? '+' : '';
+                  return `${sign}${val.toFixed(3)}`;
+                };
+
+                const getImpactText = () => {
+                  if (qtyChange === 0) return '持仓无变化 (Delta 不变)';
+                  const directionText = qtyChange > 0 ? '增加' : '减少';
+                  const deltaSign = deltaChange >= 0 ? '正' : '负';
+                  return `${directionText}持仓，将为账户注入 ${formatDelta(deltaChange)} 的${deltaSign} Delta 风险敞口`;
+                };
+
+                return (
+                  <div className={`p-3.5 rounded-xl border ${themes[theme].border} ${themes[theme].background} space-y-2.5 mb-2`}>
+                    <div className="flex items-center justify-between">
+                      <span className={`text-[13px] font-semibold ${themes[theme].text} flex items-center gap-1.5`}>
+                        <span>📊</span> Delta 风险评估
+                      </span>
+                      {isEstimated && (
+                        <span className={`text-[10px] opacity-60 px-1.5 py-0.5 rounded-full border ${themes[theme].border}`}>
+                          理论估计值
+                        </span>
+                      )}
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4 text-xs">
+                      <div className="space-y-1">
+                        <div className={`text-[11px] opacity-60 ${themes[theme].text}`}>合约单张 Delta (Δ)</div>
+                        <div className={`font-mono font-bold text-[13px] ${contractDelta >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                          {formatDelta(contractDelta)}
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className={`text-[11px] opacity-60 ${themes[theme].text}`}>当前持仓方向 Delta (单张)</div>
+                        <div className={`font-mono font-bold text-[13px] ${deltaContribution >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                          {formatDelta(deltaContribution)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className={`mt-2 pt-2 border-t border-dashed ${themes[theme].border} text-xs flex flex-col gap-1`}>
+                      <div className="flex justify-between items-center">
+                        <span className={`opacity-60 ${themes[theme].text}`}>持仓数量变化:</span>
+                        <span className={`font-mono font-semibold ${qtyChange > 0 ? 'text-emerald-600 dark:text-emerald-400' : qtyChange < 0 ? 'text-rose-600 dark:text-rose-400' : themes[theme].text}`}>
+                          {qtyChange > 0 ? `+${qtyChange}` : qtyChange} 张 ({currentSum} → {targetQty})
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className={`opacity-60 ${themes[theme].text}`}>Delta 影响值:</span>
+                        <span className={`font-mono font-bold text-[13px] ${deltaChange > 0 ? 'text-emerald-600 dark:text-emerald-400' : deltaChange < 0 ? 'text-rose-600 dark:text-rose-400' : themes[theme].text}`}>
+                          {qtyChange === 0 ? '0.000' : formatDelta(deltaChange)}
+                        </span>
+                      </div>
+                      <p className={`mt-1 text-[11px] opacity-75 leading-relaxed p-1.5 rounded bg-black/5 dark:bg-white/5 ${themes[theme].text}`}>
+                        💡 {getImpactText()}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
+              {(() => {
                   const s = Number(confirmData.meta?.strike || 0);
                   const c = String(confirmData.meta?.category || '') as
                     | 'call_right'
