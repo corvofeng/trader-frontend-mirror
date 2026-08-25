@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useRef } from 'react';
 import { Theme, themes } from '../../../lib/theme';
 import { optionsService, authService } from '../../../lib/services';
 import type { OptionMarketStateData } from '../../../lib/services/types';
-import * as echarts from 'echarts';
+import { createChart, ColorType, LineStyle } from 'lightweight-charts';
 import { 
   Compass, 
   RefreshCw, 
@@ -15,6 +15,179 @@ import {
   Calendar,
   LineChart
 } from 'lucide-react';
+import { StockChart } from '../../trading/components/StockChart';
+
+interface StressGaugeProps {
+  score: number;
+  theme: 'light' | 'dark' | 'blue';
+}
+
+function StressGauge({ score, theme }: StressGaugeProps) {
+  const isDark = theme === 'dark';
+  const percentage = Math.min(Math.max(score / 100, 0), 1);
+  
+  // Speedometer arc parameters
+  const cx = 100;
+  const cy = 85;
+  const r = 70;
+  const startAngle = 150;
+  const endAngle = 390; // Total 240 degrees arc
+  const totalArc = endAngle - startAngle;
+  
+  // Calculate tip of the needle
+  const needleAngle = startAngle + percentage * totalArc;
+  const needleTipX = cx + (r - 12) * Math.cos((needleAngle * Math.PI) / 180);
+  const needleTipY = cy + (r - 12) * Math.sin((needleAngle * Math.PI) / 180);
+  
+  // Needle base width coordinates (orthogonal to tip direction)
+  const baseAngleLeft = needleAngle - 90;
+  const baseAngleRight = needleAngle + 90;
+  const needleLeftX = cx + 6 * Math.cos((baseAngleLeft * Math.PI) / 180);
+  const needleLeftY = cy + 6 * Math.sin((baseAngleLeft * Math.PI) / 180);
+  const needleRightX = cx + 6 * Math.cos((baseAngleRight * Math.PI) / 180);
+  const needleRightY = cy + 6 * Math.sin((baseAngleRight * Math.PI) / 180);
+
+  // Generate tick marks (every 10 units from 0 to 100)
+  const ticks = [];
+  for (let i = 0; i <= 10; i++) {
+    const tickPct = i / 10;
+    const tickAngle = startAngle + tickPct * totalArc;
+    const rad = (tickAngle * Math.PI) / 180;
+    const x1 = cx + r * Math.cos(rad);
+    const y1 = cy + r * Math.sin(rad);
+    const x2 = cx + (r - 6) * Math.cos(rad);
+    const y2 = cy + (r - 6) * Math.sin(rad);
+    const labelX = cx + (r - 18) * Math.cos(rad);
+    const labelY = cy + (r - 18) * Math.sin(rad) + 3; // slight offset for vertical alignment
+    ticks.push({ i, x1, y1, x2, y2, labelX, labelY, value: i * 10 });
+  }
+
+  // Helper to describe sub-arc
+  const getSubArc = (startPct: number, endPct: number) => {
+    const a1 = startAngle + startPct * totalArc;
+    const a2 = startAngle + endPct * totalArc;
+    const rad1 = (a1 * Math.PI) / 180;
+    const rad2 = (a2 * Math.PI) / 180;
+    const s = { x: cx + r * Math.cos(rad1), y: cy + r * Math.sin(rad1) };
+    const e = { x: cx + r * Math.cos(rad2), y: cy + r * Math.sin(rad2) };
+    const largeArc = a2 - a1 > 180 ? 1 : 0;
+    return `M ${s.x} ${s.y} A ${r} ${r} 0 ${largeArc} 1 ${e.x} ${e.y}`;
+  };
+
+  return (
+    <div className="relative flex flex-col items-center select-none w-full max-w-[200px] mx-auto">
+      <svg viewBox="0 0 200 120" className="w-full h-auto overflow-visible">
+        {/* Glow Shadow filter */}
+        <defs>
+          <filter id="needle-glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="1.5" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+        </defs>
+
+        {/* 1. Background Arc Track */}
+        <path
+          d={getSubArc(0, 1)}
+          fill="none"
+          stroke={isDark ? '#27272a' : '#e2e8f0'}
+          strokeWidth="6"
+          strokeLinecap="round"
+        />
+
+        {/* 2. Highlight Arcs representing standard gauge, but with custom visual mapping */}
+        {/* Safe/Normal/Low stress: 0 to 0.45 (Green) */}
+        <path
+          d={getSubArc(0, 0.45)}
+          fill="none"
+          stroke="#10b981"
+          strokeWidth="6"
+          strokeLinecap="round"
+        />
+
+        {/* Warning/Mid stress: 0.45 to 0.7 (Orange/Yellow) */}
+        <path
+          d={getSubArc(0.45, 0.7)}
+          fill="none"
+          stroke="#f59e0b"
+          strokeWidth="6"
+        />
+
+        {/* Danger/High stress: 0.7 to 1 (Red) */}
+        <path
+          d={getSubArc(0.7, 1)}
+          fill="none"
+          stroke="#ef4444"
+          strokeWidth="6"
+          strokeLinecap="round"
+        />
+
+        {/* 3. Ticks and Labels */}
+        {ticks.map((t, idx) => (
+          <g key={idx}>
+            <line
+              x1={t.x1}
+              y1={t.y1}
+              x2={t.x2}
+              y2={t.y2}
+              stroke={isDark ? '#52525b' : '#94a3b8'}
+              strokeWidth={t.i % 5 === 0 ? "1.5" : "0.75"}
+            />
+            {t.i % 2 === 0 && (
+              <text
+                x={t.labelX}
+                y={t.labelY}
+                fill={isDark ? '#a1a1aa' : '#64748b'}
+                fontSize="8"
+                fontWeight="700"
+                textAnchor="middle"
+                className="font-mono"
+              >
+                {t.value}
+              </text>
+            )}
+          </g>
+        ))}
+
+        {/* 4. Needle Pin shadow */}
+        <circle cx={cx} cy={cy} r="6" fill="#000000" opacity="0.1" transform="translate(0, 1.5)" />
+        
+        {/* 5. Needle Pointer */}
+        <path
+          d={`M ${needleLeftX} ${needleLeftY} L ${needleTipX} ${needleTipY} L ${needleRightX} ${needleRightY} Z`}
+          fill="#f97316"
+          filter="url(#needle-glow)"
+        />
+        <circle cx={cx} cy={cy} r="5" fill="#f97316" />
+        <circle cx={cx} cy={cy} r="2" fill="#ffffff" />
+      </svg>
+      
+      {/* 6. Numeric Display */}
+      <div className="absolute bottom-[-2px] flex flex-col items-center">
+        <span className="text-3xl font-black font-mono tracking-tight text-slate-900 dark:text-zinc-50">
+          {score}
+        </span>
+        <span className="text-[9px] uppercase tracking-wider font-extrabold text-slate-400 dark:text-zinc-500 mt-[-2px]">
+          STRESS SCORE
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// Helper functions for Cookie management
+const getCookie = (name: string): string | null => {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return decodeURIComponent(parts.pop()?.split(';').shift() || '');
+  return null;
+};
+
+const setCookie = (name: string, value: string, daysActive: number = 365) => {
+  const d = new Date();
+  d.setTime(d.getTime() + daysActive * 24 * 60 * 60 * 1000);
+  const expires = `expires=${d.toUTCString()}`;
+  document.cookie = `${name}=${encodeURIComponent(value)}; ${expires}; path=/; SameSite=Lax`;
+};
 
 interface OptionMarketStatePanelProps {
   theme: Theme;
@@ -45,7 +218,7 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
 
   // Chart refs
   const ivChartRef = useRef<HTMLDivElement | null>(null);
-  const ivChartInstanceRef = useRef<echarts.ECharts | null>(null);
+  const ivChartInstanceRef = useRef<any>(null);
 
   useEffect(() => {
     authService.getUser().then(res => {
@@ -112,15 +285,31 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
     loadMarketState(false);
   }, [selectedSymbol, days, asOf, expiryFilter]);
 
-  // Expand expiries by default when data loads
+  // Expand expiries by default or load from cookies when data loads
   useEffect(() => {
     if (!marketStateData) return;
     const expiries = marketStateData.term_structure?.map(t => t.expiry)
       || Object.keys(marketStateData.contract_activity?.by_expiry || {})
       || [];
+    
+    // Read persisted expanded states from cookies
+    const cookieVal = getCookie('expiry_expanded_states');
+    let persisted: Record<string, boolean> = {};
+    if (cookieVal) {
+      try {
+        persisted = JSON.parse(cookieVal);
+      } catch (e) {
+        console.error('Failed to parse expiry_expanded_states cookie:', e);
+      }
+    }
+
     const initialExpanded: Record<string, boolean> = {};
     expiries.forEach((exp, idx) => {
-      initialExpanded[exp] = idx === 0; // expand first one by default
+      if (persisted[exp] !== undefined) {
+        initialExpanded[exp] = persisted[exp];
+      } else {
+        initialExpanded[exp] = idx === 0; // default: first one expanded, others collapsed
+      }
     });
     setExpandedExpiries(initialExpanded);
   }, [marketStateData]);
@@ -129,7 +318,7 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
   useEffect(() => {
     return () => {
       if (ivChartInstanceRef.current) {
-        ivChartInstanceRef.current.dispose();
+        ivChartInstanceRef.current.remove();
         ivChartInstanceRef.current = null;
       }
     };
@@ -139,182 +328,142 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
   useEffect(() => {
     if (!ivChartRef.current || !marketStateData?.history || marketStateData.history.length === 0) {
       if (ivChartInstanceRef.current) {
-        ivChartInstanceRef.current.dispose();
+        ivChartInstanceRef.current.remove();
         ivChartInstanceRef.current = null;
       }
       return;
     }
 
-    const chart = ivChartInstanceRef.current ?? echarts.init(ivChartRef.current);
-    ivChartInstanceRef.current = chart;
+    if (ivChartInstanceRef.current) {
+      ivChartInstanceRef.current.remove();
+    }
 
     const isDark = theme === 'dark';
-    const textLight = isDark ? '#e5e7eb' : '#1f2937';
-    const borderLight = isDark ? '#374151' : '#e5e7eb';
+    const gridColor = isDark ? '#27272a' : '#f1f5f9';
+    const textColor = isDark ? '#a1a1aa' : '#4b5563';
+    const scaleBorderColor = isDark ? '#3f3f46' : '#e4e4e7';
 
-    const historyData = marketStateData.history;
-    const dates = historyData.map(h => h.date);
-    const atmIv = historyData.map(h => h.atm_iv ?? 0);
-    const callIv = historyData.map(h => h.atm_call_iv ?? 0);
-    const putIv = historyData.map(h => h.atm_put_iv ?? 0);
-
-    const option: echarts.EChartsOption = {
-      backgroundColor: 'transparent',
-      tooltip: {
-        trigger: 'axis',
-        backgroundColor: isDark ? '#18181b' : '#ffffff',
-        borderColor: borderLight,
-        borderWidth: 1,
-        textStyle: {
-          color: textLight,
-          fontSize: 12
-        },
-        shadowColor: 'rgba(0,0,0,0.1)',
-        shadowBlur: 8,
-        formatter: (params: any) => {
-          if (!params || params.length === 0) return '';
-          const dateStr = params[0].name;
-          let tooltipHtml = `<div style="font-family: sans-serif; padding: 4px;">
-            <div style="font-weight: 700; color: ${isDark ? '#a1a1aa' : '#71717a'}; margin-bottom: 6px;">${dateStr}</div>`;
-          
-          params.forEach((param: any) => {
-            const val = typeof param.value === 'number' ? `${param.value.toFixed(2)}%` : '--';
-            tooltipHtml += `<div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 4px;">
-              <span style="display: flex; align-items: center; gap: 6px;">
-                <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: ${param.color};"></span>
-                <span style="color: ${isDark ? '#e4e4e7' : '#3f3f46'}; font-size: 12px;">${param.seriesName}</span>
-              </span>
-              <span style="font-family: monospace; font-weight: 700; color: ${isDark ? '#f4f4f5' : '#18181b'};">${val}</span>
-            </div>`;
-          });
-          
-          const matched = historyData.find(h => h.date === dateStr);
-          if (matched) {
-            const changeStr = matched.atm_iv_change !== undefined && matched.atm_iv_change !== null
-              ? `${matched.atm_iv_change >= 0 ? '+' : ''}${matched.atm_iv_change.toFixed(2)}%` 
-              : '--';
-            const changeColor = matched.atm_iv_change !== undefined && matched.atm_iv_change !== null && matched.atm_iv_change >= 0 ? '#ef4444' : '#10b981';
-            
-            tooltipHtml += `<div style="border-top: 1px dashed ${isDark ? '#3f3f46' : '#e4e4e7'}; margin-top: 8px; padding-top: 6px; font-size: 11px; color: ${isDark ? '#a1a1aa' : '#71717a'};">
-              <div style="display: flex; justify-content: space-between; gap: 12px; margin-bottom: 3px;">
-                <span>ATM IV 日变化</span>
-                <span style="font-family: monospace; color: ${changeColor}; font-weight: 600;">${changeStr}</span>
-              </div>`;
-            if (matched.iv_percentile !== undefined) {
-              tooltipHtml += `<div style="display: flex; justify-content: space-between; gap: 12px;">
-                <span>120日历史分位</span>
-                <span style="font-family: monospace; font-weight: 600; color: ${isDark ? '#f4f4f5' : '#18181b'};">${matched.iv_percentile}%</span>
-              </div>`;
-            }
-            tooltipHtml += `</div>`;
-          }
-          tooltipHtml += `</div>`;
-          return tooltipHtml;
-        }
-      },
-      legend: {
-        data: ['综合平值 ATM IV', '认购 ATM Call IV', '认沽 ATM Put IV'],
-        textStyle: {
-          color: isDark ? '#a1a1aa' : '#4b5563',
-          fontSize: 11
-        },
-        top: 0
+    const chart = createChart(ivChartRef.current, {
+      width: ivChartRef.current.clientWidth || 400,
+      height: 400,
+      layout: {
+        background: { type: ColorType.Solid, color: 'transparent' },
+        textColor: textColor,
+        fontSize: 10,
       },
       grid: {
-        left: '2%',
-        right: '3%',
-        bottom: '2%',
-        top: '15%',
-        containLabel: true
+        vertLines: { color: gridColor, style: LineStyle.Solid, visible: true },
+        horzLines: { color: gridColor, style: LineStyle.Solid, visible: true },
       },
-      xAxis: {
-        type: 'category',
-        boundaryGap: false,
-        data: dates,
-        axisLine: {
-          lineStyle: {
-            color: borderLight
-          }
-        },
-        axisLabel: {
-          color: isDark ? '#71717a' : '#9ca3af',
-          fontSize: 10
-        }
+      rightPriceScale: {
+        borderColor: scaleBorderColor,
+        textColor: textColor,
+        autoScale: true,
       },
-      yAxis: {
-        type: 'value',
-        axisLabel: {
-          formatter: '{value}%',
-          color: isDark ? '#71717a' : '#9ca3af',
-          fontSize: 10
-        },
-        splitLine: {
-          lineStyle: {
-            color: isDark ? '#27272a' : '#f1f5f9'
-          }
-        }
+      timeScale: {
+        borderColor: scaleBorderColor,
+        timeVisible: true,
+        secondsVisible: false,
       },
-      series: [
-        {
-          name: '综合平值 ATM IV',
-          type: 'line',
-          data: atmIv,
-          smooth: true,
-          showSymbol: false,
-          lineStyle: {
-            width: 2.5,
-            color: '#3b82f6'
-          },
-          itemStyle: {
-            color: '#3b82f6'
-          }
-        },
-        {
-          name: '认购 ATM Call IV',
-          type: 'line',
-          data: callIv,
-          smooth: true,
-          showSymbol: false,
-          lineStyle: {
-            width: 1.5,
-            color: '#ec4899'
-          },
-          itemStyle: {
-            color: '#ec4899'
-          }
-        },
-        {
-          name: '认沽 ATM Put IV',
-          type: 'line',
-          data: putIv,
-          smooth: true,
-          showSymbol: false,
-          lineStyle: {
-            width: 1.5,
-            color: '#10b981'
-          },
-          itemStyle: {
-            color: '#10b981'
-          }
-        }
-      ]
-    };
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+      },
+      handleScale: {
+        axisPressedMouseMove: true,
+        mouseWheel: true,
+        pinch: true,
+      },
+    });
+    ivChartInstanceRef.current = chart;
 
-    chart.setOption(option);
+    const historyData = marketStateData.history;
+
+    // Series 1: ATM IV (Purple #8b5cf6)
+    const atmIvSeries = chart.addLineSeries({
+      color: '#8b5cf6',
+      lineWidth: 2,
+      priceFormat: {
+        type: 'custom',
+        formatter: (price: number) => `${price.toFixed(2)}%`,
+      },
+    });
+    const atmData = historyData
+      .map(h => ({ time: h.date, value: h.atm_iv ?? 0 }))
+      .filter(d => d.value > 0)
+      .sort((a, b) => a.time.localeCompare(b.time));
+    atmIvSeries.setData(atmData);
+
+    // Series 2: Call IV (Emerald #10b981)
+    const callIvSeries = chart.addLineSeries({
+      color: '#10b981',
+      lineWidth: 1,
+      priceFormat: {
+        type: 'custom',
+        formatter: (price: number) => `${price.toFixed(2)}%`,
+      },
+    });
+    const callData = historyData
+      .map(h => ({ time: h.date, value: h.atm_call_iv ?? 0 }))
+      .filter(d => d.value > 0)
+      .sort((a, b) => a.time.localeCompare(b.time));
+    callIvSeries.setData(callData);
+
+    // Series 3: Put IV (Blue #3b82f6)
+    const putIvSeries = chart.addLineSeries({
+      color: '#3b82f6',
+      lineWidth: 1,
+      priceFormat: {
+        type: 'custom',
+        formatter: (price: number) => `${price.toFixed(2)}%`,
+      },
+    });
+    const putData = historyData
+      .map(h => ({ time: h.date, value: h.atm_put_iv ?? 0 }))
+      .filter(d => d.value > 0)
+      .sort((a, b) => a.time.localeCompare(b.time));
+    putIvSeries.setData(putData);
+
+    // Fit content initially
+    chart.timeScale().fitContent();
 
     const handleResize = () => {
-      chart.resize();
+      if (ivChartRef.current && ivChartRef.current.clientWidth > 0) {
+        chart.resize(ivChartRef.current.clientWidth, 400);
+      }
     };
 
     window.addEventListener('resize', handleResize);
 
     return () => {
       window.removeEventListener('resize', handleResize);
+      chart.remove();
+      if (ivChartInstanceRef.current === chart) {
+        ivChartInstanceRef.current = null;
+      }
     };
   }, [marketStateData?.history, theme]);
 
   const toggleExpiry = (exp: string) => {
-    setExpandedExpiries(prev => ({ ...prev, [exp]: !prev[exp] }));
+    setExpandedExpiries(prev => {
+      const nextState = !prev[exp];
+      const nextExpanded = { ...prev, [exp]: nextState };
+      
+      // Persist the state in cookie
+      const cookieVal = getCookie('expiry_expanded_states');
+      let persisted: Record<string, boolean> = {};
+      if (cookieVal) {
+        try {
+          persisted = JSON.parse(cookieVal);
+        } catch (e) {
+          // ignore
+        }
+      }
+      persisted[exp] = nextState;
+      setCookie('expiry_expanded_states', JSON.stringify(persisted));
+      
+      return nextExpanded;
+    });
   };
 
   // Group Expiration Dates by Month
@@ -407,11 +556,11 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-zinc-500">自然日观察窗口 (Days)</label>
+            <label className="text-xs font-semibold text-slate-600 dark:text-zinc-350">自然日观察窗口 (Days)</label>
             <select
               value={days}
               onChange={(e) => setDays(Number(e.target.value))}
-              className={`px-3 py-1.5 rounded text-xs border ${themes[theme].input}`}
+              className={`px-3 py-1.5 rounded text-xs border focus:ring-1 focus:ring-blue-500 outline-none ${themes[theme].input}`}
             >
               {[20, 60, 90, 120, 180, 240, 360].map(d => (
                 <option key={d} value={d}>{d} 天</option>
@@ -420,24 +569,24 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-zinc-500">截止分析日期 (As Of)</label>
+            <label className="text-xs font-semibold text-slate-600 dark:text-zinc-350">截止分析日期 (As Of)</label>
             <input
               type="date"
               value={asOf}
               onChange={(e) => setAsOf(e.target.value)}
               placeholder="最新数据日"
-              className={`px-3 py-1.5 rounded text-xs border ${themes[theme].input}`}
+              className={`px-3 py-1.5 rounded text-xs border focus:ring-1 focus:ring-blue-500 outline-none ${themes[theme].input}`}
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-zinc-500">到期月过滤 (Expiry)</label>
+            <label className="text-xs font-semibold text-slate-600 dark:text-zinc-350">到期月过滤 (Expiry)</label>
             <input
               type="text"
               value={expiryFilter}
               onChange={(e) => setExpiryFilter(e.target.value)}
               placeholder="e.g. 2026-08-26,2026-09-23"
-              className={`px-3 py-1.5 rounded text-xs border ${themes[theme].input}`}
+              className={`px-3 py-1.5 rounded text-xs border focus:ring-1 focus:ring-blue-500 outline-none ${themes[theme].input}`}
             />
           </div>
         </div>
@@ -482,29 +631,8 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
                 </span>
               </div>
 
-              <div className="flex items-center justify-center py-4 relative">
-                {/* Score Circle Progress */}
-                <div className="relative w-28 h-28 flex items-center justify-center">
-                  <svg className="w-full h-full transform -rotate-90">
-                    <circle 
-                      cx="56" cy="56" r="46" 
-                      stroke={isDark ? '#27272a' : '#f1f5f9'} 
-                      strokeWidth="8" fill="transparent" 
-                    />
-                    <circle 
-                      cx="56" cy="56" r="46" 
-                      stroke={marketStateData.state.stress_score > 70 ? '#ef4444' : marketStateData.state.stress_score > 45 ? '#f59e0b' : '#10b981'} 
-                      strokeWidth="8" fill="transparent" 
-                      strokeDasharray={2 * Math.PI * 46}
-                      strokeDashoffset={2 * Math.PI * 46 * (1 - marketStateData.state.stress_score / 100)}
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  <div className="absolute flex flex-col items-center justify-center">
-                    <span className={`text-3xl font-extrabold ${textTheme}`}>{marketStateData.state.stress_score}</span>
-                    <span className="text-[10px] text-zinc-500">点数 / 100</span>
-                  </div>
-                </div>
+              <div className="flex items-center justify-center py-4 relative min-h-[140px]">
+                <StressGauge score={marketStateData.state.stress_score} theme={theme} />
               </div>
 
               <p className="text-[11px] text-zinc-500 text-center leading-relaxed">
@@ -515,40 +643,42 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
             {/* Positioning Bias Slider Card */}
             <div className={`${themes[theme].card} rounded-lg p-5 border ${themes[theme].border} flex flex-col justify-between`}>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">仓位偏好与定价偏向</span>
-                <span className={`text-xs font-semibold ${getPositioningLabel(marketStateData.state.positioning_score).color}`}>
+                <span className="text-xs font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-wider">仓位偏好与定价偏向</span>
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded border bg-slate-50/55 dark:bg-zinc-800/10 ${getPositioningLabel(marketStateData.state.positioning_score).color}`}>
                   {getPositioningLabel(marketStateData.state.positioning_score).text}
                 </span>
               </div>
 
-              <div className="py-6 px-2">
+              <div className="py-8 px-2 flex flex-col justify-center min-h-[140px]">
                 {/* Horizontal slider bar */}
-                <div className="relative w-full h-2 bg-slate-200 dark:bg-zinc-800 rounded-full flex items-center justify-between">
-                  <div className="absolute left-0 w-1/2 h-full bg-blue-500/20 rounded-l-full" />
+                <div className="relative w-full h-3 bg-slate-100 dark:bg-zinc-800 rounded-full flex items-center justify-between border border-slate-200 dark:border-zinc-700">
+                  <div className="absolute left-0 w-1/2 h-full bg-blue-500/20 rounded-l-full border-r border-slate-300 dark:border-zinc-600" />
                   <div className="absolute right-0 w-1/2 h-full bg-emerald-500/20 rounded-r-full" />
                   
                   {/* Score Pointer */}
                   <div 
-                    className="absolute w-5 h-5 rounded-full border-2 bg-white dark:bg-zinc-900 shadow-md flex items-center justify-center -translate-x-1/2" 
+                    className="absolute w-6 h-6 rounded-full border-2 border-slate-400 dark:border-zinc-500 bg-white dark:bg-zinc-900 shadow-md flex items-center justify-center -translate-x-1/2 transition-all hover:scale-105" 
                     style={{ left: `${((marketStateData.state.positioning_score + 100) / 200) * 100}%` }}
                   >
-                    <div className={`w-2.5 h-2.5 rounded-full ${
-                      marketStateData.state.positioning_score < -15 ? 'bg-blue-500' : marketStateData.state.positioning_score > 15 ? 'bg-emerald-500' : 'bg-zinc-400'
+                    <div className={`w-3.5 h-3.5 rounded-full ${
+                      marketStateData.state.positioning_score < -15 ? 'bg-blue-500 shadow-xs shadow-blue-500/50' : marketStateData.state.positioning_score > 15 ? 'bg-emerald-500 shadow-xs shadow-emerald-500/50' : 'bg-zinc-400'
                     }`} />
                   </div>
 
-                  <span className="absolute left-1 -bottom-5 text-[9px] text-zinc-400 font-mono">-100 Put偏好</span>
-                  <span className="absolute right-1 -bottom-5 text-[9px] text-zinc-400 font-mono">+100 Call偏好</span>
-                  <span className="absolute left-1/2 -translate-x-1/2 -bottom-5 text-[9px] text-zinc-400 font-mono">0 中性</span>
+                  <span className="absolute left-1 -bottom-6 text-[9.5px] text-slate-500 dark:text-zinc-400 font-mono font-semibold">-100 Put偏好</span>
+                  <span className="absolute right-1 -bottom-6 text-[9.5px] text-slate-500 dark:text-zinc-400 font-mono font-semibold">+100 Call偏好</span>
+                  <span className="absolute left-1/2 -translate-x-1/2 -bottom-6 text-[9.5px] text-slate-500 dark:text-zinc-400 font-mono font-semibold">0 中性</span>
                 </div>
                 
-                <div className="text-center mt-6">
-                  <span className={`text-2xl font-black ${textTheme}`}>{marketStateData.state.positioning_score > 0 ? `+${marketStateData.state.positioning_score}` : marketStateData.state.positioning_score}</span>
-                  <span className="text-[10px] text-zinc-500 ml-1">分</span>
+                <div className="text-center mt-8">
+                  <span className={`text-3xl font-black font-mono tracking-tight ${textTheme}`}>
+                    {marketStateData.state.positioning_score > 0 ? `+${marketStateData.state.positioning_score}` : marketStateData.state.positioning_score}
+                  </span>
+                  <span className="text-[10px] text-slate-500 dark:text-zinc-400 ml-1 font-bold">分</span>
                 </div>
               </div>
 
-              <p className="text-[11px] text-zinc-500 text-center leading-relaxed">
+              <p className="text-[11px] text-slate-500 dark:text-zinc-400 text-center leading-relaxed">
                 描述多空持仓力量偏好，不代表未来价格方向预测。由未平仓比(35%)、成交比(25%)、持仓变化差(25%)与 skew 综合。
               </p>
             </div>
@@ -592,37 +722,37 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
             <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-4">市场指标快照</span>
             
             <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-4">
-              <div className="space-y-1">
-                <div className="text-[10px] text-zinc-500">标的资产价格</div>
-                <div className={`text-md font-bold font-mono ${textTheme}`}>{marketStateData.latest.underlying_price?.value ?? '--'}</div>
+              <div className="space-y-1 bg-slate-50/50 dark:bg-zinc-800/10 p-2.5 rounded-lg border border-slate-100 dark:border-zinc-800/30">
+                <div className="text-[10.5px] font-semibold text-slate-500 dark:text-zinc-400">标的资产价格</div>
+                <div className={`text-lg font-black font-mono tracking-tight ${textTheme}`}>{marketStateData.latest.underlying_price?.value ?? '--'}</div>
               </div>
-              <div className="space-y-1">
-                <div className="text-[10px] text-zinc-500">平值 IV</div>
-                <div className={`text-md font-bold font-mono ${textTheme}`}>{marketStateData.latest.atm_iv ? `${marketStateData.latest.atm_iv.value?.toFixed(2)}%` : '--'}</div>
+              <div className="space-y-1 bg-slate-50/50 dark:bg-zinc-800/10 p-2.5 rounded-lg border border-slate-100 dark:border-zinc-800/30">
+                <div className="text-[10.5px] font-semibold text-slate-500 dark:text-zinc-400">平值 IV</div>
+                <div className={`text-lg font-black font-mono tracking-tight ${textTheme}`}>{marketStateData.latest.atm_iv ? `${marketStateData.latest.atm_iv.value?.toFixed(2)}%` : '--'}</div>
               </div>
-              <div className="space-y-1">
-                <div className="text-[10px] text-zinc-500">综合流动性</div>
-                <div className={`text-md font-bold font-mono ${textTheme}`}>{marketStateData.latest.liquidity ? `${marketStateData.latest.liquidity.value?.toFixed(1)}` : '--'}</div>
+              <div className="space-y-1 bg-slate-50/50 dark:bg-zinc-800/10 p-2.5 rounded-lg border border-slate-100 dark:border-zinc-800/30">
+                <div className="text-[10.5px] font-semibold text-slate-500 dark:text-zinc-400">综合流动性</div>
+                <div className={`text-lg font-black font-mono tracking-tight ${textTheme}`}>{marketStateData.latest.liquidity ? `${marketStateData.latest.liquidity.value?.toFixed(1)}` : '--'}</div>
               </div>
-              <div className="space-y-1">
-                <div className="text-[10px] text-zinc-500">总未平仓量 (OI)</div>
-                <div className={`text-md font-bold font-mono ${textTheme}`}>{marketStateData.latest.open_interest?.total?.toLocaleString() ?? '--'}</div>
+              <div className="space-y-1 bg-slate-50/50 dark:bg-zinc-800/10 p-2.5 rounded-lg border border-slate-100 dark:border-zinc-800/30">
+                <div className="text-[10.5px] font-semibold text-slate-500 dark:text-zinc-400">总未平仓量 (OI)</div>
+                <div className={`text-lg font-black font-mono tracking-tight ${textTheme}`}>{marketStateData.latest.open_interest?.total?.toLocaleString() ?? '--'}</div>
               </div>
-              <div className="space-y-1">
-                <div className="text-[10px] text-zinc-500">成交量 (Volume)</div>
-                <div className={`text-md font-bold font-mono ${textTheme}`}>{marketStateData.latest.volume?.total?.toLocaleString() ?? '--'}</div>
+              <div className="space-y-1 bg-slate-50/50 dark:bg-zinc-800/10 p-2.5 rounded-lg border border-slate-100 dark:border-zinc-800/30">
+                <div className="text-[10.5px] font-semibold text-slate-500 dark:text-zinc-400">成交量 (Volume)</div>
+                <div className={`text-lg font-black font-mono tracking-tight ${textTheme}`}>{marketStateData.latest.volume?.total?.toLocaleString() ?? '--'}</div>
               </div>
-              <div className="space-y-1">
-                <div className="text-[10px] text-zinc-500">IV Skew (P-C)</div>
-                <div className={`text-md font-bold font-mono ${textTheme}`}>{marketStateData.latest.put_call_iv_skew !== undefined ? `${marketStateData.latest.put_call_iv_skew.value?.toFixed(2)}%` : '--'}</div>
+              <div className="space-y-1 bg-slate-50/50 dark:bg-zinc-800/10 p-2.5 rounded-lg border border-slate-100 dark:border-zinc-800/30">
+                <div className="text-[10.5px] font-semibold text-slate-500 dark:text-zinc-400">IV Skew (P-C)</div>
+                <div className={`text-lg font-black font-mono tracking-tight ${textTheme}`}>{marketStateData.latest.put_call_iv_skew !== undefined ? `${marketStateData.latest.put_call_iv_skew.value?.toFixed(2)}%` : '--'}</div>
               </div>
-              <div className="space-y-1">
-                <div className="text-[10px] text-zinc-500">平均买卖价差</div>
-                <div className={`text-md font-bold font-mono ${textTheme}`}>{marketStateData.latest.liquidity ? `${marketStateData.latest.liquidity.average_spread_percent?.toFixed(3)}%` : '--'}</div>
+              <div className="space-y-1 bg-slate-50/50 dark:bg-zinc-800/10 p-2.5 rounded-lg border border-slate-100 dark:border-zinc-800/30">
+                <div className="text-[10.5px] font-semibold text-slate-500 dark:text-zinc-400">平均买卖价差</div>
+                <div className={`text-lg font-black font-mono tracking-tight ${textTheme}`}>{marketStateData.latest.liquidity ? `${marketStateData.latest.liquidity.average_spread_percent?.toFixed(3)}%` : '--'}</div>
               </div>
-              <div className="space-y-1">
-                <div className="text-[10px] text-zinc-500">主力持仓集中度</div>
-                <div className={`text-md font-bold font-mono ${textTheme}`}>{marketStateData.latest.concentration ? `${marketStateData.latest.concentration.top_five_contract_share?.toFixed(1)}%` : '--'}</div>
+              <div className="space-y-1 bg-slate-50/50 dark:bg-zinc-800/10 p-2.5 rounded-lg border border-slate-100 dark:border-zinc-800/30">
+                <div className="text-[10.5px] font-semibold text-slate-500 dark:text-zinc-400">主力持仓集中度</div>
+                <div className={`text-lg font-black font-mono tracking-tight ${textTheme}`}>{marketStateData.latest.concentration ? `${marketStateData.latest.concentration.top_five_contract_share?.toFixed(1)}%` : '--'}</div>
               </div>
             </div>
 
@@ -657,41 +787,68 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
             </div>
           </div>
 
-
-
-          {/* C2. IV Historical Trend Chart */}
-          {marketStateData?.history && marketStateData.history.length > 0 && (
-            <div className={`${themes[theme].card} rounded-lg p-5 border ${themes[theme].border} space-y-4`}>
-              <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-zinc-800/60">
+          {/* C. Charts Layout: K-Line & IV Trend Chart side-by-side */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            {/* Card 1: K-Line Candlestick Chart */}
+            <div className={`${themes[theme].card} rounded-lg p-5 border ${themes[theme].border} flex flex-col`}>
+              <div className="flex items-center justify-between pb-1.5 mb-4 border-b border-slate-100 dark:border-zinc-800/60">
                 <div className="flex items-center gap-2">
                   <LineChart className="w-5 h-5 text-blue-500" />
-                  <h3 className={`text-md font-bold ${textTheme}`}>IV 历史走势分析 ({marketStateData.history.length}D)</h3>
+                  <h3 className={`text-md font-bold ${textTheme}`}>标的资产 K 线走势 ({selectedSymbol})</h3>
                 </div>
                 <div className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">
-                  最近 {marketStateData.history.length} 个自然日
+                  最近 6 个月数据
                 </div>
               </div>
-              
-              <div className="relative w-full h-[320px]">
-                <div ref={ivChartRef} className="w-full h-full" />
-              </div>
-              
-              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 justify-center text-[10px] text-zinc-500 pt-2 border-t border-slate-100 dark:border-zinc-800/60">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6] inline-block"></span>
-                  <span>综合平值 ATM IV (Call & Put 均值)</span>
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#ec4899] inline-block"></span>
-                  <span>认购平值 ATM Call IV</span>
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#10b981] inline-block"></span>
-                  <span>认自由/认沽平值 ATM Put IV</span>
-                </span>
+              <div className="h-[400px] w-full rounded-lg overflow-hidden border border-slate-150 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex-1 min-h-[400px]">
+                <StockChart
+                  stockCode={selectedSymbol}
+                  theme={theme}
+                  compactMode={true}
+                  fillContainer={true}
+                  defaultVisibleMonths={6}
+                />
               </div>
             </div>
-          )}
+
+            {/* Card 2: IV Historical Trend Chart */}
+            {marketStateData?.history && marketStateData.history.length > 0 ? (
+              <div className={`${themes[theme].card} rounded-lg p-5 border ${themes[theme].border} flex flex-col`}>
+                <div className="flex items-center justify-between pb-1.5 mb-4 border-b border-slate-100 dark:border-zinc-800/60">
+                  <div className="flex items-center gap-2">
+                    <LineChart className="w-5 h-5 text-blue-500" />
+                    <h3 className={`text-md font-bold ${textTheme}`}>IV 历史走势分析 ({marketStateData.history.length}D)</h3>
+                  </div>
+                  <div className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">
+                    最近 {marketStateData.history.length} 个自然日
+                  </div>
+                </div>
+                
+                <div className="relative w-full h-[400px] flex-1 min-h-[400px]">
+                  <div ref={ivChartRef} className="w-full h-full" />
+                </div>
+                
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 justify-center text-[10.5px] text-slate-500 dark:text-zinc-400 font-medium pt-2 border-t border-slate-100 dark:border-zinc-800/60 mt-2">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#8b5cf6] inline-block"></span>
+                    <span>综合平值 ATM IV (Call & Put 均值)</span>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#10b981] inline-block"></span>
+                    <span>认购平值 ATM Call IV</span>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6] inline-block"></span>
+                    <span>认沽平值 ATM Put IV</span>
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className={`${themes[theme].card} rounded-lg p-5 border ${themes[theme].border} flex items-center justify-center min-h-[460px] text-zinc-500 text-xs italic`}>
+                暂无历史 IV 数据
+              </div>
+            )}
+          </div>
 
 
 

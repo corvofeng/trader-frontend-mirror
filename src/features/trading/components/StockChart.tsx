@@ -753,123 +753,125 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
       className={`${themes[theme].card} ${
         isFullscreen 
           ? 'fixed inset-0 z-[9999] w-full h-full flex flex-col p-4 md:p-6 bg-white dark:bg-zinc-950 overflow-hidden' 
-          : `rounded-lg shadow-md p-2 sm:p-4 ${fillContainer ? 'h-full flex flex-col' : ''} ${className || ''}`
+          : `rounded-lg shadow-md ${compactMode ? 'p-1.5' : 'p-2 sm:p-4'} ${fillContainer ? 'h-full flex flex-col' : ''} ${className || ''}`
       }`}
     >
-      <div className="flex flex-col gap-2 sm:gap-4">
-        <div className={`flex items-baseline gap-2 ${themes[theme].text}`}>
-          <h2 className="text-lg sm:text-xl font-bold">{stockInfo?.stock_code}</h2>
-          <span className="text-sm opacity-75">{stockInfo?.stock_name}</span>
-        </div>
-
-        <div className="flex flex-wrap justify-between items-center gap-y-2">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowCostBasis(!showCostBasis)}
-              className={`${btnTextClass} ${
-                showCostBasis ? themes[theme].primary : themes[theme].secondary
-              }`}
-            >
-              Cost Basis
-            </button>
-            <button
-              onClick={() => setShowVolume(!showVolume)}
-              className={`${btnTextClass} ${
-                showVolume ? themes[theme].primary : themes[theme].secondary
-              }`}
-            >
-              Volume
-            </button>
-            <button
-              onClick={() => setShowGrid(!showGrid)}
-              className={`${btnIconClass} ${
-                showGrid ? themes[theme].primary : themes[theme].secondary
-              }`}
-            >
-              <Grid className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => updateChartType('candlestick')}
-              className={`${btnIconClass} ${
-                chartType === 'candlestick' ? themes[theme].primary : themes[theme].secondary
-              }`}
-              title="Candlestick Chart"
-            >
-              <CandlestickChart className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
-            <button
-              onClick={() => updateChartType('line')}
-              className={`${btnIconClass} ${
-                chartType === 'line' ? themes[theme].primary : themes[theme].secondary
-              }`}
-              title="Line Chart"
-            >
-              <LineChart className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
-            <button
-              onClick={() => updateChartType('bar')}
-              className={`${btnIconClass} ${
-                chartType === 'bar' ? themes[theme].primary : themes[theme].secondary
-              }`}
-              title="Bar Chart"
-            >
-              <BarChart className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap justify-between items-center gap-y-2">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handleZoom('in')}
-              className={`${btnIconClass} ${themes[theme].secondary}`}
-              disabled={isLocked}
-              title="Zoom In"
-            >
-              <ZoomIn className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
-            <button
-              onClick={() => handleZoom('out')}
-              className={`${btnIconClass} ${themes[theme].secondary}`}
-              disabled={isLocked}
-              title="Zoom Out"
-            >
-              <ZoomOut className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
-            <button
-              onClick={() => setIsLocked(!isLocked)}
-              className={`${btnIconClass} ${isLocked ? themes[theme].primary : themes[theme].secondary}`}
-              title={isLocked ? "Unlock Chart Controls" : "Lock Chart Controls"}
-            >
-              {isLocked ? <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Unlock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
-            </button>
+      {!compactMode && (
+        <div className="flex flex-col gap-2 sm:gap-4 mb-2">
+          <div className={`flex items-baseline gap-2 ${themes[theme].text}`}>
+            <h2 className="text-lg sm:text-xl font-bold">{stockInfo?.stock_code}</h2>
+            <span className="text-sm opacity-75">{stockInfo?.stock_name}</span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setAutoScale(!autoScale)}
-              className={`${btnTextClass} ${
-                autoScale ? themes[theme].primary : themes[theme].secondary
-              }`}
-            >
-              Auto Scale
-            </button>
-            <button
-              onClick={toggleFullscreen}
-              className={`${btnIconClass} ${themes[theme].secondary}`}
-              title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
-            >
-              {isFullscreen ? <Minimize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
-            </button>
+          <div className="flex flex-wrap justify-between items-center gap-y-2">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowCostBasis(!showCostBasis)}
+                className={`${btnTextClass} ${
+                  showCostBasis ? themes[theme].primary : themes[theme].secondary
+                }`}
+              >
+                Cost Basis
+              </button>
+              <button
+                onClick={() => setShowVolume(!showVolume)}
+                className={`${btnTextClass} ${
+                  showVolume ? themes[theme].primary : themes[theme].secondary
+                }`}
+              >
+                Volume
+              </button>
+              <button
+                onClick={() => setShowGrid(!showGrid)}
+                className={`${btnIconClass} ${
+                  showGrid ? themes[theme].primary : themes[theme].secondary
+                }`}
+              >
+                <Grid className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              </button>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => updateChartType('candlestick')}
+                className={`${btnIconClass} ${
+                  chartType === 'candlestick' ? themes[theme].primary : themes[theme].secondary
+                }`}
+                title="Candlestick Chart"
+              >
+                <CandlestickChart className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              </button>
+              <button
+                onClick={() => updateChartType('line')}
+                className={`${btnIconClass} ${
+                  chartType === 'line' ? themes[theme].primary : themes[theme].secondary
+                }`}
+                title="Line Chart"
+              >
+                <LineChart className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              </button>
+              <button
+                onClick={() => updateChartType('bar')}
+                className={`${btnIconClass} ${
+                  chartType === 'bar' ? themes[theme].primary : themes[theme].secondary
+                }`}
+                title="Bar Chart"
+              >
+                <BarChart className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap justify-between items-center gap-y-2">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleZoom('in')}
+                className={`${btnIconClass} ${themes[theme].secondary}`}
+                disabled={isLocked}
+                title="Zoom In"
+              >
+                <ZoomIn className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              </button>
+              <button
+                onClick={() => handleZoom('out')}
+                className={`${btnIconClass} ${themes[theme].secondary}`}
+                disabled={isLocked}
+                title="Zoom Out"
+              >
+                <ZoomOut className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              </button>
+              <button
+                onClick={() => setIsLocked(!isLocked)}
+                className={`${btnIconClass} ${isLocked ? themes[theme].primary : themes[theme].secondary}`}
+                title={isLocked ? "Unlock Chart Controls" : "Lock Chart Controls"}
+              >
+                {isLocked ? <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Unlock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setAutoScale(!autoScale)}
+                className={`${btnTextClass} ${
+                  autoScale ? themes[theme].primary : themes[theme].secondary
+                }`}
+              >
+                Auto Scale
+              </button>
+              <button
+                onClick={toggleFullscreen}
+                className={`${btnIconClass} ${themes[theme].secondary}`}
+                title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+              >
+                {isFullscreen ? <Minimize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div 
-        className={`relative mt-2 sm:mt-4 overflow-hidden rounded-md ${
+        className={`relative ${compactMode ? '' : 'mt-2 sm:mt-4'} overflow-hidden rounded-md ${
           isFullscreen ? 'flex-1 min-h-0' : 
           fillContainer ? 'flex-1 min-h-0' : 'h-[400px] sm:h-[500px] md:h-[600px]'
         }`} 
@@ -879,6 +881,32 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
           className="absolute inset-0 z-0"
           ref={chartContainerRef}
         />
+        {compactMode && (
+          <div className="absolute top-2.5 right-2.5 z-10 flex items-center gap-1.5 bg-slate-100/90 dark:bg-zinc-900/90 backdrop-blur-xs p-1 rounded-md border border-slate-200/50 dark:border-zinc-800/50 shadow-sm opacity-65 hover:opacity-100 transition-opacity duration-200">
+            <button
+              onClick={() => setShowVolume(!showVolume)}
+              className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-all ${
+                showVolume ? 'bg-blue-600 text-white' : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-800'
+              }`}
+            >
+              量
+            </button>
+            <button
+              onClick={() => setShowGrid(!showGrid)}
+              className="p-1 rounded text-slate-600 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-800"
+              title="网格"
+            >
+              <Grid className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={toggleFullscreen}
+              className="p-1 rounded text-slate-600 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-800"
+              title={isFullscreen ? "退出全屏" : "全屏"}
+            >
+              {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+        )}
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-white/5 backdrop-blur-sm rounded-lg z-10">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
