@@ -211,6 +211,15 @@ export function StockKlineChart({ symbol, theme, optionsData, currentUnderlyingP
     // 为了在"现价锚点 → 第一个未来点"做到平滑从现价起步，而不是一跳到首日目标价，
     // 我们在 anchorTs → cone[0] 之间额外插 2 个过渡点，权重 w=p^0.6。
     const push3 = (ts: UTCTimestamp, low: number, mid: number, high: number) => {
+      const numericTs = Number(ts);
+      if (![numericTs, low, mid, high].every(Number.isFinite)) return;
+
+      // lightweight-charts 要求 time 严格递增。过渡点和后端点都会被归一化到
+      // UTC 当天 00:00，因此可能与锚点或相邻点落在同一秒。保留先到的点，
+      // 同时拦截任何逆序数据，避免 setData 抛出断言并崩溃组件。
+      const previous = allPts[allPts.length - 1];
+      if (previous && numericTs <= Number(previous.ts)) return;
+
       ptsLow.push({ time: ts, value: Math.max(1e-6, low) });
       ptsMid.push({ time: ts, value: Math.max(1e-6, mid) });
       ptsHigh.push({ time: ts, value: Math.max(1e-6, high) });
@@ -441,7 +450,7 @@ export function StockKlineChart({ symbol, theme, optionsData, currentUnderlyingP
           close: number | string;
           volume?: number | string;
         }>;
-        const candlesticks = records
+        const parsedCandlesticks = records
           .map((r) => ({
             time: Math.floor(new Date(r.date as string).getTime() / 1000) as UTCTimestamp,
             open: Number(r.open),
@@ -456,7 +465,12 @@ export function StockKlineChart({ symbol, theme, optionsData, currentUnderlyingP
               !isNaN(d.high) &&
               !isNaN(d.low) &&
               !isNaN(d.close)
-          )
+          );
+        // API 偶尔会返回同一时间戳的多条记录。后到的记录覆盖先到的记录，
+        // 再排序后交给 lightweight-charts，保证 time 严格递增。
+        const candlesticksByTime = new Map<UTCTimestamp, KlineRecord>();
+        parsedCandlesticks.forEach((item) => candlesticksByTime.set(item.time, item));
+        const candlesticks = Array.from(candlesticksByTime.values())
           .sort((a, b) => a.time - b.time);
         klineDataRef.current = candlesticks;
         series.setData(candlesticks);
