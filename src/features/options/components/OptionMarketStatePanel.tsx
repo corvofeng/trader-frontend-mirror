@@ -314,28 +314,27 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
     setExpandedExpiries(initialExpanded);
   }, [marketStateData]);
 
-  // Clean up chart instance on unmount
-  useEffect(() => {
-    return () => {
-      if (ivChartInstanceRef.current) {
-        ivChartInstanceRef.current.remove();
-        ivChartInstanceRef.current = null;
-      }
-    };
-  }, []);
 
   // Initialize and update historical IV chart
   useEffect(() => {
     if (!ivChartRef.current || !marketStateData?.history || marketStateData.history.length === 0) {
       if (ivChartInstanceRef.current) {
-        ivChartInstanceRef.current.remove();
+        try {
+          ivChartInstanceRef.current.remove();
+        } catch (e) {
+          // ignore already disposed error
+        }
         ivChartInstanceRef.current = null;
       }
       return;
     }
 
     if (ivChartInstanceRef.current) {
-      ivChartInstanceRef.current.remove();
+      try {
+        ivChartInstanceRef.current.remove();
+      } catch (e) {
+        // ignore already disposed error
+      }
     }
 
     const isDark = theme === 'dark';
@@ -437,7 +436,11 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
 
     return () => {
       window.removeEventListener('resize', handleResize);
-      chart.remove();
+      try {
+        chart.remove();
+      } catch (e) {
+        // ignore already disposed error
+      }
       if (ivChartInstanceRef.current === chart) {
         ivChartInstanceRef.current = null;
       }

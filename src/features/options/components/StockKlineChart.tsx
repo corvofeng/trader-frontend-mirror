@@ -11,6 +11,7 @@ import {
 } from 'lightweight-charts';
 import { Theme, themes } from '../../../lib/theme';
 import { optionsService, stockService } from '../../../lib/services';
+import { useCurrency } from '../../../lib/context/CurrencyContext';
 import type { OptionsData, PriceDistributionData } from '../../../lib/services/types';
 import {
   buildConeFromPriceDistribution,
@@ -52,6 +53,8 @@ const todayUTCTimestamp = (): UTCTimestamp => {
 };
 
 export function StockKlineChart({ symbol, theme, optionsData, currentUnderlyingPrice }: StockKlineChartProps) {
+  const { getThemedColors } = useCurrency();
+  const themedColors = getThemedColors(theme);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
@@ -380,12 +383,12 @@ export function StockKlineChart({ symbol, theme, optionsData, currentUnderlyingP
     });
 
     const series = chart.addCandlestickSeries({
-      upColor: '#10b981',
-      downColor: '#ef4444',
-      borderUpColor: '#10b981',
-      borderDownColor: '#ef4444',
-      wickUpColor: '#10b981',
-      wickDownColor: '#ef4444',
+      upColor: themedColors.chart.upColor,
+      downColor: themedColors.chart.downColor,
+      borderUpColor: themedColors.chart.upColor,
+      borderDownColor: themedColors.chart.downColor,
+      wickUpColor: themedColors.chart.upColor,
+      wickDownColor: themedColors.chart.downColor,
       priceFormat: {
         type: 'price',
         precision: 4,
@@ -551,9 +554,8 @@ export function StockKlineChart({ symbol, theme, optionsData, currentUnderlyingP
       highSeriesRef.current = null;
       fillSeriesRef.current = null;
       klineDataRef.current = [];
-      lastKlineTsRef.current = null;
     };
-  }, [symbol, theme, isMobile]);
+  }, [symbol, theme, isMobile, themedColors.chart.upColor, themedColors.chart.downColor]);
 
   const fmtP = (v: number): string => {
     if (Math.abs(v) >= 1000) return v.toFixed(0);
