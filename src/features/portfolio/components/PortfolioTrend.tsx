@@ -766,65 +766,56 @@ export function PortfolioTrend({ trendData, klineData, klineMetrics, theme, date
         )}
 
         {klineMetrics && metricsItems.length > 0 && (
-          !showAllMetrics ? (
-            <div className={`mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 px-3 py-1.5 rounded-xl border border-dashed ${themes[theme].border} ${themes[theme].card} text-[11px] sm:text-xs no-print`}>
+          <div className={`mt-3 rounded-xl border ${themes[theme].border} ${themes[theme].card} p-3 ${!showAllMetrics ? 'border-dashed' : 'shadow-sm'} no-print transition-all duration-200`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-1">
-                <span className={`font-semibold ${themes[theme].text} whitespace-nowrap`}>
-                  <span className="hidden sm:inline">组合表现指标</span>
-                  <span className="inline sm:hidden">表现</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setShowAllMetrics(true)}
-                  className="inline-flex items-center gap-0.5 text-sky-600 dark:text-sky-400 hover:underline text-[11px] sm:text-xs font-medium select-none whitespace-nowrap"
-                >
-                  <span className="hidden sm:inline">展开全部</span>
-                  <span className="inline sm:hidden">展开</span>
-                  <ChevronDown className="w-3 h-3" />
-                </button>
-                <span className="text-zinc-300 dark:text-zinc-700">|</span>
-                <span className={`${themes[theme].text} opacity-70 whitespace-nowrap`}>
-                  <span className="hidden sm:inline">区间收益 </span>
-                  <span className="inline sm:hidden">收益 </span>
-                  <span className={`font-bold ${getReturnColorClass(klineMetrics.totalReturn)}`}>
-                    {formatSignedPercent(klineMetrics.totalReturn)}
+                <div className="flex items-center gap-1.5">
+                  <span className={`text-sm font-semibold ${themes[theme].text} whitespace-nowrap`}>
+                    <span className="hidden sm:inline">组合表现指标</span>
+                    <span className="inline sm:hidden">表现</span>
                   </span>
-                </span>
-                <span className="text-zinc-300 dark:text-zinc-700">|</span>
-                <span className={`${themes[theme].text} opacity-70 whitespace-nowrap`}>
-                  <span className="hidden sm:inline">最大回撤 </span>
-                  <span className="inline sm:hidden">回撤 </span>
-                  <span className={`font-bold ${getReturnColorClass(klineMetrics.maxDrawdown)}`}>
-                    {formatSignedPercent(klineMetrics.maxDrawdown)}
-                  </span>
-                </span>
-                <span className={`text-[10px] ${themes[theme].text} opacity-40 hidden md:inline`}>
-                  ({klineMetrics.calculationStartDate} ~ {klineMetrics.calculationEndDate} · {klineMetrics.tradingDays} 交易日)
-                </span>
-              </div>
-            </div>
-          ) : (
-            <div className={`mt-4 rounded-2xl border ${themes[theme].border} ${themes[theme].card} p-3 shadow-sm`}>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="flex items-center gap-1.5">
-                    <span className={`text-sm font-semibold ${themes[theme].text}`}>组合表现指标</span>
-                    <button
-                      type="button"
-                      onClick={() => setShowAllMetrics(false)}
-                      className="inline-flex items-center gap-0.5 text-sky-600 dark:text-sky-400 hover:underline text-[11px] sm:text-xs font-medium select-none"
-                    >
-                      <span className="hidden sm:inline">收起指标</span>
-                      <span className="inline sm:hidden">收起</span>
-                      <ChevronUp className="w-3.5 h-3.5" />
-                    </button>
-                    <InfoTooltip
-                      theme={theme}
-                      align="left"
-                      content="这些指标基于当前 K 线统计窗口和有效交易日计算，用来帮助你从收益、波动和回撤几个角度评估组合表现。"
-                    />
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAllMetrics(!showAllMetrics)}
+                    className="inline-flex items-center gap-0.5 text-sky-600 dark:text-sky-400 hover:underline text-[11px] sm:text-xs font-medium select-none whitespace-nowrap"
+                  >
+                    <span className="hidden sm:inline">{showAllMetrics ? "收起指标" : "展开全部"}</span>
+                    <span className="inline sm:hidden">{showAllMetrics ? "收起" : "展开"}</span>
+                    {showAllMetrics ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  </button>
+                  <InfoTooltip
+                    theme={theme}
+                    align="left"
+                    content="这些指标基于当前 K 线统计窗口和有效交易日计算，用来帮助你从收益、波动和回撤几个角度评估组合表现。"
+                  />
                 </div>
+                
+                {!showAllMetrics && (
+                  <>
+                    <span className="text-zinc-300 dark:text-zinc-700">|</span>
+                    <span className={`${themes[theme].text} opacity-70 text-[11px] sm:text-xs whitespace-nowrap`}>
+                      <span className="hidden sm:inline">区间收益 </span>
+                      <span className="inline sm:hidden">收益 </span>
+                      <span className={`font-bold ${getReturnColorClass(klineMetrics.totalReturn)}`}>
+                        {formatSignedPercent(klineMetrics.totalReturn)}
+                      </span>
+                    </span>
+                    <span className="text-zinc-300 dark:text-zinc-700">|</span>
+                    <span className={`${themes[theme].text} opacity-70 text-[11px] sm:text-xs whitespace-nowrap`}>
+                      <span className="hidden sm:inline">最大回撤 </span>
+                      <span className="inline sm:hidden">回撤 </span>
+                      <span className={`font-bold ${getReturnColorClass(klineMetrics.maxDrawdown)}`}>
+                        {formatSignedPercent(klineMetrics.maxDrawdown)}
+                      </span>
+                    </span>
+                    <span className={`text-[10px] ${themes[theme].text} opacity-40 hidden md:inline`}>
+                      ({klineMetrics.calculationStartDate} ~ {klineMetrics.calculationEndDate} · {klineMetrics.tradingDays} 交易日)
+                    </span>
+                  </>
+                )}
+              </div>
+
+              {showAllMetrics && (
                 <div className={`text-[11px] ${themes[theme].text} opacity-60`}>
                   {klineMetrics.calculationStartDate} ~ {klineMetrics.calculationEndDate}
                   {' · '}
@@ -849,7 +840,10 @@ export function PortfolioTrend({ trendData, klineData, klineMetrics, theme, date
                     </>
                   )}
                 </div>
-              </div>
+              )}
+            </div>
+
+            {showAllMetrics && (
               <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
                 {metricsItems.map((item) => (
                   <div
@@ -888,8 +882,8 @@ export function PortfolioTrend({ trendData, klineData, klineMetrics, theme, date
                   </div>
                 ))}
               </div>
-            </div>
-          )
+            )}
+          </div>
         )}
       </div>
     </>
