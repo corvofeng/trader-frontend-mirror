@@ -1,7 +1,7 @@
-import React, { useState, useMemo, useCallback } from 'react';
-import { ArrowUpDown, ArrowUp, ArrowDown, Search, X, Copy, Check, Layers, Loader2 } from 'lucide-react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { ArrowUpDown, ArrowUp, ArrowDown, Search, X, Copy, Check, Layers, Radio } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
-import { stockService } from '../../../lib/services';
+import { useOptionalOptionPriceWebSocketContext } from '../../../features/options/context/OptionPriceWebSocketContext';
 import toast from 'react-hot-toast';
 
 export interface InteractiveMarkdownTableProps {
@@ -21,19 +21,6 @@ interface ParsedContract {
   strike: string | null;
 }
 
-interface ContractTickInfo {
-  price?: number;
-  pre_close?: number;
-  bid?: number;
-  ask?: number;
-  high?: number;
-  low?: number;
-  volume?: number;
-  loading: boolean;
-}
-
-const contractTickCache = new Map<string, { data: Partial<ContractTickInfo>; timestamp: number }>();
-
 function ContractCellWithTick({
   contractInfo,
   rawText,
@@ -49,53 +36,26 @@ function ContractCellWithTick({
   copiedCode: string | null;
   onCopyCode: (code: string, e: React.MouseEvent) => void;
 }) {
-  const [tick, setTick] = useState<ContractTickInfo>({ loading: false });
-  const [hasFetched, setHasFetched] = useState(false);
+  const wsContext = useOptionalOptionPriceWebSocketContext();
+  const wsPrice = contractInfo.code ? wsContext?.prices[contractInfo.code] : undefined;
 
-  const fetchTickPrice = useCallback(async () => {
-    if (!contractInfo.code || hasFetched) return;
-    setHasFetched(true);
-
-    const cached = contractTickCache.get(contractInfo.code);
-    if (cached && Date.now() - cached.timestamp < 30_000) {
-      setTick({ ...cached.data, loading: false });
-      return;
+  const handleMouseEnter = useCallback(() => {
+    if (contractInfo.code && wsContext?.queryPrice) {
+      wsContext.queryPrice([contractInfo.code]);
     }
-
-    setTick((prev) => ({ ...prev, loading: true }));
-    try {
-      const res = await stockService.getCurrentPrice(contractInfo.code);
-      if (res?.data) {
-        const p = res.data.price || res.data.last_price;
-        const tickData: Partial<ContractTickInfo> = {
-          price: typeof p === 'number' && Number.isFinite(p) ? p : undefined,
-          pre_close: res.data.pre_close,
-          bid: res.data.bid ?? (res.data.bid_price?.[0] ?? undefined),
-          ask: res.data.ask ?? (res.data.ask_price?.[0] ?? undefined),
-          high: res.data.high,
-          low: res.data.low,
-          volume: res.data.volume,
-        };
-        contractTickCache.set(contractInfo.code, { data: tickData, timestamp: Date.now() });
-        setTick({ ...tickData, loading: false });
-      } else {
-        setTick((prev) => ({ ...prev, loading: false }));
-      }
-    } catch {
-      setTick((prev) => ({ ...prev, loading: false }));
-    }
-  }, [contractInfo.code, hasFetched]);
+  }, [contractInfo.code, wsContext]);
 
   const isCall = contractInfo.isCall;
   const isPut = contractInfo.isPut;
 
-  const priceDiff = tick.price != null && tick.pre_close != null ? tick.price - tick.pre_close : null;
-  const pricePct = priceDiff != null && tick.pre_close ? (priceDiff / tick.pre_close) * 100 : null;
+  const currentPrice = wsPrice?.price ?? wsPrice?.last_price;
+  const bidPrice = wsPrice?.bid ?? (wsPrice?.bid_price?.[0]);
+  const askPrice = wsPrice?.ask ?? (wsPrice?.ask_price?.[0]);
 
   return (
     <div
       className="group/contract relative inline-block max-w-[240px]"
-      onMouseEnter={fetchTickPrice}
+      onMouseEnter={handleMouseEnter}
     >
       <div className="flex items-center gap-1.5 cursor-pointer">
         <span
@@ -144,62 +104,38 @@ function ContractCellWithTick({
           )}
         </div>
 
-        {/* Real-time Tick Price Banner */}
+        {/* Real-time WebSocket Tick Price Banner */}
         {contractInfo.code && (
           <div className="bg-zinc-850/90 rounded-lg p-2 mb-2 border border-zinc-800 flex items-center justify-between">
             <div>
-              <span className="text-zinc-400 text-[10px] block">最新实时价</span>
-              {tick.loading ? (
-                <div className="flex items-center gap-1 text-xs text-zinc-400 py-0.5">
-                  <Loader2 className="w-3 h-3 animate-spin text-blue-400" />
-                  <span>获取价格...</span>
-                </div>
-              ) : tick.price != null ? (
+              <div className="flex items-center gap-1 text-zinc-400 text-[10px] mb-0.5">
+                <Radio className={`w-2.5 h-2.5 ${wsContext?.isConnected ? 'text-emerald-400 animate-pulse' : 'text-zinc-500'}`} />
+                <span>实时行情</span>
+              </div>
+              {currentPrice != null ? (
                 <div className="flex items-baseline gap-1.5">
-                  <span
-                    className={`font-mono text-sm font-bold ${
-                      priceDiff != null
-                        ? priceDiff > 0
-                          ? 'text-emerald-400'
-                          : priceDiff < 0
-                          ? 'text-rose-400'
-                          : 'text-zinc-200'
-                        : 'text-zinc-200'
-                    }`}
-                  >
-                    {tick.price.toFixed(4)}
+                  <span className="font-mono text-sm font-bold text-emerald-400">
+                    {currentPrice.toFixed(4)}
                   </span>
-                  {pricePct != null && (
-                    <span
-                      className={`text-[10px] font-mono font-semibold ${
-                        priceDiff! > 0
-                          ? 'text-emerald-400'
-                          : priceDiff! < 0
-                          ? 'text-rose-400'
-                          : 'text-zinc-400'
-                      }`}
-                    >
-                      {priceDiff! >= 0 ? '+' : ''}
-                      {pricePct.toFixed(2)}%
-                    </span>
-                  )}
                 </div>
               ) : (
-                <span className="text-xs text-zinc-500 font-mono">--</span>
+                <span className="text-xs text-zinc-400 font-mono">
+                  {wsContext?.isConnected ? '等待推送...' : '--'}
+                </span>
               )}
             </div>
 
-            {/* Bid/Ask or PreClose */}
+            {/* Bid/Ask Spread */}
             <div className="text-right text-[10px] font-mono text-zinc-400">
-              {tick.bid != null && tick.ask != null ? (
+              {bidPrice != null && askPrice != null ? (
                 <div>
-                  <span className="text-emerald-400/90">{tick.bid.toFixed(4)}</span>
+                  <span className="text-emerald-400/90">{bidPrice.toFixed(4)}</span>
                   <span className="text-zinc-600 mx-0.5">/</span>
-                  <span className="text-rose-400/90">{tick.ask.toFixed(4)}</span>
+                  <span className="text-rose-400/90">{askPrice.toFixed(4)}</span>
                 </div>
-              ) : tick.pre_close != null ? (
-                <div>昨收: {tick.pre_close.toFixed(4)}</div>
-              ) : null}
+              ) : (
+                <div className="text-[9px] text-zinc-500">买一 / 卖一</div>
+              )}
             </div>
           </div>
         )}
@@ -321,6 +257,27 @@ export function InteractiveMarkdownTable({
   const [filterQuery, setFilterQuery] = useState<string>('');
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('ALL');
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
+  const wsContext = useOptionalOptionPriceWebSocketContext();
+
+  // Extract all contract codes present in this table
+  const allContractCodes = useMemo(() => {
+    const codes = new Set<string>();
+    rows.forEach((r) => {
+      r.forEach((cell) => {
+        const parsed = parseContract(cell);
+        if (parsed?.code) codes.add(parsed.code);
+      });
+    });
+    return Array.from(codes);
+  }, [rows]);
+
+  // Subscribe to all contract codes via WebSocket
+  useEffect(() => {
+    if (allContractCodes.length > 0 && wsContext?.queryPrice) {
+      wsContext.queryPrice(allContractCodes);
+    }
+  }, [allContractCodes, wsContext]);
 
   // Find column indexes for special roles
   const typeColIndex = useMemo(() => {

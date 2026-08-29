@@ -63,7 +63,7 @@ interface OptionPriceWebSocketContextType {
   portfolioSnapshot: OptionsPortfolioData | null;
 }
 
-const OptionPriceWebSocketContext = createContext<OptionPriceWebSocketContextType | null>(null);
+export const OptionPriceWebSocketContext = createContext<OptionPriceWebSocketContextType | null>(null);
 
 // eslint-disable-next-line react-refresh/only-export-components
 export function useOptionPriceWebSocketContext() {
@@ -72,6 +72,11 @@ export function useOptionPriceWebSocketContext() {
     throw new Error('useOptionPriceWebSocketContext must be used within a OptionPriceWebSocketProvider');
   }
   return context;
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function useOptionalOptionPriceWebSocketContext() {
+  return useContext(OptionPriceWebSocketContext);
 }
 
 interface OptionPriceWebSocketProviderProps {
