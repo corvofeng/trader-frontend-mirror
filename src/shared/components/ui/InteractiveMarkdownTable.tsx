@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, X, Copy, Check, Layers, Radio } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { useOptionalOptionPriceWebSocketContext } from '../../../features/options/context/OptionPriceWebSocketContext';
@@ -22,6 +22,155 @@ interface ParsedContract {
   strike: string | null;
 }
 
+function parseContract(text: string): ParsedContract | null {
+  const trimmed = text.trim();
+  const match = trimmed.match(/^(.+?)\s*\(([a-zA-Z0-9_.-]+)\)$/);
+  if (match) {
+    const name = match[1].trim();
+    const rawCode = match[2].trim();
+    const code = rawCode.split('.')[0];
+    const contract_code_full = rawCode.includes('.') ? rawCode : `${rawCode}.SHO`;
+    const isCall = /购|call/i.test(name);
+    const isPut = /沽|put/i.test(name);
+    const strikeMatch = name.match(/(\d+(?:\.\d+)?)(?:购|沽)?$/) || name.match(/(?:购|沽)(?:[^\d]*)(\d+(?:\.\d+)?)/);
+    return {
+      name,
+      code,
+      contract_code_full,
+      isCall,
+      isPut,
+      strike: strikeMatch ? strikeMatch[1] : null,
+    };
+  }
+  if (/^科创50[购沽]/.test(trimmed) || /^[0-9a-zA-Z\u4e00-\u9fa5]+[购沽]\d+/.test(trimmed)) {
+    const isCall = /购|call/i.test(trimmed);
+    const isPut = /沽|put/i.test(trimmed);
+    const strikeMatch = trimmed.match(/(\d+(?:\.\d+)?)(?:购|沽)?$/) || trimmed.match(/(?:购|沽)(?:[^\d]*)(\d+(?:\.\d+)?)/);
+    return {
+      name: trimmed,
+      code: null,
+      contract_code_full: null,
+      isCall,
+      isPut,
+      strike: strikeMatch ? strikeMatch[1] : null,
+    };
+  }
+  return null;
+}
+
+function parseCellValueForSort(cell: string): { num: number | null; date: number | null; text: string } {
+  const clean = cell.trim();
+  const noEmoji = clean.replace(/^[🟢🔴⚠️✅📉📞💡\s]+/, '').trim();
+
+  // Date YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
+    const d = new Date(clean).getTime();
+    if (!isNaN(d)) return { num: null, date: d, text: clean };
+  }
+
+  // Percentage or Multiplier: 90.4%, 17.1x
+  const pctMatch = noEmoji.match(/^([+-]?[\d,]+(?:\.\d+)?)\s*(%|x|X)$/);
+  if (pctMatch) {
+    const n = parseFloat(pctMatch[1].replace(/,/g, ''));
+    if (!isNaN(n)) return { num: n, date: null, text: clean };
+  }
+
+  // Pure number or signed number like +30,528.20, -415.00, 293
+  const numMatch = noEmoji.match(/^([+-]?[\d,]+(?:\.\d+)?)$/);
+  if (numMatch) {
+    const n = parseFloat(numMatch[1].replace(/,/g, ''));
+    if (!isNaN(n)) return { num: n, date: null, text: clean };
+  }
+
+  // Type Rank for predictable ordering
+  const typeRanks: Record<string, number> = {
+    '义务仓': 1,
+    '卖义务': 1,
+    '备兑': 2,
+    '权利仓': 3,
+    '买权利': 3,
+    '已对冲': 4,
+  };
+  if (typeRanks[clean] !== undefined) {
+    return { num: typeRanks[clean], date: null, text: clean };
+  }
+
+  return { num: null, date: null, text: clean };
+}
+
+/**
+ * Real-time Live Price Cell with animated flash on tick updates
+ */
+function LivePriceCell({
+  contractInfo,
+}: {
+  contractInfo: ParsedContract | null;
+}) {
+  const wsContext = useOptionalOptionPriceWebSocketContext();
+  const fullCode = contractInfo?.contract_code_full;
+  const baseCode = contractInfo?.code;
+
+  const wsPrice = useMemo(() => {
+    if (!wsContext?.prices) return undefined;
+    if (fullCode && wsContext.prices[fullCode]) return wsContext.prices[fullCode];
+    if (baseCode && wsContext.prices[baseCode]) return wsContext.prices[baseCode];
+    return undefined;
+  }, [wsContext?.prices, fullCode, baseCode]);
+
+  const currentPrice = wsPrice?.price ?? wsPrice?.last_price;
+  const bidPrice = wsPrice?.bid ?? wsPrice?.bid_price?.[0];
+  const askPrice = wsPrice?.ask ?? wsPrice?.ask_price?.[0];
+
+  // Flash animation state on price update
+  const [flash, setFlash] = useState<'up' | 'down' | null>(null);
+  const prevPriceRef = useRef<number | undefined>(undefined);
+
+  useEffect(() => {
+    if (currentPrice != null && prevPriceRef.current != null && currentPrice !== prevPriceRef.current) {
+      setFlash(currentPrice > prevPriceRef.current ? 'up' : 'down');
+      const timer = setTimeout(() => setFlash(null), 1200);
+      prevPriceRef.current = currentPrice;
+      return () => clearTimeout(timer);
+    }
+    prevPriceRef.current = currentPrice;
+  }, [currentPrice]);
+
+  if (!contractInfo?.code && !contractInfo?.contract_code_full) {
+    return <span className="text-zinc-400 dark:text-zinc-600 font-mono text-xs">-</span>;
+  }
+
+  return (
+    <div className="flex items-center gap-1 font-mono text-xs">
+      {currentPrice != null ? (
+        <span
+          className={`inline-flex items-center px-1.5 py-0.5 rounded font-bold transition-all duration-300 ${
+            flash === 'up'
+              ? 'bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/50'
+              : flash === 'down'
+              ? 'bg-rose-500/20 text-rose-400 ring-1 ring-rose-500/50'
+              : 'text-emerald-700 dark:text-emerald-300 bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-800/50'
+          }`}
+          title={
+            bidPrice != null && askPrice != null
+              ? `最新: ${currentPrice.toFixed(4)} | 买一: ${bidPrice.toFixed(4)} | 卖一: ${askPrice.toFixed(4)}`
+              : `最新: ${currentPrice.toFixed(4)}`
+          }
+        >
+          {currentPrice.toFixed(4)}
+        </span>
+      ) : (
+        <span className="text-zinc-400 dark:text-zinc-500 text-[11px] flex items-center gap-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 dark:bg-zinc-600 animate-pulse" />
+          {wsContext?.isConnected ? '等待推送' : '--'}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Contract Name Cell with popover and inline candidate tick price
+ */
 function ContractCellWithTick({
   contractInfo,
   rawText,
@@ -187,82 +336,6 @@ function ContractCellWithTick({
   );
 }
 
-function parseContract(text: string): ParsedContract | null {
-  const trimmed = text.trim();
-  const match = trimmed.match(/^(.+?)\s*\(([a-zA-Z0-9_.-]+)\)$/);
-  if (match) {
-    const name = match[1].trim();
-    const rawCode = match[2].trim();
-    const code = rawCode.split('.')[0];
-    const contract_code_full = rawCode.includes('.') ? rawCode : `${rawCode}.SHO`;
-    const isCall = /购|call/i.test(name);
-    const isPut = /沽|put/i.test(name);
-    const strikeMatch = name.match(/(\d+(?:\.\d+)?)(?:购|沽)?$/) || name.match(/(?:购|沽)(?:[^\d]*)(\d+(?:\.\d+)?)/);
-    return {
-      name,
-      code,
-      contract_code_full,
-      isCall,
-      isPut,
-      strike: strikeMatch ? strikeMatch[1] : null,
-    };
-  }
-  if (/^科创50[购沽]/.test(trimmed) || /^[0-9a-zA-Z\u4e00-\u9fa5]+[购沽]\d+/.test(trimmed)) {
-    const isCall = /购|call/i.test(trimmed);
-    const isPut = /沽|put/i.test(trimmed);
-    const strikeMatch = trimmed.match(/(\d+(?:\.\d+)?)(?:购|沽)?$/) || trimmed.match(/(?:购|沽)(?:[^\d]*)(\d+(?:\.\d+)?)/);
-    return {
-      name: trimmed,
-      code: null,
-      contract_code_full: null,
-      isCall,
-      isPut,
-      strike: strikeMatch ? strikeMatch[1] : null,
-    };
-  }
-  return null;
-}
-
-function parseCellValueForSort(cell: string): { num: number | null; date: number | null; text: string } {
-  const clean = cell.trim();
-  const noEmoji = clean.replace(/^[🟢🔴⚠️✅📉📞💡\s]+/, '').trim();
-
-  // Date YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
-    const d = new Date(clean).getTime();
-    if (!isNaN(d)) return { num: null, date: d, text: clean };
-  }
-
-  // Percentage or Multiplier: 90.4%, 17.1x
-  const pctMatch = noEmoji.match(/^([+-]?[\d,]+(?:\.\d+)?)\s*(%|x|X)$/);
-  if (pctMatch) {
-    const n = parseFloat(pctMatch[1].replace(/,/g, ''));
-    if (!isNaN(n)) return { num: n, date: null, text: clean };
-  }
-
-  // Pure number or signed number like +30,528.20, -415.00, 293
-  const numMatch = noEmoji.match(/^([+-]?[\d,]+(?:\.\d+)?)$/);
-  if (numMatch) {
-    const n = parseFloat(numMatch[1].replace(/,/g, ''));
-    if (!isNaN(n)) return { num: n, date: null, text: clean };
-  }
-
-  // Type Rank for predictable ordering
-  const typeRanks: Record<string, number> = {
-    '义务仓': 1,
-    '卖义务': 1,
-    '备兑': 2,
-    '权利仓': 3,
-    '买权利': 3,
-    '已对冲': 4,
-  };
-  if (typeRanks[clean] !== undefined) {
-    return { num: typeRanks[clean], date: null, text: clean };
-  }
-
-  return { num: null, date: null, text: clean };
-}
-
 export function InteractiveMarkdownTable({
   headers,
   rows,
@@ -276,6 +349,35 @@ export function InteractiveMarkdownTable({
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   const wsContext = useOptionalOptionPriceWebSocketContext();
+
+  // Find column indexes for special roles
+  const rawPrimaryContractColIdx = useMemo(() => {
+    return headers.findIndex((h) => /^(合约|标的合约|合约名称)$/i.test(h.trim()));
+  }, [headers]);
+
+  const hasExplicitLivePriceCol = useMemo(() => {
+    return headers.some((h) => /^(实时价|最新价|现价|当前价|最新行情)$/i.test(h.trim()));
+  }, [headers]);
+
+  // Insert "实时价" column right after primary contract column if table has contract and doesn't already have live price
+  const shouldInjectLivePriceCol = rawPrimaryContractColIdx !== -1 && !hasExplicitLivePriceCol;
+  const livePriceColIdx = shouldInjectLivePriceCol ? rawPrimaryContractColIdx + 1 : -1;
+
+  const displayHeaders = useMemo(() => {
+    if (!shouldInjectLivePriceCol) return headers;
+    const next = [...headers];
+    next.splice(livePriceColIdx, 0, '实时价');
+    return next;
+  }, [headers, shouldInjectLivePriceCol, livePriceColIdx]);
+
+  const displayRows = useMemo(() => {
+    if (!shouldInjectLivePriceCol) return rows;
+    return rows.map((r) => {
+      const next = [...r];
+      next.splice(livePriceColIdx, 0, '__LIVE_PRICE__');
+      return next;
+    });
+  }, [rows, shouldInjectLivePriceCol, livePriceColIdx]);
 
   // Extract all contract codes present in this table (both full and base codes)
   const allContractCodes = useMemo(() => {
@@ -297,31 +399,31 @@ export function InteractiveMarkdownTable({
     }
   }, [allContractCodes, wsContext]);
 
-  // Find column indexes for special roles
+  // Column index for type filtering
   const typeColIndex = useMemo(() => {
-    return headers.findIndex((h) => /^(类型|仓位类型|头寸类型)$/i.test(h.trim()));
-  }, [headers]);
+    return displayHeaders.findIndex((h) => /^(类型|仓位类型|头寸类型)$/i.test(h.trim()));
+  }, [displayHeaders]);
 
   const contractColIndexes = useMemo(() => {
     const indexes = new Set<number>();
-    headers.forEach((h, idx) => {
+    displayHeaders.forEach((h, idx) => {
       if (/^(合约|合约名称|最佳候选|标的合约)$/i.test(h.trim())) {
         indexes.add(idx);
       }
     });
     return indexes;
-  }, [headers]);
+  }, [displayHeaders]);
 
   // Extract distinct types for quick filter pills if a "类型" column exists
   const distinctTypes = useMemo(() => {
     if (typeColIndex === -1) return [];
     const set = new Set<string>();
-    rows.forEach((row) => {
+    displayRows.forEach((row) => {
       const val = row[typeColIndex]?.trim();
-      if (val) set.add(val);
+      if (val && val !== '-') set.add(val);
     });
     return Array.from(set);
-  }, [rows, typeColIndex]);
+  }, [displayRows, typeColIndex]);
 
   // Handle sort toggling
   const handleSort = (colIndex: number) => {
@@ -340,7 +442,7 @@ export function InteractiveMarkdownTable({
 
   // Filter rows
   const filteredRows = useMemo(() => {
-    let result = rows;
+    let result = displayRows;
 
     if (typeColIndex !== -1 && selectedTypeFilter !== 'ALL') {
       result = result.filter((row) => row[typeColIndex]?.trim() === selectedTypeFilter);
@@ -354,13 +456,30 @@ export function InteractiveMarkdownTable({
     }
 
     return result;
-  }, [rows, typeColIndex, selectedTypeFilter, filterQuery]);
+  }, [displayRows, typeColIndex, selectedTypeFilter, filterQuery]);
 
   // Sort filtered rows
   const sortedRows = useMemo(() => {
     if (sortColIndex === null || !sortDirection) return filteredRows;
 
     return [...filteredRows].sort((a, b) => {
+      // Special sort for live price column
+      if (sortColIndex === livePriceColIdx) {
+        const getRowPrice = (row: string[]) => {
+          const rawContract = row[rawPrimaryContractColIdx] ?? '';
+          const parsed = parseContract(rawContract);
+          if (!parsed) return -Infinity;
+          const p =
+            (parsed.contract_code_full && wsContext?.prices[parsed.contract_code_full]) ??
+            (parsed.code && wsContext?.prices[parsed.code]);
+          return p?.price ?? p?.last_price ?? -Infinity;
+        };
+        const priceA = getRowPrice(a);
+        const priceB = getRowPrice(b);
+        const cmp = priceA - priceB;
+        return sortDirection === 'asc' ? cmp : -cmp;
+      }
+
       const cellA = a[sortColIndex] ?? '';
       const cellB = b[sortColIndex] ?? '';
       const parsedA = parseCellValueForSort(cellA);
@@ -377,18 +496,18 @@ export function InteractiveMarkdownTable({
 
       return sortDirection === 'asc' ? cmp : -cmp;
     });
-  }, [filteredRows, sortColIndex, sortDirection]);
+  }, [filteredRows, sortColIndex, sortDirection, livePriceColIdx, rawPrimaryContractColIdx, wsContext?.prices]);
 
   // Calculate quick summary metrics for numeric columns (e.g. Net, TV, 数量, 到期盈亏)
   const summaryMetrics = useMemo(() => {
     const metrics: Array<{ label: string; value: string; isPnl?: boolean }> = [];
-    headers.forEach((h, colIdx) => {
+    displayHeaders.forEach((h, colIdx) => {
       const trimmedHeader = h.trim();
       if (/^(Net|TV|TV\/Day|数量|净张数|到期盈亏|盈亏|到期合约价值|权利金影响)$/i.test(trimmedHeader)) {
         let sum = 0;
         let count = 0;
         let hasValidNum = false;
-        rows.forEach((r) => {
+        displayRows.forEach((r) => {
           const parsed = parseCellValueForSort(r[colIdx] ?? '');
           if (parsed.num !== null) {
             sum += parsed.num;
@@ -414,7 +533,7 @@ export function InteractiveMarkdownTable({
       }
     });
     return metrics;
-  }, [headers, rows]);
+  }, [displayHeaders, displayRows]);
 
   const copyCodeToClipboard = useCallback((code: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -425,22 +544,44 @@ export function InteractiveMarkdownTable({
   }, []);
 
   const copyTableAsMarkdown = useCallback(() => {
-    const headerLine = `| ${headers.join(' | ')} |`;
-    const sepLine = `| ${headers.map(() => '---').join(' | ')} |`;
-    const dataLines = sortedRows.map((r) => `| ${r.join(' | ')} |`).join('\n');
+    const headerLine = `| ${displayHeaders.join(' | ')} |`;
+    const sepLine = `| ${displayHeaders.map(() => '---').join(' | ')} |`;
+    const dataLines = sortedRows.map((r) => {
+      const formattedCells = r.map((c, idx) => {
+        if (c === '__LIVE_PRICE__' || displayHeaders[idx] === '实时价') {
+          const rawContract = r[rawPrimaryContractColIdx] ?? '';
+          const parsed = parseContract(rawContract);
+          const p =
+            (parsed?.contract_code_full && wsContext?.prices[parsed.contract_code_full]) ??
+            (parsed?.code && wsContext?.prices[parsed.code]);
+          const num = p?.price ?? p?.last_price;
+          return num != null ? num.toFixed(4) : '-';
+        }
+        return c;
+      });
+      return `| ${formattedCells.join(' | ')} |`;
+    }).join('\n');
     const md = `${headerLine}\n${sepLine}\n${dataLines}`;
     navigator.clipboard.writeText(md);
-    toast.success('已复制当前表格数据 (Markdown 格式)');
-  }, [headers, sortedRows]);
+    toast.success('已复制当前表格数据 (含实时行情, Markdown 格式)');
+  }, [displayHeaders, sortedRows, rawPrimaryContractColIdx, wsContext?.prices]);
 
   // Render individual cell with rich tags, contract cards, or pnl highlights
-  const renderCellContent = (cell: string, colIndex: number, rowIndex: number) => {
+  const renderCellContent = (cell: string, colIndex: number, rowIndex: number, row: string[]) => {
     const trimmed = cell.trim();
+
+    // 0. Injected Live Price Column
+    if (cell === '__LIVE_PRICE__' || displayHeaders[colIndex] === '实时价') {
+      const rawContract = row[rawPrimaryContractColIdx] ?? '';
+      const parsed = parseContract(rawContract);
+      return <LivePriceCell contractInfo={parsed} />;
+    }
+
     if (!trimmed || trimmed === '-') {
       return <span className="text-zinc-400 font-mono text-xs">-</span>;
     }
 
-    const header = headers[colIndex]?.trim() || '';
+    const header = displayHeaders[colIndex]?.trim() || '';
 
     // 1. Position / Option Type Badges
     if (colIndex === typeColIndex || /^(类型|仓位类型|头寸类型)$/i.test(header) || ['义务仓', '权利仓', '备兑', '已对冲', '卖义务', '买权利'].includes(trimmed)) {
@@ -640,10 +781,10 @@ export function InteractiveMarkdownTable({
                     : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
                 }`}
               >
-                全部 ({rows.length})
+                全部 ({displayRows.length})
               </button>
               {distinctTypes.map((t) => {
-                const count = rows.filter((r) => r[typeColIndex]?.trim() === t).length;
+                const count = displayRows.filter((r) => r[typeColIndex]?.trim() === t).length;
                 return (
                   <button
                     key={t}
@@ -719,9 +860,9 @@ export function InteractiveMarkdownTable({
         <table className="min-w-full divide-y divide-slate-200 dark:divide-zinc-800 text-left border-collapse">
           <thead>
             <tr className="bg-slate-100/70 dark:bg-zinc-850/70">
-              {headers.map((header, idx) => {
+              {displayHeaders.map((header, idx) => {
                 const isSorted = sortColIndex === idx;
-                const isNumeric = /^(TV|TV\/Day|阈值|M\/TV|数量|净张数|行权价|标的价格|成本价|当前价|盈亏|保证金|时间价值|实现率|K|Net|乘数|买入均价|卖出均价|测算标的价|到期内在价值|到期合约价值|权利金影响|到期盈亏)$/i.test(header.trim());
+                const isNumeric = /^(TV|TV\/Day|阈值|M\/TV|数量|净张数|行权价|标的价格|成本价|当前价|盈亏|保证金|时间价值|实现率|K|Net|乘数|买入均价|卖出均价|测算标的价|到期内在价值|到期合约价值|权利金影响|到期盈亏|实时价)$/i.test(header.trim());
                 return (
                   <th
                     key={idx}
@@ -734,7 +875,16 @@ export function InteractiveMarkdownTable({
                     } ${isNumeric ? 'text-right' : 'text-left'}`}
                   >
                     <div className={`inline-flex items-center gap-1.5 ${isNumeric ? 'justify-end' : 'justify-start'}`}>
-                      <span>{header}</span>
+                      <span>
+                        {header === '实时价' ? (
+                          <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold">
+                            <Radio className="w-3 h-3 animate-pulse" />
+                            实时价
+                          </span>
+                        ) : (
+                          header
+                        )}
+                      </span>
                       <span className="shrink-0 opacity-60 group-hover/th:opacity-100">
                         {isSorted ? (
                           sortDirection === 'asc' ? (
@@ -756,7 +906,7 @@ export function InteractiveMarkdownTable({
             {sortedRows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={headers.length}
+                  colSpan={displayHeaders.length}
                   className="px-4 py-8 text-center text-xs text-slate-400 dark:text-zinc-500"
                 >
                   无匹配数据
@@ -769,8 +919,8 @@ export function InteractiveMarkdownTable({
                   className="relative hover:z-30 hover:bg-blue-50/40 dark:hover:bg-blue-950/20 transition-colors odd:bg-slate-50/30 dark:odd:bg-zinc-900/20"
                 >
                   {row.map((cell, cIdx) => {
-                    const header = headers[cIdx]?.trim() || '';
-                    const isNumeric = /^(TV|TV\/Day|阈值|M\/TV|数量|净张数|行权价|标的价格|成本价|当前价|盈亏|保证金|时间价值|实现率|K|Net|乘数|买入均价|卖出均价|测算标的价|到期内在价值|到期合约价值|权利金影响|到期盈亏)$/i.test(header);
+                    const header = displayHeaders[cIdx]?.trim() || '';
+                    const isNumeric = /^(TV|TV\/Day|阈值|M\/TV|数量|净张数|行权价|标的价格|成本价|当前价|盈亏|保证金|时间价值|实现率|K|Net|乘数|买入均价|卖出均价|测算标的价|到期内在价值|到期合约价值|权利金影响|到期盈亏|实时价)$/i.test(header);
                     return (
                       <td
                         key={cIdx}
@@ -778,7 +928,7 @@ export function InteractiveMarkdownTable({
                           isNumeric ? 'text-right font-mono' : 'text-left'
                         }`}
                       >
-                        {renderCellContent(cell, cIdx, rIdx)}
+                        {renderCellContent(cell, cIdx, rIdx, row)}
                       </td>
                     );
                   })}
@@ -793,8 +943,8 @@ export function InteractiveMarkdownTable({
       <div className="px-3.5 py-2 bg-slate-50/90 dark:bg-zinc-850/60 border-t border-slate-200/80 dark:border-zinc-800/80 text-[11px] text-slate-500 dark:text-zinc-400 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 font-medium">
           <span>共 {sortedRows.length} 条记录</span>
-          {sortedRows.length !== rows.length && (
-            <span className="text-amber-600 dark:text-yellow-400 opacity-90">(已过滤，原 {rows.length} 条)</span>
+          {sortedRows.length !== displayRows.length && (
+            <span className="text-amber-600 dark:text-yellow-400 opacity-90">(已过滤，原 {displayRows.length} 条)</span>
           )}
         </div>
 
