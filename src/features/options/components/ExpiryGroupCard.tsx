@@ -978,15 +978,19 @@ export function ExpiryGroupCard({
       const zh = String(p.contract_type_zh || '');
       return t === 'put' || zh.toLowerCase() === 'put' || zh.includes('认沽') || zh.includes('沽');
     };
-    const ids = (filteredPositions || [])
+    const pool = (allExpiryBuckets || []).flatMap(b => b.single).concat(filteredPositions || []);
+    const uniquePool = Array.from(new Map(pool.map(p => [p.id, p])).values());
+
+    const ids = uniquePool
       .filter(p => {
         const isCall = isCallLeg(p);
         const isPut = isPutLeg(p);
         const isSell = p.position_type === 'sell';
         const isBuy = p.position_type === 'buy';
         const isCovered = p.position_type_zh === '备兑' || !!p.is_covered;
-        const sameStrike = p.strike === strike;
-        const sameExpiry = p.expiry === group.expiry;
+        const pStrike = Number(p.contract_strike_price ?? p.strike);
+        const sameStrike = Math.abs(pStrike - strike) < 1e-4;
+        const sameExpiry = p.expiry === group.expiry || (confirmData?.meta?.expiry && p.expiry === confirmData.meta.expiry);
         if (!sameStrike || !sameExpiry) return false;
         if (category === 'call_obligation') return isCall && isSell && !isCovered;
         if (category === 'put_obligation') return isPut && isSell && !isCovered;
@@ -999,7 +1003,7 @@ export function ExpiryGroupCard({
       .map(p => p.id);
     logger.debug('[ExpiryGroupCard] collectIdsForCategory', { category, strike, count: ids.length });
     return ids;
-  }, [filteredPositions, group.expiry]);
+  }, [allExpiryBuckets, confirmData?.meta?.expiry, filteredPositions, group.expiry]);
 
   const initializedConfirmRef = useRef<string | null>(null);
   const lastWsQuoteRequestAtRef = useRef<Record<string, number>>({});
@@ -3363,540 +3367,297 @@ export function ExpiryGroupCard({
               </div>
             </div>
           ) : confirmData.meta?.action === 'sync_category' ? (
-            <div className="space-y-2">
-              {(() => {
-                const s = Number(confirmData.meta?.strike || 0);
-                const category = String(confirmData.meta?.category || '') as
-                  | 'call_right'
-                  | 'call_obligation'
-                  | 'put_right'
-                  | 'put_obligation'
-                  | 'call_covered'
-                  | 'put_covered';
-                
-                const isCall = category.startsWith('call');
-                const type = isCall ? 'call' : 'put';
+            (() => {
+              const s = Number(confirmData.meta?.strike || 0);
+              const category = String(confirmData.meta?.category || '') as
+                | 'call_right'
+                | 'call_obligation'
+                | 'put_right'
+                | 'put_obligation'
+                | 'call_covered'
+                | 'put_covered';
+              
+              const isCall = category.startsWith('call');
+              const isLong = category.endsWith('right');
+              const type = isCall ? 'call' : 'put';
+              const positionDirection = isLong ? 1 : -1;
 
-                // 1. Find reference position to get delta if available
-                let refPos = filteredPositions.find(p =>
-                  p.expiry === (confirmData.meta?.expiry || group.expiry) &&
-                  Number(p.contract_strike_price ?? p.strike) === s &&
-                  (p.type === type || p.contract_type_zh === type)
-                );
-                if (!refPos) {
-                  const allSingles = (allExpiryBuckets || []).flatMap(b => b.single);
-                  refPos = allSingles.find(p =>
-                    p.expiry === group.expiry &&
-                    Number(p.contract_strike_price ?? p.strike) === s &&
-                    (p.type === type || p.contract_type_zh === type)
-                  );
+              // 1. Find reference position & code
+              const ids = collectIdsForCategory(category, s);
+              const pool = (allExpiryBuckets || []).flatMap(b => b.single).concat(filteredPositions || []);
+              const currentPositions = ids.map(id => pool.find(p => p.id === id)).filter(Boolean) as OptionsPosition[];
+              
+              const currentSum = currentPositions.reduce((acc, pos) => {
+                const base = Number(pos.selectedQuantity ?? pos.leg_quantity ?? pos.quantity) || 0;
+                const avail = Number(pos.available ?? base) || 0;
+                return acc + avail;
+              }, 0);
+
+              const key = confirmData.ids[0];
+              const targetQty = qtyOverrides[key] ?? currentSum;
+              const qtyChange = targetQty - currentSum;
+
+              // Quote & contract codes
+              const findQuote = (data: OptionsData) => data.quotes?.find(q => q.expiry === (confirmData.meta?.expiry || group.expiry) && getQuoteStrike(q) === s);
+              let q: OptionQuote | undefined;
+              if (optionsData) q = findQuote(optionsData);
+              if (!q && optionsDataMap) {
+                for (const data of Object.values(optionsDataMap)) { q = findQuote(data); if (q) break; }
+              }
+              if (!q && localOptionsData) q = findQuote(localOptionsData);
+
+              const refPos = currentPositions[0] || pool.find(p =>
+                p.expiry === (confirmData.meta?.expiry || group.expiry) &&
+                Number(p.contract_strike_price ?? p.strike) === s &&
+                (p.type === type || p.contract_type_zh === type)
+              );
+
+              const code = confirmData.meta?.contract_code || refPos?.contract_code || (isCall ? q?.call_contract_code : q?.put_contract_code);
+              const fullCode = confirmData.meta?.contract_code_full || refPos?.contract_code_full || (isCall ? q?.call_contract_code_full : q?.put_contract_code_full);
+
+              // Delta resolution
+              let contractDelta = 0;
+              let isEstimated = false;
+              const quoteDelta = isCall ? q?.callDelta : q?.putDelta;
+
+              if (typeof quoteDelta === 'number' && !isNaN(quoteDelta)) {
+                contractDelta = quoteDelta;
+              } else if (refPos && typeof refPos.delta === 'number' && !isNaN(refPos.delta)) {
+                contractDelta = refPos.delta;
+              } else if (underlyingPrice != null && underlyingPrice > 0) {
+                isEstimated = true;
+                const iv = (isCall ? q?.callImpliedVol : q?.putImpliedVol) || 0.25;
+                const T = Math.max(0.01, group.daysToExpiry) / 365;
+                const S = underlyingPrice;
+                const K = s;
+                const r = 0.03;
+                try {
+                  const normCdf = (x: number) => {
+                    const a1 = 0.254829592; const a2 = -0.284496736; const a3 = 1.421413741; const a4 = -1.453152027; const a5 = 1.061405429; const p = 0.3275911;
+                    const sign = x < 0 ? -1 : 1;
+                    const absX = Math.abs(x) / Math.sqrt(2.0);
+                    const t = 1.0 / (1.0 + p * absX);
+                    const erf = 1.0 - (((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t) * Math.exp(-absX * absX);
+                    return 0.5 * (1.0 + sign * erf);
+                  };
+                  const d1 = (Math.log(S / K) + (r + 0.5 * iv * iv) * T) / (iv * Math.sqrt(T));
+                  const delta = isCall ? normCdf(d1) : (normCdf(d1) - 1);
+                  contractDelta = Number(delta.toFixed(3));
+                } catch (err) {
+                  const isITM = isCall ? (S > K) : (S < K);
+                  contractDelta = isCall ? (isITM ? 0.75 : 0.25) : (isITM ? -0.75 : -0.25);
                 }
-                if (!refPos) {
-                  const allComplexPositions = (allExpiryBuckets || []).flatMap(b => b.complex.flatMap(strategy => strategy.positions));
-                  refPos = allComplexPositions.find(p =>
-                    p.expiry === group.expiry &&
-                    Number(p.contract_strike_price ?? p.strike) === s &&
-                    (p.type === type || p.contract_type_zh === type)
-                  );
-                }
+              } else {
+                contractDelta = isCall ? 0.5 : -0.5;
+              }
 
-                // 2. Resolve Delta value
-                let contractDelta = 0;
-                let isEstimated = false;
+              const deltaContribution = contractDelta * positionDirection;
+              const deltaChange = qtyChange * deltaContribution;
 
-                const findQuote = (data: OptionsData) => data.quotes?.find(q => q.expiry === (confirmData.meta?.expiry || group.expiry) && getQuoteStrike(q) === s);
-                let q: OptionQuote | undefined;
-                if (optionsData) q = findQuote(optionsData);
-                if (!q && optionsDataMap) {
-                  for (const data of Object.values(optionsDataMap)) { q = findQuote(data); if (q) break; }
-                }
-                if (!q && localOptionsData) q = findQuote(localOptionsData);
+              const formatDelta = (val: number) => {
+                const sign = val >= 0 ? '+' : '';
+                return `${sign}${val.toFixed(3)}`;
+              };
 
-                const quoteDelta = isCall ? q?.callDelta : q?.putDelta;
+              const getImpactText = () => {
+                if (qtyChange === 0) return '持仓无变化 (Delta 不变)';
+                const directionText = qtyChange > 0 ? '增加' : '减少';
+                const deltaSign = deltaChange >= 0 ? '正' : '负';
+                return `${directionText}持仓，将为账户注入 ${formatDelta(deltaChange)} 的${deltaSign} Delta 风险敞口`;
+              };
 
-                if (typeof quoteDelta === 'number' && !isNaN(quoteDelta)) {
-                  contractDelta = quoteDelta;
-                } else if (refPos && typeof refPos.delta === 'number' && !isNaN(refPos.delta)) {
-                  contractDelta = refPos.delta;
-                } else if (underlyingPrice != null && underlyingPrice > 0) {
-                  isEstimated = true;
-                  const iv = (isCall ? q?.callImpliedVol : q?.putImpliedVol) || 0.25;
-                  const T = Math.max(0.01, group.daysToExpiry) / 365;
-                  const S = underlyingPrice;
-                  const K = s;
-                  const r = 0.03;
+              const priceData = (code && prices[code]) || (fullCode && prices[fullCode]) || null;
+              const wl = whitelists.find(w => (code && w.contract_code === code) || (fullCode && w.contract_code === fullCode));
 
-                  try {
-                    const normCdf = (x: number) => {
-                      const a1 = 0.254829592;
-                      const a2 = -0.284496736;
-                      const a3 = 1.421413741;
-                      const a4 = -1.453152027;
-                      const a5 = 1.061405429;
-                      const p = 0.3275911;
-                      const sign = x < 0 ? -1 : 1;
-                      const absX = Math.abs(x) / Math.sqrt(2.0);
-                      const t = 1.0 / (1.0 + p * absX);
-                      const erf = 1.0 - (((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t) * Math.exp(-absX * absX);
-                      return 0.5 * (1.0 + sign * erf);
-                    };
-                    const d1 = (Math.log(S / K) + (r + 0.5 * iv * iv) * T) / (iv * Math.sqrt(T));
-                    const delta = isCall ? normCdf(d1) : (normCdf(d1) - 1);
-                    contractDelta = Number(delta.toFixed(3));
-                  } catch (err) {
-                    const isITM = isCall ? (S > K) : (S < K);
-                    contractDelta = isCall ? (isITM ? 0.75 : 0.25) : (isITM ? -0.75 : -0.25);
-                  }
-                } else {
-                  contractDelta = isCall ? 0.5 : -0.5;
-                }
+              const categoryLabelMap: Record<string, string> = {
+                call_right: '认购权利 (Call Buy)',
+                call_obligation: '认购义务 (Call Sell)',
+                call_covered: '认购备兑 (Call Covered)',
+                put_right: '认沽权利 (Put Buy)',
+                put_obligation: '认沽义务 (Put Sell)',
+                put_covered: '认沽备兑 (Put Covered)'
+              };
+              const categoryTitle = categoryLabelMap[category] || category;
+              const expiryText = format(new Date(confirmData.meta?.expiry || group.expiry), 'yyyy-MM-dd');
 
-                // Calculate direction multiplier: Call long (+) / short (-), Put long (-) / short (+)
-                const isLong = category.endsWith('right');
-                const positionDirection = isLong ? 1 : -1;
-                const deltaContribution = contractDelta * positionDirection;
-
-                // Target quantities (based on available quantity)
-                const ids = collectIdsForCategory(category, s);
-                const currentSum = ids.reduce((acc, id) => {
-                  const pos = filteredPositions.find(x => x.id === id);
-                  const base = Number(pos?.selectedQuantity ?? pos?.leg_quantity ?? pos?.quantity) || 0;
-                  const avail = Number(pos?.available ?? base) || 0;
-                  return acc + avail;
-                }, 0);
-                const key = confirmData.ids[0];
-                const targetQty = qtyOverrides[key] ?? currentSum;
-                const qtyChange = targetQty - currentSum;
-                const deltaChange = qtyChange * deltaContribution;
-
-                const formatDelta = (val: number) => {
-                  const sign = val >= 0 ? '+' : '';
-                  return `${sign}${val.toFixed(3)}`;
-                };
-
-                const getImpactText = () => {
-                  if (qtyChange === 0) return '持仓无变化 (Delta 不变)';
-                  const directionText = qtyChange > 0 ? '增加' : '减少';
-                  const deltaSign = deltaChange >= 0 ? '正' : '负';
-                  return `${directionText}持仓，将为账户注入 ${formatDelta(deltaChange)} 的${deltaSign} Delta 风险敞口`;
-                };
-
-                return (
-                  <div className={`p-3.5 rounded-xl border ${themes[theme].border} ${themes[theme].background} space-y-2.5 mb-2`}>
-                    <div className="flex items-center justify-between">
-                      <span className={`text-[13px] font-semibold ${themes[theme].text} flex items-center gap-1.5`}>
-                        <span>📊</span> Delta 风险评估
+              return (
+                <div className="space-y-3">
+                  {/* 1. 标的身份徽章栏 */}
+                  <div className={`p-3 rounded-xl border ${themes[theme].border} ${themes[theme].background} flex flex-wrap items-center justify-between gap-2.5`}>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
+                        isCall
+                          ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
+                          : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                      }`}>
+                        {categoryTitle}
                       </span>
-                      {isEstimated && (
-                        <span className={`text-[10px] opacity-60 px-1.5 py-0.5 rounded-full border ${themes[theme].border}`}>
-                          理论估计值
-                        </span>
+                      <span className={`text-xs font-mono font-bold ${themes[theme].text}`}>
+                        @{s.toFixed(4).replace(/\.?0+$/, '')}
+                      </span>
+                      <span className={`text-[11px] opacity-60 ${themes[theme].text}`}>
+                        {expiryText} 到期
+                      </span>
+                      {(fullCode || code) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(fullCode || code || '');
+                            toast.success(`已复制合约代码: ${fullCode || code}`);
+                          }}
+                          className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono opacity-70 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5 border ${themes[theme].border} transition-all`}
+                          title="点击复制合约代码"
+                        >
+                          <span>{code || fullCode}</span>
+                          <span className="text-[10px]">📋</span>
+                        </button>
                       )}
                     </div>
-                    
-                    <div className="grid grid-cols-2 gap-4 text-xs">
-                      <div className="space-y-1">
-                        <div className={`text-[11px] opacity-60 ${themes[theme].text}`}>合约单张 Delta (Δ)</div>
-                        <div className={`font-mono font-bold text-[13px] ${contractDelta >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                          {formatDelta(contractDelta)}
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <div className={`text-[11px] opacity-60 ${themes[theme].text}`}>当前持仓方向 Delta (单张)</div>
-                        <div className={`font-mono font-bold text-[13px] ${deltaContribution >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                          {formatDelta(deltaContribution)}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className={`mt-2 pt-2 border-t border-dashed ${themes[theme].border} text-xs flex flex-col gap-1`}>
-                      <div className="flex justify-between items-center">
-                        <span className={`opacity-60 ${themes[theme].text}`}>持仓数量变化:</span>
-                        <span className={`font-mono font-semibold ${qtyChange > 0 ? 'text-emerald-600 dark:text-emerald-400' : qtyChange < 0 ? 'text-rose-600 dark:text-rose-400' : themes[theme].text}`}>
-                          {qtyChange > 0 ? `+${qtyChange}` : qtyChange} 张 ({currentSum} → {targetQty})
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className={`opacity-60 ${themes[theme].text}`}>Delta 影响值:</span>
-                        <span className={`font-mono font-bold text-[13px] ${deltaChange > 0 ? 'text-emerald-600 dark:text-emerald-400' : deltaChange < 0 ? 'text-rose-600 dark:text-rose-400' : themes[theme].text}`}>
-                          {qtyChange === 0 ? '0.000' : formatDelta(deltaChange)}
-                        </span>
-                      </div>
-                      <p className={`mt-1 text-[11px] opacity-75 leading-relaxed p-1.5 rounded bg-black/5 dark:bg-white/5 ${themes[theme].text}`}>
-                        💡 {getImpactText()}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })()}
-              {(() => {
-                  const s = Number(confirmData.meta?.strike || 0);
-                  const c = String(confirmData.meta?.category || '') as
-                    | 'call_right'
-                    | 'call_obligation'
-                    | 'put_right'
-                    | 'put_obligation'
-                    | 'call_covered'
-                    | 'put_covered';
-                  const ids = collectIdsForCategory(c, s);
-                  const pos = filteredPositions.find(p => p.id === ids[0]);
-                  let code = pos?.contract_code;
-                  let fullCode = pos?.contract_code_full;
-
-                  if (!fullCode) {
-                    if (confirmData.meta?.contract_code_full) {
-                        fullCode = confirmData.meta.contract_code_full;
-                        code = confirmData.meta.contract_code;
-                    } else {
-                        const type = c.startsWith('call') ? 'call' : 'put';
-                        const activeData = optionsData || localOptionsData;
-                        
-                        if (activeData && activeData.quotes) {
-                           const quote = activeData.quotes.find(q => q.expiry === group.expiry && getQuoteStrike(q) === s);
-                           if (quote) {
-                              fullCode = type === 'call' ? quote.call_contract_code_full : quote.put_contract_code_full;
-                              code = type === 'call' ? quote.call_contract_code : quote.put_contract_code;
-                           }
-                        } else if (optionsDataMap) {
-                           for (const data of Object.values(optionsDataMap)) {
-                              const quote = data.quotes?.find(q => q.expiry === group.expiry && getQuoteStrike(q) === s);
-                              if (quote) {
-                                 fullCode = type === 'call' ? quote.call_contract_code_full : quote.put_contract_code_full;
-                                 code = type === 'call' ? quote.call_contract_code : quote.put_contract_code;
-                                 break;
-                              }
-                           }
-                        }
-                    }
-                  }
-
-                  const priceData = (code && prices[code]) || (fullCode && prices[fullCode]) || null;
-                  if (!priceData) return null;
-                  
-                  return (
-                    <div className={`flex flex-col gap-2 mb-2 p-2 rounded border ${themes[theme].border}`}>
-                      <div className={`text-xs ${themes[theme].text} flex items-center justify-between`}>
-                        <span className="font-medium">最新价: {priceData.price}</span>
-                        <span className="opacity-50 text-[10px]">{format(new Date(priceData.timestamp), 'HH:mm:ss')}</span>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-2 text-[10px]">
-                        <div className="flex flex-col">
-                          <div className={`text-center font-medium border-b ${themes[theme].border} mb-1 text-red-500`}>买盘</div>
-                          <div className="grid grid-cols-3 gap-1 px-1 opacity-70 mb-1">
-                            <div className="text-left">档位</div>
-                            <div className="text-right">价格</div>
-                            <div className="text-right">量</div>
-                          </div>
-                          <div className="overflow-y-auto max-h-[200px] scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
-                            {Array.from({ length: Math.max(priceData.bid_price?.length ?? 0, priceData.bid_vol?.length ?? 0, 5) }).map((_, i) => {
-                               const price = priceData.bid_price?.[i] ?? (i === 0 ? priceData.bid : undefined);
-                               const vol = priceData.bid_vol?.[i];
-                               if (price === undefined && vol === undefined && i >= 5) return null;
-                               const isSelected = syncPrice != null && typeof price === 'number' && Math.abs(price - syncPrice) < 1e-8;
-                               return (
-                                 <div
-                                   key={`bid-${i}`}
-                                   className={`grid grid-cols-3 gap-1 px-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer ${isSelected ? 'bg-red-100 dark:bg-red-900/40' : ''}`}
-                                   onClick={() => {
-                                     if (typeof price === 'number') {
-                                       setSyncPrice(price);
-                                     }
-                                   }}
-                                 >
-                                   <div className="text-left opacity-75">{i + 1}</div>
-                                   <div className="text-right text-red-500 font-medium">{price != null ? price.toFixed(4) : '-'}</div>
-                                   <div className="text-right opacity-90">{vol ?? '-'}</div>
-                                 </div>
-                               );
-                            })}
-                          </div>
-                        </div>
-                        
-                        <div className="flex flex-col">
-                          <div className={`text-center font-medium border-b ${themes[theme].border} mb-1 text-green-500`}>卖盘</div>
-                          <div className="grid grid-cols-3 gap-1 px-1 opacity-70 mb-1">
-                            <div className="text-left">档位</div>
-                            <div className="text-right">价格</div>
-                            <div className="text-right">量</div>
-                          </div>
-                          <div className="overflow-y-auto max-h-[200px] scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
-                            {Array.from({ length: Math.max(priceData.ask_price?.length ?? 0, priceData.ask_vol?.length ?? 0, 5) }).map((_, i) => {
-                               const price = priceData.ask_price?.[i] ?? (i === 0 ? priceData.ask : undefined);
-                               const vol = priceData.ask_vol?.[i];
-                               if (price === undefined && vol === undefined && i >= 5) return null;
-                               const isSelected = syncPrice != null && typeof price === 'number' && Math.abs(price - syncPrice) < 1e-8;
-                               return (
-                                 <div
-                                   key={`ask-${i}`}
-                                   className={`grid grid-cols-3 gap-1 px-1 rounded hover:bg-green-50 dark:hover:bg-green-900/20 cursor-pointer ${isSelected ? 'bg-green-100 dark:bg-green-900/40' : ''}`}
-                                   onClick={() => {
-                                     if (typeof price === 'number') {
-                                       setSyncPrice(price);
-                                     }
-                                   }}
-                                 >
-                                   <div className="text-left opacity-75">{i + 1}</div>
-                                   <div className="text-right text-green-500 font-medium">{price != null ? price.toFixed(4) : '-'}</div>
-                                   <div className="text-right opacity-90">{vol ?? '-'}</div>
-                                 </div>
-                               );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-2 flex items-center justify-between gap-2 text-[10px]">
-                        <div className="flex items-center gap-1">
-                          <span className={themes[theme].text}>目标价格</span>
-                          <input
-                            type="number"
-                            step="0.0001"
-                            value={syncPrice != null ? syncPrice : ''}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              if (v === '') {
-                                setSyncPrice(null);
-                              } else {
-                                const n = parseFloat(v);
-                                if (!Number.isNaN(n)) {
-                                  setSyncPrice(n);
-                                }
-                              }
-                            }}
-                            className={`w-24 px-2 py-1 rounded ${themes[theme].input} ${themes[theme].text}`}
-                          />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            className="px-2 py-1 rounded border text-[10px]"
-                            onClick={() => {
-                              if (typeof priceData.price === 'number') {
-                                setSyncPrice(priceData.price);
-                              }
-                            }}
-                          >
-                            用最新价
-                          </button>
-                          <button
-                            type="button"
-                            className="px-2 py-1 rounded border text-[10px]"
-                            onClick={() => {
-                              if (typeof priceData.bid === 'number') {
-                                setSyncPrice(priceData.bid);
-                              }
-                            }}
-                          >
-                            用买一
-                          </button>
-                          <button
-                            type="button"
-                            className="px-2 py-1 rounded border text-[10px]"
-                            onClick={() => {
-                              if (typeof priceData.ask === 'number') {
-                                setSyncPrice(priceData.ask);
-                              }
-                            }}
-                          >
-                            用卖一
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-              })()}
-              {(() => {
-                  const s = Number(confirmData.meta?.strike || 0);
-                  const c = String(confirmData.meta?.category || '') as
-                    | 'call_right'
-                    | 'call_obligation'
-                    | 'put_right'
-                    | 'put_obligation'
-                    | 'call_covered'
-                    | 'put_covered';
-                  const ids = collectIdsForCategory(c, s);
-                  const pos = filteredPositions.find(p => p.id === ids[0]);
-                  if (pos?.contract_code || pos?.contract_code_full) {
-                    const code = pos.contract_code_full || pos.contract_code;
-                    const wl = whitelists.find(w => w.contract_code === pos.contract_code || (pos.contract_code_full && w.contract_code === pos.contract_code_full));
-                    return (
-                      <div className={`text-xs ${themes[theme].text} mb-2 flex items-center gap-2`}>
-                        <span className="opacity-75">Code: {code}</span>
-                        {wl && (
-                           <span className="text-amber-500 font-medium text-[10px] border border-amber-500/30 px-1 rounded bg-amber-500/10">
-                             ⚠️ 计划执行: {wl.reason} {wl.quantity ? `(${wl.quantity})` : ''}
-                           </span>
-                        )}
-                      </div>
-                    );
-                  }
-                  return null;
-              })()}
-              <div className={`space-y-2.5 pt-2 border-t border-dashed ${themes[theme].border}`}>
-                {/* 第一行：目标数量标题与步进器 */}
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs font-semibold ${themes[theme].text}`}>目标数量</span>
-                    {syncPrice != null && (
-                      <span className={`text-[11px] px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/5 ${themes[theme].text} opacity-70 font-mono`}>
-                        目标价格 {syncPrice.toFixed(4)}
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-[11px] opacity-60 ${themes[theme].text}`}>当前持有:</span>
+                      <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-full ${
+                        currentSum > 0
+                          ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20'
+                          : 'bg-gray-500/10 opacity-70 text-gray-500 border border-gray-500/20'
+                      }`}>
+                        {currentSum} 张
                       </span>
-                    )}
+                    </div>
                   </div>
 
-                  {/* 步进器：固定在右侧，位置保持稳定不变 */}
-                  <div className="flex items-center">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const key = confirmData.ids[0];
-                        const cur = Number(qtyOverrides[key] ?? Object.values(qtyOverrides)[0] ?? 0);
-                        const next = Math.max(0, cur - 1);
-                        setQtyOverrides(prev => ({ ...prev, [key]: next }));
-                      }}
-                      className={`w-8 h-8 flex items-center justify-center rounded-l-lg border border-r-0 ${themes[theme].border} ${themes[theme].text} hover:bg-black/5 dark:hover:bg-white/5 active:scale-95 transition-all text-sm font-bold select-none`}
-                      title="减少 1 张"
-                    >
-                      -
-                    </button>
-                    <input
-                      type="number"
-                      min={0}
-                      value={Object.values(qtyOverrides)[0] ?? 0}
-                      onChange={(e) => {
-                        const n = Math.max(0, parseFloat(e.target.value) || 0);
-                        const key = confirmData.ids[0];
-                        setQtyOverrides(prev => ({ ...prev, [key]: n }));
-                      }}
-                      className={`w-16 h-8 px-1 text-center font-mono font-bold text-sm border ${themes[theme].border} ${themes[theme].input} ${themes[theme].text} focus:outline-none`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const key = confirmData.ids[0];
-                        const cur = Number(qtyOverrides[key] ?? Object.values(qtyOverrides)[0] ?? 0);
-                        const next = cur + 1;
-                        setQtyOverrides(prev => ({ ...prev, [key]: next }));
-                      }}
-                      className={`w-8 h-8 flex items-center justify-center rounded-r-lg border border-l-0 ${themes[theme].border} ${themes[theme].text} hover:bg-black/5 dark:hover:bg-white/5 active:scale-95 transition-all text-sm font-bold select-none`}
-                      title="增加 1 张"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
+                  {/* 2. 核心调整控制台 (Target Adjustment Console) */}
+                  <div className={`p-3.5 rounded-xl border ${themes[theme].border} ${themes[theme].card} space-y-3 shadow-sm`}>
+                    {/* 目标数量主行 */}
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="space-y-0.5">
+                        <div className={`text-xs font-bold ${themes[theme].text} flex items-center gap-1.5`}>
+                          <span>🎯</span>
+                          <span>目标持仓数量</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          {qtyChange === 0 ? (
+                            <span className="text-[11px] text-gray-500 dark:text-gray-400 opacity-75">持仓数量保持不变</span>
+                          ) : qtyChange > 0 ? (
+                            <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
+                              <span>↑ 加仓</span>
+                              <span>+{qtyChange} 张</span>
+                              <span className="opacity-60 font-mono">({currentSum} → {targetQty})</span>
+                            </span>
+                          ) : targetQty === 0 ? (
+                            <span className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-0.5">
+                              <span>✕ 全部平仓清零</span>
+                              <span className="opacity-60 font-mono">({currentSum} → 0)</span>
+                            </span>
+                          ) : (
+                            <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-0.5">
+                              <span>↓ 减仓</span>
+                              <span>{qtyChange} 张</span>
+                              <span className="opacity-60 font-mono">({currentSum} → {targetQty})</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
 
-                {/* 第二行：左侧快捷步进按钮，右侧固定白名单操作 */}
-                <div className="flex items-center justify-between gap-2 flex-wrap pt-0.5">
-                  <div className="flex items-center gap-1 flex-wrap">
-                    {[-5, -2, -1].map((step) => (
-                      <button
-                        key={`step-${step}`}
-                        type="button"
-                        onClick={() => {
-                          const key = confirmData.ids[0];
-                          const cur = Number(qtyOverrides[key] ?? Object.values(qtyOverrides)[0] ?? 0);
-                          const next = Math.max(0, cur + step);
-                          setQtyOverrides(prev => ({ ...prev, [key]: next }));
-                        }}
-                        className="px-2 py-1 rounded text-xs font-mono font-semibold border border-rose-500/30 text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 active:scale-95 transition-all"
-                        title={`减少 ${Math.abs(step)} 张`}
-                      >
-                        {step}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const key = confirmData.ids[0];
-                        setQtyOverrides(prev => ({ ...prev, [key]: 0 }));
-                      }}
-                      className={`px-2 py-1 rounded text-xs font-medium border ${themes[theme].border} ${themes[theme].text} opacity-75 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5 active:scale-95 transition-all`}
-                      title="重置为 0"
-                    >
-                      清零
-                    </button>
-                    {[1, 2, 5].map((step) => (
-                      <button
-                        key={`step-+${step}`}
-                        type="button"
-                        onClick={() => {
-                          const key = confirmData.ids[0];
-                          const cur = Number(qtyOverrides[key] ?? Object.values(qtyOverrides)[0] ?? 0);
-                          const next = cur + step;
-                          setQtyOverrides(prev => ({ ...prev, [key]: next }));
-                        }}
-                        className="px-2 py-1 rounded text-xs font-mono font-semibold border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 active:scale-95 transition-all"
-                        title={`增加 ${step} 张`}
-                      >
-                        +{step}
-                      </button>
-                    ))}
-                  </div>
+                      {/* 步进器 */}
+                      <div className="flex items-center shadow-sm rounded-lg overflow-hidden border border-gray-200 dark:border-neutral-700">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const cur = Number(qtyOverrides[key] ?? currentSum);
+                            const next = Math.max(0, cur - 1);
+                            setQtyOverrides(prev => ({ ...prev, [key]: next }));
+                          }}
+                          className={`w-9 h-9 flex items-center justify-center bg-gray-50 dark:bg-neutral-800 ${themes[theme].text} hover:bg-black/10 dark:hover:bg-white/10 active:scale-95 transition-all text-base font-bold select-none border-r ${themes[theme].border}`}
+                          title="减少 1 张"
+                        >
+                          -
+                        </button>
+                        <input
+                          type="number"
+                          min={0}
+                          value={targetQty}
+                          onChange={(e) => {
+                            const n = Math.max(0, parseFloat(e.target.value) || 0);
+                            setQtyOverrides(prev => ({ ...prev, [key]: n }));
+                          }}
+                          className={`w-16 h-9 px-1 text-center font-mono font-bold text-base ${themes[theme].input} ${themes[theme].text} focus:outline-none`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const cur = Number(qtyOverrides[key] ?? currentSum);
+                            const next = cur + 1;
+                            setQtyOverrides(prev => ({ ...prev, [key]: next }));
+                          }}
+                          className={`w-9 h-9 flex items-center justify-center bg-gray-50 dark:bg-neutral-800 ${themes[theme].text} hover:bg-black/10 dark:hover:bg-white/10 active:scale-95 transition-all text-base font-bold select-none border-l ${themes[theme].border}`}
+                          title="增加 1 张"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
 
-                  {(() => {
-                    const targetQty = Object.values(qtyOverrides)[0] ?? 0;
-                    const isDisabled = targetQty === 0;
-                    return (
+                    {/* 快捷步进按钮组与白名单 */}
+                    <div className="flex items-center justify-between gap-2 flex-wrap pt-2 border-t border-dashed border-gray-200 dark:border-neutral-800">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {[-5, -2, -1].map((step) => (
+                          <button
+                            key={`step-${step}`}
+                            type="button"
+                            onClick={() => {
+                              const cur = Number(qtyOverrides[key] ?? currentSum);
+                              const next = Math.max(0, cur + step);
+                              setQtyOverrides(prev => ({ ...prev, [key]: next }));
+                            }}
+                            className="px-2.5 py-1 rounded-md text-xs font-mono font-bold border border-rose-500/25 text-rose-600 dark:text-rose-400 bg-rose-500/5 hover:bg-rose-500/15 active:scale-95 transition-all"
+                            title={`减少 ${Math.abs(step)} 张`}
+                          >
+                            {step}
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setQtyOverrides(prev => ({ ...prev, [key]: 0 }));
+                          }}
+                          className={`px-2.5 py-1 rounded-md text-xs font-semibold border ${themes[theme].border} ${themes[theme].text} opacity-70 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5 active:scale-95 transition-all`}
+                          title="重置目标为 0 (清仓)"
+                        >
+                          清零
+                        </button>
+                        {[1, 2, 5].map((step) => (
+                          <button
+                            key={`step-+${step}`}
+                            type="button"
+                            onClick={() => {
+                              const cur = Number(qtyOverrides[key] ?? currentSum);
+                              const next = cur + step;
+                              setQtyOverrides(prev => ({ ...prev, [key]: next }));
+                            }}
+                            className="px-2.5 py-1 rounded-md text-xs font-mono font-bold border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/15 active:scale-95 transition-all"
+                            title={`增加 ${step} 张`}
+                          >
+                            +{step}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* 白名单按钮 */}
                       <button
                         type="button"
-                        disabled={isDisabled}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all shrink-0 ${
-                          isDisabled
-                            ? 'opacity-35 cursor-not-allowed border border-gray-300 dark:border-neutral-700 bg-gray-100 dark:bg-neutral-800 text-gray-400 dark:text-neutral-500'
-                            : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95 shadow-sm'
+                        disabled={targetQty === 0}
+                        className={`px-2.5 py-1 rounded-md text-xs font-medium flex items-center gap-1 transition-all shrink-0 ${
+                          targetQty === 0
+                            ? 'opacity-30 cursor-not-allowed border border-gray-300 dark:border-neutral-700 bg-gray-100 dark:bg-neutral-800 text-gray-400 dark:text-neutral-500'
+                            : 'bg-blue-600/10 text-blue-600 dark:text-blue-400 border border-blue-600/30 hover:bg-blue-600 hover:text-white active:scale-95'
                         }`}
-                        title={isDisabled ? '请先设置目标数量 (>0)' : '添加到白名单'}
+                        title={targetQty === 0 ? '目标数量须大于0方可加入白名单' : '将此调整数量保存到白名单计划'}
                         onClick={async () => {
-                          if (isDisabled) return;
-                          const s = Number(confirmData.meta?.strike || 0);
-                          const c = String(confirmData.meta?.category || '') as
-                            | 'call_right'
-                            | 'call_obligation'
-                            | 'put_right'
-                            | 'put_obligation'
-                            | 'call_covered'
-                            | 'put_covered';
-                          
-                          const ids = collectIdsForCategory(c, s);
-                          const pos = filteredPositions.find(p => p.id === ids[0]);
-                          
+                          if (targetQty === 0) return;
                           let holdType = 'obligation';
-                          if (pos?.hold_type) {
-                            holdType = pos.hold_type;
-                          } else {
-                            if (c.includes('right')) holdType = 'right';
-                            else if (c.includes('covered')) holdType = 'covered';
-                          }
-                          let code = pos?.contract_code;
-                          let fullCode = pos?.contract_code_full;
-                          
-                          if (!fullCode) {
-                            if (confirmData.meta?.contract_code_full) {
-                              fullCode = confirmData.meta.contract_code_full;
-                              code = confirmData.meta.contract_code;
-                            } else {
-                              const type = c.startsWith('call') ? 'call' : 'put';
-                              const activeData = optionsData || localOptionsData;
-                              if (activeData && activeData.quotes) {
-                                const quote = activeData.quotes.find(q => q.expiry === group.expiry && getQuoteStrike(q) === s);
-                                if (quote) {
-                                  fullCode = type === 'call' ? quote.call_contract_code_full : quote.put_contract_code_full;
-                                  code = type === 'call' ? quote.call_contract_code : quote.put_contract_code;
-                                }
-                              } else if (optionsDataMap) {
-                                for (const data of Object.values(optionsDataMap)) {
-                                  const quote = data.quotes?.find(q => q.expiry === group.expiry && getQuoteStrike(q) === s);
-                                  if (quote) {
-                                    fullCode = type === 'call' ? quote.call_contract_code_full : quote.put_contract_code_full;
-                                    code = type === 'call' ? quote.call_contract_code : quote.put_contract_code;
-                                    break;
-                                  }
-                                }
-                              }
-                            }
-                          }
+                          if (refPos?.hold_type) holdType = refPos.hold_type;
+                          else if (isLong) holdType = 'right';
+                          else if (category.includes('covered')) holdType = 'covered';
 
                           if (code) {
                             try {
@@ -3906,15 +3667,14 @@ export function ExpiryGroupCard({
                                 contract_code_full: fullCode,
                                 reason: 'Manual adjustment',
                                 quantity: targetQty,
-                                expiry_month: group.expiry.slice(0, 7).replace('-', ''),
-                                option_type: c.startsWith('call') ? 'call' : 'put',
+                                expiry_month: (confirmData.meta?.expiry || group.expiry).slice(0, 7).replace('-', ''),
+                                option_type: type,
                                 strike_price: s,
                                 hold_type: holdType,
                                 is_active: true
                               }, userId || '', selectedAccountId);
                               toast.success(`已添加到白名单: ${fullCode || code}`);
                             } catch (err) {
-                              console.error(err);
                               toast.error('添加白名单失败');
                             }
                           } else {
@@ -3925,11 +3685,252 @@ export function ExpiryGroupCard({
                         <span>📋</span>
                         <span>加入白名单</span>
                       </button>
-                    );
-                  })()}
+                    </div>
+
+                    {/* 委托价格设置 */}
+                    <div className="pt-2 border-t border-dashed border-gray-200 dark:border-neutral-800 flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <span className={`font-semibold ${themes[theme].text}`}>委托价格</span>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="0.0001"
+                            placeholder="市价委托"
+                            value={syncPrice != null ? syncPrice : ''}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              if (v === '') setSyncPrice(null);
+                              else {
+                                const n = parseFloat(v);
+                                if (!Number.isNaN(n)) setSyncPrice(n);
+                              }
+                            }}
+                            className={`w-28 px-2 py-1 rounded-md text-xs font-mono font-bold border ${themes[theme].border} ${themes[theme].input} ${themes[theme].text} focus:outline-none`}
+                          />
+                          {syncPrice != null && (
+                            <button
+                              type="button"
+                              onClick={() => setSyncPrice(null)}
+                              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
+                              title="清除价格 (市价)"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {priceData && (
+                        <div className="flex items-center gap-1.5">
+                          {typeof priceData.price === 'number' && (
+                            <button
+                              type="button"
+                              onClick={() => setSyncPrice(priceData.price ?? null)}
+                              className={`px-2 py-0.5 rounded text-[11px] font-mono border transition-all ${
+                                syncPrice === priceData.price
+                                  ? 'bg-blue-600 text-white border-blue-600 font-bold'
+                                  : 'border-gray-200 dark:border-neutral-700 opacity-80 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5'
+                              }`}
+                            >
+                              最新 {priceData.price.toFixed(4)}
+                            </button>
+                          )}
+                          {typeof priceData.bid === 'number' && (
+                            <button
+                              type="button"
+                              onClick={() => setSyncPrice(priceData.bid ?? null)}
+                              className={`px-2 py-0.5 rounded text-[11px] font-mono border transition-all ${
+                                syncPrice === priceData.bid
+                                  ? 'bg-red-600 text-white border-red-600 font-bold'
+                                  : 'border-red-500/30 text-red-600 dark:text-red-400 bg-red-500/5 hover:bg-red-500/15'
+                              }`}
+                            >
+                              买一 {priceData.bid.toFixed(4)}
+                            </button>
+                          )}
+                          {typeof priceData.ask === 'number' && (
+                            <button
+                              type="button"
+                              onClick={() => setSyncPrice(priceData.ask ?? null)}
+                              className={`px-2 py-0.5 rounded text-[11px] font-mono border transition-all ${
+                                syncPrice === priceData.ask
+                                  ? 'bg-emerald-600 text-white border-emerald-600 font-bold'
+                                  : 'border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/15'
+                              }`}
+                            >
+                              卖一 {priceData.ask.toFixed(4)}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 3. 实时 Delta 风险评估卡片 */}
+                  <div className={`p-3.5 rounded-xl border ${themes[theme].border} ${themes[theme].background} space-y-2.5`}>
+                    <div className="flex items-center justify-between">
+                      <span className={`text-xs font-bold ${themes[theme].text} flex items-center gap-1.5`}>
+                        <span>📊</span> Delta 风险评估
+                      </span>
+                      {isEstimated && (
+                        <span className={`text-[10px] opacity-60 px-1.5 py-0.5 rounded border ${themes[theme].border}`}>
+                          理论估计值
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div className={`p-2 rounded-lg bg-black/5 dark:bg-white/5 space-y-0.5`}>
+                        <div className={`text-[11px] opacity-60 ${themes[theme].text}`}>合约单张 Delta (Δ)</div>
+                        <div className={`font-mono font-bold text-sm ${contractDelta >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                          {formatDelta(contractDelta)}
+                        </div>
+                      </div>
+                      <div className={`p-2 rounded-lg bg-black/5 dark:bg-white/5 space-y-0.5`}>
+                        <div className={`text-[11px] opacity-60 ${themes[theme].text}`}>当前持仓方向 Delta (单张)</div>
+                        <div className={`font-mono font-bold text-sm ${deltaContribution >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                          {formatDelta(deltaContribution)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className={`pt-2 border-t border-dashed ${themes[theme].border} flex items-center justify-between text-xs`}>
+                      <div className="space-y-0.5">
+                        <span className={`text-[11px] opacity-60 ${themes[theme].text}`}>持仓变动:</span>
+                        <div className={`font-mono font-semibold ${qtyChange > 0 ? 'text-emerald-600 dark:text-emerald-400' : qtyChange < 0 ? 'text-rose-600 dark:text-rose-400' : themes[theme].text}`}>
+                          {qtyChange > 0 ? `+${qtyChange}` : qtyChange} 张 ({currentSum} → {targetQty})
+                        </div>
+                      </div>
+                      <div className="text-right space-y-0.5">
+                        <span className={`text-[11px] opacity-60 ${themes[theme].text}`}>Delta 影响值:</span>
+                        <div className={`font-mono font-bold text-base ${deltaChange > 0 ? 'text-emerald-600 dark:text-emerald-400' : deltaChange < 0 ? 'text-rose-600 dark:text-rose-400' : themes[theme].text}`}>
+                          {qtyChange === 0 ? '0.000' : formatDelta(deltaChange)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className={`text-[11px] leading-relaxed p-2 rounded-lg bg-blue-500/5 border border-blue-500/15 ${themes[theme].text}`}>
+                      💡 {getImpactText()}
+                    </div>
+                  </div>
+
+                  {/* 4. 行情五档深度卡片 (Compact Order Book with Depth) */}
+                  {priceData && (
+                    <div className={`p-3 rounded-xl border ${themes[theme].border} ${themes[theme].background} space-y-2`}>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className={`font-bold ${themes[theme].text} flex items-center gap-1.5`}>
+                          <span>📈</span> 五档行情盘口
+                          <span className="font-mono text-blue-600 dark:text-blue-400 ml-1">最新: {priceData.price.toFixed(4)}</span>
+                        </span>
+                        <span className="opacity-50 font-mono text-[10px]">{format(new Date(priceData.timestamp), 'HH:mm:ss')}</span>
+                      </div>
+
+                      {(() => {
+                        const bids = Array.from({ length: 5 }).map((_, i) => ({
+                          level: i + 1,
+                          price: priceData.bid_price?.[i] ?? (i === 0 ? priceData.bid : undefined),
+                          vol: priceData.bid_vol?.[i]
+                        }));
+                        const asks = Array.from({ length: 5 }).map((_, i) => ({
+                          level: i + 1,
+                          price: priceData.ask_price?.[i] ?? (i === 0 ? priceData.ask : undefined),
+                          vol: priceData.ask_vol?.[i]
+                        }));
+                        const maxVol = Math.max(
+                          ...bids.map(b => b.vol || 0),
+                          ...asks.map(a => a.vol || 0),
+                          1
+                        );
+
+                        return (
+                          <div className="grid grid-cols-2 gap-3 text-[11px]">
+                            {/* 买盘 */}
+                            <div className="space-y-1">
+                              <div className="flex justify-between px-1.5 py-0.5 text-[10px] font-bold text-red-500 border-b border-red-500/20">
+                                <span>买盘</span>
+                                <span>价格</span>
+                                <span>量</span>
+                              </div>
+                              <div className="space-y-0.5">
+                                {bids.map((b) => {
+                                  const isSelected = syncPrice != null && typeof b.price === 'number' && Math.abs(b.price - syncPrice) < 1e-6;
+                                  const pct = b.vol ? Math.min(100, Math.round((b.vol / maxVol) * 100)) : 0;
+                                  return (
+                                    <div
+                                      key={`bid-${b.level}`}
+                                      onClick={() => {
+                                        if (typeof b.price === 'number') setSyncPrice(b.price);
+                                      }}
+                                      className={`relative flex items-center justify-between px-1.5 py-0.5 rounded cursor-pointer transition-all hover:bg-red-500/15 ${
+                                        isSelected ? 'bg-red-500/25 ring-1 ring-red-500 font-bold' : ''
+                                      }`}
+                                      title="点击设定为目标委托价格"
+                                    >
+                                      {/* Depth Bar */}
+                                      <div
+                                        className="absolute right-0 top-0 bottom-0 bg-red-500/10 rounded pointer-events-none transition-all"
+                                        style={{ width: `${pct}%` }}
+                                      />
+                                      <span className="opacity-60 relative z-10 text-[10px]">{b.level}</span>
+                                      <span className="font-mono text-red-500 font-semibold relative z-10">{b.price != null ? b.price.toFixed(4) : '-'}</span>
+                                      <span className="font-mono opacity-80 relative z-10 text-[10px]">{b.vol ?? '-'}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            {/* 卖盘 */}
+                            <div className="space-y-1">
+                              <div className="flex justify-between px-1.5 py-0.5 text-[10px] font-bold text-green-500 border-b border-green-500/20">
+                                <span>卖盘</span>
+                                <span>价格</span>
+                                <span>量</span>
+                              </div>
+                              <div className="space-y-0.5">
+                                {asks.map((a) => {
+                                  const isSelected = syncPrice != null && typeof a.price === 'number' && Math.abs(a.price - syncPrice) < 1e-6;
+                                  const pct = a.vol ? Math.min(100, Math.round((a.vol / maxVol) * 100)) : 0;
+                                  return (
+                                    <div
+                                      key={`ask-${a.level}`}
+                                      onClick={() => {
+                                        if (typeof a.price === 'number') setSyncPrice(a.price);
+                                      }}
+                                      className={`relative flex items-center justify-between px-1.5 py-0.5 rounded cursor-pointer transition-all hover:bg-green-500/15 ${
+                                        isSelected ? 'bg-green-500/25 ring-1 ring-green-500 font-bold' : ''
+                                      }`}
+                                      title="点击设定为目标委托价格"
+                                    >
+                                      {/* Depth Bar */}
+                                      <div
+                                        className="absolute right-0 top-0 bottom-0 bg-green-500/10 rounded pointer-events-none transition-all"
+                                        style={{ width: `${pct}%` }}
+                                      />
+                                      <span className="opacity-60 relative z-10 text-[10px]">{a.level}</span>
+                                      <span className="font-mono text-green-500 font-semibold relative z-10">{a.price != null ? a.price.toFixed(4) : '-'}</span>
+                                      <span className="font-mono opacity-80 relative z-10 text-[10px]">{a.vol ?? '-'}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+
+                  {/* 5. 白名单提示 (如有执行计划) */}
+                  {wl && (
+                    <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
+                      <span>⚠️</span>
+                      <span>当前合约已存在自动计划执行: <strong>{wl.reason}</strong> {wl.quantity ? `(${wl.quantity} 张)` : ''}</span>
+                    </div>
+                  )}
                 </div>
-              </div>
-            </div>
+              );
+            })()
           ) : (
             (() => {
               const allComplexPositions = (allExpiryBuckets || []).flatMap(b => b.complex.flatMap(strategy => strategy.positions));
@@ -4164,9 +4165,18 @@ export function ExpiryGroupCard({
               }
             }}
           >清仓</button>
-          <button
-            className={`px-3 py-2 rounded-md text-sm bg-blue-600 text-white hover:bg-blue-700`}
-            onClick={async () => {
+          {(() => {
+            let label = '确认执行';
+            if (confirmData.meta?.action === 'sync_category') {
+              const key = confirmData.ids[0];
+              const q = qtyOverrides[key];
+              if (q === 0) label = '确认平仓 (清零)';
+              else if (typeof q === 'number') label = `确认调整 (${q} 张)`;
+            }
+            return (
+              <button
+                className={`px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 active:scale-95 transition-all shadow-sm`}
+                onClick={async () => {
               if (confirmData.meta?.action === 'sync_category') {
                 const key = confirmData.ids[0];
                 const q = qtyOverrides[key] ?? 0;
@@ -4352,7 +4362,11 @@ export function ExpiryGroupCard({
                 setConfirmData(null);
               }
             }}
-          >确认执行</button>
+          >
+            {label}
+          </button>
+            );
+          })()}
         </div>
         )}
       </div>
