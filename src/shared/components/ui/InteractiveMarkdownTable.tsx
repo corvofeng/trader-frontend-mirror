@@ -468,10 +468,10 @@ export function InteractiveMarkdownTable({
         const getRowPrice = (row: string[]) => {
           const rawContract = row[rawPrimaryContractColIdx] ?? '';
           const parsed = parseContract(rawContract);
-          if (!parsed) return -Infinity;
+          if (!parsed || !wsContext?.prices) return -Infinity;
           const p =
-            (parsed.contract_code_full && wsContext?.prices[parsed.contract_code_full]) ??
-            (parsed.code && wsContext?.prices[parsed.code]);
+            (parsed.contract_code_full ? wsContext.prices[parsed.contract_code_full] : undefined) ??
+            (parsed.code ? wsContext.prices[parsed.code] : undefined);
           return p?.price ?? p?.last_price ?? -Infinity;
         };
         const priceA = getRowPrice(a);
@@ -551,9 +551,10 @@ export function InteractiveMarkdownTable({
         if (c === '__LIVE_PRICE__' || displayHeaders[idx] === '实时价') {
           const rawContract = r[rawPrimaryContractColIdx] ?? '';
           const parsed = parseContract(rawContract);
+          if (!parsed || !wsContext?.prices) return '-';
           const p =
-            (parsed?.contract_code_full && wsContext?.prices[parsed.contract_code_full]) ??
-            (parsed?.code && wsContext?.prices[parsed.code]);
+            (parsed.contract_code_full ? wsContext.prices[parsed.contract_code_full] : undefined) ??
+            (parsed.code ? wsContext.prices[parsed.code] : undefined);
           const num = p?.price ?? p?.last_price;
           return num != null ? num.toFixed(4) : '-';
         }
@@ -708,49 +709,61 @@ export function InteractiveMarkdownTable({
     }
 
     // 7. Reasons / Action Advice with highlighted keywords
-    if (/^(原因|行权操作|备注|候选说明)$/i.test(header) || trimmed.includes('建议平仓') || trimmed.includes('建议移仓') || trimmed.includes('止盈')) {
-      const parts = trimmed.split(/(建议平仓|建议移仓|请注意止盈|止盈|强平线 \d+%|准备现金 [^/]+|性价比低)/g);
+    const isReasonCol = /^(原因|行权操作|备注|候选说明|说明|描述)$/i.test(header);
+    if (isReasonCol || trimmed.includes('建议平仓') || trimmed.includes('建议移仓') || trimmed.includes('止盈') || trimmed.includes('强平线')) {
+      const clauses = trimmed.split(/[；;]/).map((s) => s.trim()).filter(Boolean);
+
       return (
-        <span className="text-xs leading-relaxed text-zinc-600 dark:text-zinc-300">
-          {parts.map((part, idx) => {
-            if (part === '建议平仓') {
-              return (
-                <span key={idx} className="font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-1 py-0.2 rounded border border-rose-200/50 dark:border-rose-800/40 mx-0.5">
-                  建议平仓
-                </span>
-              );
-            }
-            if (part === '建议移仓') {
-              return (
-                <span key={idx} className="font-semibold text-amber-600 dark:text-yellow-400 bg-amber-50 dark:bg-amber-950/40 px-1 py-0.2 rounded border border-amber-200/50 dark:border-yellow-800/40 mx-0.5">
-                  建议移仓
-                </span>
-              );
-            }
-            if (part === '请注意止盈' || part === '止盈') {
-              return (
-                <span key={idx} className="font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1 py-0.2 rounded border border-emerald-200/50 dark:border-emerald-800/40 mx-0.5">
-                  {part}
-                </span>
-              );
-            }
-            if (/^强平线/.test(part) || part === '性价比低') {
-              return (
-                <span key={idx} className="font-medium text-red-500 dark:text-red-400 mx-0.5">
-                  {part}
-                </span>
-              );
-            }
-            if (/^准备现金/.test(part)) {
-              return (
-                <span key={idx} className="font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-1 py-0.2 rounded mx-0.5">
-                  {part}
-                </span>
-              );
-            }
-            return part;
+        <div className="flex flex-col gap-1 min-w-[260px] max-w-[420px] text-xs">
+          {clauses.map((clause, cIdx) => {
+            const parts = clause.split(/(建议平仓|建议移仓|请注意止盈|止盈|强平线 \d+%|准备现金 [^/]+|性价比低)/g);
+            return (
+              <div key={cIdx} className="flex items-center gap-1 flex-wrap leading-normal text-zinc-600 dark:text-zinc-300">
+                {clauses.length > 1 && (
+                  <span className="w-1 h-1 rounded-full bg-zinc-400 dark:bg-zinc-500 shrink-0" />
+                )}
+                {parts.map((part, idx) => {
+                  if (part === '建议平仓') {
+                    return (
+                      <span key={idx} className="inline-flex items-center font-semibold text-[11px] text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/50 px-1.5 py-0.5 rounded border border-rose-200/60 dark:border-rose-800/50 shrink-0">
+                        建议平仓
+                      </span>
+                    );
+                  }
+                  if (part === '建议移仓') {
+                    return (
+                      <span key={idx} className="inline-flex items-center font-semibold text-[11px] text-amber-700 dark:text-yellow-300 bg-amber-50 dark:bg-amber-950/50 px-1.5 py-0.5 rounded border border-amber-200/60 dark:border-yellow-800/50 shrink-0">
+                        建议移仓
+                      </span>
+                    );
+                  }
+                  if (part === '请注意止盈' || part === '止盈') {
+                    return (
+                      <span key={idx} className="inline-flex items-center font-semibold text-[11px] text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded border border-emerald-200/60 dark:border-emerald-800/50 shrink-0">
+                        {part}
+                      </span>
+                    );
+                  }
+                  if (/^强平线/.test(part) || part === '性价比低') {
+                    return (
+                      <span key={idx} className="inline-flex items-center font-medium text-[11px] text-red-600 dark:text-red-400 bg-red-50/80 dark:bg-red-950/40 px-1.5 py-0.5 rounded border border-red-200/60 dark:border-red-800/50 shrink-0">
+                        {part}
+                      </span>
+                    );
+                  }
+                  if (/^准备现金/.test(part)) {
+                    return (
+                      <span key={idx} className="inline-flex items-center font-medium text-[11px] text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.5 rounded border border-blue-200/60 dark:border-blue-800/50 shrink-0">
+                        {part}
+                      </span>
+                    );
+                  }
+                  return <span key={idx}>{part}</span>;
+                })}
+              </div>
+            );
           })}
-        </span>
+        </div>
       );
     }
 
@@ -863,12 +876,15 @@ export function InteractiveMarkdownTable({
               {displayHeaders.map((header, idx) => {
                 const isSorted = sortColIndex === idx;
                 const isNumeric = /^(TV|TV\/Day|阈值|M\/TV|数量|净张数|行权价|标的价格|成本价|当前价|盈亏|保证金|时间价值|实现率|K|Net|乘数|买入均价|卖出均价|测算标的价|到期内在价值|到期合约价值|权利金影响|到期盈亏|实时价)$/i.test(header.trim());
+                const isReason = /^(原因|行权操作|备注|候选说明|说明|描述)$/i.test(header.trim());
                 return (
                   <th
                     key={idx}
                     scope="col"
                     onClick={() => handleSort(idx)}
                     className={`px-3 py-2.5 text-xs font-semibold select-none cursor-pointer transition-colors group/th ${
+                      isReason ? 'min-w-[260px] max-w-[420px] whitespace-normal' : 'whitespace-nowrap'
+                    } ${
                       isSorted
                         ? 'text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20'
                         : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 hover:bg-slate-200/40 dark:hover:bg-zinc-800/40'
@@ -921,10 +937,13 @@ export function InteractiveMarkdownTable({
                   {row.map((cell, cIdx) => {
                     const header = displayHeaders[cIdx]?.trim() || '';
                     const isNumeric = /^(TV|TV\/Day|阈值|M\/TV|数量|净张数|行权价|标的价格|成本价|当前价|盈亏|保证金|时间价值|实现率|K|Net|乘数|买入均价|卖出均价|测算标的价|到期内在价值|到期合约价值|权利金影响|到期盈亏|实时价)$/i.test(header);
+                    const isReason = /^(原因|行权操作|备注|候选说明|说明|描述)$/i.test(header);
                     return (
                       <td
                         key={cIdx}
-                        className={`px-3 py-2 text-xs align-middle ${
+                        className={`px-3 py-2 text-xs align-top ${
+                          isReason ? 'min-w-[260px] max-w-[420px] whitespace-normal' : 'whitespace-nowrap'
+                        } ${
                           isNumeric ? 'text-right font-mono' : 'text-left'
                         }`}
                       >
