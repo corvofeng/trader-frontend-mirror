@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Theme, themes } from '../../../lib/theme';
 import { OptionsPortfolioData } from '../../../lib/services/types';
-import { renderMarkdown } from '../../../shared/utils/markdown';
+import { MarkdownViewer } from '../../../shared/components/ui/MarkdownViewer';
 import { ChevronDown, ChevronUp, Activity, AlertTriangle, Shield, TrendingUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { OptionPayoffCalculatorChart } from './OptionPayoffCalculatorChart';
@@ -177,23 +177,9 @@ export function OptionsAnalysisView({ portfolioData, theme }: OptionsAnalysisVie
             {isExpanded && (
               <div className="p-3 sm:p-6 bg-white dark:bg-gray-900/20">
                  {typeof analysis?.report === 'string' && analysis.report.trim() ? (
-                   <>
-                     <div className="hidden sm:block mb-6">
-                       <div className="prose prose-sm max-w-none overflow-x-auto prose-table:w-max prose-table:max-w-none prose-th:whitespace-nowrap prose-td:whitespace-nowrap">
-                         <div dangerouslySetInnerHTML={{ __html: renderMarkdown(analysis.report, theme) }} />
-                       </div>
-                     </div>
-                     <details className={`sm:hidden mb-5 rounded-lg border ${themes[theme].border} bg-white dark:bg-gray-900/20`}>
-                       <summary className={`cursor-pointer select-none px-3 py-2 text-sm font-semibold ${themes[theme].text}`}>
-                         查看到期日摘要
-                       </summary>
-                       <div className="px-3 pb-3">
-                         <div className="prose prose-sm max-w-none overflow-x-auto prose-table:w-max prose-table:max-w-none prose-th:whitespace-nowrap prose-td:whitespace-nowrap">
-                           <div dangerouslySetInnerHTML={{ __html: renderMarkdown(analysis.report, theme) }} />
-                         </div>
-                       </div>
-                     </details>
-                   </>
+                   <div className="mb-6 overflow-x-auto">
+                     <MarkdownViewer content={analysis.report} theme={theme} />
+                   </div>
                  ) : null}
 
                  {Array.isArray(underlyings) && underlyings.length > 0 ? (
@@ -236,23 +222,9 @@ export function OptionsAnalysisView({ portfolioData, theme }: OptionsAnalysisVie
                           </details>
 
                            {typeof item?.report === 'string' && item.report.trim() ? (
-                            <>
-                              <div className="hidden sm:block">
-                                <div className="prose prose-sm max-w-none overflow-x-auto prose-table:w-max prose-table:max-w-none prose-th:whitespace-nowrap prose-td:whitespace-nowrap">
-                                  <div dangerouslySetInnerHTML={{ __html: renderMarkdown(item.report, theme) }} />
-                                </div>
-                              </div>
-                              <details className={`sm:hidden rounded-lg border ${themes[theme].border} bg-white dark:bg-gray-900/10`}>
-                                <summary className={`cursor-pointer select-none px-3 py-2 text-sm font-semibold ${themes[theme].text}`}>
-                                  查看分析内容
-                                </summary>
-                                <div className="px-3 pb-3">
-                                  <div className="prose prose-sm max-w-none overflow-x-auto prose-table:w-max prose-table:max-w-none prose-th:whitespace-nowrap prose-td:whitespace-nowrap">
-                                    <div dangerouslySetInnerHTML={{ __html: renderMarkdown(item.report, theme) }} />
-                                  </div>
-                                </div>
-                              </details>
-                            </>
+                             <div className="overflow-x-auto">
+                               <MarkdownViewer content={item.report} theme={theme} />
+                             </div>
                            ) : (
                              <div className={`text-sm ${themes[theme].text} opacity-70`}>暂无分析内容</div>
                            )}

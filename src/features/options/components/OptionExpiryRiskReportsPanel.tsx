@@ -4,7 +4,7 @@ import { Loader } from 'lucide-react';
 import { optionsService } from '../../../lib/services';
 import type { OptionExpiryRiskReport, OptionExpiryRiskReportItem, OptionExpiryRiskReportListItem } from '../../../lib/services/types';
 import { Theme, themes } from '../../../lib/theme';
-import { renderMarkdown } from '../../../shared/utils/markdown';
+import { MarkdownViewer } from '../../../shared/components/ui/MarkdownViewer';
 import { OptionPayoffCalculatorChart } from './OptionPayoffCalculatorChart';
 import type { PayoffChartEngine } from './OptionPayoffCalculatorChart';
 
@@ -441,12 +441,8 @@ export function OptionExpiryRiskReportsPanel({
                 ) : null}
 
                 {selectedMarkdown.trim() ? (
-                  <div className="prose prose-sm max-w-none overflow-x-auto prose-table:w-max prose-table:max-w-none prose-th:whitespace-nowrap prose-td:whitespace-nowrap">
-                    <div
-                      dangerouslySetInnerHTML={{
-                        __html: renderMarkdown(selectedMarkdown, theme),
-                      }}
-                    />
+                  <div className="overflow-x-auto">
+                    <MarkdownViewer content={selectedMarkdown} theme={theme} />
                   </div>
                 ) : (
                   <div className={`text-sm ${themes[theme].text} opacity-70`}>暂无分析内容</div>

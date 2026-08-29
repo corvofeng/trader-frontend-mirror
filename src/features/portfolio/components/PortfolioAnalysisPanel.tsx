@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, TrendingUp, TrendingDown, PieChart, Shield, Target, AlertTriangle, ChevronDown, ChevronUp, FileText } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { analysisService } from '../../../lib/services';
 import type { PortfolioAnalysis } from '../../../lib/services/types';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
-import { renderMarkdown } from '../../../shared/utils/markdown';
+import { MarkdownViewer } from '../../../shared/components/ui/MarkdownViewer';
 import toast from 'react-hot-toast';
 
 interface PortfolioAnalysisPanelProps {
@@ -107,12 +107,9 @@ export function PortfolioAnalysisPanel({ theme, portfolioUuid, userId, selectedA
             <FileText className="w-5 h-5 text-blue-500" />
             <h3 className={`text-xl font-semibold leading-tight whitespace-nowrap flex-shrink-0 ${themes[theme].text}`}>分析报告</h3>
           </div>
-          <div 
-            className="break-words"
-            dangerouslySetInnerHTML={{ 
-              __html: renderMarkdown(analysis.content, theme) 
-            }}
-          />
+          <div className="break-words overflow-x-auto">
+            <MarkdownViewer content={analysis.content} theme={theme} />
+          </div>
         </div>
       </div>
     );
