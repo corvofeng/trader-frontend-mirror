@@ -336,6 +336,139 @@ function ContractCellWithTick({
   );
 }
 
+interface ReasonTag {
+  type: 'close' | 'roll' | 'profit' | 'low_val' | 'margin' | 'cash' | 'custom';
+  label: string;
+  className: string;
+}
+
+function extractReasonTags(text: string): ReasonTag[] {
+  const tags: ReasonTag[] = [];
+  const trimmed = text.trim();
+
+  if (trimmed.includes('建议平仓')) {
+    tags.push({
+      type: 'close',
+      label: '建议平仓',
+      className: 'bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300 border-rose-200/70 dark:border-rose-800/60',
+    });
+  }
+  if (trimmed.includes('建议移仓')) {
+    tags.push({
+      type: 'roll',
+      label: '建议移仓',
+      className: 'bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-yellow-300 border-amber-200/70 dark:border-yellow-800/60',
+    });
+  }
+  if (trimmed.includes('请注意止盈') || trimmed.includes('止盈')) {
+    tags.push({
+      type: 'profit',
+      label: trimmed.includes('请注意止盈') ? '请注意止盈' : '止盈',
+      className: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 border-emerald-200/70 dark:border-emerald-800/60',
+    });
+  }
+  if (trimmed.includes('性价比低')) {
+    tags.push({
+      type: 'low_val',
+      label: '性价比低',
+      className: 'bg-orange-50 text-orange-700 dark:bg-orange-950/50 dark:text-orange-300 border-orange-200/70 dark:border-orange-800/60',
+    });
+  }
+  const marginMatch = trimmed.match(/强平线\s*\d+%/);
+  if (marginMatch) {
+    tags.push({
+      type: 'margin',
+      label: marginMatch[0],
+      className: 'bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300 border-red-200/70 dark:border-red-800/60',
+    });
+  }
+  const cashMatch = trimmed.match(/准备现金\s*[^/；;,，]+/);
+  if (cashMatch) {
+    tags.push({
+      type: 'cash',
+      label: cashMatch[0].trim(),
+      className: 'bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border-blue-200/70 dark:border-blue-800/60',
+    });
+  }
+
+  // If no predefined action keyword was matched, fallback to a concise custom pill
+  if (tags.length === 0 && trimmed && trimmed !== '-') {
+    const shortLabel = trimmed.length > 10 ? `${trimmed.slice(0, 10)}...` : trimmed;
+    tags.push({
+      type: 'custom',
+      label: shortLabel,
+      className: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700',
+    });
+  }
+
+  return tags;
+}
+
+/**
+ * Compact Reason Cell displaying only tags, showing full detailed advice on hover popover
+ */
+function ReasonCellWithPopover({
+  rawText,
+  isNearBottom,
+}: {
+  rawText: string;
+  isNearBottom: boolean;
+}) {
+  const tags = useMemo(() => extractReasonTags(rawText), [rawText]);
+  const clauses = useMemo(
+    () => rawText.split(/[；;]/).map((s) => s.trim()).filter(Boolean),
+    [rawText]
+  );
+
+  return (
+    <div className="group/reason relative inline-block">
+      {/* Visible Tag Chips */}
+      <div className="flex items-center gap-1.5 flex-wrap cursor-pointer select-none">
+        {tags.map((tag, idx) => (
+          <span
+            key={idx}
+            className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold border shadow-2xs transition-all hover:scale-105 ${tag.className}`}
+          >
+            {tag.label}
+          </span>
+        ))}
+      </div>
+
+      {/* Popover / Tooltip on hover showing detailed content */}
+      <div
+        className={`absolute ${
+          isNearBottom
+            ? 'bottom-full mb-2 before:content-[\'\'] before:absolute before:-bottom-2 before:left-0 before:w-full before:h-2'
+            : 'top-full mt-2 before:content-[\'\'] before:absolute before:-top-2 before:left-0 before:w-full before:h-2'
+        } right-0 hidden group-hover/reason:flex flex-col z-50 w-72 p-3 bg-slate-900/95 dark:bg-zinc-950/95 text-white rounded-xl shadow-2xl border border-slate-700 dark:border-zinc-800 backdrop-blur-md pointer-events-auto text-left`}
+      >
+        <div className="flex items-center gap-1.5 border-b border-zinc-800 pb-1.5 mb-2 text-xs font-bold text-zinc-100">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+          <span>详细原因与建议</span>
+        </div>
+
+        <div className="space-y-1.5 text-xs text-zinc-300 leading-relaxed">
+          {clauses.map((clause, idx) => (
+            <div key={idx} className="flex items-start gap-1.5">
+              <span className="text-zinc-500 font-mono text-[10px] shrink-0 mt-0.5">•</span>
+              <span>{clause}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Triangle Arrow */}
+        <div
+          className={`absolute ${
+            isNearBottom
+              ? 'top-full right-4 border-4 border-transparent border-t-slate-900 dark:border-t-zinc-950'
+              : 'bottom-full right-4 border-4 border-transparent border-b-slate-900 dark:border-b-zinc-950'
+          }`}
+        />
+      </div>
+    </div>
+  );
+}
+
 export function InteractiveMarkdownTable({
   headers,
   rows,
@@ -710,61 +843,10 @@ export function InteractiveMarkdownTable({
 
     // 7. Reasons / Action Advice with highlighted keywords
     const isReasonCol = /^(原因|行权操作|备注|候选说明|说明|描述)$/i.test(header);
-    if (isReasonCol || trimmed.includes('建议平仓') || trimmed.includes('建议移仓') || trimmed.includes('止盈') || trimmed.includes('强平线')) {
-      const clauses = trimmed.split(/[；;]/).map((s) => s.trim()).filter(Boolean);
-
-      return (
-        <div className="flex flex-col gap-1 min-w-[260px] max-w-[420px] text-xs">
-          {clauses.map((clause, cIdx) => {
-            const parts = clause.split(/(建议平仓|建议移仓|请注意止盈|止盈|强平线 \d+%|准备现金 [^/]+|性价比低)/g);
-            return (
-              <div key={cIdx} className="flex items-center gap-1 flex-wrap leading-normal text-zinc-600 dark:text-zinc-300">
-                {clauses.length > 1 && (
-                  <span className="w-1 h-1 rounded-full bg-zinc-400 dark:bg-zinc-500 shrink-0" />
-                )}
-                {parts.map((part, idx) => {
-                  if (part === '建议平仓') {
-                    return (
-                      <span key={idx} className="inline-flex items-center font-semibold text-[11px] text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/50 px-1.5 py-0.5 rounded border border-rose-200/60 dark:border-rose-800/50 shrink-0">
-                        建议平仓
-                      </span>
-                    );
-                  }
-                  if (part === '建议移仓') {
-                    return (
-                      <span key={idx} className="inline-flex items-center font-semibold text-[11px] text-amber-700 dark:text-yellow-300 bg-amber-50 dark:bg-amber-950/50 px-1.5 py-0.5 rounded border border-amber-200/60 dark:border-yellow-800/50 shrink-0">
-                        建议移仓
-                      </span>
-                    );
-                  }
-                  if (part === '请注意止盈' || part === '止盈') {
-                    return (
-                      <span key={idx} className="inline-flex items-center font-semibold text-[11px] text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded border border-emerald-200/60 dark:border-emerald-800/50 shrink-0">
-                        {part}
-                      </span>
-                    );
-                  }
-                  if (/^强平线/.test(part) || part === '性价比低') {
-                    return (
-                      <span key={idx} className="inline-flex items-center font-medium text-[11px] text-red-600 dark:text-red-400 bg-red-50/80 dark:bg-red-950/40 px-1.5 py-0.5 rounded border border-red-200/60 dark:border-red-800/50 shrink-0">
-                        {part}
-                      </span>
-                    );
-                  }
-                  if (/^准备现金/.test(part)) {
-                    return (
-                      <span key={idx} className="inline-flex items-center font-medium text-[11px] text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.5 rounded border border-blue-200/60 dark:border-blue-800/50 shrink-0">
-                        {part}
-                      </span>
-                    );
-                  }
-                  return <span key={idx}>{part}</span>;
-                })}
-              </div>
-            );
-          })}
-        </div>
-      );
+    if (isReasonCol || trimmed.includes('建议平仓') || trimmed.includes('建议移仓') || trimmed.includes('止盈') || trimmed.includes('强平线') || trimmed.includes('性价比低')) {
+      const totalRows = sortedRows.length;
+      const isNearBottom = totalRows <= 3 ? rowIndex > 0 : rowIndex >= totalRows - 3 || rowIndex >= Math.floor(totalRows / 2);
+      return <ReasonCellWithPopover rawText={trimmed} isNearBottom={isNearBottom} />;
     }
 
     return <span className="text-xs text-zinc-700 dark:text-zinc-200">{trimmed}</span>;
@@ -876,15 +958,12 @@ export function InteractiveMarkdownTable({
               {displayHeaders.map((header, idx) => {
                 const isSorted = sortColIndex === idx;
                 const isNumeric = /^(TV|TV\/Day|阈值|M\/TV|数量|净张数|行权价|标的价格|成本价|当前价|盈亏|保证金|时间价值|实现率|K|Net|乘数|买入均价|卖出均价|测算标的价|到期内在价值|到期合约价值|权利金影响|到期盈亏|实时价)$/i.test(header.trim());
-                const isReason = /^(原因|行权操作|备注|候选说明|说明|描述)$/i.test(header.trim());
                 return (
                   <th
                     key={idx}
                     scope="col"
                     onClick={() => handleSort(idx)}
-                    className={`px-3 py-2.5 text-xs font-semibold select-none cursor-pointer transition-colors group/th ${
-                      isReason ? 'min-w-[260px] max-w-[420px] whitespace-normal' : 'whitespace-nowrap'
-                    } ${
+                    className={`px-3 py-2.5 text-xs font-semibold select-none cursor-pointer transition-colors group/th whitespace-nowrap ${
                       isSorted
                         ? 'text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20'
                         : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 hover:bg-slate-200/40 dark:hover:bg-zinc-800/40'
@@ -937,13 +1016,10 @@ export function InteractiveMarkdownTable({
                   {row.map((cell, cIdx) => {
                     const header = displayHeaders[cIdx]?.trim() || '';
                     const isNumeric = /^(TV|TV\/Day|阈值|M\/TV|数量|净张数|行权价|标的价格|成本价|当前价|盈亏|保证金|时间价值|实现率|K|Net|乘数|买入均价|卖出均价|测算标的价|到期内在价值|到期合约价值|权利金影响|到期盈亏|实时价)$/i.test(header);
-                    const isReason = /^(原因|行权操作|备注|候选说明|说明|描述)$/i.test(header);
                     return (
                       <td
                         key={cIdx}
-                        className={`px-3 py-2 text-xs align-top ${
-                          isReason ? 'min-w-[260px] max-w-[420px] whitespace-normal' : 'whitespace-nowrap'
-                        } ${
+                        className={`px-3 py-2 text-xs align-middle whitespace-nowrap ${
                           isNumeric ? 'text-right font-mono' : 'text-left'
                         }`}
                       >
