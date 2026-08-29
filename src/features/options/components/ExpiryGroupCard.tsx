@@ -2023,6 +2023,17 @@ export function ExpiryGroupCard({
       else if (c.status === 'PROFIT') counts.profit.push(c);
       else if (c.status === 'WATCH') counts.watch.push(c);
     });
+
+    const sortByProfitRatio = (a: (typeof comboStatuses)[0], b: (typeof comboStatuses)[0]) => {
+      const valA = a.profitRatio ?? -Infinity;
+      const valB = b.profitRatio ?? -Infinity;
+      return valB - valA;
+    };
+
+    counts.auto.sort(sortByProfitRatio);
+    counts.profit.sort(sortByProfitRatio);
+    counts.watch.sort(sortByProfitRatio);
+
     return counts;
   }, [comboStatuses]);
 
@@ -2058,6 +2069,16 @@ export function ExpiryGroupCard({
       return valB - valA; // Descending by profit realization percentage
     });
   }, [confirmData?.meta?.strategies, resolveDisplayPosition, estimateCloseForStrategy, getStrategyPerformanceMetrics]);
+
+  const tooltipCardClass = theme === 'dark'
+    ? 'bg-zinc-900/95 border-zinc-700/80 text-zinc-100 shadow-[0_16px_36px_-8px_rgba(0,0,0,0.6)]'
+    : theme === 'blue'
+      ? 'bg-white/98 border-blue-200 text-slate-800 shadow-[0_16px_36px_-8px_rgba(37,99,235,0.15)]'
+      : 'bg-white/98 border-slate-200 text-slate-800 shadow-[0_16px_36px_-8px_rgba(15,23,42,0.15)]';
+
+  const tooltipDividerClass = theme === 'dark' ? 'border-zinc-800/80' : theme === 'blue' ? 'border-blue-50' : 'border-slate-100';
+  const tooltipSubtextClass = theme === 'dark' ? 'text-zinc-300' : 'text-slate-600';
+  const tooltipArrowClass = theme === 'dark' ? 'border-b-zinc-900' : 'border-b-white';
 
   return (
     <div className={`${themes[theme].card} ${themes[theme].border} relative isolate rounded-xl border overflow-hidden
@@ -2102,18 +2123,26 @@ export function ExpiryGroupCard({
                       <span className="inline-flex items-center rounded-full px-2 sm:px-2.5 py-0.5 text-[10px] sm:text-xs font-medium bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-400 border border-red-200/20 shrink-0 cursor-help">
                         AUTO: {statusCounts.auto.length}
                       </span>
-                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/autotip:block w-72 p-3 bg-slate-900 dark:bg-zinc-950 border border-slate-750 dark:border-zinc-800 text-white rounded-xl shadow-xl text-left z-50 pointer-events-none">
-                        <div className="text-[11px] font-bold text-red-400 mb-1.5">AUTO 组合列表</div>
-                        <div className="space-y-1.5 text-[10px] leading-relaxed text-zinc-300">
+                      <div 
+                        onWheel={(e) => e.stopPropagation()}
+                        className={`absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover/autotip:block w-80 p-3.5 ${tooltipCardClass} border rounded-xl z-50 pointer-events-auto overscroll-contain backdrop-blur-xl before:content-[''] before:absolute before:-top-2 before:left-0 before:w-full before:h-2`}
+                      >
+                        <div className="text-[11px] font-bold text-red-500 dark:text-red-400 mb-2 flex items-center justify-between">
+                          <span>AUTO 组合列表</span>
+                          <span className="text-[9px] font-normal font-mono opacity-60">按收益率</span>
+                        </div>
+                        <div className={`space-y-1 text-[10px] leading-relaxed max-h-60 overflow-y-auto overscroll-contain -mr-1.5 pr-2.5 custom-scrollbar ${tooltipSubtextClass}`}>
                           {statusCounts.auto.map((c, idx) => (
-                            <div key={idx} className="flex justify-between items-center border-b border-zinc-805/40 dark:border-zinc-800/40 pb-1 last:border-0 last:pb-0">
-                              <span className="truncate max-w-[170px]" title={c.name}>{c.name}</span>
-                              <span className="font-mono text-zinc-400 text-[9px]">{c.strikeLabel || '--'}</span>
-                              <span className="font-mono text-red-400 font-bold ml-1.5">{Math.round(c.profitRatio * 100)}%</span>
+                            <div key={idx} className={`flex justify-between items-center border-b ${tooltipDividerClass} pb-1.5 pt-0.5 last:border-0 last:pb-0 gap-2`}>
+                              <span className="truncate max-w-[155px] font-medium" title={c.name}>{c.name}</span>
+                              <div className="flex items-center gap-2 shrink-0 ml-1">
+                                <span className="font-mono opacity-60 text-[9px] min-w-[32px] text-right">{c.strikeLabel || '--'}</span>
+                                <span className="font-mono text-red-500 dark:text-red-400 font-bold min-w-[36px] text-right">{Math.round(c.profitRatio * 100)}%</span>
+                              </div>
                             </div>
                           ))}
                         </div>
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900 dark:border-t-zinc-950"></div>
+                        <div className={`absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent ${tooltipArrowClass}`}></div>
                       </div>
                     </div>
                   )}
@@ -2122,18 +2151,26 @@ export function ExpiryGroupCard({
                       <span className="inline-flex items-center rounded-full px-2 sm:px-2.5 py-0.5 text-[10px] sm:text-xs font-medium bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-400 border border-green-200/20 shrink-0 cursor-help">
                         PROFIT: {statusCounts.profit.length}
                       </span>
-                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/profittip:block w-72 p-3 bg-slate-900 dark:bg-zinc-950 border border-slate-750 dark:border-zinc-800 text-white rounded-xl shadow-xl text-left z-50 pointer-events-none">
-                        <div className="text-[11px] font-bold text-green-400 mb-1.5">PROFIT 组合列表</div>
-                        <div className="space-y-1.5 text-[10px] leading-relaxed text-zinc-300">
+                      <div 
+                        onWheel={(e) => e.stopPropagation()}
+                        className={`absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover/profittip:block w-80 p-3.5 ${tooltipCardClass} border rounded-xl z-50 pointer-events-auto overscroll-contain backdrop-blur-xl before:content-[''] before:absolute before:-top-2 before:left-0 before:w-full before:h-2`}
+                      >
+                        <div className="text-[11px] font-bold text-emerald-600 dark:text-green-400 mb-2 flex items-center justify-between">
+                          <span>PROFIT 组合列表</span>
+                          <span className="text-[9px] font-normal font-mono opacity-60">按收益率</span>
+                        </div>
+                        <div className={`space-y-1 text-[10px] leading-relaxed max-h-60 overflow-y-auto overscroll-contain -mr-1.5 pr-2.5 custom-scrollbar ${tooltipSubtextClass}`}>
                           {statusCounts.profit.map((c, idx) => (
-                            <div key={idx} className="flex justify-between items-center border-b border-zinc-805/40 dark:border-zinc-800/40 pb-1 last:border-0 last:pb-0">
-                              <span className="truncate max-w-[170px]" title={c.name}>{c.name}</span>
-                              <span className="font-mono text-zinc-400 text-[9px]">{c.strikeLabel || '--'}</span>
-                              <span className="font-mono text-green-400 font-bold ml-1.5">{Math.round(c.profitRatio * 100)}%</span>
+                            <div key={idx} className={`flex justify-between items-center border-b ${tooltipDividerClass} pb-1.5 pt-0.5 last:border-0 last:pb-0 gap-2`}>
+                              <span className="truncate max-w-[155px] font-medium" title={c.name}>{c.name}</span>
+                              <div className="flex items-center gap-2 shrink-0 ml-1">
+                                <span className="font-mono opacity-60 text-[9px] min-w-[32px] text-right">{c.strikeLabel || '--'}</span>
+                                <span className="font-mono text-emerald-600 dark:text-green-400 font-bold min-w-[36px] text-right">{Math.round(c.profitRatio * 100)}%</span>
+                              </div>
                             </div>
                           ))}
                         </div>
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900 dark:border-t-zinc-950"></div>
+                        <div className={`absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent ${tooltipArrowClass}`}></div>
                       </div>
                     </div>
                   )}
@@ -2142,18 +2179,26 @@ export function ExpiryGroupCard({
                       <span className="inline-flex items-center rounded-full px-2 sm:px-2.5 py-0.5 text-[10px] sm:text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-400 border border-yellow-200/20 shrink-0 cursor-help">
                         WATCH: {statusCounts.watch.length}
                       </span>
-                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/watchtip:block w-72 p-3 bg-slate-900 dark:bg-zinc-950 border border-slate-750 dark:border-zinc-800 text-white rounded-xl shadow-xl text-left z-50 pointer-events-none">
-                        <div className="text-[11px] font-bold text-yellow-400 mb-1.5">WATCH 组合列表</div>
-                        <div className="space-y-1.5 text-[10px] leading-relaxed text-zinc-300">
+                      <div 
+                        onWheel={(e) => e.stopPropagation()}
+                        className={`absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover/watchtip:block w-80 p-3.5 ${tooltipCardClass} border rounded-xl z-50 pointer-events-auto overscroll-contain backdrop-blur-xl before:content-[''] before:absolute before:-top-2 before:left-0 before:w-full before:h-2`}
+                      >
+                        <div className="text-[11px] font-bold text-amber-600 dark:text-yellow-400 mb-2 flex items-center justify-between">
+                          <span>WATCH 组合列表</span>
+                          <span className="text-[9px] font-normal font-mono opacity-60">按收益率</span>
+                        </div>
+                        <div className={`space-y-1 text-[10px] leading-relaxed max-h-60 overflow-y-auto overscroll-contain -mr-1.5 pr-2.5 custom-scrollbar ${tooltipSubtextClass}`}>
                           {statusCounts.watch.map((c, idx) => (
-                            <div key={idx} className="flex justify-between items-center border-b border-zinc-805/40 dark:border-zinc-800/40 pb-1 last:border-0 last:pb-0">
-                              <span className="truncate max-w-[170px]" title={c.name}>{c.name}</span>
-                              <span className="font-mono text-zinc-400 text-[9px]">{c.strikeLabel || '--'}</span>
-                              <span className="font-mono text-yellow-400 font-bold ml-1.5">{Math.round(c.profitRatio * 100)}%</span>
+                            <div key={idx} className={`flex justify-between items-center border-b ${tooltipDividerClass} pb-1.5 pt-0.5 last:border-0 last:pb-0 gap-2`}>
+                              <span className="truncate max-w-[155px] font-medium" title={c.name}>{c.name}</span>
+                              <div className="flex items-center gap-2 shrink-0 ml-1">
+                                <span className="font-mono opacity-60 text-[9px] min-w-[32px] text-right">{c.strikeLabel || '--'}</span>
+                                <span className="font-mono text-amber-600 dark:text-yellow-400 font-bold min-w-[36px] text-right">{Math.round(c.profitRatio * 100)}%</span>
+                              </div>
                             </div>
                           ))}
                         </div>
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900 dark:border-t-zinc-950"></div>
+                        <div className={`absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent ${tooltipArrowClass}`}></div>
                       </div>
                     </div>
                   )}
@@ -2167,13 +2212,16 @@ export function ExpiryGroupCard({
                       >
                         <HelpCircle className="w-3.5 h-3.5" />
                       </button>
-                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/tooltip:block w-72 p-3 bg-slate-900 dark:bg-zinc-950 border border-slate-750 dark:border-zinc-800 text-white rounded-xl shadow-xl text-left z-50 pointer-events-none">
-                        <div className="text-[11px] font-bold text-blue-400 mb-1">期权到期监控规则 (W/P/A)</div>
-                        <div className="space-y-1 text-[10px] leading-relaxed text-zinc-300">
-                          <p><strong className="text-yellow-400">WATCH</strong>: 收益率达到到期日动态阈值。</p>
-                          <p><strong className="text-green-400">PROFIT</strong>: 达标且由于剩余天数较长，剩余收益衰减效率偏低 (&lt;0.3%/天)。</p>
-                          <p><strong className="text-red-400">AUTO</strong>: 收益率 &ge; 90% 且当前剩余可获取的利润大于平仓交易成本。</p>
-                          <div className="border-t border-zinc-800 pt-1 mt-1 text-[9px] text-zinc-400">
+                      <div 
+                        onWheel={(e) => e.stopPropagation()}
+                        className={`absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover/tooltip:block w-80 p-3.5 ${tooltipCardClass} border rounded-xl z-50 pointer-events-auto overscroll-contain backdrop-blur-xl before:content-[''] before:absolute before:-top-2 before:left-0 before:w-full before:h-2`}
+                      >
+                        <div className="text-[11px] font-bold text-blue-600 dark:text-blue-400 mb-1.5">期权到期监控规则 (W/P/A)</div>
+                        <div className={`space-y-1.5 text-[10px] leading-relaxed ${tooltipSubtextClass}`}>
+                          <p><strong className="text-amber-600 dark:text-yellow-400">WATCH</strong>: 收益率达到到期日动态阈值。</p>
+                          <p><strong className="text-emerald-600 dark:text-green-400">PROFIT</strong>: 达标且由于剩余天数较长，剩余收益衰减效率偏低 (&lt;0.3%/天)。</p>
+                          <p><strong className="text-red-500 dark:text-red-400">AUTO</strong>: 收益率 &ge; 90% 且当前剩余可获取的利润大于平仓交易成本。</p>
+                          <div className={`border-t ${tooltipDividerClass} pt-1.5 mt-1.5 text-[9px] opacity-80`}>
                             <strong>到期日动态阈值标准 (DTE)：</strong>
                             <div className="grid grid-cols-2 gap-x-2 mt-0.5 font-mono">
                               <div>DTE &gt; 90天: 80%</div>
@@ -2183,7 +2231,7 @@ export function ExpiryGroupCard({
                             </div>
                           </div>
                         </div>
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900 dark:border-t-zinc-950"></div>
+                        <div className={`absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent ${tooltipArrowClass}`}></div>
                       </div>
                     </div>
                   )}
