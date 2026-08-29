@@ -150,11 +150,11 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
           console.error('Option Price WebSocket Error:', error);
         },
         onMessage: (data) => {
+          lastPongTime.current = Date.now();
           try {
             if (data && typeof data === 'object' && 'action' in (data as Record<string, unknown>)) {
               const record = data as Record<string, unknown>;
               if (record.action === 'pong') {
-                lastPongTime.current = Date.now();
                 return;
               }
 
@@ -280,8 +280,8 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
   }, [connect, clearAutoCloseTimer]);
 
   useEffect(() => {
-    const PING_INTERVAL = 10000;
-    const PONG_TIMEOUT = 20000;
+    const PING_INTERVAL = 15000;
+    const PONG_TIMEOUT = 35000;
 
     const intervalId = setInterval(() => {
       const OPEN = typeof WebSocket !== 'undefined' ? WebSocket.OPEN : 1;
@@ -290,7 +290,8 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
           clientRef.current.send({ action: 'ping' });
           
           if (Date.now() - lastPongTime.current > PONG_TIMEOUT) {
-            console.warn('WebSocket heartbeat timeout - Reconnecting...');
+            console.warn('Option WebSocket heartbeat timeout - Reconnecting...');
+            lastPongTime.current = Date.now();
             connect();
           }
         } catch (e) {

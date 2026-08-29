@@ -340,29 +340,47 @@ export const optionsService: OptionsService = {
     const client: OptionPriceWebSocketClient = {
       connect: () => {
         if (ws) {
-          ws.close();
+          try {
+            ws.onopen = null;
+            ws.onclose = null;
+            ws.onerror = null;
+            ws.onmessage = null;
+            ws.close();
+          } catch { /* noop */ }
           ws = null;
         }
-        ws = new WebSocket(getWebSocketUrl());
-        ws.onopen = () => handlers?.onOpen?.();
-        ws.onclose = () => handlers?.onClose?.();
-        ws.onerror = (event) => handlers?.onError?.(event);
-        ws.onmessage = (event) => {
-          const raw = event.data;
-          if (typeof raw === 'string') {
-            try {
-              handlers?.onMessage?.(JSON.parse(raw));
-            } catch {
-              handlers?.onMessage?.(raw);
+        try {
+          ws = new WebSocket(getWebSocketUrl());
+          ws.onopen = () => { try { handlers?.onOpen?.(); } catch { /* noop */ } };
+          ws.onclose = () => { try { handlers?.onClose?.(); } catch { /* noop */ } };
+          ws.onerror = (event) => { try { handlers?.onError?.(event); } catch { /* noop */ } };
+          ws.onmessage = (event) => {
+            const raw = event.data;
+            if (typeof raw === 'string') {
+              try {
+                handlers?.onMessage?.(JSON.parse(raw));
+              } catch {
+                handlers?.onMessage?.(raw);
+              }
+              return;
             }
-            return;
-          }
-          handlers?.onMessage?.(raw);
-        };
+            handlers?.onMessage?.(raw);
+          };
+        } catch (err) {
+          console.error('Failed to create Option WebSocket client:', err);
+        }
       },
       close: () => {
-        if (ws) ws.close();
-        ws = null;
+        if (ws) {
+          try {
+            ws.onopen = null;
+            ws.onclose = null;
+            ws.onerror = null;
+            ws.onmessage = null;
+            ws.close();
+          } catch { /* noop */ }
+          ws = null;
+        }
       },
       send,
       subscribe: (contractCodes: string[]) => {
