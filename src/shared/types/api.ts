@@ -100,6 +100,14 @@ export interface OptionQuote {
   putCurrentValue?: number;
   call_current_value?: number;
   put_current_value?: number;
+  callDelta?: number;
+  putDelta?: number;
+  callGamma?: number;
+  putGamma?: number;
+  callTheta?: number;
+  putTheta?: number;
+  callVega?: number;
+  putVega?: number;
 }
 
 export interface OptionSurfacePoint {

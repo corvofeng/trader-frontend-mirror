@@ -3404,18 +3404,22 @@ export function ExpiryGroupCard({
                 let contractDelta = 0;
                 let isEstimated = false;
 
-                if (refPos && typeof refPos.delta === 'number' && !isNaN(refPos.delta)) {
+                const findQuote = (data: OptionsData) => data.quotes?.find(q => q.expiry === (confirmData.meta?.expiry || group.expiry) && getQuoteStrike(q) === s);
+                let q: OptionQuote | undefined;
+                if (optionsData) q = findQuote(optionsData);
+                if (!q && optionsDataMap) {
+                  for (const data of Object.values(optionsDataMap)) { q = findQuote(data); if (q) break; }
+                }
+                if (!q && localOptionsData) q = findQuote(localOptionsData);
+
+                const quoteDelta = isCall ? q?.callDelta : q?.putDelta;
+
+                if (typeof quoteDelta === 'number' && !isNaN(quoteDelta)) {
+                  contractDelta = quoteDelta;
+                } else if (refPos && typeof refPos.delta === 'number' && !isNaN(refPos.delta)) {
                   contractDelta = refPos.delta;
                 } else if (underlyingPrice != null && underlyingPrice > 0) {
                   isEstimated = true;
-                  const findQuote = (data: OptionsData) => data.quotes?.find(q => q.expiry === (confirmData.meta?.expiry || group.expiry) && getQuoteStrike(q) === s);
-                  let q: OptionQuote | undefined;
-                  if (optionsData) q = findQuote(optionsData);
-                  if (!q && optionsDataMap) {
-                    for (const data of Object.values(optionsDataMap)) { q = findQuote(data); if (q) break; }
-                  }
-                  if (!q && localOptionsData) q = findQuote(localOptionsData);
-                  
                   const iv = (isCall ? q?.callImpliedVol : q?.putImpliedVol) || 0.25;
                   const T = Math.max(0.01, group.daysToExpiry) / 365;
                   const S = underlyingPrice;
@@ -3452,12 +3456,13 @@ export function ExpiryGroupCard({
                 const positionDirection = isLong ? 1 : -1;
                 const deltaContribution = contractDelta * positionDirection;
 
-                // Target quantities
+                // Target quantities (based on available quantity)
                 const ids = collectIdsForCategory(category, s);
                 const currentSum = ids.reduce((acc, id) => {
                   const pos = filteredPositions.find(x => x.id === id);
-                  const qty = Number(pos?.selectedQuantity ?? pos?.leg_quantity ?? pos?.quantity) || 0;
-                  return acc + qty;
+                  const base = Number(pos?.selectedQuantity ?? pos?.leg_quantity ?? pos?.quantity) || 0;
+                  const avail = Number(pos?.available ?? base) || 0;
+                  return acc + avail;
                 }, 0);
                 const key = confirmData.ids[0];
                 const targetQty = qtyOverrides[key] ?? currentSum;
@@ -3728,111 +3733,199 @@ export function ExpiryGroupCard({
                   }
                   return null;
               })()}
-              <div className="flex items-center justify-between gap-2">
-                <div className={`text-xs ${themes[theme].text}`}>目标数量</div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    value={Object.values(qtyOverrides)[0] ?? 0}
-                    onChange={(e) => {
-                      const n = parseFloat(e.target.value) || 0;
-                      const key = confirmData.ids[0];
-                      setQtyOverrides(prev => ({ ...prev, [key]: n }));
-                    }}
-                    className={`w-24 px-2 py-1 rounded text-xs ${themes[theme].input} ${themes[theme].text}`}
-                  />
-                  {syncPrice != null && (
-                    <span className={`text-[10px] ${themes[theme].text} opacity-70`}>
-                      目标价格 {syncPrice.toFixed(4)}
-                    </span>
-                  )}
+              <div className={`space-y-2.5 pt-2 border-t border-dashed ${themes[theme].border}`}>
+                {/* 第一行：目标数量标题与步进器 */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-semibold ${themes[theme].text}`}>目标数量</span>
+                    {syncPrice != null && (
+                      <span className={`text-[11px] px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/5 ${themes[theme].text} opacity-70 font-mono`}>
+                        目标价格 {syncPrice.toFixed(4)}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* 步进器：固定在右侧，位置保持稳定不变 */}
+                  <div className="flex items-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const key = confirmData.ids[0];
+                        const cur = Number(qtyOverrides[key] ?? Object.values(qtyOverrides)[0] ?? 0);
+                        const next = Math.max(0, cur - 1);
+                        setQtyOverrides(prev => ({ ...prev, [key]: next }));
+                      }}
+                      className={`w-8 h-8 flex items-center justify-center rounded-l-lg border border-r-0 ${themes[theme].border} ${themes[theme].text} hover:bg-black/5 dark:hover:bg-white/5 active:scale-95 transition-all text-sm font-bold select-none`}
+                      title="减少 1 张"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      min={0}
+                      value={Object.values(qtyOverrides)[0] ?? 0}
+                      onChange={(e) => {
+                        const n = Math.max(0, parseFloat(e.target.value) || 0);
+                        const key = confirmData.ids[0];
+                        setQtyOverrides(prev => ({ ...prev, [key]: n }));
+                      }}
+                      className={`w-16 h-8 px-1 text-center font-mono font-bold text-sm border ${themes[theme].border} ${themes[theme].input} ${themes[theme].text} focus:outline-none`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const key = confirmData.ids[0];
+                        const cur = Number(qtyOverrides[key] ?? Object.values(qtyOverrides)[0] ?? 0);
+                        const next = cur + 1;
+                        setQtyOverrides(prev => ({ ...prev, [key]: next }));
+                      }}
+                      className={`w-8 h-8 flex items-center justify-center rounded-r-lg border border-l-0 ${themes[theme].border} ${themes[theme].text} hover:bg-black/5 dark:hover:bg-white/5 active:scale-95 transition-all text-sm font-bold select-none`}
+                      title="增加 1 张"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                {/* 第二行：左侧快捷步进按钮，右侧固定白名单操作 */}
+                <div className="flex items-center justify-between gap-2 flex-wrap pt-0.5">
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {[-5, -2, -1].map((step) => (
+                      <button
+                        key={`step-${step}`}
+                        type="button"
+                        onClick={() => {
+                          const key = confirmData.ids[0];
+                          const cur = Number(qtyOverrides[key] ?? Object.values(qtyOverrides)[0] ?? 0);
+                          const next = Math.max(0, cur + step);
+                          setQtyOverrides(prev => ({ ...prev, [key]: next }));
+                        }}
+                        className="px-2 py-1 rounded text-xs font-mono font-semibold border border-rose-500/30 text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 active:scale-95 transition-all"
+                        title={`减少 ${Math.abs(step)} 张`}
+                      >
+                        {step}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const key = confirmData.ids[0];
+                        setQtyOverrides(prev => ({ ...prev, [key]: 0 }));
+                      }}
+                      className={`px-2 py-1 rounded text-xs font-medium border ${themes[theme].border} ${themes[theme].text} opacity-75 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5 active:scale-95 transition-all`}
+                      title="重置为 0"
+                    >
+                      清零
+                    </button>
+                    {[1, 2, 5].map((step) => (
+                      <button
+                        key={`step-+${step}`}
+                        type="button"
+                        onClick={() => {
+                          const key = confirmData.ids[0];
+                          const cur = Number(qtyOverrides[key] ?? Object.values(qtyOverrides)[0] ?? 0);
+                          const next = cur + step;
+                          setQtyOverrides(prev => ({ ...prev, [key]: next }));
+                        }}
+                        className="px-2 py-1 rounded text-xs font-mono font-semibold border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 active:scale-95 transition-all"
+                        title={`增加 ${step} 张`}
+                      >
+                        +{step}
+                      </button>
+                    ))}
+                  </div>
+
                   {(() => {
                     const targetQty = Object.values(qtyOverrides)[0] ?? 0;
-                    if (targetQty !== 0) {
-                      return (
-                        <button
-                          className="ml-2 px-2 py-1 rounded text-xs bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-1"
-                          title="添加到白名单"
-                          onClick={async () => {
-                             const s = Number(confirmData.meta?.strike || 0);
-                             const c = String(confirmData.meta?.category || '') as
-                               | 'call_right'
-                               | 'call_obligation'
-                               | 'put_right'
-                               | 'put_obligation'
-                               | 'call_covered'
-                               | 'put_covered';
-                             
-                             const ids = collectIdsForCategory(c, s);
-                             const pos = filteredPositions.find(p => p.id === ids[0]);
-                             
-                             let holdType = 'obligation';
-                             if (pos?.hold_type) {
-                               holdType = pos.hold_type;
-                             } else {
-                               if (c.includes('right')) holdType = 'right';
-                               else if (c.includes('covered')) holdType = 'covered';
-                             }
-                             let code = pos?.contract_code;
-                             let fullCode = pos?.contract_code_full;
-                             
-                             if (!fullCode) {
-                                if (confirmData.meta?.contract_code_full) {
-                                    fullCode = confirmData.meta.contract_code_full;
-                                    code = confirmData.meta.contract_code;
-                                } else {
-                                    const type = c.startsWith('call') ? 'call' : 'put';
-                                    const activeData = optionsData || localOptionsData;
-                                    if (activeData && activeData.quotes) {
-                                       const quote = activeData.quotes.find(q => q.expiry === group.expiry && getQuoteStrike(q) === s);
-                                       if (quote) {
-                                          fullCode = type === 'call' ? quote.call_contract_code_full : quote.put_contract_code_full;
-                                          code = type === 'call' ? quote.call_contract_code : quote.put_contract_code;
-                                       }
-                                    } else if (optionsDataMap) {
-                                       for (const data of Object.values(optionsDataMap)) {
-                                          const quote = data.quotes?.find(q => q.expiry === group.expiry && getQuoteStrike(q) === s);
-                                          if (quote) {
-                                             fullCode = type === 'call' ? quote.call_contract_code_full : quote.put_contract_code_full;
-                                             code = type === 'call' ? quote.call_contract_code : quote.put_contract_code;
-                                             break;
-                                          }
-                                       }
-                                    }
+                    const isDisabled = targetQty === 0;
+                    return (
+                      <button
+                        type="button"
+                        disabled={isDisabled}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all shrink-0 ${
+                          isDisabled
+                            ? 'opacity-35 cursor-not-allowed border border-gray-300 dark:border-neutral-700 bg-gray-100 dark:bg-neutral-800 text-gray-400 dark:text-neutral-500'
+                            : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95 shadow-sm'
+                        }`}
+                        title={isDisabled ? '请先设置目标数量 (>0)' : '添加到白名单'}
+                        onClick={async () => {
+                          if (isDisabled) return;
+                          const s = Number(confirmData.meta?.strike || 0);
+                          const c = String(confirmData.meta?.category || '') as
+                            | 'call_right'
+                            | 'call_obligation'
+                            | 'put_right'
+                            | 'put_obligation'
+                            | 'call_covered'
+                            | 'put_covered';
+                          
+                          const ids = collectIdsForCategory(c, s);
+                          const pos = filteredPositions.find(p => p.id === ids[0]);
+                          
+                          let holdType = 'obligation';
+                          if (pos?.hold_type) {
+                            holdType = pos.hold_type;
+                          } else {
+                            if (c.includes('right')) holdType = 'right';
+                            else if (c.includes('covered')) holdType = 'covered';
+                          }
+                          let code = pos?.contract_code;
+                          let fullCode = pos?.contract_code_full;
+                          
+                          if (!fullCode) {
+                            if (confirmData.meta?.contract_code_full) {
+                              fullCode = confirmData.meta.contract_code_full;
+                              code = confirmData.meta.contract_code;
+                            } else {
+                              const type = c.startsWith('call') ? 'call' : 'put';
+                              const activeData = optionsData || localOptionsData;
+                              if (activeData && activeData.quotes) {
+                                const quote = activeData.quotes.find(q => q.expiry === group.expiry && getQuoteStrike(q) === s);
+                                if (quote) {
+                                  fullCode = type === 'call' ? quote.call_contract_code_full : quote.put_contract_code_full;
+                                  code = type === 'call' ? quote.call_contract_code : quote.put_contract_code;
                                 }
-                             }
+                              } else if (optionsDataMap) {
+                                for (const data of Object.values(optionsDataMap)) {
+                                  const quote = data.quotes?.find(q => q.expiry === group.expiry && getQuoteStrike(q) === s);
+                                  if (quote) {
+                                    fullCode = type === 'call' ? quote.call_contract_code_full : quote.put_contract_code_full;
+                                    code = type === 'call' ? quote.call_contract_code : quote.put_contract_code;
+                                    break;
+                                  }
+                                }
+                              }
+                            }
+                          }
 
-                             if (code) {
-                                try {
-                                    await optionsService.addWhitelist({
-                                        account_id: selectedAccountId || '',
-                                        contract_code: code,
-                                        contract_code_full: fullCode,
-                                        reason: 'Manual adjustment',
-                                        quantity: targetQty,
-                                        expiry_month: group.expiry.slice(0, 7).replace('-', ''),
-                                        option_type: c.startsWith('call') ? 'call' : 'put',
-                                        strike_price: s,
-                                        hold_type: holdType
-                                        ,
-                                        is_active: true
-                                    }, userId || '', selectedAccountId);
-                                    toast.success(`已添加到白名单: ${fullCode || code}`);
-                                } catch (err) {
-                                    console.error(err);
-                                    toast.error('添加白名单失败');
-                                }
-                             } else {
-                                toast.error('无法获取合约代码');
-                             }
-                          }}
-                        >
-                          <span>📋</span>
-                          <span>加入白名单</span>
-                        </button>
-                      );
-                    }
-                    return null;
+                          if (code) {
+                            try {
+                              await optionsService.addWhitelist({
+                                account_id: selectedAccountId || '',
+                                contract_code: code,
+                                contract_code_full: fullCode,
+                                reason: 'Manual adjustment',
+                                quantity: targetQty,
+                                expiry_month: group.expiry.slice(0, 7).replace('-', ''),
+                                option_type: c.startsWith('call') ? 'call' : 'put',
+                                strike_price: s,
+                                hold_type: holdType,
+                                is_active: true
+                              }, userId || '', selectedAccountId);
+                              toast.success(`已添加到白名单: ${fullCode || code}`);
+                            } catch (err) {
+                              console.error(err);
+                              toast.error('添加白名单失败');
+                            }
+                          } else {
+                            toast.error('无法获取合约代码');
+                          }
+                        }}
+                      >
+                        <span>📋</span>
+                        <span>加入白名单</span>
+                      </button>
+                    );
                   })()}
                 </div>
               </div>
