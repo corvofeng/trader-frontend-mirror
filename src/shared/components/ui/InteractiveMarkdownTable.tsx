@@ -241,7 +241,7 @@ export function InteractiveMarkdownTable({
   }, [headers, sortedRows]);
 
   // Render individual cell with rich tags, contract cards, or pnl highlights
-  const renderCellContent = (cell: string, colIndex: number) => {
+  const renderCellContent = (cell: string, colIndex: number, rowIndex: number) => {
     const trimmed = cell.trim();
     if (!trimmed || trimmed === '-') {
       return <span className="text-zinc-400 font-mono text-xs">-</span>;
@@ -327,11 +327,14 @@ export function InteractiveMarkdownTable({
       );
     }
 
-    // 4. Contract Cell formatting (with popover on hover/click)
+    // 4. Contract Cell formatting (with smart upward/downward popover on hover/click)
     const contractInfo = parseContract(trimmed);
     if (contractInfo && (contractColIndexes.has(colIndex) || contractInfo.code)) {
       const isCall = contractInfo.isCall;
       const isPut = contractInfo.isPut;
+      const totalRows = sortedRows.length;
+      const isNearBottom = totalRows <= 3 ? rowIndex > 0 : rowIndex >= totalRows - 3 || rowIndex >= Math.floor(totalRows / 2);
+
       return (
         <div className="group/contract relative inline-block max-w-[220px]">
           <div className="flex items-center gap-1.5 cursor-pointer">
@@ -354,8 +357,14 @@ export function InteractiveMarkdownTable({
             )}
           </div>
 
-          {/* Popover / Tooltip on hover */}
-          <div className="absolute top-full left-0 mt-1.5 hidden group-hover/contract:flex flex-col z-50 w-64 p-3 bg-slate-900/95 dark:bg-zinc-950/95 text-white rounded-xl shadow-2xl border border-slate-700 dark:border-zinc-800 backdrop-blur-md pointer-events-auto">
+          {/* Popover / Tooltip on hover with smart placement */}
+          <div
+            className={`absolute ${
+              isNearBottom
+                ? 'bottom-full mb-2 before:content-[\'\'] before:absolute before:-bottom-2 before:left-0 before:w-full before:h-2'
+                : 'top-full mt-2 before:content-[\'\'] before:absolute before:-top-2 before:left-0 before:w-full before:h-2'
+            } left-0 hidden group-hover/contract:flex flex-col z-50 w-64 p-3 bg-slate-900/95 dark:bg-zinc-950/95 text-white rounded-xl shadow-2xl border border-slate-700 dark:border-zinc-800 backdrop-blur-md pointer-events-auto`}
+          >
             <div className="flex items-center justify-between gap-2 border-b border-zinc-800 pb-1.5 mb-2">
               <span className="text-xs font-bold text-zinc-100 truncate">{contractInfo.name}</span>
               {contractInfo.code && (
@@ -400,7 +409,15 @@ export function InteractiveMarkdownTable({
                 </span>
               </div>
             </div>
-            <div className="absolute bottom-full left-4 border-4 border-transparent border-b-slate-900 dark:border-b-zinc-950"></div>
+
+            {/* Triangle Arrow */}
+            <div
+              className={`absolute ${
+                isNearBottom
+                  ? 'top-full left-4 border-4 border-transparent border-t-slate-900 dark:border-t-zinc-950'
+                  : 'bottom-full left-4 border-4 border-transparent border-b-slate-900 dark:border-b-zinc-950'
+              }`}
+            ></div>
           </div>
         </div>
       );
@@ -635,7 +652,7 @@ export function InteractiveMarkdownTable({
               sortedRows.map((row, rIdx) => (
                 <tr
                   key={rIdx}
-                  className="hover:bg-blue-50/40 dark:hover:bg-blue-950/20 transition-colors odd:bg-slate-50/30 dark:odd:bg-zinc-900/20"
+                  className="relative hover:z-30 hover:bg-blue-50/40 dark:hover:bg-blue-950/20 transition-colors odd:bg-slate-50/30 dark:odd:bg-zinc-900/20"
                 >
                   {row.map((cell, cIdx) => {
                     const header = headers[cIdx]?.trim() || '';
@@ -647,7 +664,7 @@ export function InteractiveMarkdownTable({
                           isNumeric ? 'text-right font-mono' : 'text-left'
                         }`}
                       >
-                        {renderCellContent(cell, cIdx)}
+                        {renderCellContent(cell, cIdx, rIdx)}
                       </td>
                     );
                   })}
