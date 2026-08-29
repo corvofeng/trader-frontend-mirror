@@ -16,6 +16,7 @@ type SortDirection = 'asc' | 'desc' | null;
 interface ParsedContract {
   name: string;
   code: string | null;
+  contract_code_full: string | null;
   isCall: boolean;
   isPut: boolean;
   strike: string | null;
@@ -37,13 +38,24 @@ function ContractCellWithTick({
   onCopyCode: (code: string, e: React.MouseEvent) => void;
 }) {
   const wsContext = useOptionalOptionPriceWebSocketContext();
-  const wsPrice = contractInfo.code ? wsContext?.prices[contractInfo.code] : undefined;
+  const fullCode = contractInfo.contract_code_full;
+  const baseCode = contractInfo.code;
+
+  const wsPrice = useMemo(() => {
+    if (!wsContext?.prices) return undefined;
+    if (fullCode && wsContext.prices[fullCode]) return wsContext.prices[fullCode];
+    if (baseCode && wsContext.prices[baseCode]) return wsContext.prices[baseCode];
+    return undefined;
+  }, [wsContext?.prices, fullCode, baseCode]);
 
   const handleMouseEnter = useCallback(() => {
-    if (contractInfo.code && wsContext?.queryPrice) {
-      wsContext.queryPrice([contractInfo.code]);
+    if (wsContext?.queryPrice) {
+      const codesToQuery = [fullCode, baseCode].filter((c): c is string => Boolean(c));
+      if (codesToQuery.length > 0) {
+        wsContext.queryPrice(codesToQuery);
+      }
     }
-  }, [contractInfo.code, wsContext]);
+  }, [fullCode, baseCode, wsContext]);
 
   const isCall = contractInfo.isCall;
   const isPut = contractInfo.isPut;
@@ -51,6 +63,7 @@ function ContractCellWithTick({
   const currentPrice = wsPrice?.price ?? wsPrice?.last_price;
   const bidPrice = wsPrice?.bid ?? (wsPrice?.bid_price?.[0]);
   const askPrice = wsPrice?.ask ?? (wsPrice?.ask_price?.[0]);
+  const displayCode = contractInfo.contract_code_full || contractInfo.code;
 
   return (
     <div
@@ -82,14 +95,14 @@ function ContractCellWithTick({
       >
         <div className="flex items-center justify-between gap-2 border-b border-zinc-800 pb-1.5 mb-2">
           <span className="text-xs font-bold text-zinc-100 truncate">{contractInfo.name}</span>
-          {contractInfo.code && (
+          {displayCode && (
             <button
               type="button"
-              onClick={(e) => onCopyCode(contractInfo.code!, e)}
+              onClick={(e) => onCopyCode(displayCode, e)}
               className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-colors shrink-0"
               title="复制合约代码"
             >
-              {copiedCode === contractInfo.code ? (
+              {copiedCode === displayCode ? (
                 <>
                   <Check className="w-3 h-3 text-green-400" />
                   <span className="text-green-400">已复制</span>
@@ -105,7 +118,7 @@ function ContractCellWithTick({
         </div>
 
         {/* Real-time WebSocket Tick Price Banner */}
-        {contractInfo.code && (
+        {displayCode && (
           <div className="bg-zinc-850/90 rounded-lg p-2 mb-2 border border-zinc-800 flex items-center justify-between">
             <div>
               <div className="flex items-center gap-1 text-zinc-400 text-[10px] mb-0.5">
@@ -141,10 +154,10 @@ function ContractCellWithTick({
         )}
 
         <div className="grid grid-cols-2 gap-y-1.5 text-[11px] text-zinc-300">
-          {contractInfo.code && (
+          {displayCode && (
             <div>
               <span className="text-zinc-500 block text-[9px]">代码</span>
-              <span className="font-mono">{contractInfo.code}</span>
+              <span className="font-mono text-[10px] text-zinc-200">{displayCode}</span>
             </div>
           )}
           {contractInfo.strike && (
@@ -179,13 +192,16 @@ function parseContract(text: string): ParsedContract | null {
   const match = trimmed.match(/^(.+?)\s*\(([a-zA-Z0-9_.-]+)\)$/);
   if (match) {
     const name = match[1].trim();
-    const code = match[2].trim();
+    const rawCode = match[2].trim();
+    const code = rawCode.split('.')[0];
+    const contract_code_full = rawCode.includes('.') ? rawCode : `${rawCode}.SHO`;
     const isCall = /购|call/i.test(name);
     const isPut = /沽|put/i.test(name);
     const strikeMatch = name.match(/(\d+(?:\.\d+)?)(?:购|沽)?$/) || name.match(/(?:购|沽)(?:[^\d]*)(\d+(?:\.\d+)?)/);
     return {
       name,
       code,
+      contract_code_full,
       isCall,
       isPut,
       strike: strikeMatch ? strikeMatch[1] : null,
@@ -198,6 +214,7 @@ function parseContract(text: string): ParsedContract | null {
     return {
       name: trimmed,
       code: null,
+      contract_code_full: null,
       isCall,
       isPut,
       strike: strikeMatch ? strikeMatch[1] : null,
@@ -260,12 +277,13 @@ export function InteractiveMarkdownTable({
 
   const wsContext = useOptionalOptionPriceWebSocketContext();
 
-  // Extract all contract codes present in this table
+  // Extract all contract codes present in this table (both full and base codes)
   const allContractCodes = useMemo(() => {
     const codes = new Set<string>();
     rows.forEach((r) => {
       r.forEach((cell) => {
         const parsed = parseContract(cell);
+        if (parsed?.contract_code_full) codes.add(parsed.contract_code_full);
         if (parsed?.code) codes.add(parsed.code);
       });
     });
