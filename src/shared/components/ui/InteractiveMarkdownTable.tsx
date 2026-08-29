@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { ArrowUpDown, ArrowUp, ArrowDown, Search, X, Copy, Check, Layers } from 'lucide-react';
+import { ArrowUpDown, ArrowUp, ArrowDown, Search, X, Copy, Check, Layers, Loader2 } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
+import { stockService } from '../../../lib/services';
 import toast from 'react-hot-toast';
 
 export interface InteractiveMarkdownTableProps {
@@ -18,6 +19,223 @@ interface ParsedContract {
   isCall: boolean;
   isPut: boolean;
   strike: string | null;
+}
+
+interface ContractTickInfo {
+  price?: number;
+  pre_close?: number;
+  bid?: number;
+  ask?: number;
+  high?: number;
+  low?: number;
+  volume?: number;
+  loading: boolean;
+}
+
+const contractTickCache = new Map<string, { data: Partial<ContractTickInfo>; timestamp: number }>();
+
+function ContractCellWithTick({
+  contractInfo,
+  rawText,
+  isNearBottom,
+  theme,
+  copiedCode,
+  onCopyCode,
+}: {
+  contractInfo: ParsedContract;
+  rawText: string;
+  isNearBottom: boolean;
+  theme: Theme;
+  copiedCode: string | null;
+  onCopyCode: (code: string, e: React.MouseEvent) => void;
+}) {
+  const [tick, setTick] = useState<ContractTickInfo>({ loading: false });
+  const [hasFetched, setHasFetched] = useState(false);
+
+  const fetchTickPrice = useCallback(async () => {
+    if (!contractInfo.code || hasFetched) return;
+    setHasFetched(true);
+
+    const cached = contractTickCache.get(contractInfo.code);
+    if (cached && Date.now() - cached.timestamp < 30_000) {
+      setTick({ ...cached.data, loading: false });
+      return;
+    }
+
+    setTick((prev) => ({ ...prev, loading: true }));
+    try {
+      const res = await stockService.getCurrentPrice(contractInfo.code);
+      if (res?.data) {
+        const p = res.data.price || res.data.last_price;
+        const tickData: Partial<ContractTickInfo> = {
+          price: typeof p === 'number' && Number.isFinite(p) ? p : undefined,
+          pre_close: res.data.pre_close,
+          bid: res.data.bid ?? (res.data.bid_price?.[0] ?? undefined),
+          ask: res.data.ask ?? (res.data.ask_price?.[0] ?? undefined),
+          high: res.data.high,
+          low: res.data.low,
+          volume: res.data.volume,
+        };
+        contractTickCache.set(contractInfo.code, { data: tickData, timestamp: Date.now() });
+        setTick({ ...tickData, loading: false });
+      } else {
+        setTick((prev) => ({ ...prev, loading: false }));
+      }
+    } catch {
+      setTick((prev) => ({ ...prev, loading: false }));
+    }
+  }, [contractInfo.code, hasFetched]);
+
+  const isCall = contractInfo.isCall;
+  const isPut = contractInfo.isPut;
+
+  const priceDiff = tick.price != null && tick.pre_close != null ? tick.price - tick.pre_close : null;
+  const pricePct = priceDiff != null && tick.pre_close ? (priceDiff / tick.pre_close) * 100 : null;
+
+  return (
+    <div
+      className="group/contract relative inline-block max-w-[240px]"
+      onMouseEnter={fetchTickPrice}
+    >
+      <div className="flex items-center gap-1.5 cursor-pointer">
+        <span
+          className={`font-medium text-xs truncate hover:underline ${
+            isCall
+              ? 'text-sky-700 dark:text-sky-300'
+              : isPut
+              ? 'text-amber-700 dark:text-amber-300'
+              : themes[theme].text
+          }`}
+          title={rawText}
+        >
+          {contractInfo.name}
+        </span>
+      </div>
+
+      {/* Popover / Tooltip on hover with smart placement and real-time tick */}
+      <div
+        className={`absolute ${
+          isNearBottom
+            ? 'bottom-full mb-2 before:content-[\'\'] before:absolute before:-bottom-2 before:left-0 before:w-full before:h-2'
+            : 'top-full mt-2 before:content-[\'\'] before:absolute before:-top-2 before:left-0 before:w-full before:h-2'
+        } left-0 hidden group-hover/contract:flex flex-col z-50 w-64 p-3 bg-slate-900/95 dark:bg-zinc-950/95 text-white rounded-xl shadow-2xl border border-slate-700 dark:border-zinc-800 backdrop-blur-md pointer-events-auto`}
+      >
+        <div className="flex items-center justify-between gap-2 border-b border-zinc-800 pb-1.5 mb-2">
+          <span className="text-xs font-bold text-zinc-100 truncate">{contractInfo.name}</span>
+          {contractInfo.code && (
+            <button
+              type="button"
+              onClick={(e) => onCopyCode(contractInfo.code!, e)}
+              className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-colors shrink-0"
+              title="复制合约代码"
+            >
+              {copiedCode === contractInfo.code ? (
+                <>
+                  <Check className="w-3 h-3 text-green-400" />
+                  <span className="text-green-400">已复制</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3 h-3 text-zinc-400" />
+                  <span>复制</span>
+                </>
+              )}
+            </button>
+          )}
+        </div>
+
+        {/* Real-time Tick Price Banner */}
+        {contractInfo.code && (
+          <div className="bg-zinc-850/90 rounded-lg p-2 mb-2 border border-zinc-800 flex items-center justify-between">
+            <div>
+              <span className="text-zinc-400 text-[10px] block">最新实时价</span>
+              {tick.loading ? (
+                <div className="flex items-center gap-1 text-xs text-zinc-400 py-0.5">
+                  <Loader2 className="w-3 h-3 animate-spin text-blue-400" />
+                  <span>获取价格...</span>
+                </div>
+              ) : tick.price != null ? (
+                <div className="flex items-baseline gap-1.5">
+                  <span
+                    className={`font-mono text-sm font-bold ${
+                      priceDiff != null
+                        ? priceDiff > 0
+                          ? 'text-emerald-400'
+                          : priceDiff < 0
+                          ? 'text-rose-400'
+                          : 'text-zinc-200'
+                        : 'text-zinc-200'
+                    }`}
+                  >
+                    {tick.price.toFixed(4)}
+                  </span>
+                  {pricePct != null && (
+                    <span
+                      className={`text-[10px] font-mono font-semibold ${
+                        priceDiff! > 0
+                          ? 'text-emerald-400'
+                          : priceDiff! < 0
+                          ? 'text-rose-400'
+                          : 'text-zinc-400'
+                      }`}
+                    >
+                      {priceDiff! >= 0 ? '+' : ''}
+                      {pricePct.toFixed(2)}%
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <span className="text-xs text-zinc-500 font-mono">--</span>
+              )}
+            </div>
+
+            {/* Bid/Ask or PreClose */}
+            <div className="text-right text-[10px] font-mono text-zinc-400">
+              {tick.bid != null && tick.ask != null ? (
+                <div>
+                  <span className="text-emerald-400/90">{tick.bid.toFixed(4)}</span>
+                  <span className="text-zinc-600 mx-0.5">/</span>
+                  <span className="text-rose-400/90">{tick.ask.toFixed(4)}</span>
+                </div>
+              ) : tick.pre_close != null ? (
+                <div>昨收: {tick.pre_close.toFixed(4)}</div>
+              ) : null}
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-y-1.5 text-[11px] text-zinc-300">
+          {contractInfo.code && (
+            <div>
+              <span className="text-zinc-500 block text-[9px]">代码</span>
+              <span className="font-mono">{contractInfo.code}</span>
+            </div>
+          )}
+          {contractInfo.strike && (
+            <div>
+              <span className="text-zinc-500 block text-[9px]">行权价</span>
+              <span className="font-mono font-bold text-amber-300">{contractInfo.strike}</span>
+            </div>
+          )}
+          <div>
+            <span className="text-zinc-500 block text-[9px]">方向</span>
+            <span className={isCall ? 'text-sky-400 font-medium' : isPut ? 'text-amber-400 font-medium' : ''}>
+              {isCall ? '认购 (Call)' : isPut ? '认沽 (Put)' : '--'}
+            </span>
+          </div>
+        </div>
+
+        {/* Triangle Arrow */}
+        <div
+          className={`absolute ${
+            isNearBottom
+              ? 'top-full left-4 border-4 border-transparent border-t-slate-900 dark:border-t-zinc-950'
+              : 'bottom-full left-4 border-4 border-transparent border-b-slate-900 dark:border-b-zinc-950'
+          }`}
+        ></div>
+      </div>
+    </div>
+  );
 }
 
 function parseContract(text: string): ParsedContract | null {
@@ -327,99 +545,20 @@ export function InteractiveMarkdownTable({
       );
     }
 
-    // 4. Contract Cell formatting (with smart upward/downward popover on hover/click)
+    // 4. Contract Cell formatting (with smart upward/downward popover and real-time tick price)
     const contractInfo = parseContract(trimmed);
     if (contractInfo && (contractColIndexes.has(colIndex) || contractInfo.code)) {
-      const isCall = contractInfo.isCall;
-      const isPut = contractInfo.isPut;
       const totalRows = sortedRows.length;
       const isNearBottom = totalRows <= 3 ? rowIndex > 0 : rowIndex >= totalRows - 3 || rowIndex >= Math.floor(totalRows / 2);
-
       return (
-        <div className="group/contract relative inline-block max-w-[220px]">
-          <div className="flex items-center gap-1.5 cursor-pointer">
-            <span
-              className={`font-medium text-xs truncate hover:underline ${
-                isCall
-                  ? 'text-sky-700 dark:text-sky-300'
-                  : isPut
-                  ? 'text-amber-700 dark:text-amber-300'
-                  : themes[theme].text
-              }`}
-              title={trimmed}
-            >
-              {contractInfo.name}
-            </span>
-            {contractInfo.code && (
-              <span className="shrink-0 font-mono text-[10px] text-zinc-400 dark:text-zinc-500 bg-zinc-100 dark:bg-zinc-800/80 px-1 py-0.2 rounded border border-zinc-200/50 dark:border-zinc-700/50">
-                {contractInfo.code.slice(-4)}
-              </span>
-            )}
-          </div>
-
-          {/* Popover / Tooltip on hover with smart placement */}
-          <div
-            className={`absolute ${
-              isNearBottom
-                ? 'bottom-full mb-2 before:content-[\'\'] before:absolute before:-bottom-2 before:left-0 before:w-full before:h-2'
-                : 'top-full mt-2 before:content-[\'\'] before:absolute before:-top-2 before:left-0 before:w-full before:h-2'
-            } left-0 hidden group-hover/contract:flex flex-col z-50 w-64 p-3 bg-slate-900/95 dark:bg-zinc-950/95 text-white rounded-xl shadow-2xl border border-slate-700 dark:border-zinc-800 backdrop-blur-md pointer-events-auto`}
-          >
-            <div className="flex items-center justify-between gap-2 border-b border-zinc-800 pb-1.5 mb-2">
-              <span className="text-xs font-bold text-zinc-100 truncate">{contractInfo.name}</span>
-              {contractInfo.code && (
-                <button
-                  type="button"
-                  onClick={(e) => copyCodeToClipboard(contractInfo.code!, e)}
-                  className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-colors shrink-0"
-                  title="复制合约代码"
-                >
-                  {copiedCode === contractInfo.code ? (
-                    <>
-                      <Check className="w-3 h-3 text-green-400" />
-                      <span className="text-green-400">已复制</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3 h-3 text-zinc-400" />
-                      <span>复制</span>
-                    </>
-                  )}
-                </button>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-y-1.5 text-[11px] text-zinc-300">
-              {contractInfo.code && (
-                <div>
-                  <span className="text-zinc-500 block text-[9px]">代码</span>
-                  <span className="font-mono">{contractInfo.code}</span>
-                </div>
-              )}
-              {contractInfo.strike && (
-                <div>
-                  <span className="text-zinc-500 block text-[9px]">行权价</span>
-                  <span className="font-mono font-bold text-amber-300">{contractInfo.strike}</span>
-                </div>
-              )}
-              <div>
-                <span className="text-zinc-500 block text-[9px]">方向</span>
-                <span className={isCall ? 'text-sky-400 font-medium' : isPut ? 'text-amber-400 font-medium' : ''}>
-                  {isCall ? '认购 (Call)' : isPut ? '认沽 (Put)' : '--'}
-                </span>
-              </div>
-            </div>
-
-            {/* Triangle Arrow */}
-            <div
-              className={`absolute ${
-                isNearBottom
-                  ? 'top-full left-4 border-4 border-transparent border-t-slate-900 dark:border-t-zinc-950'
-                  : 'bottom-full left-4 border-4 border-transparent border-b-slate-900 dark:border-b-zinc-950'
-              }`}
-            ></div>
-          </div>
-        </div>
+        <ContractCellWithTick
+          contractInfo={contractInfo}
+          rawText={trimmed}
+          isNearBottom={isNearBottom}
+          theme={theme}
+          copiedCode={copiedCode}
+          onCopyCode={copyCodeToClipboard}
+        />
       );
     }
 
