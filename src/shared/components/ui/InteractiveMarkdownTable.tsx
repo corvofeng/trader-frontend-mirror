@@ -169,6 +169,33 @@ function LivePriceCell({
 }
 
 /**
+ * Helper to compute theme-consistent tooltip styles (identical to ExpiryGroupCard PROFIT list)
+ */
+function getTooltipClasses(theme: Theme, isNearBottom: boolean) {
+  const cardClass =
+    theme === 'dark'
+      ? 'bg-zinc-900/95 border-zinc-700/80 text-zinc-100 shadow-[0_16px_36px_-8px_rgba(0,0,0,0.6)]'
+      : theme === 'blue'
+      ? 'bg-white/98 border-blue-200 text-slate-800 shadow-[0_16px_36px_-8px_rgba(37,99,235,0.15)]'
+      : 'bg-white/98 border-slate-200 text-slate-800 shadow-[0_16px_36px_-8px_rgba(15,23,42,0.15)]';
+
+  const dividerClass =
+    theme === 'dark' ? 'border-zinc-800/80' : theme === 'blue' ? 'border-blue-100' : 'border-slate-100';
+
+  const subtextClass = theme === 'dark' ? 'text-zinc-300' : 'text-slate-600';
+
+  const arrowClass = isNearBottom
+    ? theme === 'dark'
+      ? 'border-t-zinc-900'
+      : 'border-t-white'
+    : theme === 'dark'
+    ? 'border-b-zinc-900'
+    : 'border-b-white';
+
+  return { cardClass, dividerClass, subtextClass, arrowClass };
+}
+
+/**
  * Contract Name Cell with popover and inline candidate tick price
  */
 function ContractCellWithTick({
@@ -214,6 +241,8 @@ function ContractCellWithTick({
   const askPrice = wsPrice?.ask ?? (wsPrice?.ask_price?.[0]);
   const displayCode = contractInfo.contract_code_full || contractInfo.code;
 
+  const { cardClass, dividerClass, subtextClass, arrowClass } = getTooltipClasses(theme, isNearBottom);
+
   return (
     <div
       className="group/contract relative inline-block max-w-[240px]"
@@ -236,29 +265,30 @@ function ContractCellWithTick({
 
       {/* Popover / Tooltip on hover with smart placement and real-time tick */}
       <div
+        onWheel={(e) => e.stopPropagation()}
         className={`absolute ${
           isNearBottom
             ? 'bottom-full mb-2 before:content-[\'\'] before:absolute before:-bottom-2 before:left-0 before:w-full before:h-2'
             : 'top-full mt-2 before:content-[\'\'] before:absolute before:-top-2 before:left-0 before:w-full before:h-2'
-        } left-0 hidden group-hover/contract:flex flex-col z-50 w-64 p-3 bg-slate-900/95 dark:bg-zinc-950/95 text-white rounded-xl shadow-2xl border border-slate-700 dark:border-zinc-800 backdrop-blur-md pointer-events-auto`}
+        } left-0 hidden group-hover/contract:block w-72 p-3.5 ${cardClass} border rounded-xl z-50 pointer-events-auto overscroll-contain backdrop-blur-xl shadow-2xl`}
       >
-        <div className="flex items-center justify-between gap-2 border-b border-zinc-800 pb-1.5 mb-2">
-          <span className="text-xs font-bold text-zinc-100 truncate">{contractInfo.name}</span>
+        <div className={`flex items-center justify-between gap-2 border-b ${dividerClass} pb-1.5 mb-2`}>
+          <span className="text-xs font-bold truncate">{contractInfo.name}</span>
           {displayCode && (
             <button
               type="button"
               onClick={(e) => onCopyCode(displayCode, e)}
-              className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-colors shrink-0"
+              className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 transition-colors shrink-0 font-medium"
               title="复制合约代码"
             >
               {copiedCode === displayCode ? (
                 <>
-                  <Check className="w-3 h-3 text-green-400" />
-                  <span className="text-green-400">已复制</span>
+                  <Check className="w-3 h-3 text-emerald-500" />
+                  <span className="text-emerald-500">已复制</span>
                 </>
               ) : (
                 <>
-                  <Copy className="w-3 h-3 text-zinc-400" />
+                  <Copy className="w-3 h-3 opacity-60" />
                   <span>复制</span>
                 </>
               )}
@@ -268,56 +298,56 @@ function ContractCellWithTick({
 
         {/* Real-time WebSocket Tick Price Banner */}
         {displayCode && (
-          <div className="bg-zinc-850/90 rounded-lg p-2 mb-2 border border-zinc-800 flex items-center justify-between">
+          <div className={`rounded-lg p-2 mb-2 border ${dividerClass} ${theme === 'dark' ? 'bg-zinc-800/60' : 'bg-slate-50'} flex items-center justify-between`}>
             <div>
-              <div className="flex items-center gap-1 text-zinc-400 text-[10px] mb-0.5">
-                <Radio className={`w-2.5 h-2.5 ${wsContext?.isConnected ? 'text-emerald-400 animate-pulse' : 'text-zinc-500'}`} />
+              <div className="flex items-center gap-1 opacity-75 text-[10px] mb-0.5">
+                <Radio className={`w-2.5 h-2.5 ${wsContext?.isConnected ? 'text-emerald-500 animate-pulse' : 'opacity-50'}`} />
                 <span>实时行情</span>
               </div>
               {currentPrice != null ? (
                 <div className="flex items-baseline gap-1.5">
-                  <span className="font-mono text-sm font-bold text-emerald-400">
+                  <span className="font-mono text-sm font-bold text-emerald-600 dark:text-emerald-400">
                     {currentPrice.toFixed(4)}
                   </span>
                 </div>
               ) : (
-                <span className="text-xs text-zinc-400 font-mono">
+                <span className="text-xs opacity-60 font-mono">
                   {wsContext?.isConnected ? '等待推送...' : '--'}
                 </span>
               )}
             </div>
 
             {/* Bid/Ask Spread */}
-            <div className="text-right text-[10px] font-mono text-zinc-400">
+            <div className="text-right text-[10px] font-mono opacity-80">
               {bidPrice != null && askPrice != null ? (
                 <div>
-                  <span className="text-emerald-400/90">{bidPrice.toFixed(4)}</span>
-                  <span className="text-zinc-600 mx-0.5">/</span>
-                  <span className="text-rose-400/90">{askPrice.toFixed(4)}</span>
+                  <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{bidPrice.toFixed(4)}</span>
+                  <span className="opacity-40 mx-0.5">/</span>
+                  <span className="text-rose-600 dark:text-rose-400 font-semibold">{askPrice.toFixed(4)}</span>
                 </div>
               ) : (
-                <div className="text-[9px] text-zinc-500">买一 / 卖一</div>
+                <div className="text-[9px] opacity-60">买一 / 卖一</div>
               )}
             </div>
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-y-1.5 text-[11px] text-zinc-300">
+        <div className={`grid grid-cols-2 gap-y-1.5 text-[11px] ${subtextClass}`}>
           {displayCode && (
             <div>
-              <span className="text-zinc-500 block text-[9px]">代码</span>
-              <span className="font-mono text-[10px] text-zinc-200">{displayCode}</span>
+              <span className="opacity-60 block text-[9px]">代码</span>
+              <span className="font-mono text-[10px] font-medium">{displayCode}</span>
             </div>
           )}
           {contractInfo.strike && (
             <div>
-              <span className="text-zinc-500 block text-[9px]">行权价</span>
-              <span className="font-mono font-bold text-amber-300">{contractInfo.strike}</span>
+              <span className="opacity-60 block text-[9px]">行权价</span>
+              <span className="font-mono font-bold text-amber-600 dark:text-amber-300">{contractInfo.strike}</span>
             </div>
           )}
           <div>
-            <span className="text-zinc-500 block text-[9px]">方向</span>
-            <span className={isCall ? 'text-sky-400 font-medium' : isPut ? 'text-amber-400 font-medium' : ''}>
+            <span className="opacity-60 block text-[9px]">方向</span>
+            <span className={isCall ? 'text-sky-600 dark:text-sky-400 font-medium' : isPut ? 'text-amber-600 dark:text-amber-400 font-medium' : ''}>
               {isCall ? '认购 (Call)' : isPut ? '认沽 (Put)' : '--'}
             </span>
           </div>
@@ -326,11 +356,9 @@ function ContractCellWithTick({
         {/* Triangle Arrow */}
         <div
           className={`absolute ${
-            isNearBottom
-              ? 'top-full left-4 border-4 border-transparent border-t-slate-900 dark:border-t-zinc-950'
-              : 'bottom-full left-4 border-4 border-transparent border-b-slate-900 dark:border-b-zinc-950'
-          }`}
-        ></div>
+            isNearBottom ? 'top-full left-4 border-t-4' : 'bottom-full left-4 border-b-4'
+          } border-4 border-transparent ${arrowClass}`}
+        />
       </div>
     </div>
   );
@@ -406,19 +434,24 @@ function extractReasonTags(text: string): ReasonTag[] {
 
 /**
  * Compact Reason Cell displaying only tags, showing full detailed advice on hover popover
+ * Perfectly matches ExpiryGroupCard's PROFIT list tooltip style and fully wraps text content
  */
 function ReasonCellWithPopover({
   rawText,
   isNearBottom,
+  theme,
 }: {
   rawText: string;
   isNearBottom: boolean;
+  theme: Theme;
 }) {
   const tags = useMemo(() => extractReasonTags(rawText), [rawText]);
   const clauses = useMemo(
     () => rawText.split(/[；;]/).map((s) => s.trim()).filter(Boolean),
     [rawText]
   );
+
+  const { cardClass, dividerClass, subtextClass, arrowClass } = getTooltipClasses(theme, isNearBottom);
 
   return (
     <div className="group/reason relative inline-block">
@@ -434,24 +467,28 @@ function ReasonCellWithPopover({
         ))}
       </div>
 
-      {/* Popover / Tooltip on hover showing detailed content */}
+      {/* Popover / Tooltip on hover showing detailed content with theme consistency and full width wrapping */}
       <div
+        onWheel={(e) => e.stopPropagation()}
         className={`absolute ${
           isNearBottom
             ? 'bottom-full mb-2 before:content-[\'\'] before:absolute before:-bottom-2 before:left-0 before:w-full before:h-2'
             : 'top-full mt-2 before:content-[\'\'] before:absolute before:-top-2 before:left-0 before:w-full before:h-2'
-        } right-0 hidden group-hover/reason:flex flex-col z-50 w-72 p-3 bg-slate-900/95 dark:bg-zinc-950/95 text-white rounded-xl shadow-2xl border border-slate-700 dark:border-zinc-800 backdrop-blur-md pointer-events-auto text-left`}
+        } right-0 hidden group-hover/reason:block w-max min-w-[240px] max-w-sm sm:max-w-md p-3.5 ${cardClass} border rounded-xl z-50 pointer-events-auto overscroll-contain backdrop-blur-xl shadow-2xl text-left`}
       >
-        <div className="flex items-center gap-1.5 border-b border-zinc-800 pb-1.5 mb-2 text-xs font-bold text-zinc-100">
-          <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-          <span>详细原因与建议</span>
+        <div className={`text-[11px] font-bold text-amber-600 dark:text-yellow-400 mb-2 flex items-center justify-between border-b ${dividerClass} pb-1.5`}>
+          <div className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+            <span>详细原因与建议</span>
+          </div>
+          <span className="text-[9px] font-normal font-mono opacity-60">触发规则</span>
         </div>
 
-        <div className="space-y-1.5 text-xs text-zinc-300 leading-relaxed">
+        <div className={`space-y-1.5 text-xs leading-relaxed ${subtextClass} whitespace-normal break-words`}>
           {clauses.map((clause, idx) => (
-            <div key={idx} className="flex items-start gap-1.5">
-              <span className="text-zinc-500 font-mono text-[10px] shrink-0 mt-0.5">•</span>
-              <span>{clause}</span>
+            <div key={idx} className="flex items-start gap-2">
+              <span className="text-amber-500 font-bold text-xs shrink-0 mt-0.5">•</span>
+              <span className="break-words font-medium">{clause}</span>
             </div>
           ))}
         </div>
@@ -459,10 +496,8 @@ function ReasonCellWithPopover({
         {/* Triangle Arrow */}
         <div
           className={`absolute ${
-            isNearBottom
-              ? 'top-full right-4 border-4 border-transparent border-t-slate-900 dark:border-t-zinc-950'
-              : 'bottom-full right-4 border-4 border-transparent border-b-slate-900 dark:border-b-zinc-950'
-          }`}
+            isNearBottom ? 'top-full right-4 border-t-4' : 'bottom-full right-4 border-b-4'
+          } border-4 border-transparent ${arrowClass}`}
         />
       </div>
     </div>
@@ -846,7 +881,7 @@ export function InteractiveMarkdownTable({
     if (isReasonCol || trimmed.includes('建议平仓') || trimmed.includes('建议移仓') || trimmed.includes('止盈') || trimmed.includes('强平线') || trimmed.includes('性价比低')) {
       const totalRows = sortedRows.length;
       const isNearBottom = totalRows <= 3 ? rowIndex > 0 : rowIndex >= totalRows - 3 || rowIndex >= Math.floor(totalRows / 2);
-      return <ReasonCellWithPopover rawText={trimmed} isNearBottom={isNearBottom} />;
+      return <ReasonCellWithPopover rawText={trimmed} isNearBottom={isNearBottom} theme={theme} />;
     }
 
     return <span className="text-xs text-zinc-700 dark:text-zinc-200">{trimmed}</span>;
