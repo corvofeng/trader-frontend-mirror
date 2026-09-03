@@ -30,7 +30,12 @@ import type {
   PortfolioKlinePoint,
   PortfolioKlineMetrics,
   PortfolioHistoryData,
-  PortfolioHistoryItem
+  PortfolioHistoryItem,
+  CashFlowItem,
+  CashFlowsResponseData,
+  CreateCashFlowPayload,
+  UpdateCashFlowPayload,
+  CashFlowService
 } from '../types';
 import { format, subDays, addMinutes, startOfDay, endOfDay, parseISO } from 'date-fns';
 
@@ -1729,3 +1734,217 @@ export const noticeService: NoticeService = {
     return { data: notice, error: null };
   }
 };
+
+let mockCashFlowIdCounter = 10;
+const mockCashFlowsByAccount: Record<string, CashFlowItem[]> = {
+  main_zjcf_qmt: [
+    {
+      id: 5,
+      account_alias: 'main_zjcf_qmt',
+      amount: '80000.00',
+      benefit_note: '定投增资',
+      counterparty: '韩梅梅',
+      created_at: '2026-06-20T10:00:00',
+      currency: 'CNY',
+      description: '追加策略资金',
+      external_id: 'cf-hmm-20260620-01',
+      flow_date: '2026-06-20',
+      flow_type: 'deposit',
+      source: 'manual',
+      updated_at: '2026-06-20T10:00:00'
+    },
+    {
+      id: 4,
+      account_alias: 'main_zjcf_qmt',
+      amount: '120000.00',
+      benefit_note: '投资分润入账',
+      counterparty: '李雷',
+      created_at: '2026-05-25T14:30:00',
+      currency: 'CNY',
+      description: '季度出资',
+      external_id: 'cf-ll-20260525-01',
+      flow_date: '2026-05-25',
+      flow_type: 'deposit',
+      source: 'manual',
+      updated_at: '2026-05-25T14:30:00'
+    },
+    {
+      id: 3,
+      account_alias: 'main_zjcf_qmt',
+      amount: '50000.00',
+      benefit_note: '日常周转出金',
+      counterparty: '张春秋',
+      created_at: '2026-05-10T09:15:00',
+      currency: 'CNY',
+      description: '银证转账出金',
+      external_id: 'bank-out-20260510-02',
+      flow_date: '2026-05-10',
+      flow_type: 'withdraw',
+      source: 'manual',
+      updated_at: '2026-05-10T09:15:00'
+    },
+    {
+      id: 2,
+      account_alias: 'main_zjcf_qmt',
+      amount: '100000.00',
+      benefit_note: '发了很多皮肤haha',
+      counterparty: '张春秋',
+      created_at: '2026-04-08T12:02:49',
+      currency: 'CNY',
+      description: '手动入金',
+      external_id: 'family-gift-20260408-01',
+      flow_date: '2026-04-08',
+      flow_type: 'deposit',
+      source: 'manual',
+      updated_at: '2026-09-03T13:52:53'
+    },
+    {
+      id: 1,
+      account_alias: 'main_zjcf_qmt',
+      amount: '150000.00',
+      benefit_note: '初始入金',
+      counterparty: '张春秋',
+      created_at: '2026-03-15T09:00:00',
+      currency: 'CNY',
+      description: '初始启动资金',
+      external_id: 'cf-init-20260315-01',
+      flow_date: '2026-03-15',
+      flow_type: 'deposit',
+      source: 'manual',
+      updated_at: '2026-03-15T09:00:00'
+    }
+  ],
+  gjzq_option: [
+    {
+      id: 103,
+      account_alias: 'gjzq_option',
+      amount: '150000.00',
+      benefit_note: '补充保证金',
+      counterparty: '联合投资方A',
+      created_at: '2026-05-18T11:00:00',
+      currency: 'CNY',
+      description: '合伙注资',
+      external_id: 'cf-opt-20260518-01',
+      flow_date: '2026-05-18',
+      flow_type: 'deposit',
+      source: 'manual',
+      updated_at: '2026-05-18T11:00:00'
+    },
+    {
+      id: 102,
+      account_alias: 'gjzq_option',
+      amount: '100000.00',
+      benefit_note: '期权跟投',
+      counterparty: '联合投资方B',
+      created_at: '2026-04-20T15:00:00',
+      currency: 'CNY',
+      description: '跟投增资',
+      external_id: 'cf-opt-20260420-01',
+      flow_date: '2026-04-20',
+      flow_type: 'deposit',
+      source: 'manual',
+      updated_at: '2026-04-20T15:00:00'
+    },
+    {
+      id: 101,
+      account_alias: 'gjzq_option',
+      amount: '200000.00',
+      benefit_note: '期权保证金入金',
+      counterparty: '国金证券',
+      created_at: '2026-04-01T10:00:00',
+      currency: 'CNY',
+      description: '入金充实期权保证金',
+      external_id: 'cf-opt-20260401-01',
+      flow_date: '2026-04-01',
+      flow_type: 'deposit',
+      source: 'manual',
+      updated_at: '2026-04-01T10:00:00'
+    }
+  ]
+};
+
+export const cashFlowService: CashFlowService = {
+  getCashFlows: async (accountAlias: string) => {
+    await new Promise(resolve => setTimeout(resolve, 200));
+    const items = (mockCashFlowsByAccount[accountAlias] || []).slice();
+    return {
+      data: {
+        account_alias: accountAlias,
+        items
+      },
+      error: null
+    };
+  },
+
+  getCashFlow: async (accountAlias: string, id: number | string) => {
+    await new Promise(resolve => setTimeout(resolve, 150));
+    const items = mockCashFlowsByAccount[accountAlias] || [];
+    const item = items.find(i => String(i.id) === String(id));
+    if (!item) {
+      return { data: null, error: new Error('Cash flow not found') };
+    }
+    return { data: { ...item }, error: null };
+  },
+
+  createCashFlow: async (accountAlias: string, payload: CreateCashFlowPayload) => {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    if (!mockCashFlowsByAccount[accountAlias]) {
+      mockCashFlowsByAccount[accountAlias] = [];
+    }
+    const now = new Date().toISOString();
+    const newItem: CashFlowItem = {
+      id: mockCashFlowIdCounter++,
+      account_alias: accountAlias,
+      amount: String(payload.amount),
+      benefit_note: payload.benefit_note || null,
+      counterparty: payload.counterparty || null,
+      created_at: now,
+      currency: payload.currency || 'CNY',
+      description: payload.description || null,
+      external_id: payload.external_id || null,
+      flow_date: payload.flow_date,
+      flow_type: payload.flow_type || 'deposit',
+      source: payload.source || 'manual',
+      updated_at: now
+    };
+    mockCashFlowsByAccount[accountAlias].unshift(newItem);
+    return { data: newItem, error: null };
+  },
+
+  updateCashFlow: async (accountAlias: string, id: number | string, payload: UpdateCashFlowPayload) => {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    const items = mockCashFlowsByAccount[accountAlias] || [];
+    const index = items.findIndex(i => String(i.id) === String(id));
+    if (index === -1) {
+      return { data: null, error: new Error('Cash flow not found') };
+    }
+    const current = items[index];
+    const updated: CashFlowItem = {
+      ...current,
+      ...(payload.amount !== undefined ? { amount: String(payload.amount) } : {}),
+      ...(payload.flow_date !== undefined ? { flow_date: payload.flow_date } : {}),
+      ...(payload.flow_type !== undefined ? { flow_type: payload.flow_type } : {}),
+      ...(payload.currency !== undefined ? { currency: payload.currency } : {}),
+      ...(payload.counterparty !== undefined ? { counterparty: payload.counterparty } : {}),
+      ...(payload.description !== undefined ? { description: payload.description } : {}),
+      ...(payload.benefit_note !== undefined ? { benefit_note: payload.benefit_note } : {}),
+      ...(payload.external_id !== undefined ? { external_id: payload.external_id } : {}),
+      ...(payload.source !== undefined ? { source: payload.source } : {}),
+      updated_at: new Date().toISOString()
+    };
+    items[index] = updated;
+    return { data: updated, error: null };
+  },
+
+  deleteCashFlow: async (accountAlias: string, id: number | string) => {
+    await new Promise(resolve => setTimeout(resolve, 250));
+    const items = mockCashFlowsByAccount[accountAlias] || [];
+    const index = items.findIndex(i => String(i.id) === String(id));
+    if (index === -1) {
+      return { data: null, error: new Error('Cash flow not found') };
+    }
+    items.splice(index, 1);
+    return { data: undefined, error: null };
+  }
+};
+

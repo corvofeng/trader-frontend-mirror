@@ -23,7 +23,12 @@ import type {
   AdminAccountStatusItem,
   PortfolioKlinePoint,
   PortfolioKlineMetrics,
-  PortfolioHistoryData
+  PortfolioHistoryData,
+  CashFlowItem,
+  CashFlowsResponseData,
+  CreateCashFlowPayload,
+  UpdateCashFlowPayload,
+  CashFlowService
 } from '../types';
 import type { Trade } from '../types';
 import {
@@ -1896,3 +1901,123 @@ export const accountPromptService: AccountPromptService = {
     }
   }
 };
+
+export const cashFlowService: CashFlowService = {
+  getCashFlows: async (accountAlias: string) => {
+    try {
+      const response = await fetch(`/api/accounts/${encodeURIComponent(accountAlias)}/cash-flows`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        let message = `Failed to fetch cash flows (${response.status})`;
+        try {
+          const parsed = JSON.parse(errorText);
+          message = parsed.message || parsed.error || message;
+        } catch {}
+        throw new Error(message);
+      }
+      const json = await response.json();
+      const payload: CashFlowsResponseData = json.data ?? json;
+      return { data: payload, error: null };
+    } catch (error) {
+      console.error('Error fetching cash flows:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  getCashFlow: async (accountAlias: string, id: number | string) => {
+    try {
+      const response = await fetch(`/api/accounts/${encodeURIComponent(accountAlias)}/cash-flows/${encodeURIComponent(String(id))}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        let message = `Failed to fetch cash flow (${response.status})`;
+        try {
+          const parsed = JSON.parse(errorText);
+          message = parsed.message || parsed.error || message;
+        } catch {}
+        throw new Error(message);
+      }
+      const json = await response.json();
+      const payload: CashFlowItem = json.data ?? json;
+      return { data: payload, error: null };
+    } catch (error) {
+      console.error('Error fetching cash flow detail:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  createCashFlow: async (accountAlias: string, payload: CreateCashFlowPayload) => {
+    try {
+      const response = await fetch(`/api/accounts/${encodeURIComponent(accountAlias)}/cash-flows`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        let message = `Failed to create cash flow (${response.status})`;
+        try {
+          const parsed = JSON.parse(errorText);
+          message = parsed.message || parsed.error || message;
+        } catch {}
+        throw new Error(message);
+      }
+      const json = await response.json();
+      const item: CashFlowItem = json.data ?? json;
+      return { data: item, error: null };
+    } catch (error) {
+      console.error('Error creating cash flow:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  updateCashFlow: async (accountAlias: string, id: number | string, payload: UpdateCashFlowPayload) => {
+    try {
+      const response = await fetch(`/api/accounts/${encodeURIComponent(accountAlias)}/cash-flows/${encodeURIComponent(String(id))}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        let message = `Failed to update cash flow (${response.status})`;
+        try {
+          const parsed = JSON.parse(errorText);
+          message = parsed.message || parsed.error || message;
+        } catch {}
+        throw new Error(message);
+      }
+      const json = await response.json();
+      const item: CashFlowItem = json.data ?? json;
+      return { data: item, error: null };
+    } catch (error) {
+      console.error('Error updating cash flow:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  deleteCashFlow: async (accountAlias: string, id: number | string) => {
+    try {
+      const response = await fetch(`/api/accounts/${encodeURIComponent(accountAlias)}/cash-flows/${encodeURIComponent(String(id))}`, {
+        method: 'DELETE'
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        let message = `Failed to delete cash flow (${response.status})`;
+        try {
+          const parsed = JSON.parse(errorText);
+          message = parsed.message || parsed.error || message;
+        } catch {}
+        throw new Error(message);
+      }
+      return { data: undefined, error: null };
+    } catch (error) {
+      console.error('Error deleting cash flow:', error);
+      return { data: null, error: error as Error };
+    }
+  }
+};
+

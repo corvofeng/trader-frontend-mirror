@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Activity, Calendar, RefreshCw, BookOpen, History as HistoryIcon, ListChecks, HeartPulse, Bell, Upload, X, Play, Copy } from 'lucide-react';
+import { Activity, Calendar, RefreshCw, BookOpen, History as HistoryIcon, ListChecks, HeartPulse, Bell, Upload, X, Play, Copy, Banknote } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, addMonths, isSameMonth, isSameDay, differenceInCalendarDays } from 'date-fns';
 import { logger } from '../shared/utils/logger';
@@ -15,6 +15,7 @@ import { HistoryTradesChart } from '../features/trading/components/HistoryTrades
 import { DailyTradeHistory } from '../features/trading/components/DailyTradeHistory';
 import { SequentialTradeTasks } from '../features/options/components/SequentialTradeTasks';
 import { DataFreshnessStatus } from './Admin/components/DataFreshnessStatus';
+import { CashFlowsView } from './Admin/components/CashFlowsView';
 import {
   ADMIN_ACCOUNT_STORAGE,
   getAccountAliasFromSearch,
@@ -718,6 +719,7 @@ export function Admin({ theme }: AdminProps) {
 
   const tabs = [
     { id: 'operations' as AdminTab, name: 'Operations', icon: Activity },
+    { id: 'cash-flows' as AdminTab, name: 'Cash Flows', icon: Banknote },
     { id: 'calendar' as AdminTab, name: 'Calendar', icon: Calendar },
     { id: 'analysis' as AdminTab, name: 'Analysis', icon: BookOpen },
     { id: 'history' as AdminTab, name: 'History', icon: HistoryIcon },
@@ -778,6 +780,10 @@ export function Admin({ theme }: AdminProps) {
 
       {activeTab === 'operations' && (
         <OperationsView theme={theme} accountAlias={selectedAccountId} />
+      )}
+
+      {activeTab === 'cash-flows' && (
+        <CashFlowsView theme={theme} accountAlias={selectedAccountId} refreshKey={refreshKey} />
       )}
 
       {activeTab === 'analysis' && (

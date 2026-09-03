@@ -86,6 +86,11 @@ const SITE_SECTIONS: SiteSection[] = [
         description: 'Detailed performance metrics and insights'
       },
       {
+        title: 'Cash Flows',
+        path: '/admin?tab=cash-flows',
+        description: 'Account fund deposits, withdrawals, and cash flow records'
+      },
+      {
         title: 'System Operations',
         path: '/journal?tab=operations',
         description: 'Monitor system performance and API calls'

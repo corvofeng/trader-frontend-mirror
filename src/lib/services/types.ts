@@ -417,6 +417,59 @@ export interface AccountService {
   getAdminAccountsStatus: (options?: { signal?: AbortSignal }) => Promise<ServiceResponse<AdminAccountStatusItem[]>>;
 }
 
+export interface CashFlowItem {
+  id: number;
+  account_alias?: string;
+  amount: string | number;
+  benefit_note?: string | null;
+  counterparty?: string | null;
+  created_at: string;
+  currency: string;
+  description?: string | null;
+  external_id?: string | null;
+  flow_date: string;
+  flow_type: 'deposit' | 'withdraw' | string;
+  source?: string | null;
+  updated_at: string;
+}
+
+export interface CashFlowsResponseData {
+  account_alias: string;
+  items: CashFlowItem[];
+}
+
+export interface CreateCashFlowPayload {
+  flow_date: string;
+  flow_type: string;
+  amount: string | number;
+  currency?: string;
+  counterparty?: string | null;
+  description?: string | null;
+  benefit_note?: string | null;
+  external_id?: string | null;
+  source?: string | null;
+}
+
+export interface UpdateCashFlowPayload {
+  flow_date?: string;
+  flow_type?: string;
+  amount?: string | number;
+  currency?: string;
+  counterparty?: string | null;
+  description?: string | null;
+  benefit_note?: string | null;
+  external_id?: string | null;
+  source?: string | null;
+}
+
+export interface CashFlowService {
+  getCashFlows: (accountAlias: string) => Promise<ServiceResponse<CashFlowsResponseData>>;
+  getCashFlow: (accountAlias: string, id: number | string) => Promise<ServiceResponse<CashFlowItem>>;
+  createCashFlow: (accountAlias: string, payload: CreateCashFlowPayload) => Promise<ServiceResponse<CashFlowItem>>;
+  updateCashFlow: (accountAlias: string, id: number | string, payload: UpdateCashFlowPayload) => Promise<ServiceResponse<CashFlowItem>>;
+  deleteCashFlow: (accountAlias: string, id: number | string) => Promise<ServiceResponse<void>>;
+}
+
 export interface PortfolioHistoryItem {
   id?: number;
   date: string;
@@ -546,6 +599,7 @@ export interface Services {
   accountService: AccountService;
   accountPromptService: AccountPromptService;
   noticeService: NoticeService;
+  cashFlowService: CashFlowService;
 }
 
 // Options Service Types

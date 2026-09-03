@@ -25,5 +25,6 @@ export const {
   optionsService,
   accountService,
   accountPromptService,
-  noticeService
+  noticeService,
+  cashFlowService
 } = services;
