@@ -131,6 +131,16 @@ export const cloudflareServices: Services = {
       const db = await getDb();
       return { data: db.accounts || [], error: null };
     },
+    getPortfolioHistory: async (accountAlias, _params) => {
+      return {
+        data: {
+          account_alias: accountAlias,
+          count: 0,
+          history: [],
+        },
+        error: null,
+      };
+    },
     getHoldingsByUuid: async (_uuid) => {
       const db = await getDb();
       return { data: db.holdings || [], error: null };

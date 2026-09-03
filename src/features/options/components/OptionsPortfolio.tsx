@@ -14,6 +14,7 @@ import { useOptionPriceWebSocket } from '../hooks/useOptionPriceWebSocket';
 import { useClosePositions } from '../hooks/useClosePositions';
 import { UnderlyingPriceMonitor } from './UnderlyingPriceMonitor';
 import { PortfolioOverview } from './PortfolioOverview';
+import { OptionPortfolioHistoryChart } from './OptionPortfolioHistoryChart';
 import { SubjectPositionsPanel } from './SubjectPositionsPanel';
 import { StockKlineChart } from './StockKlineChart';
 import { TodayOrderFlowPanel } from './TodayComboPanel';
@@ -809,6 +810,10 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
             </p>
           </div>
         </div>
+        <OptionPortfolioHistoryChart
+          theme={theme}
+          accountAlias={selectedAccountIdProp || ''}
+        />
         {mobileMonthToc}
         {refreshButton}
       </>
@@ -863,6 +868,11 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         activityLogsCount={activityLogs.length}
         onOpenLog={() => setIsLogOpen(true)}
         currentUnderlyingPrice={activeSymbol ? getCurrentUnderlyingPrice(activeSymbol) : null}
+      />
+
+      <OptionPortfolioHistoryChart
+        theme={theme}
+        accountAlias={selectedAccountIdProp || ''}
       />
 
       {isMobile && activeSymbol && (

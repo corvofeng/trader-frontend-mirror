@@ -417,6 +417,37 @@ export interface AccountService {
   getAdminAccountsStatus: (options?: { signal?: AbortSignal }) => Promise<ServiceResponse<AdminAccountStatusItem[]>>;
 }
 
+export interface PortfolioHistoryItem {
+  id?: number;
+  date: string;
+  capital_inflow: number;
+  allocation_flow: number;
+  total_inflow: number;
+  reported_total_inflow: number | null;
+  total_inflow_difference?: number | null;
+  pure_cash_investment: number;
+  occupied_assets: number;
+  stock_lots_delta?: number;
+  stock_lots?: number;
+  option_account_assets: number | null;
+  reported_total_assets: number | null;
+  calculated_total_assets: number | null;
+  total_assets_difference?: number | null;
+  reported_profit: number | null;
+  calculated_profit: number | null;
+  profit_difference?: number | null;
+  currency?: string;
+  source?: string;
+  external_id?: string | null;
+  note?: string | null;
+}
+
+export interface PortfolioHistoryData {
+  account_alias: string;
+  count: number;
+  history: PortfolioHistoryItem[];
+}
+
 export interface PortfolioService {
   getHoldings: (userId: string, accountId?: string) => Promise<ServiceResponse<Holding[]>>;
   getRecentTrades: (userId: string, startDate: string, endDate: string, accountId?: string, stockCode?: string) => Promise<ServiceResponse<Trade[]>>;
@@ -424,6 +455,10 @@ export interface PortfolioService {
   getKlineData: (userId: string, startDate: string, endDate: string, accountId?: string) => Promise<ServiceResponse<PortfolioKlinePoint[]>>;
   getMetrics: (userId: string, endDate: string, accountId?: string) => Promise<ServiceResponse<PortfolioKlineMetrics>>;
   getAccounts: (userId: string) => Promise<ServiceResponse<Account[]>>;
+  getPortfolioHistory: (
+    accountAlias: string,
+    params?: { startDate?: string; endDate?: string }
+  ) => Promise<ServiceResponse<PortfolioHistoryData>>;
   // UUID-based methods for shared portfolios
   getHoldingsByUuid: (uuid: string) => Promise<ServiceResponse<Holding[]>>;
   getRecentTradesByUuid: (uuid: string, startDate: string, endDate: string) => Promise<ServiceResponse<Trade[]>>;

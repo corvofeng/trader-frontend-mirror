@@ -28,7 +28,9 @@ import type {
   NoticeService,
   AdminAccountStatusItem,
   PortfolioKlinePoint,
-  PortfolioKlineMetrics
+  PortfolioKlineMetrics,
+  PortfolioHistoryData,
+  PortfolioHistoryItem
 } from '../types';
 import { format, subDays, addMinutes, startOfDay, endOfDay, parseISO } from 'date-fns';
 
@@ -758,6 +760,162 @@ export const portfolioService: PortfolioService = {
 
   getAccounts: async (userId: string) => {
     return accountService.getAccounts(userId);
+  },
+
+  getPortfolioHistory: async (accountAlias: string, params?: { startDate?: string; endDate?: string }) => {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    const mockHistory: PortfolioHistoryItem[] = [
+      {
+        id: 1,
+        date: '2025-05-13',
+        capital_inflow: 500,
+        allocation_flow: 0,
+        total_inflow: 500,
+        reported_total_inflow: 500,
+        pure_cash_investment: 500,
+        occupied_assets: 0,
+        option_account_assets: null,
+        reported_total_assets: null,
+        calculated_total_assets: null,
+        reported_profit: null,
+        calculated_profit: null,
+      },
+      {
+        id: 7,
+        date: '2025-07-21',
+        capital_inflow: 5000,
+        allocation_flow: 0,
+        total_inflow: 65000,
+        reported_total_inflow: 65000,
+        pure_cash_investment: 44000,
+        occupied_assets: 21000,
+        option_account_assets: 47691,
+        reported_total_assets: 68691,
+        calculated_total_assets: 68691,
+        reported_profit: 3691,
+        calculated_profit: 3691,
+      },
+      {
+        id: 8,
+        date: '2025-08-06',
+        capital_inflow: 0,
+        allocation_flow: 0,
+        total_inflow: 65000,
+        reported_total_inflow: 65000,
+        pure_cash_investment: 44000,
+        occupied_assets: 21000,
+        option_account_assets: 49688.9,
+        reported_total_assets: 70688.9,
+        calculated_total_assets: 70688.9,
+        reported_profit: 5688.9,
+        calculated_profit: 5688.9,
+      },
+      {
+        id: 17,
+        date: '2025-08-28',
+        capital_inflow: 0,
+        allocation_flow: -111500,
+        total_inflow: 170000,
+        reported_total_inflow: 170000,
+        pure_cash_investment: 37500,
+        occupied_assets: 132500,
+        option_account_assets: 47675.25,
+        reported_total_assets: 180175.25,
+        calculated_total_assets: 180175.25,
+        reported_profit: 10175.25,
+        calculated_profit: 10175.25,
+      },
+      {
+        id: 22,
+        date: '2025-09-10',
+        capital_inflow: 0,
+        allocation_flow: 0,
+        total_inflow: 170000,
+        reported_total_inflow: 170000,
+        pure_cash_investment: 37500,
+        occupied_assets: 132500,
+        option_account_assets: 54251.16,
+        reported_total_assets: 186751.16,
+        calculated_total_assets: 186751.16,
+        reported_profit: 16751.16,
+        calculated_profit: 16751.16,
+      },
+      {
+        id: 30,
+        date: '2026-05-29',
+        capital_inflow: 0,
+        allocation_flow: 0,
+        total_inflow: 562500,
+        reported_total_inflow: 562500,
+        pure_cash_investment: 249500,
+        occupied_assets: 313000,
+        option_account_assets: 233890,
+        reported_total_assets: 546890,
+        calculated_total_assets: 546890,
+        reported_profit: -15610,
+        calculated_profit: -15610,
+      },
+      {
+        id: 37,
+        date: '2026-06-15',
+        capital_inflow: 0,
+        allocation_flow: 0,
+        total_inflow: 562500,
+        reported_total_inflow: 562500,
+        pure_cash_investment: 189500,
+        occupied_assets: 373000,
+        option_account_assets: 184766,
+        reported_total_assets: 557766,
+        calculated_total_assets: 557766,
+        reported_profit: -4734,
+        calculated_profit: -4734,
+      },
+      {
+        id: 45,
+        date: '2026-08-17',
+        capital_inflow: 0,
+        allocation_flow: 0,
+        total_inflow: 612500,
+        reported_total_inflow: 612500,
+        pure_cash_investment: 167500,
+        occupied_assets: 445000,
+        option_account_assets: 177287,
+        reported_total_assets: 622287,
+        calculated_total_assets: 622287,
+        reported_profit: 9787,
+        calculated_profit: 9787,
+      },
+      {
+        id: 50,
+        date: '2026-08-27',
+        capital_inflow: 0,
+        allocation_flow: 0,
+        total_inflow: 612500,
+        reported_total_inflow: 612500,
+        pure_cash_investment: 167500,
+        occupied_assets: 445000,
+        option_account_assets: 160199,
+        reported_total_assets: 605199,
+        calculated_total_assets: 605199,
+        reported_profit: -7301,
+        calculated_profit: -7301,
+      },
+    ];
+
+    let filtered = mockHistory;
+    if (params?.startDate) {
+      filtered = filtered.filter(item => item.date >= params.startDate!);
+    }
+    if (params?.endDate) {
+      filtered = filtered.filter(item => item.date <= params.endDate!);
+    }
+
+    const data: PortfolioHistoryData = {
+      account_alias: accountAlias || 'gjzq_option',
+      count: filtered.length,
+      history: filtered,
+    };
+    return { data, error: null };
   },
 
   // UUID-based methods for shared portfolios

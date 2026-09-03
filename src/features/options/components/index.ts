@@ -6,3 +6,4 @@ export { StrategyDisplay } from './StrategyDisplay';
 export { StrategyEditModal } from './StrategyEditModal';
 export { RiskAnalysis } from './RiskAnalysis';
 export { OptionMarketStatePanel } from './OptionMarketStatePanel';
+export { OptionPortfolioHistoryChart } from './OptionPortfolioHistoryChart';

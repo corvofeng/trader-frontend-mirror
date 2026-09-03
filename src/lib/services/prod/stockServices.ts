@@ -22,7 +22,8 @@ import type {
   StockOrder,
   AdminAccountStatusItem,
   PortfolioKlinePoint,
-  PortfolioKlineMetrics
+  PortfolioKlineMetrics,
+  PortfolioHistoryData
 } from '../types';
 import type { Trade } from '../types';
 import {
@@ -1056,6 +1057,36 @@ export const portfolioService: PortfolioService = {
       return { data, error: null };
     } catch (error) {
       console.error('Error fetching accounts:', error);
+      return { data: null, error: error as Error };
+    }
+  },
+
+  getPortfolioHistory: async (
+    accountAlias: string,
+    params?: { startDate?: string; endDate?: string }
+  ) => {
+    try {
+      if (!accountAlias) {
+        return { data: null, error: new Error('Account alias is required') };
+      }
+      const searchParams = new URLSearchParams();
+      if (params?.startDate) searchParams.set('startDate', params.startDate);
+      if (params?.endDate) searchParams.set('endDate', params.endDate);
+      const query = searchParams.toString();
+      const url = `/api/portfolio/${encodeURIComponent(accountAlias)}/history${query ? `?${query}` : ''}`;
+
+      const response = await fetch(url);
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => null);
+        const message = errorBody?.message || errorBody?.error || `Failed to fetch portfolio history (${response.status})`;
+        throw new Error(message);
+      }
+
+      const payload = await response.json();
+      const data: PortfolioHistoryData = payload.data || payload;
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error fetching portfolio history:', error);
       return { data: null, error: error as Error };
     }
   },
