@@ -651,7 +651,7 @@ export function OptionPayoffCalculatorChart({
       return { points: [] as Array<{ pct: number; point: ChartCurvePoint; targetPrice: number }> };
     }
 
-    const pcts = [-0.1, 0.1];
+    const pcts = [-0.2, 0.2];
     const points = pcts
       .map((pct) => {
         const targetPrice = Math.max(0.0001, stats.currentSpot * (1 + pct));
@@ -721,6 +721,7 @@ export function OptionPayoffCalculatorChart({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [axisMarkers, setAxisMarkers] = useState<Array<{ label: string; x: number }>>([]);
   const [axisBand, setAxisBand] = useState<{ left: number; right: number } | null>(null);
+  const [hideShadow, setHideShadow] = useState(false);
 
   useEffect(() => {
     setHoveredPoint(stats?.spotPoint ?? chartPoints[0] ?? null);
@@ -1050,18 +1051,20 @@ export function OptionPayoffCalculatorChart({
           })),
         ];
 
-        rangeScenario.points.forEach(({ pct, targetPrice }) => {
-          annotations.push({
-            x: targetPrice,
-            yref: 'paper',
-            y: 0,
-            yanchor: 'top',
-            yshift: -18,
-            text: uiLabels.markerRange(pct),
-            showarrow: false,
-            font: { color: palette.muted, size: 11 },
+        if (!hideShadow) {
+          rangeScenario.points.forEach(({ pct, targetPrice }) => {
+            annotations.push({
+              x: targetPrice,
+              yref: 'paper',
+              y: 0,
+              yanchor: 'top',
+              yshift: -18,
+              text: uiLabels.markerRange(pct),
+              showarrow: false,
+              font: { color: palette.muted, size: 11 },
+            });
           });
-        });
+        }
 
         await Plotly.newPlot(
           chartRef.current,
@@ -1306,7 +1309,7 @@ export function OptionPayoffCalculatorChart({
         window.Plotly.purge(chartRef.current);
       }
     };
-  }, [calculator, chartEngine, chartPoints, curvePoints, currencyConfig, marketClose.legsCount, marketClose.marketCloseValue, rangeScenario.points, stats, theme, uiLabels]);
+  }, [calculator, chartEngine, chartPoints, curvePoints, currencyConfig, hideShadow, marketClose.legsCount, marketClose.marketCloseValue, rangeScenario.points, stats, theme, uiLabels]);
 
   useEffect(() => {
     if (chartEngine !== 'echarts') {
@@ -1448,7 +1451,7 @@ export function OptionPayoffCalculatorChart({
               ...(marketClose.legsCount > 0 && Number.isFinite(marketClose.marketCloseValue)
                 ? [{ yAxis: marketClose.marketCloseValue, lineStyle: { color: 'rgba(168,85,247,0.6)', type: 'dashed' } }]
                 : []),
-              ...rangeScenario.points.map(({ pct, targetPrice }) => ({
+              ...(!hideShadow ? rangeScenario.points.map(({ pct, targetPrice }) => ({
                 xAxis: targetPrice,
                 lineStyle: { opacity: 0 },
                 label: {
@@ -1457,7 +1460,7 @@ export function OptionPayoffCalculatorChart({
                   position: 'insideEndBottom',
                   color: palette.muted,
                 },
-              })),
+              })) : []),
             ],
           },
           markPoint: {
@@ -1507,7 +1510,7 @@ export function OptionPayoffCalculatorChart({
       chart.dispose();
       echartsInstanceRef.current = null;
     };
-  }, [calculator, chartEngine, chartPoints, curvePoints, currencyConfig, marketClose.legsCount, marketClose.marketCloseValue, rangeScenario.points, stats, theme, uiLabels]);
+  }, [calculator, chartEngine, chartPoints, curvePoints, currencyConfig, hideShadow, marketClose.legsCount, marketClose.marketCloseValue, rangeScenario.points, stats, theme, uiLabels]);
 
   if (!calculator) {
     return (
@@ -1597,19 +1600,30 @@ export function OptionPayoffCalculatorChart({
         ref={chartShellRef}
         className={isFullscreen ? 'fixed inset-0 z-50 flex flex-col bg-white p-3 dark:bg-slate-950 sm:p-4' : 'space-y-3'}
       >
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
           <div className={`text-xs ${themes[theme].text} opacity-60`}>
             手机端建议使用全屏图表后再双指缩放
           </div>
-          <button
-            type="button"
-            onClick={() => setIsFullscreen((previous) => !previous)}
-            className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs ${themes[theme].border} ${themes[theme].secondary}`}
-            aria-label={isFullscreen ? '退出全屏图表' : '打开全屏图表'}
-          >
-            {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-            {isFullscreen ? '退出全屏' : '全屏图表'}
-          </button>
+          <div className="flex items-center gap-3">
+            <label className={`inline-flex items-center gap-1.5 text-xs cursor-pointer select-none ${themes[theme].text} opacity-80 hover:opacity-100`}>
+              <input
+                type="checkbox"
+                checked={hideShadow}
+                onChange={(e) => setHideShadow(e.target.checked)}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span>隐藏阴影</span>
+            </label>
+            <button
+              type="button"
+              onClick={() => setIsFullscreen((previous) => !previous)}
+              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs ${themes[theme].border} ${themes[theme].secondary}`}
+              aria-label={isFullscreen ? '退出全屏图表' : '打开全屏图表'}
+            >
+              {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+              {isFullscreen ? '退出全屏' : '全屏图表'}
+            </button>
+          </div>
         </div>
 
         <div
@@ -1621,7 +1635,7 @@ export function OptionPayoffCalculatorChart({
         >
           <div ref={chartRef} className="absolute inset-0 z-0" />
 
-          {chartEngine === 'tradingview' && axisBand ? (
+          {chartEngine === 'tradingview' && axisBand && !hideShadow ? (
             <>
               <div
                 className="pointer-events-none absolute inset-y-0 z-10 bg-slate-200/50 dark:bg-slate-800/40"
@@ -1634,7 +1648,7 @@ export function OptionPayoffCalculatorChart({
             </>
           ) : null}
 
-          {chartEngine === 'tradingview' ? axisMarkers.map((marker) => (
+          {chartEngine === 'tradingview' && !hideShadow ? axisMarkers.map((marker) => (
             <div
               key={marker.label}
               className={`pointer-events-none absolute bottom-1 z-20 rounded border px-1.5 py-0.5 text-[10px] ${themes[theme].border} ${themes[theme].text} bg-white/80 dark:bg-slate-950/60`}
