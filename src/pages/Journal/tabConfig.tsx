@@ -32,6 +32,7 @@ export type JournalTabRenderContext = {
   onAccountChange: (accountId: string) => void;
   isSnapshot: boolean;
   isPortfolioLoading?: boolean;
+  isMainAccount?: boolean;
   todayOrders: StockOrder[];
   todayOrdersLoading: boolean;
   todayOrdersError: string | null;
@@ -312,6 +313,7 @@ export const JOURNAL_TAB_DEFINITIONS: readonly JournalTabDefinition[] = [
       isSnapshot,
       user,
       isPortfolioLoading,
+      isMainAccount,
     }) => (
       <Portfolio
         holdings={holdings}
@@ -326,6 +328,7 @@ export const JOURNAL_TAB_DEFINITIONS: readonly JournalTabDefinition[] = [
         isSnapshot={isSnapshot}
         user={user}
         isLoading={isPortfolioLoading}
+        isMainAccount={isMainAccount}
       />
     ),
   },

@@ -1,15 +1,16 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { logger } from '../../../shared/utils/logger';
 import { Filter, ExternalLink, Bell, BellOff, RefreshCw, AlertCircle } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
-import type { Holding, PortfolioKlineMetrics, PortfolioKlinePoint, Trade, TrendData, User } from '../../../lib/services/types';
+import type { Account, Holding, PortfolioKlineMetrics, PortfolioKlinePoint, Trade, TrendData, User } from '../../../lib/services/types';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement } from 'chart.js';
 import type { LegendItem, TooltipItem } from 'chart.js';
 import { Pie } from 'react-chartjs-2';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
-import { portfolioService } from '../../../lib/services';
+import { portfolioService, accountService } from '../../../lib/services';
+import { checkIsMainAccount } from '../../../shared/utils/accountSelection';
 import { PortfolioTrend } from './PortfolioTrend';
 import { PortfolioHeatmap } from './PortfolioHeatmap';
 import { StockAnalysisModal } from './StockAnalysisModal';
@@ -57,6 +58,7 @@ interface PortfolioProps {
   onAccountChange?: (accountId: string) => void;
   isSnapshot?: boolean;
   user?: User | null;
+  isMainAccount?: boolean;
 }
 
 export function Portfolio({ 
@@ -72,6 +74,7 @@ export function Portfolio({
   onAccountChange,
   isSnapshot = false,
   user,
+  isMainAccount: isMainAccountProp,
 }: PortfolioProps) {
   const [showRecentTrades, setShowRecentTrades] = useState(true);
   const [holdingsPage, setHoldingsPage] = useState(1);
@@ -96,6 +99,29 @@ export function Portfolio({
   const notifications = useTradeNotifications({
     accountAlias: !isSharedView ? selectedAccountId : undefined,
   });
+
+  const [internalAccounts, setInternalAccounts] = useState<Account[]>([]);
+
+  useEffect(() => {
+    if (isMainAccountProp !== undefined) return;
+    let cancelled = false;
+    accountService.getAccounts(userId || 'mock-user-id').then((res) => {
+      if (!cancelled && res.data) {
+        setInternalAccounts(res.data);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isMainAccountProp, userId]);
+
+  const effectiveIsMainAccount = useMemo(() => {
+    if (isMainAccountProp !== undefined) return isMainAccountProp;
+    return checkIsMainAccount({
+      selectedAccountId,
+      accounts: internalAccounts,
+    });
+  }, [isMainAccountProp, selectedAccountId, internalAccounts]);
   
   // Calculate portfolio metrics
   const {
@@ -702,19 +728,21 @@ export function Portfolio({
                       <span className="hidden sm:inline">订阅调试</span>
                     </button>
 
-                    <a
-                      href="https://t.me/YHTraderNotice"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title="在 Telegram 频道接收主账户实时交易成交通知"
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-[#0088cc]/10 text-[#0088cc] dark:bg-[#0088cc]/15 dark:text-[#50b6ff] ring-1 ring-[#0088cc]/30 hover:bg-[#0088cc]/20 dark:hover:bg-[#0088cc]/25 transition-all duration-200"
-                    >
-                      <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
-                        <path d="M20.665 3.717l-17.73 6.837c-1.21.486-1.203 1.161-.222 1.462l4.552 1.42 10.532-6.645c.498-.303.953-.14.578.192l-8.533 7.701-.33 4.955c.488 0 .702-.223.974-.488l2.338-2.275 4.866 3.59c.898.496 1.543.241 1.767-.83l3.193-15.04c.328-1.312-.5-1.907-1.357-1.522z" />
-                      </svg>
-                      <span className="hidden sm:inline">Telegram 订阅 (主账户)</span>
-                      <span className="sm:hidden">Telegram 订阅</span>
-                    </a>
+                    {effectiveIsMainAccount && (
+                      <a
+                        href="https://t.me/YHTraderNotice"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="在 Telegram 频道接收主账户实时交易成交通知"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-[#0088cc]/10 text-[#0088cc] dark:bg-[#0088cc]/15 dark:text-[#50b6ff] ring-1 ring-[#0088cc]/30 hover:bg-[#0088cc]/20 dark:hover:bg-[#0088cc]/25 transition-all duration-200"
+                      >
+                        <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                          <path d="M20.665 3.717l-17.73 6.837c-1.21.486-1.203 1.161-.222 1.462l4.552 1.42 10.532-6.645c.498-.303.953-.14.578.192l-8.533 7.701-.33 4.955c.488 0 .702-.223.974-.488l2.338-2.275 4.866 3.59c.898.496 1.543.241 1.767-.83l3.193-15.04c.328-1.312-.5-1.907-1.357-1.522z" />
+                        </svg>
+                        <span className="hidden sm:inline">Telegram 订阅 (主账户)</span>
+                        <span className="sm:hidden">Telegram 订阅</span>
+                      </a>
+                    )}
                   </div>
                 )}
               </div>

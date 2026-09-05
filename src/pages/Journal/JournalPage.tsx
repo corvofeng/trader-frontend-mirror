@@ -9,6 +9,7 @@ import { AccountSelector } from '../../shared/components/AccountSelector';
 import type { Account, Stock, Holding, Trade, StockOrder, User } from '../../lib/services/types';
 import { TabNavigation } from './components/TabNavigation';
 import {
+  checkIsMainAccount,
   getAccountAliasFromSearch,
   JOURNAL_ACCOUNT_STORAGE,
   persistAccountAlias,
@@ -62,6 +63,15 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
   const [accountAccessError, setAccountAccessError] = useState<string | null>(null);
   const [accessibleAccountKeys, setAccessibleAccountKeys] = useState<string[] | null>(null);
   const [defaultAccountKey, setDefaultAccountKey] = useState<string | null>(null);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+
+  const isMainAccount = useMemo(() => {
+    return checkIsMainAccount({
+      selectedAccountId,
+      defaultAccountId: defaultAccountKey,
+      accounts,
+    });
+  }, [accounts, defaultAccountKey, selectedAccountId]);
 
   // Get UUID from URL params for portfolio sharing
   const portfolioUuid = new URLSearchParams(location.search).get('uuid');
@@ -83,12 +93,13 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
       setDefaultAccountKey(null);
       try {
         const response = await accountService.getAccounts(DEMO_USER_ID);
-        const accounts = (response.data || []) as Account[];
+        const fetchedAccounts = (response.data || []) as Account[];
         if (cancelled) return;
-        const keys = accounts
+        setAccounts(fetchedAccounts);
+        const keys = fetchedAccounts
           .map((acc) => acc.alias || acc.id)
           .filter((v): v is string => typeof v === 'string' && v.trim().length > 0);
-        const def = accounts.find((acc) => acc.is_default) || accounts[0];
+        const def = fetchedAccounts.find((acc) => acc.is_default) || fetchedAccounts[0];
         setAccessibleAccountKeys(keys);
         setDefaultAccountKey((def?.alias || def?.id || null) ?? null);
       } catch (err) {
@@ -255,11 +266,14 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
             }
             if (tradesResponse.data) setRecentTrades(tradesResponse.data);
 
-            const accounts = accountsResponse.data || [];
-            const isAccountValid = selectedAccountId && accounts.some(a => (a.alias || a.id) === selectedAccountId);
+            const accountsList = accountsResponse.data || [];
+            if (accountsList.length > 0) {
+              setAccounts(accountsList);
+            }
+            const isAccountValid = selectedAccountId && accountsList.some(a => (a.alias || a.id) === selectedAccountId);
 
-            if ((!selectedAccountId || !isAccountValid) && accounts.length > 0) {
-              const def = accounts.find(a => a.is_default) || accounts[0];
+            if ((!selectedAccountId || !isAccountValid) && accountsList.length > 0) {
+              const def = accountsList.find(a => a.is_default) || accountsList[0];
               const key = def.alias || def.id;
               
               if (key !== selectedAccountId) {
@@ -335,6 +349,7 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
           onAccountChange: handleAccountChange,
           isSnapshot,
           isPortfolioLoading,
+          isMainAccount,
           todayOrders,
           todayOrdersLoading,
           todayOrdersError,
@@ -371,6 +386,7 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
         onAccountChange: handleAccountChange,
         isSnapshot,
         isPortfolioLoading,
+        isMainAccount,
         todayOrders,
         todayOrdersLoading,
         todayOrdersError,

@@ -219,3 +219,41 @@ export const pickSearchParams = (search: string, allowedKeys: string[]) => {
   }
   return dst.toString();
 };
+
+export const checkIsMainAccount = (options: {
+  selectedAccountId?: string | null;
+  defaultAccountId?: string | null;
+  accounts?: Array<{
+    id?: string;
+    alias?: string;
+    name?: string;
+    is_default?: boolean;
+  }>;
+}): boolean => {
+  const { selectedAccountId, defaultAccountId, accounts } = options;
+  const normalizedSelected = normalizeValue(selectedAccountId);
+  if (!normalizedSelected) return true;
+
+  if (accounts && accounts.length > 0) {
+    const current = accounts.find(
+      (a) => a.alias === normalizedSelected || a.id === normalizedSelected
+    );
+    if (current) {
+      if (current.is_default) return true;
+      if (current.name?.includes('主账户')) return true;
+      if (current.alias?.toLowerCase().startsWith('main')) return true;
+      return false;
+    }
+    const def = accounts.find((a) => a.is_default) || accounts[0];
+    const defKey = def ? (def.alias || def.id) : null;
+    if (defKey && defKey === normalizedSelected) return true;
+  }
+
+  if (defaultAccountId && normalizedSelected === defaultAccountId) {
+    return true;
+  }
+
+  const lower = normalizedSelected.toLowerCase();
+  return lower.startsWith('main') || lower === 'gjzq_option';
+};
+
