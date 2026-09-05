@@ -8,13 +8,14 @@ import type { CashFlowItem } from '../../../lib/services/types';
 interface CashFlowCounterpartyChartsProps {
   theme: Theme;
   items: CashFlowItem[];
+  allCounterparties?: string[];
   isMasked?: boolean;
   onToggleMask?: () => void;
 }
 
 type TimeChartMetric = 'cumulative' | 'ratio' | 'discrete';
 
-const PALETTE = [
+export const PALETTE = [
   '#3b82f6', // blue
   '#10b981', // emerald
   '#f59e0b', // amber
@@ -43,9 +44,76 @@ export function getCounterpartyMask(name: string, index?: number): string {
   return `对手方${letter} (${hex})`;
 }
 
+/**
+ * Extract all unique counterparties from items in a stable order:
+ * deposits first (sorted), followed by any others.
+ */
+export function extractAllCounterparties(items: CashFlowItem[]): string[] {
+  const depositSet = new Set<string>();
+  const otherSet = new Set<string>();
+
+  for (const item of items || []) {
+    const name = (item.counterparty || '').trim();
+    if (!name) continue;
+    if (item.flow_type === 'deposit') {
+      depositSet.add(name);
+    } else {
+      otherSet.add(name);
+    }
+  }
+
+  const deposits = Array.from(depositSet).sort();
+  const others = Array.from(otherSet).filter((n) => !depositSet.has(n)).sort();
+  const result = [...deposits, ...others];
+
+  // If there are deposit items without counterparty, include placeholder
+  const hasEmptyDeposit = (items || []).some(
+    (item) => item.flow_type === 'deposit' && !(item.counterparty || '').trim()
+  );
+  if (hasEmptyDeposit && !result.includes('未指定对手方')) {
+    result.push('未指定对手方');
+  }
+
+  return result;
+}
+
+export interface CounterpartyMeta {
+  rawName: string;
+  displayName: string;
+  color: string;
+  index: number;
+}
+
+export function getCounterpartyMeta(
+  name: string | null | undefined,
+  allCounterparties: string[],
+  isMasked: boolean
+): CounterpartyMeta | null {
+  const trimmed = (name || '').trim();
+  if (!trimmed) return null;
+
+  let idx = allCounterparties.indexOf(trimmed);
+  if (idx === -1) {
+    // Fallback deterministic index
+    let sum = 0;
+    for (let i = 0; i < trimmed.length; i++) sum += trimmed.charCodeAt(i);
+    idx = Math.abs(sum) % PALETTE.length;
+  }
+  const color = PALETTE[idx % PALETTE.length];
+  const displayName = isMasked ? getCounterpartyMask(trimmed, idx) : trimmed;
+
+  return {
+    rawName: trimmed,
+    displayName,
+    color,
+    index: idx,
+  };
+}
+
 export function CashFlowCounterpartyCharts({
   theme,
   items,
+  allCounterparties: propAllCounterparties,
   isMasked: controlledMasked,
   onToggleMask: controlledToggleMask
 }: CashFlowCounterpartyChartsProps) {
@@ -53,6 +121,10 @@ export function CashFlowCounterpartyCharts({
   const lineRef = useRef<HTMLDivElement>(null);
   const pieChartInstance = useRef<echarts.ECharts | null>(null);
   const lineChartInstance = useRef<echarts.ECharts | null>(null);
+
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 640 : false
+  );
 
   // Internal mask state if not controlled externally (default true for screenshot safety)
   const [internalMasked, setInternalMasked] = useState(true);
@@ -64,7 +136,7 @@ export function CashFlowCounterpartyCharts({
   // Filter only deposit items with valid amount
   const depositItems = useMemo(() => {
     return (items || [])
-      .filter((item) => item.flow_type === 'deposit' && (parseFloat(String(item.amount)) || 0) > 0)
+      .filter((item) => item.flow_type === 'deposit' && Math.abs(parseFloat(String(item.amount)) || 0) > 0)
       .sort((a, b) => (a.flow_date > b.flow_date ? 1 : a.flow_date < b.flow_date ? -1 : 0));
   }, [items]);
 
@@ -84,14 +156,13 @@ export function CashFlowCounterpartyCharts({
   }, [depositItems]);
 
   // Extract all available counterparties
-  const allCounterparties = useMemo(() => {
-    const set = new Set<string>();
-    for (const item of depositItems) {
-      const name = (item.counterparty || '').trim();
-      set.add(name || '未指定对手方');
-    }
-    return Array.from(set).sort();
-  }, [depositItems]);
+  const internalCounterparties = useMemo(() => {
+    return extractAllCounterparties(items);
+  }, [items]);
+
+  const allCounterparties = propAllCounterparties && propAllCounterparties.length > 0
+    ? propAllCounterparties
+    : internalCounterparties;
 
   // Selected counterparties for filtering
   const [selectedCounterparties, setSelectedCounterparties] = useState<string[]>([]);
@@ -155,7 +226,7 @@ export function CashFlowCounterpartyCharts({
 
     for (const item of depositItems) {
       const name = (item.counterparty || '').trim() || '未指定对手方';
-      const amt = parseFloat(String(item.amount)) || 0;
+      const amt = Math.abs(parseFloat(String(item.amount)) || 0);
       totals[name] = (totals[name] || 0) + amt;
       counts[name] = (counts[name] || 0) + 1;
     }
@@ -243,8 +314,8 @@ export function CashFlowCounterpartyCharts({
         {
           name: '入金对手方占比',
           type: 'pie',
-          radius: ['45%', '72%'],
-          center: ['50%', '45%'],
+          radius: isMobile ? ['32%', '52%'] : ['44%', '70%'],
+          center: isMobile ? ['50%', '42%'] : ['50%', '45%'],
           avoidLabelOverlap: true,
           itemStyle: {
             borderRadius: 6,
@@ -261,20 +332,20 @@ export function CashFlowCounterpartyCharts({
             rich: {
               b: {
                 color: textColor,
-                fontSize: 11,
-                lineHeight: 14
+                fontSize: isMobile ? 10 : 11,
+                lineHeight: isMobile ? 13 : 14
               },
               p: {
                 color: subTextColor,
-                fontSize: 10,
-                lineHeight: 12
+                fontSize: isMobile ? 9 : 10,
+                lineHeight: isMobile ? 11 : 12
               }
             }
           },
           emphasis: {
             label: {
               show: true,
-              fontSize: 13,
+              fontSize: isMobile ? 12 : 13,
               fontWeight: 'bold'
             },
             itemStyle: {
@@ -304,7 +375,8 @@ export function CashFlowCounterpartyCharts({
     subTextColor,
     tooltipBg,
     tooltipBorder,
-    isDark
+    isDark,
+    isMobile
   ]);
 
   // 2. Render Time Series Chart with safe instance lifecycle
@@ -367,7 +439,7 @@ export function CashFlowCounterpartyCharts({
         dateItems.forEach((i) => {
           const name = (i.counterparty || '').trim() || '未指定对手方';
           if (runningTotals[name] !== undefined) {
-            runningTotals[name] += parseFloat(String(i.amount)) || 0;
+            runningTotals[name] += Math.abs(parseFloat(String(i.amount)) || 0);
           }
         });
         selectedCounterparties.forEach((name) => {
@@ -411,7 +483,7 @@ export function CashFlowCounterpartyCharts({
         dateItems.forEach((i) => {
           const name = (i.counterparty || '').trim() || '未指定对手方';
           if (runningTotals[name] !== undefined) {
-            runningTotals[name] += parseFloat(String(i.amount)) || 0;
+            runningTotals[name] += Math.abs(parseFloat(String(i.amount)) || 0);
           }
         });
 
@@ -449,7 +521,7 @@ export function CashFlowCounterpartyCharts({
         dateItems.forEach((i) => {
           const name = (i.counterparty || '').trim() || '未指定对手方';
           if (seriesData[name]) {
-            seriesData[name][dIdx] += parseFloat(String(i.amount)) || 0;
+            seriesData[name][dIdx] += Math.abs(parseFloat(String(i.amount)) || 0);
           }
         });
       });
@@ -510,10 +582,10 @@ export function CashFlowCounterpartyCharts({
         pageTextStyle: { color: subTextColor }
       },
       grid: {
-        left: '4%',
-        right: '4%',
+        left: '3%',
+        right: '3%',
         top: '12%',
-        bottom: '14%',
+        bottom: isMobile ? '18%' : '14%',
         containLabel: true
       },
       xAxis: {
@@ -522,9 +594,11 @@ export function CashFlowCounterpartyCharts({
         axisLine: { lineStyle: { color: isDark ? '#3f3f46' : '#e4e4e7' } },
         axisLabel: {
           color: subTextColor,
-          fontSize: 10,
+          fontSize: isMobile ? 9 : 10,
+          rotate: isMobile && sortedDates.length > 5 ? 30 : 0,
           formatter: (val: string) => {
-            if (val === todayStr) return `${val}\n(今日)`;
+            if (val === todayStr) return isMobile ? `${val.slice(5)}\n今日` : `${val}\n(今日)`;
+            if (isMobile && val.length === 10) return val.slice(5);
             return val;
           }
         }
@@ -565,12 +639,14 @@ export function CashFlowCounterpartyCharts({
     splitLineColor,
     tooltipBg,
     tooltipBorder,
-    isDark
+    isDark,
+    isMobile
   ]);
 
-  // Window resize handler with isDisposed guard
+  // Window resize handler with isDisposed guard and isMobile update
   useEffect(() => {
     const handleResize = () => {
+      setIsMobile(window.innerWidth < 640);
       if (pieChartInstance.current && !pieChartInstance.current.isDisposed()) {
         pieChartInstance.current.resize();
       }
@@ -590,7 +666,7 @@ export function CashFlowCounterpartyCharts({
   }
 
   return (
-    <div className={`${themes[theme].card} rounded-xl p-5 border border-slate-200/80 dark:border-zinc-800 shadow-xs space-y-4`}>
+    <div className={`${themes[theme].card} rounded-xl p-4 sm:p-5 border border-slate-200/80 dark:border-zinc-800 shadow-xs space-y-4`}>
       {/* Header & Title */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-zinc-800/80">
         <div className="flex items-center gap-2.5">
@@ -675,7 +751,7 @@ export function CashFlowCounterpartyCharts({
                 key={name}
                 type="button"
                 onClick={() => handleChipClick(name)}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg text-xs font-medium transition-all border ${
                   isSelected
                     ? 'border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 shadow-2xs text-slate-900 dark:text-zinc-100'
                     : 'border-transparent bg-slate-200/50 dark:bg-zinc-800/40 opacity-50 hover:opacity-80 text-slate-500 dark:text-zinc-400'
@@ -700,7 +776,7 @@ export function CashFlowCounterpartyCharts({
                 )}
                 {isSolo && (
                   <span className="text-[10px] text-blue-500 underline ml-0.5">
-                    (单选·点此恢复全部)
+                    {isMobile ? '(已单选)' : '(单选·点此恢复全部)'}
                   </span>
                 )}
               </button>

@@ -40,7 +40,7 @@ export function CashFlowModal({
     if (initialData) {
       setFlowDate(initialData.flow_date ? initialData.flow_date.slice(0, 10) : format(new Date(), 'yyyy-MM-dd'));
       setFlowType(initialData.flow_type || 'deposit');
-      setAmount(String(initialData.amount ?? ''));
+      setAmount(initialData.amount != null ? String(Math.abs(parseFloat(String(initialData.amount)) || 0) || '') : '');
       setCurrency(initialData.currency || 'CNY');
       setCounterparty(initialData.counterparty || '');
       setDescription(initialData.description || '');
