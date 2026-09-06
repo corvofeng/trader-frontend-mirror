@@ -36,9 +36,9 @@ const DEMO_USER_ID = 'mock-user-id';
 export function Journal({ selectedStock, theme, onStockSelect, user }: JournalProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const canViewTradePlans = Boolean(user);
+  const isAuthenticated = Boolean(user);
   const requestedAccountAlias = useMemo(() => getAccountAliasFromSearch(location.search) || '', [location.search]);
-  const tabs = useMemo(() => getJournalTabDefinitions({ canViewTradePlans }), [canViewTradePlans]);
+  const tabs = useMemo(() => getJournalTabDefinitions({ isAuthenticated }), [isAuthenticated]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -79,8 +79,8 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
   // Get UUID from URL params for portfolio sharing
   const portfolioUuid = new URLSearchParams(location.search).get('uuid');
   const activeTab = useMemo(
-    () => resolveJournalTab(new URLSearchParams(location.search).get('tab'), { canViewTradePlans }),
-    [canViewTradePlans, location.search]
+    () => resolveJournalTab(new URLSearchParams(location.search).get('tab'), { isAuthenticated }),
+    [isAuthenticated, location.search]
   );
   const activeTabConfig = useMemo(
     () => tabs.find((tab) => tab.id === activeTab) ?? tabs[0],
@@ -166,12 +166,12 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
       activeTab,
       selectedAccountId,
       portfolioUuid,
-      canViewTradePlans,
+      isAuthenticated,
     });
     const currentQuery = location.search.startsWith('?') ? location.search.slice(1) : location.search;
     if (nextQuery === currentQuery) return;
     navigate(nextQuery ? `/journal?${nextQuery}` : '/journal', { replace: true });
-  }, [activeTab, canViewTradePlans, location.search, navigate, portfolioUuid, requestedAccountAlias, selectedAccountId]);
+  }, [activeTab, isAuthenticated, location.search, navigate, portfolioUuid, requestedAccountAlias, selectedAccountId]);
 
   const handleTabChange = (tabId: string) => {
     const nextQuery = buildJournalSearch({
@@ -179,7 +179,7 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
       activeTab: tabId,
       selectedAccountId,
       portfolioUuid,
-      canViewTradePlans,
+      isAuthenticated,
     });
     navigate(nextQuery ? `/journal?${nextQuery}` : '/journal', { replace: true });
   };
@@ -209,12 +209,12 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
       activeTab,
       selectedAccountId: accountId,
       portfolioUuid,
-      canViewTradePlans,
+      isAuthenticated,
     });
     const currentQuery = location.search.startsWith('?') ? location.search.slice(1) : location.search;
     if (nextQuery === currentQuery) return;
     navigate(nextQuery ? `/journal?${nextQuery}` : '/journal', { replace: true });
-  }, [activeTab, canViewTradePlans, location.search, navigate, persistSelectedAccount, portfolioUuid]);
+  }, [activeTab, isAuthenticated, location.search, navigate, persistSelectedAccount, portfolioUuid]);
 
   const fetchTodayOrders = useCallback(async () => {
     const accountAlias = selectedAccountId || undefined;

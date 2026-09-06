@@ -44,7 +44,7 @@ const resolveTab = (pathname: string, tabRaw: string | null) => {
     return normalizeTab(ADMIN_TABS, ADMIN_DEFAULT_TAB, tabRaw);
   }
   if (pathname.startsWith('/journal')) {
-    return resolveJournalTab(tabRaw, { canViewTradePlans: true });
+    return resolveJournalTab(tabRaw, { isAuthenticated: true });
   }
 
   return sanitizeString(tabRaw, 32) || '';

@@ -9,8 +9,11 @@ import { StockQuotePanel } from './components/StockQuotePanel';
 import { JournalHistoryTabContent } from './components/JournalHistoryTabContent';
 import { JournalOrdersTabContent } from './components/JournalOrdersTabContent';
 
-type JournalTabVisibilityContext = {
-  canViewTradePlans: boolean;
+export type JournalTabVisibilityContext = {
+  isAuthenticated?: boolean;
+  canViewTradePlans?: boolean;
+  canViewHistory?: boolean;
+  canViewOrders?: boolean;
 };
 
 export type JournalTab = 'portfolio' | 'trades' | 'history' | 'orders';
@@ -344,7 +347,7 @@ export const JOURNAL_TAB_DEFINITIONS: readonly JournalTabDefinition[] = [
     id: 'trades',
     name: 'Trade Plans',
     icon: LayoutGrid,
-    isVisible: ({ canViewTradePlans }) => canViewTradePlans,
+    isVisible: (context) => Boolean(context.canViewTradePlans ?? context.isAuthenticated),
     renderToolbar: ({ portfolioUuid, onStockSelect, selectedStock }) => {
       if (portfolioUuid) return null;
       return (
@@ -390,7 +393,7 @@ export const JOURNAL_TAB_DEFINITIONS: readonly JournalTabDefinition[] = [
     id: 'history',
     name: 'History',
     icon: HistoryIcon,
-    isVisible: () => true,
+    isVisible: (context) => Boolean(context.canViewHistory ?? context.isAuthenticated),
     renderContent: ({
       portfolioUuid,
       theme,
@@ -417,7 +420,7 @@ export const JOURNAL_TAB_DEFINITIONS: readonly JournalTabDefinition[] = [
     id: 'orders',
     name: 'Orders',
     icon: Calendar,
-    isVisible: () => true,
+    isVisible: (context) => Boolean(context.canViewOrders ?? context.isAuthenticated),
     renderContent: ({
       portfolioUuid,
       theme,
@@ -463,15 +466,29 @@ export const buildJournalSearch = ({
   selectedAccountId,
   portfolioUuid,
   canViewTradePlans,
+  canViewHistory,
+  canViewOrders,
+  isAuthenticated,
 }: {
   currentSearch: string;
   activeTab: string | null | undefined;
   selectedAccountId: string | null;
   portfolioUuid: string | null;
-  canViewTradePlans: boolean;
+  canViewTradePlans?: boolean;
+  canViewHistory?: boolean;
+  canViewOrders?: boolean;
+  isAuthenticated?: boolean;
 }) => {
   const params = new URLSearchParams(currentSearch.startsWith('?') ? currentSearch.slice(1) : currentSearch);
-  params.set('tab', resolveJournalTab(activeTab, { canViewTradePlans }));
+  params.set(
+    'tab',
+    resolveJournalTab(activeTab, {
+      canViewTradePlans,
+      canViewHistory,
+      canViewOrders,
+      isAuthenticated,
+    })
+  );
 
   if (!portfolioUuid) {
     if (selectedAccountId) {

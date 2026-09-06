@@ -10,16 +10,26 @@ const toSearchObject = (search: string) =>
 
 describe('Journal tab config', () => {
   it('filters tabs by visibility from a single config source', () => {
-    expect(getJournalTabDefinitions({ canViewTradePlans: false }).map((tab) => tab.id)).toEqual(['portfolio', 'history', 'orders']);
-    expect(getJournalTabDefinitions({ canViewTradePlans: true }).map((tab) => tab.id)).toEqual(['portfolio', 'trades', 'history', 'orders']);
+    expect(getJournalTabDefinitions({ isAuthenticated: false }).map((tab) => tab.id)).toEqual(['portfolio']);
+    expect(getJournalTabDefinitions({}).map((tab) => tab.id)).toEqual(['portfolio']);
+    expect(getJournalTabDefinitions({ isAuthenticated: true }).map((tab) => tab.id)).toEqual(['portfolio', 'trades', 'history', 'orders']);
+    expect(getJournalTabDefinitions({ canViewTradePlans: false, canViewHistory: true, canViewOrders: true }).map((tab) => tab.id)).toEqual(['portfolio', 'history', 'orders']);
   });
 
-  it('normalizes tab ids against allowed tabs', () => {
-    expect(resolveJournalTab('trades', { canViewTradePlans: true })).toBe('trades');
-    expect(resolveJournalTab('trades', { canViewTradePlans: false })).toBe('portfolio');
-    expect(resolveJournalTab('history', { canViewTradePlans: false })).toBe('history');
-    expect(resolveJournalTab('orders', { canViewTradePlans: false })).toBe('orders');
-    expect(resolveJournalTab('unknown', { canViewTradePlans: true })).toBe('portfolio');
+  it('normalizes tab ids against allowed tabs for anonymous and authenticated users', () => {
+    // Authenticated user
+    expect(resolveJournalTab('trades', { isAuthenticated: true })).toBe('trades');
+    expect(resolveJournalTab('history', { isAuthenticated: true })).toBe('history');
+    expect(resolveJournalTab('orders', { isAuthenticated: true })).toBe('orders');
+    expect(resolveJournalTab('portfolio', { isAuthenticated: true })).toBe('portfolio');
+    expect(resolveJournalTab('unknown', { isAuthenticated: true })).toBe('portfolio');
+
+    // Anonymous user (trades, history, orders not accessible)
+    expect(resolveJournalTab('trades', { isAuthenticated: false })).toBe('portfolio');
+    expect(resolveJournalTab('history', { isAuthenticated: false })).toBe('portfolio');
+    expect(resolveJournalTab('orders', { isAuthenticated: false })).toBe('portfolio');
+    expect(resolveJournalTab('portfolio', { isAuthenticated: false })).toBe('portfolio');
+    expect(resolveJournalTab('unknown', { isAuthenticated: false })).toBe('portfolio');
   });
 
   it('builds journal search by preserving unrelated params and syncing tab/account', () => {
@@ -28,12 +38,27 @@ describe('Journal tab config', () => {
       activeTab: 'trades',
       selectedAccountId: 'main_account',
       portfolioUuid: null,
-      canViewTradePlans: true,
+      isAuthenticated: true,
     });
 
     expect(toSearchObject(search)).toEqual({
       foo: '1',
       tab: 'trades',
+      account_alias: 'main_account',
+    });
+  });
+
+  it('normalizes tab to portfolio in search when anonymous user attempts to access history or orders', () => {
+    const search = buildJournalSearch({
+      currentSearch: '?tab=orders&account_alias=main_account',
+      activeTab: 'orders',
+      selectedAccountId: 'main_account',
+      portfolioUuid: null,
+      isAuthenticated: false,
+    });
+
+    expect(toSearchObject(search)).toEqual({
+      tab: 'portfolio',
       account_alias: 'main_account',
     });
   });
@@ -44,7 +69,7 @@ describe('Journal tab config', () => {
       activeTab: 'trades',
       selectedAccountId: null,
       portfolioUuid: null,
-      canViewTradePlans: true,
+      isAuthenticated: true,
     });
 
     expect(toSearchObject(search)).toEqual({
@@ -58,7 +83,7 @@ describe('Journal tab config', () => {
       activeTab: 'portfolio',
       selectedAccountId: 'ignored',
       portfolioUuid: 'abc',
-      canViewTradePlans: true,
+      isAuthenticated: true,
     });
 
     expect(toSearchObject(search)).toEqual({
