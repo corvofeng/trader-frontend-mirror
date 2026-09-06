@@ -8,6 +8,8 @@ import { FeaturesGrid } from './components/FeaturesGrid';
 import { Theme, themes } from '../../lib/theme';
 import type { User } from '../../lib/services/types';
 import { Language, landingTranslations } from './i18n';
+import { useLandingWebMcp } from './hooks/useLandingWebMcp';
+import { WebMcpBadge } from '../../lib/webmcp/components/WebMcpBadge';
 
 interface LandingProps {
   theme: Theme;
@@ -27,11 +29,28 @@ export function Landing({ theme, onThemeChange, user }: LandingProps) {
     localStorage.setItem('app_lang', newLang);
   };
 
+  const webMcp = useLandingWebMcp({
+    userId: user?.id,
+    currentTheme: theme,
+    currentLang: lang,
+    onNavigate: (path) => navigate(path),
+    onThemeChange,
+    onLanguageChange: handleLanguageChange,
+  });
+
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Top Language Switcher Bar */}
+      {/* Top Bar with WebMCP Status & Language Switcher */}
       <div className={`${themes[theme].background} border-b ${themes[theme].border} transition-colors duration-200`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex justify-end">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between">
+          <div>
+            <WebMcpBadge
+              theme={theme}
+              toolCount={webMcp.registeredToolCount}
+              isSupported={webMcp.isSupported}
+              pageTitle="主页 / 概览"
+            />
+          </div>
           <div className="inline-flex items-center p-1 rounded-xl bg-slate-100/80 dark:bg-zinc-800/80 border border-slate-200/60 dark:border-zinc-700/60 text-xs font-semibold shadow-xs">
             <Globe className="w-3.5 h-3.5 mx-1.5 opacity-60" />
             <button

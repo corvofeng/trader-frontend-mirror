@@ -2,12 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { logger } from '../../shared/utils/logger';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Briefcase } from 'lucide-react';
+import { format } from 'date-fns';
 
 import { Theme, themes } from '../../lib/theme';
-import { portfolioService, accountService, stockService } from '../../lib/services';
+import { portfolioService, accountService, stockService, optionsService } from '../../lib/services';
 import { AccountSelector } from '../../shared/components/AccountSelector';
-import type { Account, Stock, Holding, Trade, StockOrder, User } from '../../lib/services/types';
+import type { Account, Stock, Holding, Trade, StockOrder, User, OptionOrder } from '../../lib/services/types';
 import { TabNavigation } from './components/TabNavigation';
+import { useJournalWebMcp } from './hooks/useJournalWebMcp';
+import { WebMcpBadge } from '../../lib/webmcp/components/WebMcpBadge';
 import {
   checkIsMainAccount,
   getAccountAliasFromSearch,
@@ -40,7 +43,7 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab');
-    if (tab === 'analysis' || tab === 'history' || tab === 'operations' || tab === 'upload') {
+    if (tab === 'analysis' || tab === 'operations' || tab === 'upload') {
       params.set('tab', tab);
       navigate(`/admin?${params.toString()}`, { replace: true });
     }
@@ -186,6 +189,11 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
   const [todayOrdersError, setTodayOrdersError] = useState<string | null>(null);
   const [todayOrdersLastUpdatedAt, setTodayOrdersLastUpdatedAt] = useState<number | null>(null);
 
+  const [selectedDate, setSelectedDate] = useState<string>(() => format(new Date(), 'yyyy-MM-dd'));
+  const [ordersByDate, setOrdersByDate] = useState<OptionOrder[]>([]);
+  const [ordersByDateLoading, setOrdersByDateLoading] = useState(false);
+  const [ordersByDateError, setOrdersByDateError] = useState<string | null>(null);
+
   const persistSelectedAccount = useCallback((accountId: string) => {
     persistAccountAlias(accountId, { storage: JOURNAL_ACCOUNT_STORAGE });
   }, []);
@@ -229,6 +237,27 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
       setTodayOrdersLoading(false);
     }
   }, [selectedAccountId]);
+
+  const fetchOrdersByDate = useCallback(async (dateToFetch?: string) => {
+    const targetDate = dateToFetch || selectedDate;
+    if (!selectedAccountId) {
+      setOrdersByDate([]);
+      setOrdersByDateError('请选择账户后再查看成交订单。');
+      return;
+    }
+    setOrdersByDateLoading(true);
+    setOrdersByDateError(null);
+    try {
+      const { data, error } = await optionsService.getAdminOrders(selectedAccountId, { date: targetDate });
+      if (error) throw error;
+      setOrdersByDate(data || []);
+    } catch (e) {
+      setOrdersByDate([]);
+      setOrdersByDateError(e instanceof Error ? e.message : '加载成交订单失败');
+    } finally {
+      setOrdersByDateLoading(false);
+    }
+  }, [selectedAccountId, selectedDate]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -298,15 +327,37 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
     fetchTodayOrders();
   }, [activeTab, fetchTodayOrders, portfolioUuid]);
 
+  useEffect(() => {
+    if (activeTab !== 'orders' || portfolioUuid) return;
+    fetchOrdersByDate(selectedDate);
+  }, [activeTab, fetchOrdersByDate, portfolioUuid, selectedAccountId, selectedDate]);
+
+  const webMcp = useJournalWebMcp({
+    userId: DEMO_USER_ID,
+    selectedAccountId,
+    activeTab,
+    onSelectAccount: handleAccountChange,
+    onSwitchTab: handleTabChange,
+    getAccounts: () => accounts,
+  });
+
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
       <div className="space-y-6 mb-6">
         <div className={`${themes[theme].card} rounded-lg p-4`}>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h1 className={`text-2xl font-bold ${themes[theme].text}`}>
-                Stock Trading Journal
-              </h1>
+              <div className="flex items-center gap-2.5">
+                <h1 className={`text-2xl font-bold ${themes[theme].text}`}>
+                  Stock Trading Journal
+                </h1>
+                <WebMcpBadge
+                  theme={theme}
+                  toolCount={webMcp.registeredToolCount}
+                  isSupported={webMcp.isSupported}
+                  pageTitle="Journal 交易日志"
+                />
+              </div>
               <p className={`text-sm ${themes[theme].text} opacity-75 mt-1`}>
                 Review your portfolio, trades and performance in one place
               </p>
@@ -355,6 +406,15 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
           todayOrdersError,
           todayOrdersLastUpdatedAt,
           onRefreshTodayOrders: fetchTodayOrders,
+          selectedDate,
+          onSelectDate: (date: string) => {
+            setSelectedDate(date);
+            fetchOrdersByDate(date);
+          },
+          ordersByDate,
+          ordersByDateLoading,
+          ordersByDateError,
+          onRefreshOrdersByDate: () => fetchOrdersByDate(selectedDate),
         })}
       </div>
 
@@ -392,6 +452,15 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
         todayOrdersError,
         todayOrdersLastUpdatedAt,
         onRefreshTodayOrders: fetchTodayOrders,
+        selectedDate,
+        onSelectDate: (date: string) => {
+          setSelectedDate(date);
+          fetchOrdersByDate(date);
+        },
+        ordersByDate,
+        ordersByDateLoading,
+        ordersByDateError,
+        onRefreshOrdersByDate: () => fetchOrdersByDate(selectedDate),
       })}
     </main>
   );

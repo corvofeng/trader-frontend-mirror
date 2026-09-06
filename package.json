@@ -13,6 +13,7 @@
     "check:push-api": "node push_server/check-push-api.mjs"
   },
   "dependencies": {
+    "@mcp-b/global": "^5.1.0",
     "chart.js": "^4.4.1",
     "date-fns": "^2.30.0",
     "date-fns-tz": "^2.0.0",

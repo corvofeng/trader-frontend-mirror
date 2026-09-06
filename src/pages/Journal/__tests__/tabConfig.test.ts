@@ -10,13 +10,15 @@ const toSearchObject = (search: string) =>
 
 describe('Journal tab config', () => {
   it('filters tabs by visibility from a single config source', () => {
-    expect(getJournalTabDefinitions({ canViewTradePlans: false }).map((tab) => tab.id)).toEqual(['portfolio']);
-    expect(getJournalTabDefinitions({ canViewTradePlans: true }).map((tab) => tab.id)).toEqual(['portfolio', 'trades']);
+    expect(getJournalTabDefinitions({ canViewTradePlans: false }).map((tab) => tab.id)).toEqual(['portfolio', 'history', 'orders']);
+    expect(getJournalTabDefinitions({ canViewTradePlans: true }).map((tab) => tab.id)).toEqual(['portfolio', 'trades', 'history', 'orders']);
   });
 
   it('normalizes tab ids against allowed tabs', () => {
     expect(resolveJournalTab('trades', { canViewTradePlans: true })).toBe('trades');
     expect(resolveJournalTab('trades', { canViewTradePlans: false })).toBe('portfolio');
+    expect(resolveJournalTab('history', { canViewTradePlans: false })).toBe('history');
+    expect(resolveJournalTab('orders', { canViewTradePlans: false })).toBe('orders');
     expect(resolveJournalTab('unknown', { canViewTradePlans: true })).toBe('portfolio');
   });
 

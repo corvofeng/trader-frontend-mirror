@@ -1,17 +1,19 @@
 import React, { type ReactNode } from 'react';
-import { Briefcase, LayoutGrid, RefreshCw } from 'lucide-react';
+import { Briefcase, LayoutGrid, RefreshCw, History as HistoryIcon, Calendar } from 'lucide-react';
 import { Portfolio } from '../../features/portfolio';
 import { StockSearch, TradeForm, TradeList } from '../../features/trading';
 import { themes, type Theme } from '../../lib/theme';
-import type { Holding, Stock, StockOrder, Trade, User } from '../../lib/services/types';
+import type { Holding, Stock, StockOrder, Trade, User, OptionOrder } from '../../lib/services/types';
 import { normalizeTab } from '../../shared/utils/tabRouting';
 import { StockQuotePanel } from './components/StockQuotePanel';
+import { JournalHistoryTabContent } from './components/JournalHistoryTabContent';
+import { JournalOrdersTabContent } from './components/JournalOrdersTabContent';
 
 type JournalTabVisibilityContext = {
   canViewTradePlans: boolean;
 };
 
-export type JournalTab = 'portfolio' | 'trades';
+export type JournalTab = 'portfolio' | 'trades' | 'history' | 'orders';
 
 export type JournalTabRenderContext = {
   activeTab: JournalTab;
@@ -38,6 +40,12 @@ export type JournalTabRenderContext = {
   todayOrdersError: string | null;
   todayOrdersLastUpdatedAt: number | null;
   onRefreshTodayOrders: () => void;
+  selectedDate: string;
+  onSelectDate: (date: string) => void;
+  ordersByDate: OptionOrder[];
+  ordersByDateLoading: boolean;
+  ordersByDateError: string | null;
+  onRefreshOrdersByDate: () => void;
 };
 
 export type JournalTabDefinition = {
@@ -374,6 +382,66 @@ export const JOURNAL_TAB_DEFINITIONS: readonly JournalTabDefinition[] = [
           todayOrdersLastUpdatedAt={todayOrdersLastUpdatedAt}
           onRefreshTodayOrders={onRefreshTodayOrders}
           userId={userId}
+        />
+      );
+    },
+  },
+  {
+    id: 'history',
+    name: 'History',
+    icon: HistoryIcon,
+    isVisible: () => true,
+    renderContent: ({
+      portfolioUuid,
+      theme,
+      selectedAccountId,
+      dateRange,
+      onDateRangeChange,
+      selectedStock,
+    }) => {
+      if (portfolioUuid) {
+        return renderRestrictedSharedView(theme);
+      }
+      return (
+        <JournalHistoryTabContent
+          theme={theme}
+          selectedAccountId={selectedAccountId}
+          dateRange={dateRange}
+          onDateRangeChange={onDateRangeChange}
+          selectedStockCode={selectedStock?.stock_code}
+        />
+      );
+    },
+  },
+  {
+    id: 'orders',
+    name: 'Orders',
+    icon: Calendar,
+    isVisible: () => true,
+    renderContent: ({
+      portfolioUuid,
+      theme,
+      selectedAccountId,
+      ordersByDate,
+      ordersByDateLoading,
+      ordersByDateError,
+      selectedDate,
+      onSelectDate,
+      onRefreshOrdersByDate,
+    }) => {
+      if (portfolioUuid) {
+        return renderRestrictedSharedView(theme);
+      }
+      return (
+        <JournalOrdersTabContent
+          theme={theme}
+          selectedAccountId={selectedAccountId}
+          orders={ordersByDate}
+          ordersLoading={ordersByDateLoading}
+          ordersError={ordersByDateError}
+          selectedDate={selectedDate}
+          onSelectDate={onSelectDate}
+          onRefreshOrders={onRefreshOrdersByDate}
         />
       );
     },

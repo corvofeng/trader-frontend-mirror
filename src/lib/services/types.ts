@@ -793,6 +793,8 @@ export interface OptionOrder {
   instrument_id?: string;
   contract_code_full?: string;
   cancel_info?: string;
+  order_sys_id?: string;
+  error_msg?: string;
 }
 
 export type SequentialTradeStatus =
