@@ -1720,21 +1720,38 @@ export const accountService: AccountService = {
       }
 
       const record = body && typeof body === 'object' ? (body as Record<string, unknown>) : null;
+      const rootLastTradingDay =
+        typeof record?.last_trading_day === 'string' && record.last_trading_day.trim()
+          ? record.last_trading_day.trim()
+          : typeof record?.lastTradingDay === 'string' && record.lastTradingDay.trim()
+            ? record.lastTradingDay.trim()
+            : undefined;
       const rawList = Array.isArray(record?.data) ? record?.data : [];
       const normalized: AdminAccountStatusItem[] = rawList
         .filter((v): v is Record<string, unknown> => !!v && typeof v === 'object')
-        .map((v) => ({
-          account_id_alias: String(v.account_id_alias ?? ''),
-          account_type: String(v.account_type ?? ''),
-          alias: String(v.alias ?? ''),
-          last_check: String(v.last_check ?? ''),
-          last_snapshot_at: String(v.last_snapshot_at ?? ''),
-          message: String(v.message ?? ''),
-          status: String(v.status ?? ''),
-        }))
+        .map((v) => {
+          const itemTradingDay =
+            typeof v.last_trading_day === 'string' && v.last_trading_day.trim()
+              ? v.last_trading_day.trim()
+              : rootLastTradingDay;
+          return {
+            account_id_alias: String(v.account_id_alias ?? ''),
+            account_type: String(v.account_type ?? ''),
+            alias: String(v.alias ?? ''),
+            last_check: String(v.last_check ?? ''),
+            last_snapshot_at: String(v.last_snapshot_at ?? ''),
+            last_trading_day: itemTradingDay,
+            message: String(v.message ?? ''),
+            status: String(v.status ?? ''),
+          };
+        })
         .filter(v => v.account_id_alias || v.alias);
 
-      return { data: normalized, error: null };
+      return {
+        data: normalized,
+        error: null,
+        meta: rootLastTradingDay ? { last_trading_day: rootLastTradingDay } : undefined,
+      };
     } catch (error) {
       console.error('Error fetching admin accounts status:', error);
       return { data: null, error: error as Error };

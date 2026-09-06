@@ -403,6 +403,7 @@ export interface AdminAccountStatusItem {
   alias: string;
   last_check: string;
   last_snapshot_at?: string;
+  last_trading_day?: string;
   message: string;
   status: string;
 }

@@ -78,3 +78,39 @@ describe('portfolioService.getHoldingsByUuid', () => {
       expect(result.error).toBeNull();
     });
 });
+
+describe('accountService.getAdminAccountsStatus', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('should extract last_trading_day from root object and propagate to items and meta', async () => {
+    const { accountService } = await import('../stockServices');
+    const mockResponse = {
+      status: 'success',
+      last_trading_day: '2026-09-04',
+      data: [
+        {
+          account_id_alias: 'main_zjcf_qmt',
+          alias: '中金账户QMT',
+          status: 'connected',
+          last_snapshot_at: '2026-09-04 15:00:00'
+        }
+      ]
+    };
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: vi.fn().mockResolvedValue(mockResponse),
+    });
+    // @ts-expect-error assign global in test
+    global.fetch = mockFetch;
+
+    const result = await accountService.getAdminAccountsStatus();
+
+    expect(result.error).toBeNull();
+    expect(result.meta).toEqual({ last_trading_day: '2026-09-04' });
+    expect(result.data?.[0].last_trading_day).toBe('2026-09-04');
+  });
+});
+

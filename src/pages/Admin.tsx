@@ -140,6 +140,7 @@ export function Admin({ theme }: AdminProps) {
 
   const heartbeatIntervalMs = 5000;
   const [accountsStatus, setAccountsStatus] = useState<AdminAccountStatusItem[]>([]);
+  const [accountsLastTradingDay, setAccountsLastTradingDay] = useState<string | null>(null);
   const [accountsHeartbeatError, setAccountsHeartbeatError] = useState<string | null>(null);
   const [accountsHeartbeatLastOkAt, setAccountsHeartbeatLastOkAt] = useState<number | null>(null);
   const [accountsHeartbeatLatencyMs, setAccountsHeartbeatLatencyMs] = useState<number | null>(null);
@@ -181,19 +182,55 @@ export function Admin({ theme }: AdminProps) {
   const accountsSnapshotMeta = useMemo(() => {
     const snapshotMsByKey = new Map<string, number | null>();
     let maxSnapshotMs: number | null = null;
+    let maxSnapshotDateStr: string | null = null;
 
     for (const item of accountsStatus) {
       const key = item.account_id_alias || item.alias;
       const d = safeParseBackendDateTime(item.last_snapshot_at);
       const ms = d ? d.getTime() : null;
+      const dateStr = formatBackendDateOnly(item.last_snapshot_at);
       snapshotMsByKey.set(key, ms);
       if (ms !== null) {
         maxSnapshotMs = maxSnapshotMs === null ? ms : Math.max(maxSnapshotMs, ms);
       }
+      if (dateStr !== '-') {
+        if (!maxSnapshotDateStr || dateStr > maxSnapshotDateStr) {
+          maxSnapshotDateStr = dateStr;
+        }
+      }
     }
 
-    return { snapshotMsByKey, maxSnapshotMs };
+    return { snapshotMsByKey, maxSnapshotMs, maxSnapshotDateStr };
   }, [accountsStatus]);
+
+  const checkSnapshotStale = React.useCallback(
+    (snapshotRaw: unknown, itemTradingDay?: string | null): boolean => {
+      const snapshotDateStr = formatBackendDateOnly(snapshotRaw);
+      if (!snapshotDateStr || snapshotDateStr === '-') return true;
+
+      const tradingDay = (typeof itemTradingDay === 'string' && itemTradingDay.trim())
+        ? itemTradingDay.trim()
+        : accountsLastTradingDay;
+
+      if (tradingDay) {
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        // 如果 last_trading_day 是当天，快照可能尚未创建，不判定为偏旧
+        if (tradingDay === todayStr) {
+          return false;
+        }
+        // 比较快照日期是否早于最近交易日
+        return snapshotDateStr < tradingDay;
+      }
+
+      // 兜底：若接口未返回 last_trading_day，按同批账户最新自然日比较
+      if (accountsSnapshotMeta.maxSnapshotDateStr) {
+        return snapshotDateStr < accountsSnapshotMeta.maxSnapshotDateStr;
+      }
+
+      return false;
+    },
+    [accountsLastTradingDay, accountsSnapshotMeta.maxSnapshotDateStr]
+  );
 
   const activeAccountDetail = useMemo(() => {
     if (!activeAccountDetailKey) return null;
@@ -375,12 +412,17 @@ export function Admin({ theme }: AdminProps) {
       const startedAt = performance.now();
       setAccountsHeartbeatInFlight(true);
       try {
-        const { data, error } = await accountService.getAdminAccountsStatus({ signal: controller.signal });
+        const { data, error, meta } = await accountService.getAdminAccountsStatus({ signal: controller.signal });
         if (error) throw error;
         const normalized = data || [];
+        const extractedTradingDay =
+          meta && typeof meta === 'object' && 'last_trading_day' in meta && typeof (meta as { last_trading_day: unknown }).last_trading_day === 'string'
+            ? (meta as { last_trading_day: string }).last_trading_day.trim()
+            : normalized.find((item) => item.last_trading_day)?.last_trading_day || null;
 
         if (!cancelled) {
           setAccountsStatus(normalized);
+          setAccountsLastTradingDay(extractedTradingDay);
           setAccountsHeartbeatError(null);
           setAccountsHeartbeatLastOkAt(Date.now());
           setAccountsHeartbeatLatencyMs(Math.max(0, Math.round(performance.now() - startedAt)));
@@ -1236,6 +1278,7 @@ export function Admin({ theme }: AdminProps) {
                 <h2 className={`text-xl font-bold ${themes[theme].text}`}>账户状态</h2>
                 <p className={`text-sm ${themes[theme].text} opacity-75`}>
                   每 {Math.round(heartbeatIntervalMs / 1000)} 秒请求一次 /api/admin/accounts/status（heartbeat）
+                  {accountsLastTradingDay ? ` · 最近交易日: ${accountsLastTradingDay}` : ''}
                 </p>
               </div>
               <div className="flex flex-col items-end gap-1">
@@ -1304,9 +1347,7 @@ export function Admin({ theme }: AdminProps) {
                       const snapshotMs = accountsSnapshotMeta.snapshotMsByKey.get(key) ?? null;
                       const snapshotDate = snapshotMs !== null ? new Date(snapshotMs) : null;
                       const snapshotDiffDays = snapshotDate ? differenceInCalendarDays(new Date(), snapshotDate) : null;
-                      const snapshotStale =
-                        accountsSnapshotMeta.maxSnapshotMs !== null &&
-                        (snapshotMs === null || snapshotMs < accountsSnapshotMeta.maxSnapshotMs);
+                      const snapshotStale = checkSnapshotStale(item.last_snapshot_at, item.last_trading_day);
                       const badgeClass = !ok
                         ? 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-100'
                         : snapshotStale
@@ -1359,9 +1400,10 @@ export function Admin({ theme }: AdminProps) {
             const snapshotMs = accountsSnapshotMeta.snapshotMsByKey.get(detailKey) ?? null;
             const snapshotDate = snapshotMs !== null ? new Date(snapshotMs) : null;
             const snapshotDiffDays = snapshotDate ? differenceInCalendarDays(new Date(), snapshotDate) : null;
-            const snapshotStale =
-              accountsSnapshotMeta.maxSnapshotMs !== null &&
-              (snapshotMs === null || snapshotMs < accountsSnapshotMeta.maxSnapshotMs);
+            const snapshotStale = checkSnapshotStale(
+              activeAccountDetail.last_snapshot_at,
+              activeAccountDetail.last_trading_day
+            );
             const ok = ['connected', 'ok', 'healthy', 'alive'].includes(activeAccountDetail.status.toLowerCase());
             const badgeClass = !ok
               ? 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-100'
@@ -1419,6 +1461,14 @@ export function Admin({ theme }: AdminProps) {
                           {snapshotDiffDays !== null ? ` · ${snapshotDiffDays} 天` : ''}
                         </div>
                       </div>
+                      {(activeAccountDetail.last_trading_day || accountsLastTradingDay) && (
+                        <div className="rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-800/40">
+                          <div className={`${themes[theme].text} opacity-70 text-xs`}>最近交易日</div>
+                          <div className={`${themes[theme].text} mt-1 text-sm font-medium`}>
+                            {activeAccountDetail.last_trading_day || accountsLastTradingDay}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div>
@@ -1432,7 +1482,7 @@ export function Admin({ theme }: AdminProps) {
               </div>
             );
           })()}
-          <DataFreshnessStatus theme={theme} />
+          <DataFreshnessStatus theme={theme} lastTradingDay={accountsLastTradingDay} />
         </div>
       )}
 

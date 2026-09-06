@@ -6,6 +6,7 @@ import { stockService } from '../../../lib/services';
 
 interface DataFreshnessStatusProps {
   theme: Theme;
+  lastTradingDay?: string | null;
 }
 
 const DATA_FRESHNESS_CHECK_STOCK = '588000.SH';
@@ -79,7 +80,7 @@ type DataCheckResult = {
   details: Record<string, unknown> | null;
 };
 
-export function DataFreshnessStatus({ theme }: DataFreshnessStatusProps) {
+export function DataFreshnessStatus({ theme, lastTradingDay }: DataFreshnessStatusProps) {
   const [historyStatus, setHistoryStatus] = useState<DataCheckResult>({ loading: true, error: null, lastDate: null, diffDays: null, details: null });
   const [ticksStatus, setTicksStatus] = useState<DataCheckResult>({ loading: true, error: null, lastDate: null, diffDays: null, details: null });
   const [akshareSinaStatus, setAkshareSinaStatus] = useState<DataCheckResult>({ loading: true, error: null, lastDate: null, diffDays: null, details: null });
@@ -401,16 +402,64 @@ export function DataFreshnessStatus({ theme }: DataFreshnessStatusProps) {
     yfinanceStatus.loading ||
     akshareSinaStatus.loading;
 
-  const getStatusLevel = (status: DataCheckResult): 'ok' | 'warn' | 'bad' => {
-    if (status.error) return 'bad';
-    if (status.diffDays === null) return 'warn';
-    if (status.diffDays === 0) return 'ok';
-    if (status.diffDays <= 3) return 'warn';
-    return 'bad';
+  const computeFreshness = (
+    status: DataCheckResult
+  ): { diffDays: number | null; level: 'ok' | 'warn' | 'bad' } => {
+    if (status.error) return { diffDays: null, level: 'bad' };
+    if (!status.lastDate) return { diffDays: null, level: 'warn' };
+
+    const d = safeParseDateLike(status.lastDate);
+    if (!d) return { diffDays: null, level: 'warn' };
+
+    const today = new Date();
+    const todayStr = format(today, 'yyyy-MM-dd');
+    const targetDateStr = lastTradingDay || todayStr;
+    const targetDate = safeParseDateLike(targetDateStr) || today;
+
+    const diffDays = Math.max(0, differenceInCalendarDays(targetDate, d));
+
+    if (lastTradingDay) {
+      if (lastTradingDay === todayStr) {
+        // 当天是交易日：盘中或收盘前部分历史数据可能尚未归档，若数据在当天或上一交易日（diffDays <= 1）均为正常
+        const level = diffDays <= 1 ? 'ok' : diffDays <= 3 ? 'warn' : 'bad';
+        return { diffDays, level };
+      }
+      // 历史交易日：已同步到最近交易日（diffDays === 0）为正常
+      const level = diffDays === 0 ? 'ok' : diffDays <= 3 ? 'warn' : 'bad';
+      return { diffDays, level };
+    }
+
+    // 兜底（未传入 lastTradingDay）
+    const level = diffDays === 0 ? 'ok' : diffDays <= 3 ? 'warn' : 'bad';
+    return { diffDays, level };
+  };
+
+  const getStatusMeta = (status: DataCheckResult) => {
+    const { diffDays, level } = computeFreshness(status);
+    return {
+      diffDays,
+      level,
+      badgeClass:
+        level === 'ok'
+          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-100'
+          : level === 'warn'
+            ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-100'
+            : 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-100',
+      label:
+        status.loading
+          ? '加载中'
+          : status.error
+            ? '异常'
+            : level === 'ok'
+              ? '正常'
+              : level === 'warn'
+                ? '延迟'
+                : '过期',
+    };
   };
 
   const StatusIcon = ({ status }: { status: DataCheckResult }) => {
-    const level = getStatusLevel(status);
+    const { level } = computeFreshness(status);
     if (level === 'ok') return <CheckCircle2 className="w-4 h-4 text-emerald-500" />;
     if (level === 'warn') return <AlertCircle className="w-4 h-4 text-yellow-500" />;
     return <AlertCircle className="w-4 h-4 text-red-500" />;
@@ -497,29 +546,6 @@ export function DataFreshnessStatus({ theme }: DataFreshnessStatusProps) {
 
   const activeCheck = activeDetailKey ? checks.find((item) => item.key === activeDetailKey) ?? null : null;
 
-  const getStatusMeta = (status: DataCheckResult) => {
-    const level = getStatusLevel(status);
-    return {
-      level,
-      badgeClass:
-        level === 'ok'
-          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-100'
-          : level === 'warn'
-            ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-100'
-            : 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-100',
-      label:
-        status.loading
-          ? '加载中'
-          : status.error
-            ? '异常'
-            : level === 'ok'
-              ? '正常'
-              : level === 'warn'
-                ? '延迟'
-                : '过期',
-    };
-  };
-
   return (
     <>
     <div className={`${themes[theme].card} rounded-lg p-4 mt-6`}>
@@ -527,7 +553,8 @@ export function DataFreshnessStatus({ theme }: DataFreshnessStatusProps) {
         <div>
           <h2 className={`text-xl font-bold ${themes[theme].text}`}>数据同步状态</h2>
           <p className={`text-sm ${themes[theme].text} opacity-75 mt-1`}>
-          检查底层行情数据是否已更新到最新交易日（取任意一只股票作为探针）
+            检查底层行情数据是否已更新到最新交易日（取任意一只股票作为探针）
+            {lastTradingDay ? ` · 基准交易日: ${lastTradingDay}` : ''}
           </p>
           <div className="text-xs text-gray-500 mt-2">
             探针股票: {DATA_FRESHNESS_CHECK_STOCK}
@@ -588,7 +615,7 @@ export function DataFreshnessStatus({ theme }: DataFreshnessStatusProps) {
                     {formatDateOnly(c.status.lastDate)}
                   </td>
                   <td className={`px-2 py-3 text-center ${themes[theme].text} whitespace-nowrap sm:px-3`}>
-                    {c.status.diffDays ?? '-'} 天
+                    {statusMeta.diffDays ?? '-'} 天
                   </td>
                   <td className={`px-2 py-3 text-right ${themes[theme].text} whitespace-nowrap sm:px-3`}>
                     {primaryValue}
@@ -653,8 +680,8 @@ export function DataFreshnessStatus({ theme }: DataFreshnessStatusProps) {
                 <div className={`${themes[theme].text} mt-1 text-sm font-medium`}>{formatDateOnly(activeCheck.status.lastDate)}</div>
               </div>
               <div className="rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-800/40">
-                <div className={`${themes[theme].text} opacity-70 text-xs`}>距今日</div>
-                <div className={`${themes[theme].text} mt-1 text-sm font-medium`}>{activeCheck.status.diffDays ?? '-'} 天</div>
+                <div className={`${themes[theme].text} opacity-70 text-xs`}>{lastTradingDay ? '滞后交易日' : '距今日'}</div>
+                <div className={`${themes[theme].text} mt-1 text-sm font-medium`}>{getStatusMeta(activeCheck.status).diffDays ?? '-'} 天</div>
               </div>
               {activeCheck.primary.map((item) => (
                 <div key={item.label} className="rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-800/40">

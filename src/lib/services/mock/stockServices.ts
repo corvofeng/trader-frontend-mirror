@@ -1493,16 +1493,18 @@ export const accountService: AccountService = {
   getAdminAccountsStatus: async (_options?: { signal?: AbortSignal }) => {
     await new Promise(resolve => setTimeout(resolve, 250));
     const now = new Date().toISOString();
+    const mockLastTradingDay = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const items: AdminAccountStatusItem[] = mockAccounts.map((acc, idx) => ({
       account_id_alias: acc.alias || acc.id,
       account_type: idx % 2 === 0 ? 'stock' : 'option',
       alias: acc.alias || acc.id,
       last_check: now,
       last_snapshot_at: new Date(Date.now() - idx * 24 * 60 * 60 * 1000).toISOString(),
+      last_trading_day: mockLastTradingDay,
       message: 'OK',
       status: 'ok',
     }));
-    return { data: items, error: null };
+    return { data: items, error: null, meta: { last_trading_day: mockLastTradingDay } };
   }
 };
 
