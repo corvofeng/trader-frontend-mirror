@@ -30,6 +30,7 @@ import {
   getCounterpartyMeta,
   extractAllCounterparties
 } from './CashFlowCounterpartyCharts';
+import { CashFlowDividendView } from './CashFlowDividendView';
 
 interface CashFlowsViewProps {
   theme: Theme;
@@ -424,6 +425,16 @@ export function CashFlowsView({ theme, accountAlias, refreshKey }: CashFlowsView
           <div className="mt-1.5 text-[11px] sm:text-xs text-slate-400 truncate">累计资金净流入 / 流出</div>
         </div>
       </div>
+
+      {/* Co-investment Dividend & Profit Settlement Center */}
+      <CashFlowDividendView
+        theme={theme}
+        accountAlias={accountAlias}
+        items={items}
+        allCounterparties={allCounterparties}
+        isMasked={isMasked}
+        onRefreshFlows={fetchCashFlows}
+      />
 
       {/* Counterparty Analytics Charts */}
       <CashFlowCounterpartyCharts
