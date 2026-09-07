@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, X, Copy, Check, Layers, Radio } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { useOptionalOptionPriceWebSocketContext } from '../../../features/options/context/OptionPriceWebSocketContext';
@@ -196,19 +197,214 @@ function getTooltipClasses(theme: Theme, isNearBottom: boolean) {
 }
 
 /**
+ * Portal-based Floating Popover that mounts to document.body,
+ * avoiding clipping from table overflow-x-auto, overflow-hidden cards, and sticky headers/footers.
+ */
+interface FloatingPortalPopoverProps {
+  isOpen: boolean;
+  onClose: () => void;
+  triggerRef: React.RefObject<HTMLElement>;
+  theme: Theme;
+  align?: 'left' | 'right';
+  className?: string;
+  onMouseEnterPopover?: () => void;
+  onMouseLeavePopover?: () => void;
+  children: React.ReactNode;
+}
+
+function FloatingPortalPopover({
+  isOpen,
+  onClose,
+  triggerRef,
+  theme,
+  align = 'left',
+  className = '',
+  onMouseEnterPopover,
+  onMouseLeavePopover,
+  children,
+}: FloatingPortalPopoverProps) {
+  const [mounted, setMounted] = useState(false);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  const [position, setPosition] = useState<{
+    placement: 'top' | 'bottom';
+    top?: number;
+    bottom?: number;
+    left: number;
+    arrowLeft: number;
+    maxHeight: number;
+  } | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const updatePosition = useCallback(() => {
+    if (!triggerRef.current || typeof window === 'undefined') return;
+    const triggerRect = triggerRef.current.getBoundingClientRect();
+    const popoverEl = popoverRef.current;
+
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    const popoverWidth = popoverEl?.offsetWidth || (align === 'right' ? 360 : 288);
+    const popoverHeight = popoverEl?.offsetHeight || 220;
+
+    const spaceBelow = vh - triggerRect.bottom;
+    const spaceAbove = triggerRect.top;
+
+    let placement: 'top' | 'bottom' = 'bottom';
+    if (spaceBelow < popoverHeight + 16 && spaceAbove > spaceBelow) {
+      placement = 'top';
+    }
+
+    let top: number | undefined;
+    let bottom: number | undefined;
+    let maxHeight: number;
+
+    if (placement === 'bottom') {
+      top = Math.max(8, triggerRect.bottom + 8);
+      maxHeight = Math.max(160, vh - top - 16);
+    } else {
+      bottom = Math.max(8, vh - triggerRect.top + 8);
+      maxHeight = Math.max(160, triggerRect.top - 16);
+    }
+
+    let left: number;
+    if (align === 'right') {
+      left = triggerRect.right - popoverWidth;
+    } else {
+      left = triggerRect.left;
+    }
+
+    // Keep popover horizontally within screen margins
+    const margin = 12;
+    const minLeft = margin;
+    const maxLeft = Math.max(minLeft, vw - popoverWidth - margin);
+    left = Math.max(minLeft, Math.min(left, maxLeft));
+
+    // Calculate arrow horizontal center relative to popover box
+    const triggerCenter = triggerRect.left + triggerRect.width / 2;
+    const arrowLeft = Math.max(16, Math.min(triggerCenter - left, popoverWidth - 16));
+
+    setPosition({
+      placement,
+      top,
+      bottom,
+      left,
+      arrowLeft,
+      maxHeight,
+    });
+  }, [triggerRef, align]);
+
+  // Update position on open, scroll, resize, and after DOM paint
+  useEffect(() => {
+    if (!isOpen || !mounted) return;
+    updatePosition();
+    const rafId = requestAnimationFrame(updatePosition);
+    return () => cancelAnimationFrame(rafId);
+  }, [isOpen, mounted, updatePosition]);
+
+  useEffect(() => {
+    if (!isOpen || !mounted) return;
+
+    const handleScrollOrResize = () => {
+      updatePosition();
+    };
+
+    window.addEventListener('resize', handleScrollOrResize);
+    window.addEventListener('scroll', handleScrollOrResize, true);
+
+    return () => {
+      window.removeEventListener('resize', handleScrollOrResize);
+      window.removeEventListener('scroll', handleScrollOrResize, true);
+    };
+  }, [isOpen, mounted, updatePosition]);
+
+  // Close when clicking outside
+  useEffect(() => {
+    if (!isOpen || !mounted) return;
+
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node;
+      if (
+        triggerRef.current &&
+        !triggerRef.current.contains(target) &&
+        popoverRef.current &&
+        !popoverRef.current.contains(target)
+      ) {
+        onClose();
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [isOpen, mounted, onClose, triggerRef]);
+
+  if (!mounted || !isOpen || typeof document === 'undefined') {
+    return null;
+  }
+
+  const { cardClass, arrowClass } = getTooltipClasses(theme, position?.placement === 'top');
+
+  return createPortal(
+    <div
+      ref={popoverRef}
+      onMouseEnter={onMouseEnterPopover}
+      onMouseLeave={onMouseLeavePopover}
+      onWheel={(e) => e.stopPropagation()}
+      style={{
+        position: 'fixed',
+        top: position?.top !== undefined ? `${position.top}px` : undefined,
+        bottom: position?.bottom !== undefined ? `${position.bottom}px` : undefined,
+        left: position?.left !== undefined ? `${position.left}px` : '-9999px',
+        zIndex: 9999,
+      }}
+      className={`fixed ${cardClass} border rounded-xl pointer-events-auto shadow-2xl backdrop-blur-xl ${className}`}
+    >
+      <div
+        style={{
+          maxHeight: position?.maxHeight ? `${position.maxHeight}px` : undefined,
+        }}
+        className="p-3.5 overflow-y-auto overscroll-contain custom-scrollbar"
+      >
+        {children}
+      </div>
+
+      {/* Triangle Arrow */}
+      {position && (
+        <div
+          style={{ left: `${position.arrowLeft}px` }}
+          className={`absolute pointer-events-none -translate-x-1/2 ${
+            position.placement === 'top'
+              ? 'top-full border-t-[6px] border-x-[6px] border-b-0'
+              : 'bottom-full border-b-[6px] border-x-[6px] border-t-0'
+          } border-x-transparent ${arrowClass}`}
+        />
+      )}
+    </div>,
+    document.body
+  );
+}
+
+/**
  * Contract Name Cell with popover and inline candidate tick price
  */
 function ContractCellWithTick({
   contractInfo,
   rawText,
-  isNearBottom,
   theme,
   copiedCode,
   onCopyCode,
 }: {
   contractInfo: ParsedContract;
   rawText: string;
-  isNearBottom: boolean;
+  isNearBottom?: boolean;
   theme: Theme;
   copiedCode: string | null;
   onCopyCode: (code: string, e: React.MouseEvent) => void;
@@ -216,6 +412,11 @@ function ContractCellWithTick({
   const wsContext = useOptionalOptionPriceWebSocketContext();
   const fullCode = contractInfo.contract_code_full;
   const baseCode = contractInfo.code;
+
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isPinned, setIsPinned] = useState(false);
+  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const wsPrice = useMemo(() => {
     if (!wsContext?.prices) return undefined;
@@ -225,28 +426,68 @@ function ContractCellWithTick({
   }, [wsContext?.prices, fullCode, baseCode]);
 
   const handleMouseEnter = useCallback(() => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
     if (wsContext?.queryPrice) {
       const codesToQuery = [fullCode, baseCode].filter((c): c is string => Boolean(c));
       if (codesToQuery.length > 0) {
         wsContext.queryPrice(codesToQuery);
       }
     }
+    setIsOpen(true);
   }, [fullCode, baseCode, wsContext]);
+
+  const handleMouseLeave = useCallback(() => {
+    if (isPinned) return;
+    closeTimeoutRef.current = setTimeout(() => {
+      setIsOpen(false);
+    }, 180);
+  }, [isPinned]);
+
+  const handlePopoverMouseEnter = useCallback(() => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+  }, []);
+
+  const handlePopoverMouseLeave = useCallback(() => {
+    if (isPinned) return;
+    closeTimeoutRef.current = setTimeout(() => {
+      setIsOpen(false);
+    }, 180);
+  }, [isPinned]);
+
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsPinned((prev) => !prev);
+    setIsOpen(true);
+  }, []);
+
+  const handleClose = useCallback(() => {
+    setIsOpen(false);
+    setIsPinned(false);
+  }, []);
 
   const isCall = contractInfo.isCall;
   const isPut = contractInfo.isPut;
 
   const currentPrice = wsPrice?.price ?? wsPrice?.last_price;
-  const bidPrice = wsPrice?.bid ?? (wsPrice?.bid_price?.[0]);
-  const askPrice = wsPrice?.ask ?? (wsPrice?.ask_price?.[0]);
+  const bidPrice = wsPrice?.bid ?? wsPrice?.bid_price?.[0];
+  const askPrice = wsPrice?.ask ?? wsPrice?.ask_price?.[0];
   const displayCode = contractInfo.contract_code_full || contractInfo.code;
 
-  const { cardClass, dividerClass, subtextClass, arrowClass } = getTooltipClasses(theme, isNearBottom);
+  const { dividerClass, subtextClass } = getTooltipClasses(theme, false);
 
   return (
     <div
+      ref={triggerRef}
       className="group/contract relative inline-block max-w-[240px]"
       onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      onClick={handleClick}
     >
       <div className="flex items-center gap-1.5 cursor-pointer">
         <span
@@ -258,42 +499,56 @@ function ContractCellWithTick({
               : themes[theme].text
           }`}
           title={rawText}
+          data-contract-code={displayCode || undefined}
         >
           {contractInfo.name}
         </span>
       </div>
 
-      {/* Popover / Tooltip on hover with smart placement and real-time tick */}
-      <div
-        onWheel={(e) => e.stopPropagation()}
-        className={`absolute ${
-          isNearBottom
-            ? 'bottom-full mb-2 before:content-[\'\'] before:absolute before:-bottom-2 before:left-0 before:w-full before:h-2'
-            : 'top-full mt-2 before:content-[\'\'] before:absolute before:-top-2 before:left-0 before:w-full before:h-2'
-        } left-0 hidden group-hover/contract:block w-72 p-3.5 ${cardClass} border rounded-xl z-50 pointer-events-auto overscroll-contain backdrop-blur-xl shadow-2xl`}
+      <FloatingPortalPopover
+        isOpen={isOpen}
+        onClose={handleClose}
+        triggerRef={triggerRef}
+        theme={theme}
+        align="left"
+        className="w-72"
+        onMouseEnterPopover={handlePopoverMouseEnter}
+        onMouseLeavePopover={handlePopoverMouseLeave}
       >
         <div className={`flex items-center justify-between gap-2 border-b ${dividerClass} pb-1.5 mb-2`}>
           <span className="text-xs font-bold truncate">{contractInfo.name}</span>
-          {displayCode && (
-            <button
-              type="button"
-              onClick={(e) => onCopyCode(displayCode, e)}
-              className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 transition-colors shrink-0 font-medium"
-              title="复制合约代码"
-            >
-              {copiedCode === displayCode ? (
-                <>
-                  <Check className="w-3 h-3 text-emerald-500" />
-                  <span className="text-emerald-500">已复制</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-3 h-3 opacity-60" />
-                  <span>复制</span>
-                </>
-              )}
-            </button>
-          )}
+          <div className="flex items-center gap-1.5">
+            {displayCode && (
+              <button
+                type="button"
+                onClick={(e) => onCopyCode(displayCode, e)}
+                className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 transition-colors shrink-0 font-medium"
+                title="复制合约代码"
+              >
+                {copiedCode === displayCode ? (
+                  <>
+                    <Check className="w-3 h-3 text-emerald-500" />
+                    <span className="text-emerald-500">已复制</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3 h-3 opacity-60" />
+                    <span>复制</span>
+                  </>
+                )}
+              </button>
+            )}
+            {isPinned && (
+              <button
+                type="button"
+                onClick={handleClose}
+                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-0.5"
+                title="关闭"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Real-time WebSocket Tick Price Banner */}
@@ -352,14 +607,7 @@ function ContractCellWithTick({
             </span>
           </div>
         </div>
-
-        {/* Triangle Arrow */}
-        <div
-          className={`absolute ${
-            isNearBottom ? 'top-full left-4 border-t-4' : 'bottom-full left-4 border-b-4'
-          } border-4 border-transparent ${arrowClass}`}
-        />
-      </div>
+      </FloatingPortalPopover>
     </div>
   );
 }
@@ -433,28 +681,78 @@ function extractReasonTags(text: string): ReasonTag[] {
 }
 
 /**
- * Compact Reason Cell displaying only tags, showing full detailed advice on hover popover
- * Perfectly matches ExpiryGroupCard's PROFIT list tooltip style and fully wraps text content
+ * Compact Reason Cell displaying tags, showing full detailed advice on hover/click popover via Portal.
+ * Never blocked by table top/bottom bars or container overflow.
  */
 function ReasonCellWithPopover({
   rawText,
-  isNearBottom,
   theme,
 }: {
   rawText: string;
-  isNearBottom: boolean;
+  isNearBottom?: boolean;
   theme: Theme;
 }) {
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isPinned, setIsPinned] = useState(false);
+  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const tags = useMemo(() => extractReasonTags(rawText), [rawText]);
   const clauses = useMemo(
     () => rawText.split(/[；;]/).map((s) => s.trim()).filter(Boolean),
     [rawText]
   );
 
-  const { cardClass, dividerClass, subtextClass, arrowClass } = getTooltipClasses(theme, isNearBottom);
+  const handleMouseEnter = useCallback(() => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+    setIsOpen(true);
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    if (isPinned) return;
+    closeTimeoutRef.current = setTimeout(() => {
+      setIsOpen(false);
+    }, 180);
+  }, [isPinned]);
+
+  const handlePopoverMouseEnter = useCallback(() => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+  }, []);
+
+  const handlePopoverMouseLeave = useCallback(() => {
+    if (isPinned) return;
+    closeTimeoutRef.current = setTimeout(() => {
+      setIsOpen(false);
+    }, 180);
+  }, [isPinned]);
+
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsPinned((prev) => !prev);
+    setIsOpen(true);
+  }, []);
+
+  const handleClose = useCallback(() => {
+    setIsOpen(false);
+    setIsPinned(false);
+  }, []);
+
+  const { dividerClass, subtextClass } = getTooltipClasses(theme, false);
 
   return (
-    <div className="group/reason relative inline-block">
+    <div
+      ref={triggerRef}
+      className="group/reason relative inline-block"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      onClick={handleClick}
+    >
       {/* Visible Tag Chips */}
       <div className="flex items-center gap-1.5 flex-wrap cursor-pointer select-none">
         {tags.map((tag, idx) => (
@@ -467,21 +765,34 @@ function ReasonCellWithPopover({
         ))}
       </div>
 
-      {/* Popover / Tooltip on hover showing detailed content with theme consistency and full width wrapping */}
-      <div
-        onWheel={(e) => e.stopPropagation()}
-        className={`absolute ${
-          isNearBottom
-            ? 'bottom-full mb-2 before:content-[\'\'] before:absolute before:-bottom-2 before:left-0 before:w-full before:h-2'
-            : 'top-full mt-2 before:content-[\'\'] before:absolute before:-top-2 before:left-0 before:w-full before:h-2'
-        } right-0 hidden group-hover/reason:block w-max min-w-[240px] max-w-sm sm:max-w-md p-3.5 ${cardClass} border rounded-xl z-50 pointer-events-auto overscroll-contain backdrop-blur-xl shadow-2xl text-left`}
+      <FloatingPortalPopover
+        isOpen={isOpen}
+        onClose={handleClose}
+        triggerRef={triggerRef}
+        theme={theme}
+        align="right"
+        className="w-max min-w-[240px] max-w-sm sm:max-w-md text-left"
+        onMouseEnterPopover={handlePopoverMouseEnter}
+        onMouseLeavePopover={handlePopoverMouseLeave}
       >
         <div className={`text-[11px] font-bold text-amber-600 dark:text-yellow-400 mb-2 flex items-center justify-between border-b ${dividerClass} pb-1.5`}>
           <div className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
             <span>详细原因与建议</span>
           </div>
-          <span className="text-[9px] font-normal font-mono opacity-60">触发规则</span>
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] font-normal font-mono opacity-60">触发规则</span>
+            {isPinned && (
+              <button
+                type="button"
+                onClick={handleClose}
+                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-0.5"
+                title="关闭"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
         </div>
 
         <div className={`space-y-1.5 text-xs leading-relaxed ${subtextClass} whitespace-normal break-words`}>
@@ -492,14 +803,7 @@ function ReasonCellWithPopover({
             </div>
           ))}
         </div>
-
-        {/* Triangle Arrow */}
-        <div
-          className={`absolute ${
-            isNearBottom ? 'top-full right-4 border-t-4' : 'bottom-full right-4 border-b-4'
-          } border-4 border-transparent ${arrowClass}`}
-        />
-      </div>
+      </FloatingPortalPopover>
     </div>
   );
 }
