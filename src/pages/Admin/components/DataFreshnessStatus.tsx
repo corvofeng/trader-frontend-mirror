@@ -14,7 +14,6 @@ const HISTORY_DATA_API = `/api/stocks/${encodeURIComponent(DATA_FRESHNESS_CHECK_
 const TICKS_DATA_API = `/api/stocks/${encodeURIComponent(DATA_FRESHNESS_CHECK_STOCK)}/ticks`;
 const AKSHARE_SINA_API = `/api/stocks/${encodeURIComponent(DATA_FRESHNESS_CHECK_STOCK)}/akshare/sina`;
 const GTIMG_API = `/api/stocks/${encodeURIComponent(DATA_FRESHNESS_CHECK_STOCK)}/gtimg`;
-const YFINANCE_API = `/api/stocks/${encodeURIComponent(DATA_FRESHNESS_CHECK_STOCK)}/yfinance`;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
@@ -85,7 +84,6 @@ export function DataFreshnessStatus({ theme, lastTradingDay }: DataFreshnessStat
   const [ticksStatus, setTicksStatus] = useState<DataCheckResult>({ loading: true, error: null, lastDate: null, diffDays: null, details: null });
   const [akshareSinaStatus, setAkshareSinaStatus] = useState<DataCheckResult>({ loading: true, error: null, lastDate: null, diffDays: null, details: null });
   const [gtimgStatus, setGtimgStatus] = useState<DataCheckResult>({ loading: true, error: null, lastDate: null, diffDays: null, details: null });
-  const [yfinanceStatus, setYfinanceStatus] = useState<DataCheckResult>({ loading: true, error: null, lastDate: null, diffDays: null, details: null });
   const [activeDetailKey, setActiveDetailKey] = useState<string | null>(null);
 
   const fetchHistoryData = async () => {
@@ -139,7 +137,6 @@ export function DataFreshnessStatus({ theme, lastTradingDay }: DataFreshnessStat
     fetchHistoryData();
     fetchTicksData();
     fetchGtimgData();
-    fetchYfinanceData();
     fetchAkshareSinaData();
   }, []);
 
@@ -261,61 +258,6 @@ export function DataFreshnessStatus({ theme, lastTradingDay }: DataFreshnessStat
     }
   };
 
-  const fetchYfinanceData = async () => {
-    setYfinanceStatus(prev => ({ ...prev, loading: true, error: null }));
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000);
-      const { data, error } = await stockService.getStockYfinanceRaw(DATA_FRESHNESS_CHECK_STOCK, { signal: controller.signal });
-      clearTimeout(timeout);
-      if (error) throw error;
-
-      const list = (data || []).filter(isRecord);
-      if (list.length === 0) {
-        throw new Error('未获取到数据或数据为空');
-      }
-
-      const lastItem = list[list.length - 1];
-      const candidate =
-        (typeof lastItem.date === 'string' && lastItem.date) ||
-        (typeof lastItem.datetime === 'string' && lastItem.datetime) ||
-        (typeof lastItem.time === 'string' && lastItem.time) ||
-        (typeof lastItem.timetag === 'string' && lastItem.timetag) ||
-        (typeof lastItem.timestamp === 'number' && Number.isFinite(lastItem.timestamp) ? lastItem.timestamp : null) ||
-        (typeof lastItem.time === 'number' && Number.isFinite(lastItem.time) ? lastItem.time : null) ||
-        null;
-
-      const d = safeParseDateLike(candidate);
-      if (!d) {
-        throw new Error('日期解析失败');
-      }
-
-      const diff = differenceInCalendarDays(new Date(), d);
-      const lastDateStr = typeof candidate === 'string' ? candidate : d.toISOString();
-      setYfinanceStatus({
-        loading: false,
-        error: null,
-        lastDate: lastDateStr,
-        diffDays: diff,
-        details: lastItem
-      });
-    } catch (err) {
-      if (err && typeof err === 'object' && 'name' in err && err.name === 'AbortError') {
-        setYfinanceStatus(prev => ({
-          ...prev,
-          loading: false,
-          error: '请求超时'
-        }));
-        return;
-      }
-      setYfinanceStatus(prev => ({
-        ...prev,
-        loading: false,
-        error: err instanceof Error ? err.message : '请求失败'
-      }));
-    }
-  };
-
   const fetchAkshareSinaData = async () => {
     setAkshareSinaStatus(prev => ({ ...prev, loading: true, error: null }));
     try {
@@ -391,7 +333,6 @@ export function DataFreshnessStatus({ theme, lastTradingDay }: DataFreshnessStat
     fetchHistoryData();
     fetchTicksData();
     fetchGtimgData();
-    fetchYfinanceData();
     fetchAkshareSinaData();
   };
 
@@ -399,7 +340,6 @@ export function DataFreshnessStatus({ theme, lastTradingDay }: DataFreshnessStat
     historyStatus.loading ||
     ticksStatus.loading ||
     gtimgStatus.loading ||
-    yfinanceStatus.loading ||
     akshareSinaStatus.loading;
 
   const computeFreshness = (
@@ -513,19 +453,6 @@ export function DataFreshnessStatus({ theme, lastTradingDay }: DataFreshnessStat
       primary: [
         { label: '最新', value: gtimgStatus.details?.lastPrice ?? gtimgStatus.details?.price ?? gtimgStatus.details?.close },
         { label: '开盘', value: gtimgStatus.details?.open },
-      ],
-      excludeDetailKeys: ['date', 'datetime', 'timetag', 'time', 'timestamp'],
-    },
-    {
-      key: 'yfinance',
-      title: 'yfinance',
-      apiPath: YFINANCE_API,
-      status: yfinanceStatus,
-      refresh: fetchYfinanceData,
-      lastLabel: '最新时间',
-      primary: [
-        { label: '最新', value: yfinanceStatus.details?.close ?? yfinanceStatus.details?.lastPrice ?? yfinanceStatus.details?.price },
-        { label: '开盘', value: yfinanceStatus.details?.open },
       ],
       excludeDetailKeys: ['date', 'datetime', 'timetag', 'time', 'timestamp'],
     },
