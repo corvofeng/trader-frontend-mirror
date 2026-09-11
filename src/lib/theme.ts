@@ -111,3 +111,9 @@ export const themes: Record<Theme, ThemeColors> = {
   dark: getBaseTheme('dark'),
   blue: getBaseTheme('blue')
 };
+
+export const THEME_HEX_BACKGROUNDS: Record<Theme, string> = {
+  light: '#f8fafc',
+  dark: '#09090b',
+  blue: '#f0f5ff'
+};

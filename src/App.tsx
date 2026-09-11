@@ -5,7 +5,7 @@ import { authService, accountService, portfolioService, stockConfigService } fro
 import { CurrencyProvider } from './lib/context/CurrencyContext';
 import analytics from './lib/analytics';
 import type { User, Stock } from './lib/services/types';
-import type { Theme } from './lib/theme';
+import { type Theme, THEME_HEX_BACKGROUNDS } from './lib/theme';
 import {
   JOURNAL_ACCOUNT_STORAGE,
   persistAccountAlias,
@@ -62,6 +62,12 @@ function AppContent() {
     const root = document.documentElement;
     root.classList.remove('light', 'dark', 'blue');
     root.classList.add(theme);
+
+    // Dynamically update <meta name="theme-color"> for iPadOS / iOS / Android status bar
+    const metaThemeColor = document.getElementById('theme-color-meta') || document.querySelector('meta[name="theme-color"]');
+    if (metaThemeColor) {
+      metaThemeColor.setAttribute('content', THEME_HEX_BACKGROUNDS[theme] || '#09090b');
+    }
   }, [theme]);
 
   useEffect(() => {

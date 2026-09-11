@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Bell, LogOut, LogIn, Menu, X, Sun, Moon, Palette, RefreshCw, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Bell, LogOut, LogIn, Menu, X, Sun, Moon, Palette, RefreshCw, TrendingUp, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Theme, themes } from '../../lib/theme';
 import { noticeService } from '../../lib/services';
@@ -17,6 +17,7 @@ interface NavigationProps {
   onSignOut: () => void;
   onMobileMenuToggle: () => void;
   onThemeDropdownToggle: () => void;
+  onOpenCommandPalette?: () => void;
 }
 
 const themeIcons = {
@@ -86,7 +87,8 @@ export function Navigation({
   onSignIn,
   onSignOut,
   onMobileMenuToggle,
-  onThemeDropdownToggle
+  onThemeDropdownToggle,
+  onOpenCommandPalette
 }: NavigationProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -100,6 +102,17 @@ export function Navigation({
   }, []);
 
   const [noticesOpen, setNoticesOpen] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (mobileMenuOpen) onMobileMenuToggle();
+        if (noticesOpen) setNoticesOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mobileMenuOpen, noticesOpen, onMobileMenuToggle]);
   const [noticesLoading, setNoticesLoading] = useState(false);
   const [noticesError, setNoticesError] = useState<string | null>(null);
   const [notices, setNotices] = useState<Notice[]>([]);
@@ -364,7 +377,7 @@ export function Navigation({
   
   return (
     <React.Fragment>
-      <nav className={`${themes[theme].card} border-b ${themes[theme].border} backdrop-blur-md bg-opacity-90 dark:bg-opacity-90 sticky top-0 z-50 transition-colors duration-200`}>
+      <nav className={`${themes[theme].card} border-b ${themes[theme].border} backdrop-blur-md bg-opacity-90 dark:bg-opacity-90 sticky top-0 z-40 transition-colors duration-200 pt-[env(safe-area-inset-top,0px)]`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center">
@@ -426,6 +439,23 @@ export function Navigation({
                   About
                 </button>
               </div>
+              {onOpenCommandPalette && (
+                <button
+                  onClick={onOpenCommandPalette}
+                  className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all duration-150 ${
+                    theme === 'dark'
+                      ? 'border-zinc-700/60 bg-zinc-800/60 text-zinc-300 hover:text-white hover:border-zinc-600 hover:bg-zinc-800'
+                      : theme === 'blue'
+                      ? 'border-blue-900/40 bg-slate-800/40 text-slate-200 hover:text-white hover:border-blue-700 hover:bg-slate-800'
+                      : 'border-slate-200 bg-slate-100/70 text-slate-600 hover:text-slate-900 hover:border-slate-300 hover:bg-slate-100'
+                  }`}
+                  title="快捷指令与搜索 (⌘K / Ctrl+K)"
+                >
+                  <Search className="w-3.5 h-3.5 text-blue-500" />
+                  <span className="hidden xl:inline">搜索/指令</span>
+                  <kbd className="font-mono text-[10px] px-1 py-0.5 rounded bg-black/10 dark:bg-white/10 font-semibold">⌘K</kbd>
+                </button>
+              )}
               <button
                 onClick={() => void handleRefreshServiceWorker()}
                 className={`inline-flex items-center px-3 py-2 rounded-md text-sm font-medium ${themes[theme].secondary}`}
@@ -511,7 +541,16 @@ export function Navigation({
               )}
             </div>
 
-            <div className="md:hidden flex items-center">
+            <div className="md:hidden flex items-center gap-1">
+              {onOpenCommandPalette && (
+                <button
+                  onClick={onOpenCommandPalette}
+                  className={`p-2 rounded-md ${themes[theme].text} hover:opacity-80 transition-opacity`}
+                  title="搜索与快捷指令"
+                >
+                  <Search className="w-5 h-5" />
+                </button>
+              )}
               <button
                 onClick={onMobileMenuToggle}
                 className={`p-2 rounded-md ${themes[theme].text}`}
@@ -526,9 +565,24 @@ export function Navigation({
           </div>
 
           {mobileMenuOpen && (
-            <div className={`md:hidden ${themes[theme].card} border-t ${themes[theme].border} py-4 absolute left-0 right-0 shadow-lg`}>
+            <div className={`md:hidden ${themes[theme].card} border-t ${themes[theme].border} py-4 pb-[calc(env(safe-area-inset-bottom,0px)+16px)] absolute left-0 right-0 shadow-lg`}>
               <div className="flex flex-col space-y-4 px-4">
                 <div className="flex flex-col gap-2">
+                  {onOpenCommandPalette && (
+                    <button
+                      onClick={() => {
+                        onMobileMenuToggle();
+                        onOpenCommandPalette();
+                      }}
+                      className={`w-full px-4 py-2 rounded-md text-sm font-medium text-left flex items-center justify-between ${themes[theme].secondary}`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <Search className="w-4 h-4 text-blue-500" />
+                        搜索与快捷指令
+                      </span>
+                      <kbd className="font-mono text-xs px-1.5 py-0.5 rounded bg-black/10 dark:bg-white/10">⌘K</kbd>
+                    </button>
+                  )}
                   <button
                     onClick={() => {
                       navigate('/journal');

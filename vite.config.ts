@@ -39,8 +39,27 @@ export default defineConfig({
         start_url: '/',
         scope: '/',
         display: 'standalone',
+        display_override: ['window-controls-overlay', 'standalone', 'minimal-ui'],
+        orientation: 'any',
+        categories: ['finance', 'productivity', 'utilities'],
         background_color: '#0b1220',
         theme_color: '#0b1220',
+        shortcuts: [
+          {
+            name: '交易日志 Journal',
+            short_name: 'Journal',
+            description: '查看持仓、交易记录与分析',
+            url: '/journal',
+            icons: [{ src: '/icons/app-icon-192.png', sizes: '192x192' }],
+          },
+          {
+            name: '期权工具 Options',
+            short_name: 'Options',
+            description: '期权策略分析、盈亏图与计算器',
+            url: '/options',
+            icons: [{ src: '/icons/app-icon-192.png', sizes: '192x192' }],
+          },
+        ],
         icons: [
           {
             src: '/icons/app-icon-192.png',
