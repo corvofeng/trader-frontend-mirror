@@ -431,9 +431,9 @@ function ContractCellWithTick({
       closeTimeoutRef.current = null;
     }
     if (wsContext?.queryPrice) {
-      const codesToQuery = [fullCode, baseCode].filter((c): c is string => Boolean(c));
-      if (codesToQuery.length > 0) {
-        wsContext.queryPrice(codesToQuery);
+      const codeToQuery = fullCode || baseCode;
+      if (codeToQuery) {
+        wsContext.queryPrice([codeToQuery]);
       }
     }
     setIsOpen(true);
@@ -851,14 +851,14 @@ export function InteractiveMarkdownTable({
     });
   }, [rows, shouldInjectLivePriceCol, livePriceColIdx]);
 
-  // Extract all contract codes present in this table (both full and base codes)
+  // Extract all contract codes present in this table (unified to full code with suffix)
   const allContractCodes = useMemo(() => {
     const codes = new Set<string>();
     rows.forEach((r) => {
       r.forEach((cell) => {
         const parsed = parseContract(cell);
-        if (parsed?.contract_code_full) codes.add(parsed.contract_code_full);
-        if (parsed?.code) codes.add(parsed.code);
+        const codeToSubscribe = parsed?.contract_code_full || parsed?.code;
+        if (codeToSubscribe) codes.add(codeToSubscribe);
       });
     });
     return Array.from(codes);
