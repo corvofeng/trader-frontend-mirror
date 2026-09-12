@@ -1,4 +1,3 @@
-import React from 'react';
 import { format } from 'date-fns';
 import { Theme, themes } from '../../../lib/theme';
 import type { Trade } from '../../../lib/services/types';
@@ -226,7 +225,7 @@ export function TradesTable({
                         e.stopPropagation();
                         onAnalyzeStock(trade.stock_code, trade.stock_name || trade.stock_code);
                       }}
-                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold ${themes[theme].secondary} opacity-80 hover:opacity-100 transition-opacity whitespace-nowrap`}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold btn-tactile ${themes[theme].secondary} opacity-80 hover:opacity-100 transition-opacity whitespace-nowrap`}
                     >
                       <TrendingUp size={14} />
                       <span>详情</span>
@@ -247,7 +246,7 @@ export function TradesTable({
           <button
             onClick={() => onTradesPageChange(Math.max(1, tradesPage - 1))}
             disabled={tradesPage === 1}
-            className={`p-1.5 sm:p-1 rounded-md ${themes[theme].secondary} ${
+            className={`p-1.5 sm:p-1 rounded-md btn-tactile ${themes[theme].secondary} ${
               tradesPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           >
@@ -256,7 +255,7 @@ export function TradesTable({
           <button
             onClick={() => onTradesPageChange(Math.min(totalTradesPages, tradesPage + 1))}
             disabled={tradesPage === totalTradesPages}
-            className={`p-1.5 sm:p-1 rounded-md ${themes[theme].secondary} ${
+            className={`p-1.5 sm:p-1 rounded-md btn-tactile ${themes[theme].secondary} ${
               tradesPage === totalTradesPages ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           >

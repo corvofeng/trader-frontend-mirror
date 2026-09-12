@@ -676,8 +676,8 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
           right: 'calc(16px + env(safe-area-inset-right, 0px))',
           zIndex: 2147483000,
         }}
-        className={`p-3 rounded-full shadow-[0_8px_24px_-8px_rgba(15,23,42,0.35)] transition-all duration-300 ${
-          isLoading ? 'opacity-70 cursor-wait' : 'hover:bg-gray-100 dark:hover:bg-gray-700 active:scale-95'
+        className={`p-3 rounded-full shadow-[0_8px_24px_-8px_rgba(15,23,42,0.35)] btn-tactile ${
+          isLoading ? 'opacity-70 cursor-wait' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
         } ${themes[theme].card} ${themes[theme].border} border ring-1 ring-black/5 dark:ring-white/5 backdrop-blur-xl relative overflow-hidden`}
         aria-label="Refresh Portfolio"
         title="刷新持仓"
@@ -704,7 +704,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       >
         <div className="relative">
           {mobileMonthMenuOpen && (
-            <div className={`absolute bottom-16 right-0 p-2 rounded-2xl shadow-[0_12px_40px_-12px_rgba(15,23,42,0.28)] border flex flex-col gap-1.5 min-w-[80px] max-h-[260px] overflow-y-auto ${floatingGlassBg} backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/5`}
+            <div className={`absolute bottom-16 right-0 p-2 rounded-2xl popover-spring shadow-[0_12px_40px_-12px_rgba(15,23,42,0.28)] border flex flex-col gap-1.5 min-w-[80px] max-h-[260px] overflow-y-auto ${floatingGlassBg} backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/5`}
                  style={{boxShadow: theme === 'dark' ? '0 16px 48px -16px rgba(0,0,0,0.6)' : undefined}}>
               <div className="text-[9px] uppercase tracking-wider font-bold opacity-25 px-1 py-0.5 border-b border-current/10 mb-0.5 w-full text-center">
                 月份
@@ -724,7 +724,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                         setMobileMonthMenuOpen(false);
                       }}
-                      className={`text-center text-xs py-1 px-2.5 rounded-lg transition-all duration-150 font-semibold active:scale-95 ${
+                      className={`text-center text-xs py-1 px-2.5 rounded-lg font-semibold btn-tactile ${
                         isActive
                           ? theme === 'dark'
                             ? 'bg-blue-500/25 text-blue-400'
@@ -764,7 +764,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
           )}
           <button
             onClick={() => setMobileMonthMenuOpen(prev => !prev)}
-            className={`p-3 rounded-full shadow-[0_8px_24px_-8px_rgba(15,23,42,0.35)] ${themes[theme].card} ${themes[theme].border} border hover:bg-gray-100 dark:hover:bg-gray-700 active:scale-95 transition-all ring-1 ring-black/5 dark:ring-white/5 backdrop-blur-xl overflow-hidden relative`}
+            className={`p-3 rounded-full shadow-[0_8px_24px_-8px_rgba(15,23,42,0.35)] btn-tactile ${themes[theme].card} ${themes[theme].border} border hover:bg-gray-100 dark:hover:bg-gray-700 ring-1 ring-black/5 dark:ring-white/5 backdrop-blur-xl overflow-hidden relative`}
             aria-label="Toggle Expiry Months TOC"
             title="选择到期月份"
           >

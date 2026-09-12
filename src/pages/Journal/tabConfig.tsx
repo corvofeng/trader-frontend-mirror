@@ -74,7 +74,7 @@ const getOrderStatusBadge = (raw?: string | null) => {
 };
 
 const renderRestrictedSharedView = (theme: Theme) => (
-  <div className={`${themes[theme].card} rounded-lg p-8 text-center`}>
+  <div className={`${themes[theme].card} rounded-xl border ${themes[theme].border} card-subtle-ring p-8 text-center`}>
     <div className={`${themes[theme].text} opacity-70`}>
       <Briefcase className="w-12 h-12 mx-auto mb-4 opacity-40" />
       <p className="text-lg font-medium">This feature is not available in shared portfolio view</p>
@@ -184,7 +184,7 @@ function JournalTradesTabContent({
         userId={userId}
         accountId={selectedAccountId}
       />
-      <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden transition-colors duration-200`}>
+      <div className={`${themes[theme].card} rounded-xl border ${themes[theme].border} card-subtle-ring overflow-hidden transition-colors duration-150`}>
         <div className={`px-4 sm:px-6 py-4 border-b ${themes[theme].border}`}>
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
@@ -199,7 +199,7 @@ function JournalTradesTabContent({
             <button
               onClick={onRefreshTodayOrders}
               disabled={todayOrdersLoading}
-              className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded ${themes[theme].secondary} ${
+              className={`inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-md btn-tactile ${themes[theme].secondary} ${
                 todayOrdersLoading ? 'opacity-50 cursor-not-allowed' : ''
               }`}
             >
@@ -253,7 +253,7 @@ function JournalTradesTabContent({
                     return (
                       <tr
                         key={`${order.order_sys_id || symbol || order.order_time || 'na'}-${idx}`}
-                        className={isSelected ? 'bg-blue-50 dark:bg-blue-950/20' : undefined}
+                        className={`transition-colors duration-150 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 ${isSelected ? 'bg-blue-50 dark:bg-blue-950/20' : ''}`}
                       >
                         <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200 font-mono">{timeText}</td>
                         <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-700 dark:text-gray-200">

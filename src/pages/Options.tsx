@@ -392,11 +392,11 @@ function OptionsContent({ theme }: OptionsProps) {
 
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
-        <div className="space-y-6">
-        <div className={`${themes[theme].card} rounded-lg p-4`}>
+      <div className="space-y-6">
+        <div className={`${themes[theme].card} rounded-xl p-5 border ${themes[theme].border} card-subtle-ring transition-colors duration-150`}>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
-              <h1 className={`text-2xl font-bold ${themes[theme].text}`}>
+              <h1 className={`text-2xl font-bold tracking-tight ${themes[theme].text}`}>
                 Options Trading Analysis
               </h1>
               <p className={`text-sm ${themes[theme].text} opacity-75 mt-1`}>
@@ -427,7 +427,7 @@ function OptionsContent({ theme }: OptionsProps) {
                     setRefreshKey((k) => k + 1);
                     toast.success('已触发行情数据刷新！', { id: 'options-refresh-toast' });
                   }}
-                  className={`inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm whitespace-nowrap ${themes[theme].secondary}`}
+                  className={`inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm whitespace-nowrap btn-tactile ${themes[theme].secondary}`}
                 >
                   <RefreshCw className="w-4 h-4" />
                   刷新
@@ -477,7 +477,7 @@ function OptionsContent({ theme }: OptionsProps) {
                         toast.success('期权数据刷新请求已发送！', { id: 'options-refresh-toast' });
                       }}
                       disabled={!selectedSymbol}
-                      className={`${themes[theme].secondary} rounded-md p-1 disabled:opacity-50 disabled:cursor-not-allowed`}
+                      className={`${themes[theme].secondary} rounded-md p-1.5 btn-tactile disabled:opacity-50 disabled:cursor-not-allowed`}
                       title="刷新行情"
                       aria-label="刷新行情"
                     >
@@ -506,192 +506,194 @@ function OptionsContent({ theme }: OptionsProps) {
           onTabChange={handleTabChange}
         />
 
-        {activeTab === 'data' && (
-          <div className="space-y-6">
-            {(isLoading || isLoadingSymbols) && (
-              <div className="text-center py-12">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-                <p className="text-gray-600">
-                  {isLoadingSymbols ? 'Loading available symbols...' : (selectedSymbol ? `Loading options data for ${selectedSymbol}...` : 'Waiting for symbol selection...')}
-                </p>
-              </div>
-            )}
-
-            {error && (
-              <div className="text-center py-12">
-                <div className="text-red-500 mb-4">
-                  <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                  </svg>
+        <div key={activeTab} className="animate-fade-in">
+          {activeTab === 'data' && (
+            <div className="space-y-6">
+              {(isLoading || isLoadingSymbols) && (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                  <p className="text-gray-600">
+                    {isLoadingSymbols ? 'Loading available symbols...' : (selectedSymbol ? `Loading options data for ${selectedSymbol}...` : 'Waiting for symbol selection...')}
+                  </p>
                 </div>
-                <p className="text-gray-600 mb-4">{error}</p>
-                {selectedSymbol && (
-                  <button
-                    onClick={() => setSelectedSymbol(selectedSymbol)} // Trigger re-fetch
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                  >
-                    Retry
-                  </button>
-                )}
-              </div>
-            )}
+              )}
 
-            {!isLoading && !isLoadingSymbols && !error && optionsData && selectedSymbol && (
-              <>
-                <OptionsChain
-                  theme={theme}
-                  optionsData={optionsData}
-                  selectedSymbol={selectedSymbol}
-                  selectedExpiry={selectedExpiry}
-                  onExpiryChange={setSelectedExpiry}
-                />
+              {error && (
+                <div className="text-center py-12">
+                  <div className="text-red-500 mb-4">
+                    <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                  </div>
+                  <p className="text-gray-600 mb-4">{error}</p>
+                  {selectedSymbol && (
+                    <button
+                      onClick={() => setSelectedSymbol(selectedSymbol)} // Trigger re-fetch
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    >
+                      Retry
+                    </button>
+                  )}
+                </div>
+              )}
 
-                <OptionsCalculatorCard
-                  theme={theme}
-                  onOpenCalculator={() => setShowCalculatorModal(true)}
-                />
+              {!isLoading && !isLoadingSymbols && !error && optionsData && selectedSymbol && (
+                <>
+                  <OptionsChain
+                    theme={theme}
+                    optionsData={optionsData}
+                    selectedSymbol={selectedSymbol}
+                    selectedExpiry={selectedExpiry}
+                    onExpiryChange={setSelectedExpiry}
+                  />
 
-                <TimeValueChart
-                  theme={theme}
-                  optionsData={optionsData}
-                  selectedSymbol={selectedSymbol}
-                  chartEngine={marketChartEngine}
-                  onChartEngineChange={handleMarketChartEngineChange}
-                />
+                  <OptionsCalculatorCard
+                    theme={theme}
+                    onOpenCalculator={() => setShowCalculatorModal(true)}
+                  />
 
-                <VerticalSpreadMonthlyPricesChart
-                  theme={theme}
-                  optionsData={optionsData}
-                  selectedSymbol={selectedSymbol}
-                  chartEngine={marketChartEngine}
-                  onChartEngineChange={handleMarketChartEngineChange}
-                />
+                  <TimeValueChart
+                    theme={theme}
+                    optionsData={optionsData}
+                    selectedSymbol={selectedSymbol}
+                    chartEngine={marketChartEngine}
+                    onChartEngineChange={handleMarketChartEngineChange}
+                  />
 
-                <VolatilitySurface
-                  theme={theme}
-                  optionsData={optionsData}
-                  selectedSymbol={selectedSymbol}
-                />
-              </>
-            )}
+                  <VerticalSpreadMonthlyPricesChart
+                    theme={theme}
+                    optionsData={optionsData}
+                    selectedSymbol={selectedSymbol}
+                    chartEngine={marketChartEngine}
+                    onChartEngineChange={handleMarketChartEngineChange}
+                  />
 
-            <RelatedLinks 
-              theme={theme}
-              currentPath="/options?tab=data" 
-              maxItems={4}
-              hideTradePlans={!isAuthenticated}
-            />
-          </div>
-        )}
+                  <VolatilitySurface
+                    theme={theme}
+                    optionsData={optionsData}
+                    selectedSymbol={selectedSymbol}
+                  />
+                </>
+              )}
 
-        {activeTab === 'market-state' && (
-          <div className="space-y-6">
-            <OptionMarketStatePanel theme={theme} selectedSymbol={selectedSymbol} />
-            <RelatedLinks 
-              theme={theme}
-              currentPath="/options?tab=market-state" 
-              maxItems={4}
-              hideTradePlans={!isAuthenticated}
-            />
-          </div>
-        )}
+              <RelatedLinks 
+                theme={theme}
+                currentPath="/options?tab=data" 
+                maxItems={4}
+                hideTradePlans={!isAuthenticated}
+              />
+            </div>
+          )}
 
-        {activeTab === 'portfolio' && (
-          <div className="space-y-6">
-              <OptionsPortfolio theme={theme} selectedAccountId={selectedAccountId} refreshKey={refreshKey} selectedSymbol={selectedSymbol} />
-            <RelatedLinks 
-              theme={theme}
-              currentPath="/options?tab=portfolio" 
-              maxItems={4}
-              hideTradePlans={!isAuthenticated}
-            />
-          </div>
-        )}
+          {activeTab === 'market-state' && (
+            <div className="space-y-6">
+              <OptionMarketStatePanel theme={theme} selectedSymbol={selectedSymbol} />
+              <RelatedLinks 
+                theme={theme} 
+                currentPath="/options?tab=market-state" 
+                maxItems={4}
+                hideTradePlans={!isAuthenticated}
+              />
+            </div>
+          )}
 
-        {activeTab === 'analysis' && (
-          <div className="space-y-6">
-            <OptionsAnalysisTab theme={theme} selectedSymbol={selectedSymbol} selectedAccountId={selectedAccountId} />
-            <RelatedLinks 
-              theme={theme}
-              currentPath="/options?tab=analysis" 
-              maxItems={4}
-              hideTradePlans={!isAuthenticated}
-            />
-          </div>
-        )}
+          {activeTab === 'portfolio' && (
+            <div className="space-y-6">
+                <OptionsPortfolio theme={theme} selectedAccountId={selectedAccountId} refreshKey={refreshKey} selectedSymbol={selectedSymbol} />
+              <RelatedLinks 
+                theme={theme} 
+                currentPath="/options?tab=portfolio" 
+                maxItems={4}
+                hideTradePlans={!isAuthenticated}
+              />
+            </div>
+          )}
 
-        {activeTab === 'trading' && (
-          <div className="space-y-6">
-            <OptionsTradePlans theme={theme} selectedSymbol={selectedSymbol} selectedAccountId={selectedAccountId} userId={userId} />
-            <RelatedLinks 
-              theme={theme}
-              currentPath="/options?tab=trading" 
-              maxItems={4}
-              hideTradePlans={!isAuthenticated}
-            />
-          </div>
-        )}
+          {activeTab === 'analysis' && (
+            <div className="space-y-6">
+              <OptionsAnalysisTab theme={theme} selectedSymbol={selectedSymbol} selectedAccountId={selectedAccountId} />
+              <RelatedLinks 
+                theme={theme} 
+                currentPath="/options?tab=analysis" 
+                maxItems={4}
+                hideTradePlans={!isAuthenticated}
+              />
+            </div>
+          )}
 
-        {activeTab === 'management' && (
-          <div className="space-y-6">
-            <OptionsPortfolioManagement theme={theme} selectedSymbol={selectedSymbol} />
-            <RelatedLinks 
-              theme={theme}
-              currentPath="/options?tab=management" 
-              maxItems={4}
-              hideTradePlans={!isAuthenticated}
-            />
-          </div>
-        )}
+          {activeTab === 'trading' && (
+            <div className="space-y-6">
+              <OptionsTradePlans theme={theme} selectedSymbol={selectedSymbol} selectedAccountId={selectedAccountId} userId={userId} />
+              <RelatedLinks 
+                theme={theme} 
+                currentPath="/options?tab=trading" 
+                maxItems={4}
+                hideTradePlans={!isAuthenticated}
+              />
+            </div>
+          )}
 
-        {activeTab === 'whitelist' && (
-          <div className="space-y-6">
-            <OptionWhitelistManager 
-              theme={theme} 
-              userId={effectiveUserId} 
-              accountId={selectedAccountId}
-            />
-            <RelatedLinks 
-              theme={theme}
-              currentPath="/options?tab=whitelist" 
-              maxItems={4}
-              hideTradePlans={!isAuthenticated}
-            />
-          </div>
-        )}
+          {activeTab === 'management' && (
+            <div className="space-y-6">
+              <OptionsPortfolioManagement theme={theme} selectedSymbol={selectedSymbol} />
+              <RelatedLinks 
+                theme={theme} 
+                currentPath="/options?tab=management" 
+                maxItems={4}
+                hideTradePlans={!isAuthenticated}
+              />
+            </div>
+          )}
 
-        {activeTab === 'expiry-risk' && (
-          <div className="space-y-6">
-            <OptionExpiryRiskReportsPanel
-              theme={theme}
-              selectedAccountId={selectedAccountId}
-              chartEngine={payoffChartEngine}
-              onChartEngineChange={handlePayoffChartEngineChange}
-            />
-            <RelatedLinks
-              theme={theme}
-              currentPath="/options?tab=expiry-risk"
-              maxItems={4}
-              hideTradePlans={!isAuthenticated}
-            />
-          </div>
-        )}
+          {activeTab === 'whitelist' && (
+            <div className="space-y-6">
+              <OptionWhitelistManager 
+                theme={theme} 
+                userId={effectiveUserId} 
+                accountId={selectedAccountId}
+              />
+              <RelatedLinks 
+                theme={theme} 
+                currentPath="/options?tab=whitelist" 
+                maxItems={4}
+                hideTradePlans={!isAuthenticated}
+              />
+            </div>
+          )}
 
-        {activeTab === 'risk' && (
-          <div className="space-y-6">
-            <RiskAnalysis
-              theme={theme}
-              selectedAccountId={selectedAccountId}
-              selectedSymbol={selectedSymbol}
-            />
-            <RelatedLinks 
-              theme={theme}
-              currentPath="/options?tab=risk" 
-              maxItems={4}
-              hideTradePlans={!isAuthenticated}
-            />
-          </div>
-        )}
+          {activeTab === 'expiry-risk' && (
+            <div className="space-y-6">
+              <OptionExpiryRiskReportsPanel
+                theme={theme}
+                selectedAccountId={selectedAccountId}
+                chartEngine={payoffChartEngine}
+                onChartEngineChange={handlePayoffChartEngineChange}
+              />
+              <RelatedLinks
+                theme={theme}
+                currentPath="/options?tab=expiry-risk"
+                maxItems={4}
+                hideTradePlans={!isAuthenticated}
+              />
+            </div>
+          )}
+
+          {activeTab === 'risk' && (
+            <div className="space-y-6">
+              <RiskAnalysis
+                theme={theme}
+                selectedAccountId={selectedAccountId}
+                selectedSymbol={selectedSymbol}
+              />
+              <RelatedLinks 
+                theme={theme} 
+                currentPath="/options?tab=risk" 
+                maxItems={4}
+                hideTradePlans={!isAuthenticated}
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Options Calculator Modal */}

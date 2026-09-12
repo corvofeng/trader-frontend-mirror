@@ -47,7 +47,7 @@ interface HistoryPoint {
 
 function QuotePanelEmptyState({ theme }: { theme: Theme }) {
   return (
-    <div className={`${themes[theme].card} rounded-lg border ${themes[theme].border} shadow-md`}>
+    <div className={`${themes[theme].card} rounded-xl border ${themes[theme].border} card-subtle-ring`}>
       <div className={`px-4 sm:px-6 py-4 border-b ${themes[theme].border}`}>
         <div className={`text-lg font-semibold ${themes[theme].text}`}>股票盘口与走势</div>
       </div>
@@ -638,7 +638,7 @@ export function StockQuotePanel(props: StockQuotePanelProps) {
   }
 
   return (
-    <div className={`${themes[theme].card} rounded-lg border ${themes[theme].border} shadow-md overflow-hidden`}>
+    <div className={`${themes[theme].card} rounded-xl border ${themes[theme].border} card-subtle-ring overflow-hidden transition-colors duration-150`}>
       <div className={`px-4 sm:px-6 py-4 border-b ${themes[theme].border}`}>
         <div className="text-lg sm:text-xl font-semibold" style={{ color: themes[theme].text }}>
           股票盘口与走势

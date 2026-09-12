@@ -395,12 +395,12 @@ export function Navigation({
             </div>
             
             <div className="hidden md:flex items-center space-x-4">
-              <div className="flex items-center gap-1.5 p-1 rounded-lg bg-slate-100/80 dark:bg-zinc-800/60 border border-slate-200/50 dark:border-zinc-700/50">
+              <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100/80 dark:bg-zinc-800/60 border border-slate-200/50 dark:border-zinc-700/50 card-subtle-ring">
                 <button
                   onClick={() => navigate('/journal')}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-150 ${
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium btn-tactile select-none ${
                     isActivePath('/journal')
-                      ? themes[theme].primary + ' shadow-xs'
+                      ? themes[theme].primary + ' shadow-xs font-semibold'
                       : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-slate-200/50 dark:hover:bg-zinc-700/50'
                   }`}
                 >
@@ -408,9 +408,9 @@ export function Navigation({
                 </button>
                 <button
                   onClick={() => navigate('/options')}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-150 ${
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium btn-tactile select-none ${
                     isActivePath('/options')
-                      ? themes[theme].primary + ' shadow-xs'
+                      ? themes[theme].primary + ' shadow-xs font-semibold'
                       : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-slate-200/50 dark:hover:bg-zinc-700/50'
                   }`}
                 >
@@ -419,9 +419,9 @@ export function Navigation({
                 {user && (
                   <button
                     onClick={() => navigate('/admin')}
-                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-150 ${
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium btn-tactile select-none ${
                       isActivePath('/admin')
-                        ? themes[theme].primary + ' shadow-xs'
+                        ? themes[theme].primary + ' shadow-xs font-semibold'
                         : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-slate-200/50 dark:hover:bg-zinc-700/50'
                     }`}
                   >
@@ -430,9 +430,9 @@ export function Navigation({
                 )}
                 <button
                   onClick={() => navigate('/about')}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-150 ${
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium btn-tactile select-none ${
                     isActivePath('/about')
-                      ? themes[theme].primary + ' shadow-xs'
+                      ? themes[theme].primary + ' shadow-xs font-semibold'
                       : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-slate-200/50 dark:hover:bg-zinc-700/50'
                   }`}
                 >
@@ -442,7 +442,7 @@ export function Navigation({
               {onOpenCommandPalette && (
                 <button
                   onClick={onOpenCommandPalette}
-                  className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all duration-150 ${
+                  className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium border btn-tactile ${
                     theme === 'dark'
                       ? 'border-zinc-700/60 bg-zinc-800/60 text-zinc-300 hover:text-white hover:border-zinc-600 hover:bg-zinc-800'
                       : theme === 'blue'
@@ -458,7 +458,7 @@ export function Navigation({
               )}
               <button
                 onClick={() => void handleRefreshServiceWorker()}
-                className={`inline-flex items-center px-3 py-2 rounded-md text-sm font-medium ${themes[theme].secondary}`}
+                className={`inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium btn-tactile ${themes[theme].secondary}`}
                 title="刷新 Service Worker"
               >
                 <RefreshCw className="w-4 h-4 mr-2" />
@@ -467,7 +467,7 @@ export function Navigation({
               {user && (
                 <button
                   onClick={() => setNoticesOpen(true)}
-                  className={`relative p-2 rounded-md ${themes[theme].secondary}`}
+                  className={`relative p-2 rounded-lg btn-tactile ${themes[theme].secondary}`}
                   title="Alerts"
                 >
                   <Bell className="w-5 h-5" />
@@ -481,21 +481,21 @@ export function Navigation({
               <div className="relative">
                 <button
                   onClick={onThemeDropdownToggle}
-                  className={`flex items-center space-x-2 px-3 py-2 rounded-md ${themes[theme].secondary}`}
+                  className={`flex items-center space-x-2 px-3 py-2 rounded-lg btn-tactile ${themes[theme].secondary}`}
                 >
                   {themeIcons[theme]}
                   <span className={`ml-2 ${themes[theme].text}`}>Theme</span>
                 </button>
                 
                 {showThemeDropdown && (
-                  <div className={`absolute right-0 mt-2 w-48 rounded-md shadow-lg ${themes[theme].card} ring-1 ring-black ring-opacity-5 z-50`}>
+                  <div className={`absolute right-0 mt-2 w-48 rounded-xl shadow-xl ${themes[theme].card} border ${themes[theme].border} card-subtle-ring popover-spring z-50 overflow-hidden`}>
                     <div className="py-1" role="menu" aria-orientation="vertical">
                       {Object.keys(themes).map((themeName) => (
                         <button
                           key={themeName}
                           onClick={() => onThemeChange(themeName as Theme)}
-                          className={`flex items-center w-full px-4 py-2 text-sm ${
-                            theme === themeName ? themes[theme].primary : themes[theme].secondary
+                          className={`flex items-center w-full px-4 py-2 text-sm btn-tactile ${
+                            theme === themeName ? themes[theme].primary : `${themes[theme].secondary} hover:opacity-100 opacity-80`
                           }`}
                         >
                           {themeIcons[themeName as Theme]}
@@ -545,7 +545,7 @@ export function Navigation({
               {onOpenCommandPalette && (
                 <button
                   onClick={onOpenCommandPalette}
-                  className={`p-2 rounded-md ${themes[theme].text} hover:opacity-80 transition-opacity`}
+                  className={`p-2 rounded-lg ${themes[theme].text} btn-tactile`}
                   title="搜索与快捷指令"
                 >
                   <Search className="w-5 h-5" />
@@ -553,7 +553,7 @@ export function Navigation({
               )}
               <button
                 onClick={onMobileMenuToggle}
-                className={`p-2 rounded-md ${themes[theme].text}`}
+                className={`p-2 rounded-lg ${themes[theme].text} btn-tactile`}
               >
                 {mobileMenuOpen ? (
                   <X className="w-6 h-6" />
@@ -565,7 +565,7 @@ export function Navigation({
           </div>
 
           {mobileMenuOpen && (
-            <div className={`md:hidden ${themes[theme].card} border-t ${themes[theme].border} py-4 pb-[calc(env(safe-area-inset-bottom,0px)+16px)] absolute left-0 right-0 shadow-lg`}>
+            <div className={`md:hidden ${themes[theme].card} border-t ${themes[theme].border} py-4 pb-[calc(env(safe-area-inset-bottom,0px)+16px)] absolute left-0 right-0 shadow-lg animate-fade-in`}>
               <div className="flex flex-col space-y-4 px-4">
                 <div className="flex flex-col gap-2">
                   {onOpenCommandPalette && (
@@ -574,7 +574,7 @@ export function Navigation({
                         onMobileMenuToggle();
                         onOpenCommandPalette();
                       }}
-                      className={`w-full px-4 py-2 rounded-md text-sm font-medium text-left flex items-center justify-between ${themes[theme].secondary}`}
+                      className={`w-full px-4 py-2 rounded-lg text-sm font-medium text-left flex items-center justify-between btn-tactile ${themes[theme].secondary}`}
                     >
                       <span className="flex items-center gap-2">
                         <Search className="w-4 h-4 text-blue-500" />
@@ -588,7 +588,7 @@ export function Navigation({
                       navigate('/journal');
                       onMobileMenuToggle();
                     }}
-                    className={`w-full px-4 py-2 rounded-md text-sm font-medium text-left ${themes[theme].secondary}`}
+                    className={`w-full px-4 py-2 rounded-lg text-sm font-medium text-left btn-tactile ${themes[theme].secondary}`}
                   >
                     Journal
                   </button>
@@ -597,7 +597,7 @@ export function Navigation({
                       navigate('/options');
                       onMobileMenuToggle();
                     }}
-                    className={`w-full px-4 py-2 rounded-md text-sm font-medium text-left ${themes[theme].secondary}`}
+                    className={`w-full px-4 py-2 rounded-lg text-sm font-medium text-left btn-tactile ${themes[theme].secondary}`}
                   >
                     Options
                   </button>
@@ -607,7 +607,7 @@ export function Navigation({
                         navigate('/admin');
                         onMobileMenuToggle();
                       }}
-                      className={`w-full px-4 py-2 rounded-md text-sm font-medium text-left ${themes[theme].secondary}`}
+                      className={`w-full px-4 py-2 rounded-lg text-sm font-medium text-left btn-tactile ${themes[theme].secondary}`}
                     >
                       Admin
                     </button>
@@ -617,7 +617,7 @@ export function Navigation({
                       navigate('/about');
                       onMobileMenuToggle();
                     }}
-                    className={`w-full px-4 py-2 rounded-md text-sm font-medium text-left ${themes[theme].secondary}`}
+                    className={`w-full px-4 py-2 rounded-lg text-sm font-medium text-left btn-tactile ${themes[theme].secondary}`}
                   >
                     About
                   </button>
@@ -627,7 +627,7 @@ export function Navigation({
                         setNoticesOpen(true);
                         onMobileMenuToggle();
                       }}
-                      className={`w-full px-4 py-2 rounded-md text-sm font-medium text-left ${themes[theme].secondary}`}
+                      className={`w-full px-4 py-2 rounded-lg text-sm font-medium text-left btn-tactile ${themes[theme].secondary}`}
                     >
                       Alerts{unresolvedCount > 0 ? ` (${unresolvedCount > 99 ? '99+' : unresolvedCount})` : ''}
                     </button>
@@ -637,7 +637,7 @@ export function Navigation({
                       void handleRefreshServiceWorker();
                       onMobileMenuToggle();
                     }}
-                    className={`w-full inline-flex items-center px-4 py-2 rounded-md text-sm font-medium text-left ${themes[theme].secondary}`}
+                    className={`w-full inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium text-left btn-tactile ${themes[theme].secondary}`}
                   >
                     <RefreshCw className="w-4 h-4 mr-2" />
                     刷新 Service Worker
@@ -701,9 +701,9 @@ export function Navigation({
 
       {noticesOpen && (
         <div className="fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black bg-opacity-50" onClick={closeNotices} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-xs animate-fade-in" onClick={closeNotices} />
           <div
-            className={`absolute right-0 top-0 h-full w-full max-w-md ${themes[theme].card} border-l ${themes[theme].border} shadow-xl flex flex-col`}
+            className={`absolute right-0 top-0 h-full w-full max-w-md ${themes[theme].card} border-l ${themes[theme].border} shadow-2xl flex flex-col transform transition-transform duration-250 ease-emil-out`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className={`flex items-center justify-between p-4 border-b ${themes[theme].border}`}>
@@ -716,19 +716,19 @@ export function Navigation({
                       setNoticeLoading(false);
                       setNoticesError(null);
                     }}
-                    className={`p-2 rounded-md ${themes[theme].secondary}`}
+                    className={`p-2 rounded-lg btn-tactile ${themes[theme].secondary}`}
                   >
                     <ArrowLeft className="w-4 h-4" />
                   </button>
                 )}
-                <span className={`text-lg font-semibold ${themes[theme].text}`}>Alerts</span>
+                <span className={`text-lg font-semibold tracking-tight ${themes[theme].text}`}>Alerts</span>
               </div>
               <div className="flex items-center gap-2">
                 {!selectedNoticeUuid && (
                   <React.Fragment>
                     <button
                       onClick={() => void loadNotices()}
-                      className={`px-3 py-2 rounded-md text-sm font-medium ${themes[theme].secondary}`}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium btn-tactile ${themes[theme].secondary}`}
                     >
                       Refresh
                     </button>
@@ -736,14 +736,14 @@ export function Navigation({
                       type="button"
                       onClick={() => void handleResolveAllUnresolved()}
                       disabled={unresolvedCount === 0 || noticeListActionLoading !== null}
-                      className={`px-3 py-2 rounded-md text-sm font-medium ${themes[theme].primary} ${unresolvedCount === 0 || noticeListActionLoading !== null ? 'opacity-60 cursor-not-allowed' : ''}`}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium btn-tactile ${themes[theme].primary} ${unresolvedCount === 0 || noticeListActionLoading !== null ? 'opacity-60 cursor-not-allowed' : ''}`}
                       title={unresolvedCount === 0 ? '没有未处理提醒' : '一键 Resolve 全部未处理提醒'}
                     >
                       {noticeListActionLoading === 'ALL' ? 'Resolving...' : `一键 Resolve${unresolvedCount > 0 ? ` (${unresolvedCount})` : ''}`}
                     </button>
                   </React.Fragment>
                 )}
-                <button onClick={closeNotices} className={`p-2 rounded-md ${themes[theme].secondary}`}>
+                <button onClick={closeNotices} className={`p-2 rounded-lg btn-tactile ${themes[theme].secondary}`}>
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -831,7 +831,7 @@ export function Navigation({
                           type="button"
                           onClick={() => void handleAckNotice()}
                           disabled={noticeActionLoading !== null || Boolean(selectedNotice.is_acked)}
-                          className={`px-3 py-2 rounded-md text-sm font-medium ${themes[theme].secondary} ${noticeActionLoading !== null ? 'opacity-60 cursor-not-allowed' : ''}`}
+                          className={`px-3 py-2 rounded-lg text-sm font-medium btn-tactile ${themes[theme].secondary} ${noticeActionLoading !== null ? 'opacity-60 cursor-not-allowed' : ''}`}
                         >
                           {selectedNotice.is_acked ? '已 Ack' : noticeActionLoading === 'ack' ? 'Acking...' : 'Ack'}
                         </button>
@@ -839,7 +839,7 @@ export function Navigation({
                           type="button"
                           onClick={() => void handleResolveNotice()}
                           disabled={noticeActionLoading !== null || selectedNotice.is_resolved}
-                          className={`px-3 py-2 rounded-md text-sm font-medium ${themes[theme].primary} ${noticeActionLoading !== null || selectedNotice.is_resolved ? 'opacity-60 cursor-not-allowed' : ''}`}
+                          className={`px-3 py-2 rounded-lg text-sm font-medium btn-tactile ${themes[theme].primary} ${noticeActionLoading !== null || selectedNotice.is_resolved ? 'opacity-60 cursor-not-allowed' : ''}`}
                         >
                           {selectedNotice.is_resolved ? '已 Resolve' : noticeActionLoading === 'resolve' ? 'Resolving...' : '一键 Resolve'}
                         </button>
@@ -900,7 +900,7 @@ export function Navigation({
                               <button
                                 key={n.notice_uuid}
                                 onClick={() => void openNotice(n.notice_uuid)}
-                                className={`w-full text-left p-4 rounded-xl border ${themes[theme].border} ${themes[theme].cardHover}`}
+                                className={`w-full text-left p-4 rounded-xl border ${themes[theme].border} ${themes[theme].cardHover} card-subtle-ring btn-tactile transition-all duration-150 select-none`}
                               >
                                 <div className="flex items-start justify-between gap-3">
                                   <div className="min-w-0">
@@ -942,7 +942,7 @@ export function Navigation({
                                             void handleQuickResolveNotice(n.notice_uuid);
                                           }}
                                           disabled={noticeListActionLoading !== null}
-                                          className={`px-2 py-1 rounded text-[10px] font-semibold ${themes[theme].primary} ${noticeListActionLoading !== null ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                          className={`px-2 py-1 rounded-md text-[10px] font-semibold btn-tactile ${themes[theme].primary} ${noticeListActionLoading !== null ? 'opacity-60 cursor-not-allowed' : ''}`}
                                         >
                                           {noticeListActionLoading === n.notice_uuid ? 'Resolving...' : '一键 Resolve'}
                                         </button>

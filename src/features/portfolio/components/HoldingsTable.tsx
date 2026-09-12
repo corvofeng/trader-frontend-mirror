@@ -122,7 +122,7 @@ export function HoldingsTable({
                   </tr>
                 ))
               : paginatedHoldings.map((holding) => (
-              <tr key={holding.stock_code} className={themes[theme].cardHover}>
+              <tr key={holding.stock_code} className={`transition-colors duration-150 ${themes[theme].cardHover}`}>
                 <td className="px-1 py-2 sm:px-4 sm:py-3 truncate">
                    <div className="flex flex-col">
                       <div className={`text-base font-medium ${themes[theme].text}`}>{holding.stock_code}</div>
@@ -147,7 +147,7 @@ export function HoldingsTable({
                             e.stopPropagation();
                             onAnalyzeStock(holding.stock_code, holding.stock_name);
                           }}
-                          className={`px-2 py-1 rounded-md text-sm ${themes[theme].secondary} flex items-center gap-1 opacity-80 hover:opacity-100 transition-opacity whitespace-nowrap`}
+                          className={`px-2.5 py-1 rounded-md text-sm ${themes[theme].secondary} flex items-center gap-1.5 btn-tactile opacity-85 hover:opacity-100 whitespace-nowrap`}
                         >
                           <TrendingUp size={16} />
                           <span className="hidden sm:inline">详情</span>
@@ -170,7 +170,7 @@ export function HoldingsTable({
           <button
             onClick={() => onHoldingsPageChange(Math.max(1, holdingsPage - 1))}
             disabled={showSkeleton || holdingsPage === 1}
-            className={`p-1 rounded-md ${themes[theme].secondary} ${
+            className={`p-1.5 rounded-md btn-tactile ${themes[theme].secondary} ${
               showSkeleton || holdingsPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           >
@@ -179,7 +179,7 @@ export function HoldingsTable({
           <button
             onClick={() => onHoldingsPageChange(Math.min(totalHoldingsPages, holdingsPage + 1))}
             disabled={showSkeleton || holdingsPage === totalHoldingsPages}
-            className={`p-1 rounded-md ${themes[theme].secondary} ${
+            className={`p-1.5 rounded-md btn-tactile ${themes[theme].secondary} ${
               showSkeleton || holdingsPage === totalHoldingsPages ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           >

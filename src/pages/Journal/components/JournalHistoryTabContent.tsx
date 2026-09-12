@@ -39,7 +39,7 @@ export function JournalHistoryTabContent({
 
   if (!selectedAccountId) {
     return (
-      <div className={`${themes[theme].card} rounded-lg p-8 text-center`}>
+      <div className={`${themes[theme].card} rounded-xl border ${themes[theme].border} card-subtle-ring p-8 text-center`}>
         <HistoryIcon className="w-12 h-12 mx-auto mb-3 opacity-40 text-blue-500" />
         <h3 className={`text-lg font-semibold ${themes[theme].text}`}>请选择账户</h3>
         <p className={`text-sm ${themes[theme].text} opacity-70 mt-1`}>
@@ -52,7 +52,7 @@ export function JournalHistoryTabContent({
   return (
     <div className="space-y-6">
       {/* Date Range Selector Toolbar */}
-      <div className={`${themes[theme].card} rounded-lg shadow-sm p-4 sm:p-5 transition-colors duration-200`}>
+      <div className={`${themes[theme].card} rounded-xl border ${themes[theme].border} card-subtle-ring p-4 sm:p-5 transition-colors duration-150`}>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h3 className={`text-base sm:text-lg font-semibold ${themes[theme].text}`}>
@@ -75,9 +75,9 @@ export function JournalHistoryTabContent({
                 key={days}
                 type="button"
                 onClick={() => handleRangePreset(days)}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                className={`px-2.5 py-1 text-xs font-medium rounded-md btn-tactile ${
                   isPresetActive(days)
-                    ? 'bg-blue-600 text-white shadow-sm'
+                    ? 'bg-blue-600 text-white shadow-xs font-semibold'
                     : `${themes[theme].secondary} opacity-80 hover:opacity-100`
                 }`}
               >
@@ -95,7 +95,7 @@ export function JournalHistoryTabContent({
                     onDateRangeChange({ ...dateRange, startDate: e.target.value });
                   }
                 }}
-                className={`text-xs px-2 py-1 rounded border ${themes[theme].border} bg-transparent ${themes[theme].text} focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                className={`text-xs px-2 py-1 rounded-md border ${themes[theme].border} bg-transparent ${themes[theme].text} focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-[border-color,box-shadow] duration-150`}
               />
               <span className={`text-xs ${themes[theme].text} opacity-50`}>至</span>
               <input
@@ -106,7 +106,7 @@ export function JournalHistoryTabContent({
                     onDateRangeChange({ ...dateRange, endDate: e.target.value });
                   }
                 }}
-                className={`text-xs px-2 py-1 rounded border ${themes[theme].border} bg-transparent ${themes[theme].text} focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                className={`text-xs px-2 py-1 rounded-md border ${themes[theme].border} bg-transparent ${themes[theme].text} focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-[border-color,box-shadow] duration-150`}
               />
             </div>
           </div>

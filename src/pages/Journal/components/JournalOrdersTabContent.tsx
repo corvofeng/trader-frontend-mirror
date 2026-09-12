@@ -116,7 +116,7 @@ export function JournalOrdersTabContent({
 
   if (!selectedAccountId) {
     return (
-      <div className={`${themes[theme].card} rounded-lg p-8 text-center`}>
+      <div className={`${themes[theme].card} rounded-xl border ${themes[theme].border} card-subtle-ring p-8 text-center`}>
         <Calendar className="w-12 h-12 mx-auto mb-3 opacity-40 text-blue-500" />
         <h3 className={`text-lg font-semibold ${themes[theme].text}`}>请选择账户</h3>
         <p className={`text-sm ${themes[theme].text} opacity-70 mt-1`}>
@@ -129,16 +129,16 @@ export function JournalOrdersTabContent({
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Controls & Statistics Card */}
-      <div className={`${themes[theme].card} rounded-lg shadow-sm p-4 sm:p-5 transition-colors duration-200`}>
+      <div className={`${themes[theme].card} rounded-xl border ${themes[theme].border} card-subtle-ring p-4 sm:p-5 transition-colors duration-150`}>
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <span className={`text-xs font-medium ${themes[theme].text} opacity-75`}>日期快捷选择:</span>
             <button
               type="button"
               onClick={() => onSelectDate(todayStr)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+              className={`px-3 py-1.5 text-xs font-medium rounded-md btn-tactile ${
                 selectedDate === todayStr
-                  ? 'bg-blue-600 text-white shadow-sm'
+                  ? 'bg-blue-600 text-white shadow-xs font-semibold'
                   : `${themes[theme].secondary} opacity-80 hover:opacity-100`
               }`}
             >
@@ -147,9 +147,9 @@ export function JournalOrdersTabContent({
             <button
               type="button"
               onClick={() => onSelectDate(yesterdayStr)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+              className={`px-3 py-1.5 text-xs font-medium rounded-md btn-tactile ${
                 selectedDate === yesterdayStr
-                  ? 'bg-blue-600 text-white shadow-sm'
+                  ? 'bg-blue-600 text-white shadow-xs font-semibold'
                   : `${themes[theme].secondary} opacity-80 hover:opacity-100`
               }`}
             >
@@ -158,9 +158,9 @@ export function JournalOrdersTabContent({
             <button
               type="button"
               onClick={() => onSelectDate(twoDaysAgoStr)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+              className={`px-3 py-1.5 text-xs font-medium rounded-md btn-tactile ${
                 selectedDate === twoDaysAgoStr
-                  ? 'bg-blue-600 text-white shadow-sm'
+                  ? 'bg-blue-600 text-white shadow-xs font-semibold'
                   : `${themes[theme].secondary} opacity-80 hover:opacity-100`
               }`}
             >
@@ -176,7 +176,7 @@ export function JournalOrdersTabContent({
                     onSelectDate(e.target.value);
                   }
                 }}
-                className={`text-xs px-2.5 py-1.5 rounded-md border ${themes[theme].border} bg-transparent ${themes[theme].text} focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                className={`text-xs px-2.5 py-1.5 rounded-md border ${themes[theme].border} bg-transparent ${themes[theme].text} focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-[border-color,box-shadow] duration-150`}
               />
             </div>
           </div>
@@ -186,7 +186,7 @@ export function JournalOrdersTabContent({
               type="button"
               onClick={onRefreshOrders}
               disabled={ordersLoading}
-              className={`inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md ${themes[theme].secondary} ${
+              className={`inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md btn-tactile ${themes[theme].secondary} ${
                 ordersLoading ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-100'
               }`}
             >
@@ -219,7 +219,7 @@ export function JournalOrdersTabContent({
             )}
           </div>
 
-          <div className="flex items-center gap-1 self-start md:self-auto">
+          <div className="flex items-center gap-1.5 self-start md:self-auto">
             <span className={`text-xs ${themes[theme].text} opacity-60 mr-1`}>筛选:</span>
             {(['all', 'filled', 'canceled', 'other'] as const).map((filter) => {
               const labels = {
@@ -233,10 +233,10 @@ export function JournalOrdersTabContent({
                   key={filter}
                   type="button"
                   onClick={() => setStatusFilter(filter)}
-                  className={`px-2 py-1 text-xs rounded transition-colors ${
+                  className={`px-2.5 py-1 text-xs rounded-md btn-tactile ${
                     statusFilter === filter
-                      ? 'bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900 font-medium'
-                      : `${themes[theme].secondary} opacity-70 hover:opacity-100`
+                      ? 'bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900 font-semibold shadow-xs'
+                      : `${themes[theme].secondary} opacity-75 hover:opacity-100`
                   }`}
                 >
                   {labels[filter]}
@@ -248,7 +248,7 @@ export function JournalOrdersTabContent({
       </div>
 
       {/* Orders Table Card */}
-      <div className={`${themes[theme].card} rounded-lg shadow-sm overflow-hidden transition-colors duration-200`}>
+      <div className={`${themes[theme].card} rounded-xl border ${themes[theme].border} card-subtle-ring overflow-hidden transition-colors duration-150`}>
         <div className={`px-4 sm:px-6 py-4 border-b ${themes[theme].border} flex items-center justify-between`}>
           <div>
             <h3 className={`text-base sm:text-lg font-semibold ${themes[theme].text}`}>

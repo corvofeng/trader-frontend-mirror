@@ -40,7 +40,7 @@ export function FadeIn({ children, delay = 0, className = '', threshold = 0.1 }:
   return (
     <div
       ref={domRef}
-      className={`${className} ${isVisible ? 'animate-fade-in-up' : 'opacity-0 translate-y-4'}`}
+      className={`${className} will-change-[transform,opacity] ${isVisible ? 'animate-fade-in-up' : 'opacity-0 translate-y-2'}`}
       style={{ animationDelay: isVisible ? `${delay}ms` : '0ms' }}
     >
       {children}

@@ -344,11 +344,11 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
       <div className="space-y-6 mb-6">
-        <div className={`${themes[theme].card} rounded-lg p-4`}>
+        <div className={`${themes[theme].card} rounded-xl p-5 border ${themes[theme].border} card-subtle-ring transition-colors duration-150`}>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2.5">
-                <h1 className={`text-2xl font-bold ${themes[theme].text}`}>
+                <h1 className={`text-2xl font-bold tracking-tight ${themes[theme].text}`}>
                   Stock Trading Journal
                 </h1>
                 <WebMcpBadge
@@ -420,7 +420,7 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
 
       {/* Show portfolio UUID info if viewing shared portfolio */}
       {portfolioUuid && activeTab === 'portfolio' && (
-        <div className={`${themes[theme].card} rounded-lg p-4 mb-6 border-l-4 border-blue-500`}>
+        <div className={`${themes[theme].card} rounded-xl p-4 mb-6 border-l-4 border-blue-500 card-subtle-ring`}>
           <div className="flex items-center space-x-2">
             <Briefcase className="w-5 h-5 text-blue-500" />
             <span className={`text-sm font-medium ${themes[theme].text}`}>
@@ -430,38 +430,40 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
         </div>
       )}
 
-      {activeTabConfig?.renderContent({
-        activeTab,
-        selectedStock,
-        theme,
-        onStockSelect,
-        user,
-        holdings,
-        recentTrades,
-        dateRange,
-        onDateRangeChange: setDateRange,
-        portfolioUuid,
-        userId: DEMO_USER_ID,
-        selectedAccountId,
-        onAccountChange: handleAccountChange,
-        isSnapshot,
-        isPortfolioLoading,
-        isMainAccount,
-        todayOrders,
-        todayOrdersLoading,
-        todayOrdersError,
-        todayOrdersLastUpdatedAt,
-        onRefreshTodayOrders: fetchTodayOrders,
-        selectedDate,
-        onSelectDate: (date: string) => {
-          setSelectedDate(date);
-          fetchOrdersByDate(date);
-        },
-        ordersByDate,
-        ordersByDateLoading,
-        ordersByDateError,
-        onRefreshOrdersByDate: () => fetchOrdersByDate(selectedDate),
-      })}
+      <div key={activeTab} className="animate-fade-in">
+        {activeTabConfig?.renderContent({
+          activeTab,
+          selectedStock,
+          theme,
+          onStockSelect,
+          user,
+          holdings,
+          recentTrades,
+          dateRange,
+          onDateRangeChange: setDateRange,
+          portfolioUuid,
+          userId: DEMO_USER_ID,
+          selectedAccountId,
+          onAccountChange: handleAccountChange,
+          isSnapshot,
+          isPortfolioLoading,
+          isMainAccount,
+          todayOrders,
+          todayOrdersLoading,
+          todayOrdersError,
+          todayOrdersLastUpdatedAt,
+          onRefreshTodayOrders: fetchTodayOrders,
+          selectedDate,
+          onSelectDate: (date: string) => {
+            setSelectedDate(date);
+            fetchOrdersByDate(date);
+          },
+          ordersByDate,
+          ordersByDateLoading,
+          ordersByDateError,
+          onRefreshOrdersByDate: () => fetchOrdersByDate(selectedDate),
+        })}
+      </div>
     </main>
   );
 }

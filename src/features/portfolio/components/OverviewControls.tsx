@@ -39,7 +39,7 @@ export function OverviewControls({
               {onRefresh && (
                 <button
                   onClick={onRefresh}
-                  className={`inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 rounded-md text-sm sm:text-base whitespace-nowrap ${themes[theme].secondary} hide-in-screenshot hover:opacity-80 transition-opacity`}
+                  className={`inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 rounded-md text-sm sm:text-base whitespace-nowrap btn-tactile ${themes[theme].secondary} hide-in-screenshot hover:opacity-80 transition-opacity`}
                 >
                   <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
                   <span className="hidden xs:inline">刷新</span>
@@ -48,7 +48,7 @@ export function OverviewControls({
               {onScreenshot && (
                 <button
                   onClick={onScreenshot}
-                  className={`inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 rounded-md text-sm sm:text-base whitespace-nowrap ${themes[theme].secondary} hide-in-screenshot hover:opacity-80 transition-opacity`}
+                  className={`inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 rounded-md text-sm sm:text-base whitespace-nowrap btn-tactile ${themes[theme].secondary} hide-in-screenshot hover:opacity-80 transition-opacity`}
                   title="生成持仓截图"
                 >
                   <Camera className="w-3.5 h-3.5 sm:w-4 sm:h-4" />

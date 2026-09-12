@@ -10,7 +10,6 @@ import {
   Check, 
   AlertCircle, 
   ChevronDown, 
-  ChevronUp, 
   HelpCircle,
   Calendar,
   LineChart
@@ -529,7 +528,7 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
     <div className="space-y-6">
       {/* 1. Header Filter Controls Card */}
       {isLoggedIn && (
-        <div className={`${themes[theme].card} rounded-lg p-5 border ${themes[theme].border}`}>
+        <div className={`${themes[theme].card} rounded-xl p-5 border ${themes[theme].border} card-subtle-ring transition-colors duration-150`}>
         <div className="flex items-center justify-between mb-4 border-b pb-3 border-slate-100 dark:border-zinc-800">
           <div className="flex items-center gap-2">
             <Compass className="w-5 h-5 text-blue-500" />
@@ -539,8 +538,8 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
           <button
             onClick={() => loadMarketState(true)}
             disabled={isLoading}
-            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${themes[theme].secondary} ${
-              isLoading ? 'opacity-50 cursor-not-allowed animate-pulse' : 'hover:scale-[0.98]'
+            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium btn-tactile ${themes[theme].secondary} ${
+              isLoading ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
@@ -626,7 +625,7 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             
             {/* Stress Score Gauge Card */}
-            <div className={`${themes[theme].card} rounded-lg p-5 border ${themes[theme].border} flex flex-col justify-between`}>
+            <div className={`${themes[theme].card} rounded-xl p-5 border ${themes[theme].border} card-subtle-ring flex flex-col justify-between`}>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">市场压力指数</span>
                 <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${getStressLabel(marketStateData.state.stress_score).color}`}>
@@ -644,7 +643,7 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
             </div>
 
             {/* Positioning Bias Slider Card */}
-            <div className={`${themes[theme].card} rounded-lg p-5 border ${themes[theme].border} flex flex-col justify-between`}>
+            <div className={`${themes[theme].card} rounded-xl p-5 border ${themes[theme].border} card-subtle-ring flex flex-col justify-between`}>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-wider">仓位偏好与定价偏向</span>
                 <span className={`text-xs font-semibold px-2 py-0.5 rounded border bg-slate-50/55 dark:bg-zinc-800/10 ${getPositioningLabel(marketStateData.state.positioning_score).color}`}>
@@ -660,7 +659,7 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
                   
                   {/* Score Pointer */}
                   <div 
-                    className="absolute w-6 h-6 rounded-full border-2 border-slate-400 dark:border-zinc-500 bg-white dark:bg-zinc-900 shadow-md flex items-center justify-center -translate-x-1/2 transition-all hover:scale-105" 
+                    className="absolute w-6 h-6 rounded-full border-2 border-slate-400 dark:border-zinc-500 bg-white dark:bg-zinc-900 shadow-md flex items-center justify-center -translate-x-1/2 transition-[left] duration-300 ease-emil-out hover:scale-105" 
                     style={{ left: `${((marketStateData.state.positioning_score + 100) / 200) * 100}%` }}
                   >
                     <div className={`w-3.5 h-3.5 rounded-full ${
@@ -687,7 +686,7 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
             </div>
 
             {/* Interpretable Signals Card */}
-            <div className={`${themes[theme].card} rounded-lg p-5 border ${themes[theme].border} flex flex-col justify-between`}>
+            <div className={`${themes[theme].card} rounded-xl p-5 border ${themes[theme].border} card-subtle-ring flex flex-col justify-between`}>
               <div>
                 <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-3">观察可解释信号</span>
                 {marketStateData.state.signals && marketStateData.state.signals.length > 0 ? (
@@ -721,7 +720,7 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
           </div>
 
           {/* B. Latest Stats Overview Cards */}
-          <div className={`${themes[theme].card} rounded-lg p-5 border ${themes[theme].border}`}>
+          <div className={`${themes[theme].card} rounded-xl p-5 border ${themes[theme].border} card-subtle-ring`}>
             <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-4">市场指标快照</span>
             
             <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-4">
@@ -793,7 +792,7 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
           {/* C. Charts Layout: K-Line & IV Trend Chart side-by-side */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             {/* Card 1: K-Line Candlestick Chart */}
-            <div className={`${themes[theme].card} rounded-lg p-5 border ${themes[theme].border} flex flex-col`}>
+            <div className={`${themes[theme].card} rounded-xl p-5 border ${themes[theme].border} card-subtle-ring flex flex-col`}>
               <div className="flex items-center justify-between pb-1.5 mb-4 border-b border-slate-100 dark:border-zinc-800/60">
                 <div className="flex items-center gap-2">
                   <LineChart className="w-5 h-5 text-blue-500" />
@@ -816,7 +815,7 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
 
             {/* Card 2: IV Historical Trend Chart */}
             {marketStateData?.history && marketStateData.history.length > 0 ? (
-              <div className={`${themes[theme].card} rounded-lg p-5 border ${themes[theme].border} flex flex-col`}>
+              <div className={`${themes[theme].card} rounded-xl p-5 border ${themes[theme].border} card-subtle-ring flex flex-col`}>
                 <div className="flex items-center justify-between pb-1.5 mb-4 border-b border-slate-100 dark:border-zinc-800/60">
                   <div className="flex items-center gap-2">
                     <LineChart className="w-5 h-5 text-blue-500" />
@@ -847,7 +846,7 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
                 </div>
               </div>
             ) : (
-              <div className={`${themes[theme].card} rounded-lg p-5 border ${themes[theme].border} flex items-center justify-center min-h-[460px] text-zinc-500 text-xs italic`}>
+              <div className={`${themes[theme].card} rounded-xl p-5 border ${themes[theme].border} card-subtle-ring flex items-center justify-center min-h-[460px] text-zinc-500 text-xs italic`}>
                 暂无历史 IV 数据
               </div>
             )}
@@ -869,10 +868,10 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
                   <button
                     key={m}
                     onClick={() => setSelectedMonthTab(m)}
-                    className={`px-3 py-1 rounded text-xs transition-all ${
+                    className={`px-3 py-1 rounded-lg text-xs font-medium btn-tactile ${
                       selectedMonthTab === m
-                        ? 'bg-blue-600 text-white font-semibold'
-                        : `text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 ${themes[theme].secondary}`
+                        ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                        : `text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 ${themes[theme].secondary} opacity-80 hover:opacity-100`
                     }`}
                   >
                     {m === 'all' ? '全部月份' : `${m.split('-')[0]}年${m.split('-')[1]}月`}
@@ -892,15 +891,15 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
                   return (
                     <div 
                       key={exp} 
-                      className={`${themes[theme].card} rounded-lg border ${themes[theme].border} overflow-hidden shadow-xs`}
+                      className={`${themes[theme].card} rounded-xl border ${themes[theme].border} card-subtle-ring overflow-hidden`}
                     >
                       {/* Expiry header bar */}
                       <div 
                         onClick={() => toggleExpiry(exp)}
-                        className={`p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between cursor-pointer transition-colors bg-slate-50/50 dark:bg-zinc-800/20 hover:bg-slate-100/50 dark:hover:bg-zinc-800/40 border-b ${themes[theme].border} gap-2`}
+                        className={`p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between cursor-pointer transition-colors duration-150 bg-slate-50/50 dark:bg-zinc-800/20 hover:bg-slate-100/50 dark:hover:bg-zinc-800/40 border-b ${themes[theme].border} gap-2 select-none`}
                       >
                         <div className="flex items-center gap-3">
-                          <div className={`p-1.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 text-sm font-bold font-mono`}>
+                          <div className={`p-1.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 text-sm font-bold font-mono`}>
                             {exp}
                           </div>
                           {termDetails && (
@@ -925,18 +924,14 @@ export function OptionMarketStatePanel({ theme, selectedSymbol }: OptionMarketSt
                             </div>
                           )}
                         </div>
-                        {isExpanded ? (
-                          <ChevronUp className="w-4 h-4 text-zinc-400 self-end sm:self-auto" />
-                        ) : (
-                          <ChevronDown className="w-4 h-4 text-zinc-400 self-end sm:self-auto" />
-                        )}
+                        <ChevronDown className={`w-4 h-4 text-zinc-400 self-end sm:self-auto transition-transform duration-200 ease-emil-out ${isExpanded ? 'rotate-180' : ''}`} />
                       </div>
 
                       {/* Expandable Activity Content */}
                       {isExpanded && (() => {
                         if (!activity) {
                           return (
-                            <div className="p-6 text-center text-xs text-zinc-500 italic">
+                            <div className="p-6 text-center text-xs text-zinc-500 italic animate-fade-in">
                               暂无该到期日的合约异动数据
                             </div>
                           );

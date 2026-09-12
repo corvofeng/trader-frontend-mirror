@@ -71,7 +71,7 @@ export function StatsGrid({
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-6">
       {statItems.map((item) => (
-        <div key={item.label} className={`${themes[theme].background} rounded-lg p-3 md:p-4 min-w-0`}>
+        <div key={item.label} className={`${themes[theme].background} rounded-xl p-3 md:p-4 min-w-0 border ${themes[theme].border} card-subtle-ring transition-all duration-150`}>
           <div className="flex items-center gap-1.5">
             <h3 className={`text-sm md:text-base font-medium ${themes[theme].text} opacity-75 truncate`}>
               {item.label}

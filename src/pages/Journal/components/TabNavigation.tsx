@@ -24,13 +24,13 @@ export function TabNavigation({ tabs, activeTab, theme, onTabChange }: TabNaviga
             <button
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
-              className={`inline-flex items-center px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 whitespace-nowrap ${
+              className={`inline-flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-sm font-medium btn-tactile whitespace-nowrap select-none ${
                 activeTab === tab.id
-                  ? themes[theme].primary
-                  : themes[theme].secondary
+                  ? `${themes[theme].primary} shadow-sm font-semibold`
+                  : `${themes[theme].secondary} opacity-85 hover:opacity-100`
               }`}
             >
-              <Icon className="w-4 h-4 sm:mr-2" />
+              <Icon className="w-4 h-4 shrink-0" />
               <span className="hidden sm:inline">{tab.name}</span>
             </button>
           );

@@ -177,8 +177,8 @@ export function AccountSelector({
     ? 'bg-slate-800/95 border-slate-700 shadow-2xl shadow-black/45 backdrop-blur-md'
     : `${themes[theme].card} ${themes[theme].border} shadow-lg`;
   const iconButtonClass = isDark
-    ? 'p-1 rounded-full bg-slate-700/60 hover:bg-slate-600 text-slate-100 transition-colors duration-200'
-    : `p-1 rounded-full ${themes[theme].secondary} transition-colors duration-200`;
+    ? 'p-1 rounded-full bg-slate-700/60 hover:bg-slate-600 text-slate-100 btn-tactile'
+    : `p-1 rounded-full ${themes[theme].secondary} btn-tactile`;
   const selectedRowClass = isDark
     ? 'bg-blue-500/14 ring-1 ring-blue-400/40 border border-blue-400/25'
     : 'bg-blue-50 border-l-4 border-blue-500';
@@ -189,14 +189,14 @@ export function AccountSelector({
     ? 'text-xs px-2 py-0.5 rounded-full bg-blue-500/18 text-blue-200 border border-blue-400/25'
     : 'text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800';
   const setDefaultClass = isDark
-    ? 'text-xs px-2 py-1 rounded-full bg-slate-700/70 text-slate-100 hover:bg-blue-500/20 hover:text-blue-200 transition-colors duration-200'
-    : `text-xs px-2 py-1 rounded-full transition-colors duration-200 hover:bg-blue-100 ${themes[theme].secondary}`;
+    ? 'text-xs px-2 py-1 rounded-full bg-slate-700/70 text-slate-100 hover:bg-blue-500/20 hover:text-blue-200 btn-tactile'
+    : `text-xs px-2 py-1 rounded-full btn-tactile hover:bg-blue-100 ${themes[theme].secondary}`;
 
   return (
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors duration-200 max-w-full min-w-0 ${triggerClass}`}
+        className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm btn-tactile max-w-full min-w-0 ${triggerClass}`}
       >
         <Briefcase className="w-4 h-4" />
         <span className="font-medium truncate max-w-[12rem] sm:max-w-[16rem]">
@@ -210,7 +210,7 @@ export function AccountSelector({
             className="fixed inset-0 z-10"
             onClick={() => setIsOpen(false)}
           />
-          <div className={`absolute top-full mt-2 right-0 w-80 rounded-lg border z-20 overflow-hidden ${panelClass}`}>
+          <div className={`absolute top-full mt-2 right-0 w-80 rounded-xl border z-20 overflow-hidden popover-spring card-subtle-ring ${panelClass}`}>
             <div className="p-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className={`text-lg font-semibold ${themes[theme].text}`}>账户管理</h3>
@@ -226,25 +226,25 @@ export function AccountSelector({
               </div>
 
               {showCreate && resolvedMode !== 'all' && showAddForm && (
-                <div className="mb-4 space-y-3 animate-fadeIn">
+                <div className="mb-4 space-y-3 animate-fade-in">
                   <input
                     type="text"
                     placeholder="账户名称"
                     value={newAccountName}
                     onChange={(e) => setNewAccountName(e.target.value)}
-                    className={`w-full px-3 py-2 rounded-md border ${themes[theme].input} ${themes[theme].text} ${themes[theme].border} focus:ring-2 focus:ring-opacity-50 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200`}
+                    className={`w-full px-3 py-2 rounded-md border ${themes[theme].input} ${themes[theme].text} ${themes[theme].border} focus:ring-2 focus:ring-opacity-50 focus:ring-blue-500 focus:border-blue-500 transition-[border-color,box-shadow] duration-150`}
                   />
                   <input
                     type="text"
                     placeholder="描述 (可选)"
                     value={newAccountDescription}
                     onChange={(e) => setNewAccountDescription(e.target.value)}
-                    className={`w-full px-3 py-2 rounded-md border ${themes[theme].input} ${themes[theme].text} ${themes[theme].border} focus:ring-2 focus:ring-opacity-50 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200`}
+                    className={`w-full px-3 py-2 rounded-md border ${themes[theme].input} ${themes[theme].text} ${themes[theme].border} focus:ring-2 focus:ring-opacity-50 focus:ring-blue-500 focus:border-blue-500 transition-[border-color,box-shadow] duration-150`}
                   />
                   <div className="flex gap-2">
                     <button
                       onClick={handleCreateAccount}
-                      className={`flex-1 px-3 py-2 rounded-md ${themes[theme].primary} text-white hover:opacity-90 transition-opacity duration-200`}
+                      className={`flex-1 px-3 py-2 rounded-md ${themes[theme].primary} text-white btn-tactile`}
                     >
                       创建
                     </button>
@@ -254,7 +254,7 @@ export function AccountSelector({
                         setNewAccountName('');
                         setNewAccountDescription('');
                       }}
-                      className={`flex-1 px-3 py-2 rounded-md ${themes[theme].secondary} hover:opacity-90 transition-opacity duration-200`}
+                      className={`flex-1 px-3 py-2 rounded-md ${themes[theme].secondary} btn-tactile`}
                     >
                       取消
                     </button>
@@ -278,7 +278,7 @@ export function AccountSelector({
                   accounts.map(account => (
                     <div
                       key={account.id}
-                      className={`flex items-center justify-between p-3 rounded-md cursor-pointer transition-colors duration-200 ${rowClass} ${
+                      className={`flex items-center justify-between p-3 rounded-md cursor-pointer btn-tactile active:scale-[0.98] ${rowClass} ${
                         selectedAccountId === (account.alias || account.id) ? selectedRowClass : ''
                       }`}
                       onClick={() => {

@@ -394,10 +394,10 @@ export function OptionsChain({
   };
 
   return (
-    <div className={`${themes[theme].card} rounded-lg shadow-md overflow-hidden`}>
+    <div className={`${themes[theme].card} rounded-xl border ${themes[theme].border} card-subtle-ring overflow-hidden`}>
       <div className="p-6">
         <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center mb-6">
-          <h2 className={`text-xl font-bold ${themes[theme].text}`}>
+          <h2 className={`text-xl font-bold tracking-tight ${themes[theme].text}`}>
             Option Chain - {selectedSymbol}
           </h2>
           <div className="w-full sm:w-auto">
@@ -414,9 +414,9 @@ export function OptionsChain({
                     type="button"
                     onClick={() => onExpiryChange(date)}
                     className={[
-                      'shrink-0 px-3 py-2 rounded-md text-sm border',
+                      'shrink-0 px-3 py-2 rounded-lg text-sm border btn-tactile transition-all duration-150 select-none font-medium',
                       isActive
-                        ? 'bg-blue-600 text-white border-blue-600'
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
                         : `${themes[theme].secondary} ${themes[theme].text} ${themes[theme].border}`
                     ].join(' ')}
                     role="tab"
@@ -436,21 +436,21 @@ export function OptionsChain({
           {/* 缩放与字段选择配置 */}
           <div className="mb-4 flex flex-wrap gap-3">
             {/* 缩放控件 */}
-            <div className={`inline-flex items-center gap-2 px-2 py-1 rounded ${themes[theme].background} border ${themes[theme].border}`}>
-              <span className={`${themes[theme].text} text-sm`}>缩放</span>
+            <div className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-lg ${themes[theme].background} border ${themes[theme].border} card-subtle-ring`}>
+              <span className={`${themes[theme].text} text-sm font-medium`}>缩放</span>
               <button
                 type="button"
                 onClick={() => setZoom(z => Math.max(0.5, Math.round((z - 0.05) * 100) / 100))}
-                className={`px-2 py-1 rounded ${themes[theme].secondary}`}
+                className={`px-2 py-1 rounded-md text-xs font-semibold btn-tactile ${themes[theme].secondary}`}
                 aria-label="缩小"
               >
                 −
               </button>
-              <span className={`${themes[theme].text} text-xs w-10 text-center`}>{Math.round(zoom * 100)}%</span>
+              <span className={`${themes[theme].text} text-xs w-10 text-center font-mono font-medium`}>{Math.round(zoom * 100)}%</span>
               <button
                 type="button"
                 onClick={() => setZoom(z => Math.min(1.1, Math.round((z + 0.05) * 100) / 100))}
-                className={`px-2 py-1 rounded ${themes[theme].secondary}`}
+                className={`px-2 py-1 rounded-md text-xs font-semibold btn-tactile ${themes[theme].secondary}`}
                 aria-label="放大"
               >
                 +

@@ -292,11 +292,11 @@ export function CommandPalette({
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-start justify-center pt-16 sm:pt-24 px-4 pb-4 bg-black/50 backdrop-blur-sm transition-opacity animate-fade-in-up"
+      className="fixed inset-0 z-50 flex items-start justify-center pt-16 sm:pt-24 px-4 pb-4 bg-black/50 backdrop-blur-sm"
       onClick={onClose}
     >
       <div 
-        className={`w-full max-w-xl rounded-2xl shadow-2xl border overflow-hidden transition-all duration-200 ${
+        className={`w-full max-w-xl rounded-2xl shadow-2xl border overflow-hidden card-subtle-ring ${
           theme === 'dark' 
             ? 'bg-zinc-900/95 border-zinc-800 text-zinc-100 shadow-black/80' 
             : theme === 'blue'
@@ -322,7 +322,7 @@ export function CommandPalette({
           {query && (
             <button
               onClick={() => setQuery('')}
-              className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 transition-colors"
+              className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 transition-colors btn-tactile"
             >
               <X className="w-4 h-4" />
             </button>
@@ -350,7 +350,7 @@ export function CommandPalette({
                   data-index={idx}
                   onClick={() => item.action()}
                   onMouseEnter={() => setSelectedIndex(idx)}
-                  className={`flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-150 ${
+                  className={`flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-colors duration-75 ${
                     isSelected
                       ? theme === 'dark'
                         ? 'bg-blue-600 text-white shadow-sm'
