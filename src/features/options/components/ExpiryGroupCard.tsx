@@ -190,6 +190,7 @@ export function ExpiryGroupCard({
   const requestedContractUnitRef = useRef<Record<string, number>>({});
   const tBoardScrollRef = useRef<HTMLDivElement | null>(null);
   const strikeHeaderRef = useRef<HTMLTableCellElement | null>(null);
+  const lastLoggedConfirmRef = useRef<string | null>(null);
   
 
 
@@ -197,13 +198,89 @@ export function ExpiryGroupCard({
   useEffect(() => {
     if (confirmData || advisedModal) {
       document.body.style.overflow = 'hidden';
+
+      // Debug logging for confirmation dialogs
+      const isDebug = import.meta.env.DEV || 
+                      new URLSearchParams(window.location.search).get('debug') === 'true' || 
+                      localStorage.getItem('options_portfolio_debug') === 'true';
+      
+      const confirmId = confirmData 
+        ? `confirm-${confirmData.title}-${confirmData.ids.join(',')}`
+        : (advisedModal ? `advised-${advisedModal.combo.description}-${advisedModal.mode}` : null);
+
+      if (isDebug && confirmId && lastLoggedConfirmRef.current !== confirmId) {
+        lastLoggedConfirmRef.current = confirmId;
+        console.group('%c[Options Portfolio Debug] Confirmation Dialog Active', 'color: #3b82f6; font-weight: bold;');
+        console.log('Title:', confirmData?.title || (advisedModal ? '组合建议/管理' : ''));
+        console.log('Action:', confirmData?.meta?.action || advisedModal?.mode);
+        
+        // Collect all relevant positions for this dialog
+        const positions = confirmData 
+          ? confirmData.ids.map(id => allSinglePositions.find(p => p.id === id)).filter(Boolean) as OptionsPosition[]
+          : [];
+        
+        if (positions.length > 0) {
+           console.log('Affected Positions:');
+           console.table(positions.map(p => ({
+             code: p.contract_code_full || p.symbol,
+             type: p.contract_type_zh || p.type,
+             strike: p.contract_strike_price || p.strike,
+             expiry: p.expiry,
+             qty: p.quantity,
+             avail: p.available
+           })));
+         } else {
+           const meta = confirmData?.meta || (advisedModal ? { comboCandidate: advisedModal.combo } : null);
+
+          if (meta?.comboCandidate) {
+            const c = meta.comboCandidate;
+            const legs = [];
+            if (c.buy_position) legs.push(c.buy_position.position);
+            if (c.sell_position) legs.push(c.sell_position.position);
+            
+            if (legs.length > 0) {
+              console.log('Combo Legs (Market Data in UI):');
+              console.table(legs.map(p => ({
+                code: p.contract_code_full || p.symbol,
+                type: p.contract_type_zh || p.type,
+                strike: p.contract_strike_price || p.strike,
+                expiry: p.expiry,
+                qty: p.quantity,
+                avail: p.available
+              })));
+            }
+          }
+           
+           if (meta?.strategies && meta.strategies.length > 0) {
+             const strategyPositions = meta.strategies.flatMap((s: any) => s.strategy.positions);
+             if (strategyPositions.length > 0) {
+               console.log('Existing Strategies (Market Data in UI):');
+               console.table(strategyPositions.map((p: OptionsPosition) => ({
+                 code: p.contract_code_full || p.symbol,
+                 type: p.contract_type_zh || p.type,
+                 strike: p.contract_strike_price || p.strike,
+                 expiry: p.expiry,
+                 qty: p.quantity,
+                 avail: p.available
+               })));
+             }
+           }
+
+           if (!meta?.comboCandidate && meta?.contract_code_full) {
+             console.log('Target Contract:', meta.contract_code_full);
+           }
+         }
+         
+         console.groupEnd();
+      }
     } else {
       document.body.style.overflow = '';
+      lastLoggedConfirmRef.current = null;
     }
     return () => {
       document.body.style.overflow = '';
     };
-  }, [confirmData, advisedModal]);
+  }, [confirmData, advisedModal, allSinglePositions]);
   const hasUserAdjustedTBoardRef = useRef(false);
   const isProgrammaticTBoardScrollRef = useRef(false);
   const basePositions = useMemo(() => filterAndSortPositions(group.single), [filterAndSortPositions, group.single]);
@@ -1621,6 +1698,93 @@ export function ExpiryGroupCard({
     }
   }, [advisedModal, confirmData, group.expiry, localOptionsData, optionsData, optionsDataMap, selectedSymbol]);
 
+  const renderL2MarketData = useCallback((contractCode: string) => {
+    const priceData = prices[contractCode];
+    if (!priceData) {
+      return (
+        <div className="p-4 text-center text-xs opacity-50 italic">
+          等待行情数据...
+        </div>
+      );
+    }
+
+    const bids = Array.from({ length: 5 }).map((_, i) => ({
+      level: i + 1,
+      price: priceData.bid_price?.[i] ?? (i === 0 ? priceData.bid : undefined),
+      vol: priceData.bid_vol?.[i]
+    }));
+    const asks = Array.from({ length: 5 }).map((_, i) => ({
+      level: i + 1,
+      price: priceData.ask_price?.[i] ?? (i === 0 ? priceData.ask : undefined),
+      vol: priceData.ask_vol?.[i]
+    }));
+    const maxVol = Math.max(
+      ...bids.map(b => b.vol || 0),
+      ...asks.map(a => a.vol || 0),
+      1
+    );
+
+    return (
+      <div className="grid grid-cols-2 gap-3 text-[11px] p-2 bg-black/5 dark:bg-white/5 rounded-b border-t border-current/5">
+        {/* 买盘 */}
+        <div className="space-y-1">
+          <div className="flex justify-between px-1.5 py-0.5 text-[10px] font-bold text-red-500 border-b border-red-500/20">
+            <span>买盘</span>
+            <span>价格</span>
+            <span>量</span>
+          </div>
+          <div className="space-y-0.5">
+            {bids.map((b) => {
+              const pct = b.vol ? Math.min(100, Math.round((b.vol / maxVol) * 100)) : 0;
+              return (
+                <div
+                  key={`bid-${b.level}`}
+                  className="relative flex items-center justify-between px-1.5 py-0.5 rounded"
+                >
+                  <div
+                    className="absolute right-0 top-0 bottom-0 bg-red-500/10 rounded pointer-events-none transition-all"
+                    style={{ width: `${pct}%` }}
+                  />
+                  <span className="opacity-60 relative z-10 text-[10px]">{b.level}</span>
+                  <span className="font-mono text-red-500 font-semibold relative z-10">{b.price != null ? b.price.toFixed(4) : '-'}</span>
+                  <span className="font-mono opacity-80 relative z-10 text-[10px]">{b.vol ?? '-'}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 卖盘 */}
+        <div className="space-y-1">
+          <div className="flex justify-between px-1.5 py-0.5 text-[10px] font-bold text-green-500 border-b border-green-500/20">
+            <span>卖盘</span>
+            <span>价格</span>
+            <span>量</span>
+          </div>
+          <div className="space-y-0.5">
+            {asks.map((a) => {
+              const pct = a.vol ? Math.min(100, Math.round((a.vol / maxVol) * 100)) : 0;
+              return (
+                <div
+                  key={`ask-${a.level}`}
+                  className="relative flex items-center justify-between px-1.5 py-0.5 rounded"
+                >
+                  <div
+                    className="absolute right-0 top-0 bottom-0 bg-green-500/10 rounded pointer-events-none transition-all"
+                    style={{ width: `${pct}%` }}
+                  />
+                  <span className="opacity-60 relative z-10 text-[10px]">{a.level}</span>
+                  <span className="font-mono text-green-500 font-semibold relative z-10">{a.price != null ? a.price.toFixed(4) : '-'}</span>
+                  <span className="font-mono opacity-80 relative z-10 text-[10px]">{a.vol ?? '-'}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }, [prices]);
+
   const renderComboDraftPanel = useCallback((draft: ComboDraftState, embedded = false) => (
     <>
       <div className={`text-lg font-semibold ${themes[theme].text}`}>{draft.combo.description}</div>
@@ -1773,76 +1937,116 @@ export function ExpiryGroupCard({
           <div className={`text-sm font-semibold ${themes[theme].text}`}>组合腿配置</div>
           
           {/* Buy Leg (权利仓) */}
-          <div className="flex flex-col gap-1 text-xs pb-2 border-b border-dashed border-current/10">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded text-[10px]">买入 (权利)</span>
-                <span className={`font-semibold ${themes[theme].text}`}>
+          <div className="flex flex-col border border-current/10 rounded overflow-hidden">
+            <div className="flex flex-col gap-1 text-xs p-2 bg-blue-500/5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded text-[10px]">买入 (权利)</span>
+                  <span className={`font-semibold ${themes[theme].text}`}>
+                    {(() => {
+                      const p = draft.combo.buy_position.position;
+                      return getContractNameForPosition(p) || p.symbol;
+                    })()}
+                  </span>
+                </div>
+                <div className={`${themes[theme].text} opacity-80 font-mono`}>
                   {(() => {
                     const p = draft.combo.buy_position.position;
-                    return getContractNameForPosition(p) || p.symbol;
+                    const avail = Number(p.available ?? p.quantity);
+                    const legQty = draft.quantity;
+                    return `数量 ${legQty}${avail !== legQty ? ` (可用 ${avail})` : ''}`;
                   })()}
+                </div>
+              </div>
+              <div className={`text-[11px] ${themes[theme].text} opacity-50 font-mono ml-[64px]`}>
+                {draft.combo.buy_position.position.symbol} • Strike: {draft.combo.buy_strike}
+              </div>
+            </div>
+            
+            <details className="group border-t border-current/5">
+              <summary className={`flex items-center justify-between px-2 py-1 text-[10px] cursor-pointer hover:bg-current/5 transition-colors ${themes[theme].text} opacity-60`}>
+                <span className="flex items-center gap-1">
+                  <ChevronDown className="w-3 h-3 transition-transform group-open:rotate-180" />
+                  查看 L2 行情
                 </span>
-              </div>
-              <div className={`${themes[theme].text} opacity-80 font-mono`}>
                 {(() => {
-                  const p = draft.combo.buy_position.position;
-                  const avail = Number(p.available ?? p.quantity);
-                  const legQty = draft.quantity;
-                  return `数量 ${legQty}${avail !== legQty ? ` (可用 ${avail})` : ''}`;
+                  const price = prices[draft.combo.buy_position.position.contract_code_full || draft.combo.buy_position.position.symbol];
+                  return price ? (
+                    <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">
+                      {price.price.toFixed(4)}
+                    </span>
+                  ) : null;
                 })()}
-              </div>
-            </div>
-            <div className={`text-[11px] ${themes[theme].text} opacity-50 font-mono ml-[64px]`}>
-              {draft.combo.buy_position.position.symbol} • Strike: {draft.combo.buy_strike}
-            </div>
+              </summary>
+              {renderL2MarketData(draft.combo.buy_position.position.contract_code_full || draft.combo.buy_position.position.symbol)}
+            </details>
           </div>
 
           {/* Sell Leg (义务仓) */}
-          <div className="flex flex-col gap-1 text-xs">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-semibold text-rose-600 dark:text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded text-[10px]">卖出 (义务)</span>
-                <span className={`font-semibold ${themes[theme].text}`}>
+          <div className="flex flex-col border border-current/10 rounded overflow-hidden">
+            <div className="flex flex-col gap-1 text-xs p-2 bg-rose-500/5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-semibold text-rose-600 dark:text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded text-[10px]">卖出 (义务)</span>
+                  <span className={`font-semibold ${themes[theme].text}`}>
+                    {(() => {
+                      const p = draft.combo.sell_position.position;
+                      return getContractNameForPosition(p) || p.symbol;
+                    })()}
+                  </span>
+                  
+                  {/* Strike Selector for Sell Leg */}
+                  <div className="flex items-center gap-1.5 ml-2">
+                    <span className="opacity-50 text-[10px]">切换行权价:</span>
+                    <select
+                      value={draft.combo.sell_strike}
+                      onChange={(e) => {
+                        const nextStrike = Number(e.target.value);
+                        updateComboSellStrike(nextStrike, embedded);
+                      }}
+                      className={`px-1.5 py-0.5 rounded text-[11px] font-mono border ${themes[theme].border} ${themes[theme].input} ${themes[theme].text} focus:outline-none`}
+                    >
+                      {expiryStrikeLadder
+                        .filter(s => s !== draft.combo.buy_strike)
+                        .map(s => (
+                          <option key={s} value={s}>
+                            {formatStrikeNumber(s)}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                </div>
+                <div className={`${themes[theme].text} opacity-80 font-mono`}>
                   {(() => {
                     const p = draft.combo.sell_position.position;
-                    return getContractNameForPosition(p) || p.symbol;
+                    const avail = Number(p.available ?? p.quantity);
+                    const legQty = draft.quantity;
+                    return `数量 ${legQty}${avail !== legQty ? ` (可用 ${avail})` : ''}`;
                   })()}
-                </span>
-                
-                {/* Strike Selector for Sell Leg */}
-                <div className="flex items-center gap-1.5 ml-2">
-                  <span className="opacity-50 text-[10px]">切换行权价:</span>
-                  <select
-                    value={draft.combo.sell_strike}
-                    onChange={(e) => {
-                      const nextStrike = Number(e.target.value);
-                      updateComboSellStrike(nextStrike, embedded);
-                    }}
-                    className={`px-1.5 py-0.5 rounded text-[11px] font-mono border ${themes[theme].border} ${themes[theme].input} ${themes[theme].text} focus:outline-none`}
-                  >
-                    {expiryStrikeLadder
-                      .filter(s => s !== draft.combo.buy_strike)
-                      .map(s => (
-                        <option key={s} value={s}>
-                          {formatStrikeNumber(s)}
-                        </option>
-                      ))}
-                  </select>
                 </div>
               </div>
-              <div className={`${themes[theme].text} opacity-80 font-mono`}>
-                {(() => {
-                  const p = draft.combo.sell_position.position;
-                  const avail = Number(p.available ?? p.quantity);
-                  const legQty = draft.quantity;
-                  return `数量 ${legQty}${avail !== legQty ? ` (可用 ${avail})` : ''}`;
-                })()}
+              <div className={`text-[11px] ${themes[theme].text} opacity-50 font-mono ml-[64px]`}>
+                {draft.combo.sell_position.position.symbol} • Strike: {draft.combo.sell_strike}
               </div>
             </div>
-            <div className={`text-[11px] ${themes[theme].text} opacity-50 font-mono ml-[64px]`}>
-              {draft.combo.sell_position.position.symbol} • Strike: {draft.combo.sell_strike}
-            </div>
+
+            <details className="group border-t border-current/5">
+              <summary className={`flex items-center justify-between px-2 py-1 text-[10px] cursor-pointer hover:bg-current/5 transition-colors ${themes[theme].text} opacity-60`}>
+                <span className="flex items-center gap-1">
+                  <ChevronDown className="w-3 h-3 transition-transform group-open:rotate-180" />
+                  查看 L2 行情
+                </span>
+                {(() => {
+                  const price = prices[draft.combo.sell_position.position.contract_code_full || draft.combo.sell_position.position.symbol];
+                  return price ? (
+                    <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">
+                      {price.price.toFixed(4)}
+                    </span>
+                  ) : null;
+                })()}
+              </summary>
+              {renderL2MarketData(draft.combo.sell_position.position.contract_code_full || draft.combo.sell_position.position.symbol)}
+            </details>
           </div>
         </div>
       </div>
@@ -1850,6 +2054,27 @@ export function ExpiryGroupCard({
         <button
           className={`px-3 py-1 rounded text-sm bg-purple-600 text-white`}
           onClick={async () => {
+            // Debug logging for combination adjustment
+            const isDebug = import.meta.env.DEV ||
+                            new URLSearchParams(window.location.search).get('debug') === 'true' || 
+                            localStorage.getItem('options_portfolio_debug') === 'true';
+            if (isDebug) {
+              console.group('%c[Options Portfolio Debug] Combination Adjustment', 'color: #f59e0b; font-weight: bold;');
+              console.log('Mode:', draft.mode);
+              console.log('Description:', draft.combo.description);
+              console.log('Total Quantity:', draft.quantity);
+              
+              const legCodes = [];
+              if (draft.combo.buy_position) {
+                legCodes.push(draft.combo.buy_position.position.contract_code_full || draft.combo.buy_position.position.symbol);
+              }
+              if (draft.combo.sell_position) {
+                legCodes.push(draft.combo.sell_position.position.contract_code_full || draft.combo.sell_position.position.symbol);
+              }
+              console.log('Legs (Market Data in UI):', legCodes);
+              console.groupEnd();
+            }
+
             if (draft.mode === 't_board_create') {
               try {
                 const { error } = await optionsService.createOptionCombination(
@@ -1892,7 +2117,9 @@ export function ExpiryGroupCard({
     userId,
     expiryStrikeLadder,
     formatStrikeNumber,
-    updateComboSellStrike
+    updateComboSellStrike,
+    prices,
+    renderL2MarketData
   ]);
 
   const renderStatusBadge = useCallback((item: OptionsStrategy | OptionsPosition, type: 'complex' | 'single') => {
@@ -4349,6 +4576,26 @@ export function ExpiryGroupCard({
                   };
                 });
 
+                // Debug logging for sync_category adjustment
+                const isDebug = import.meta.env.DEV ||
+                                new URLSearchParams(window.location.search).get('debug') === 'true' || 
+                                localStorage.getItem('options_portfolio_debug') === 'true';
+                if (isDebug) {
+                  console.group('%c[Options Portfolio Debug] Sync Category Adjustment', 'color: #f59e0b; font-weight: bold;');
+                  console.log('Action: sync_category');
+                  console.log('Category:', category);
+                  console.table([{
+                    code: referencePos?.contract_code_full || foundSymbol || 'N/A',
+                    type: p.type,
+                    strike,
+                    expiry: String(confirmData.meta?.expiry || group.expiry),
+                    old_qty: origAvailSum,
+                    new_qty: q,
+                    change
+                  }]);
+                  console.groupEnd();
+                }
+
                 const resp = await optionsService.updatePositions({ updates: [{ type: p.type, position_type: p.position_type, strike, expiry: String(confirmData.meta?.expiry || group.expiry), quantity: q, original_quantity: origAvailSum, change_quantity: change, is_covered: category === 'call_covered' || category === 'put_covered', symbol: foundSymbol, option_type: p.type, strike_price: String(strike), price: syncPrice != null ? syncPrice : undefined, limit_price: syncPrice != null ? syncPrice : undefined, last_price_refer: lastPriceRefer }], positions: positionsToSend, accountId: selectedAccountId || null, userId: userId || null });
                 if (resp.error) {
                   toast.error(resp.error.message || '同步失败');
@@ -4689,6 +4936,21 @@ const TBoardRow = React.memo(function TBoardRow({
       codes.push(...posCodes);
     }
     const uniqueCodes = Array.from(new Set(codes));
+    
+    // Debug logging for opening adjustment dialog
+    const isDebug = import.meta.env.DEV ||
+                    new URLSearchParams(window.location.search).get('debug') === 'true' || 
+                    localStorage.getItem('options_portfolio_debug') === 'true';
+    if (isDebug) {
+      console.group('%c[Options Portfolio Debug] Opening Adjustment Dialog', 'color: #3b82f6; font-weight: bold;');
+      console.log('Action: openAdjustConfirm');
+      console.log('Category:', category);
+      console.log('Strike:', s);
+      console.log('Current Total Qty:', currentSum);
+      console.log('Target Codes:', uniqueCodes);
+      console.groupEnd();
+    }
+
     if (uniqueCodes.length > 0) {
       if (!isConnected) onConnect();
       onQueryPrice(uniqueCodes);

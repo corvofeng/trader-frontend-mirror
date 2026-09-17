@@ -120,9 +120,29 @@ export function useClosePositions({
             symbol: p.symbol,
             option_type: p.type,
             strike_price: String(p.strike),
+            contract_code_full: p.contract_code_full,
             last_price_refer: typeof p.last_price === 'number' && Number.isFinite(p.last_price) ? p.last_price : undefined
           };
         });
+
+        // Debug logging for quantity adjustments
+        const isDebug = import.meta.env.DEV ||
+                        new URLSearchParams(window.location.search).get('debug') === 'true' || 
+                        localStorage.getItem('options_portfolio_debug') === 'true';
+        if (isDebug && updates.length > 0) {
+          console.group('%c[Options Portfolio Debug] Adjusting Position Quantity', 'color: #f59e0b; font-weight: bold;');
+          console.table(updates.map(u => ({
+            code: u.contract_code_full || u.symbol,
+            type: u.type,
+            strike: u.strike,
+            expiry: u.expiry,
+            old_qty: u.original_quantity,
+            new_qty: u.quantity,
+            change: u.change_quantity,
+            is_covered: u.is_covered
+          })));
+          console.groupEnd();
+        }
 
         const { error } = await optionsService.updatePositions({
           updates,

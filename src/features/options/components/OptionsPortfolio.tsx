@@ -28,6 +28,13 @@ interface OptionsPortfolioProps {
   selectedSymbol?: string;
 }
 
+interface VisibleContractInfo {
+  code: string;
+  type: string;
+  strike: number;
+  expiry: string;
+}
+
 const DEMO_USER_ID = 'mock-user-id';
 
   
@@ -81,6 +88,8 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
 
   // State for active expiry group in viewport (ScrollSpy)
   const [activeExpiry, setActiveExpiry] = useState<string | null>(null);
+  const [visibleContracts, setVisibleContracts] = useState<VisibleContractInfo[]>([]);
+  const lastLoggedCodesRef = useRef<string>('');
   
   const [wsRefreshNonce, setWsRefreshNonce] = useState(0);
 
@@ -225,23 +234,52 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       // Header offset + sticky nav height approx
       // Adjust this value based on your actual header height + sticky nav height
       const offset = 220; 
+      const viewportHeight = window.innerHeight;
       
       let currentActive: string | null = null;
+      const visibleCodes = new Map<string, VisibleContractInfo>();
       
       // Iterate through groups to find which one is currently active
       for (const group of groups) {
         const el = document.getElementById(`expiry-group-${group.expiry}`);
         if (el) {
           const rect = el.getBoundingClientRect();
-          // If the element's top is "above" the viewing line (offset), it's a candidate.
-          // Because we iterate in order, the last one that satisfies this condition 
-          // is the one currently "occupying" the top of the content area.
+          
+          // Original ScrollSpy logic for active expiry
           if (rect.top <= offset) {
              currentActive = group.expiry;
-          } else {
-            // Once we hit a group that starts below the offset, we stop.
-            // The previous one is our active group.
-            break;
+          }
+
+          // New visibility detection for contract codes
+          const isVisible = rect.bottom > offset && rect.top < viewportHeight;
+          if (isVisible) {
+            // Handle different bucket formats (expiryBuckets vs expiryGroups)
+            const singlePositions = (group as any).single || (group as any).positions || [];
+            const complexStrategies = (group as any).complex || [];
+
+            singlePositions.forEach((p: OptionsPosition) => {
+              if (p.contract_code_full) {
+                visibleCodes.set(p.contract_code_full, {
+                  code: p.contract_code_full,
+                  type: p.contract_type_zh || p.option_type || p.type,
+                  strike: p.strike,
+                  expiry: p.expiry
+                });
+              }
+            });
+            
+            complexStrategies.forEach((s: OptionsStrategy) => {
+              s.positions.forEach((p: OptionsPosition) => {
+                if (p.contract_code_full) {
+                  visibleCodes.set(p.contract_code_full, {
+                    code: p.contract_code_full,
+                    type: p.contract_type_zh || p.option_type || p.type,
+                    strike: p.strike,
+                    expiry: p.expiry
+                  });
+                }
+              });
+            });
           }
         }
       }
@@ -253,6 +291,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       }
 
       setActiveExpiry(prev => prev !== currentActive ? currentActive : prev);
+      setVisibleContracts(Array.from(visibleCodes.values()).sort((a, b) => a.code.localeCompare(b.code)));
     };
 
     let ticking = false;
@@ -272,6 +311,31 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     
     return () => window.removeEventListener('scroll', onScroll);
   }, [portfolioData]);
+
+  // Debug logging for visible contracts
+  useEffect(() => {
+    // Expose a helper to the console to enable debug mode easily
+    (window as any).enablePortfolioDebug = (enabled = true) => {
+      localStorage.setItem('options_portfolio_debug', enabled ? 'true' : 'false');
+      console.log(`[Options Portfolio Debug] ${enabled ? 'Enabled' : 'Disabled'}. Please refresh the page or scroll to see updates.`);
+    };
+
+    // Check for debug mode: default to true in DEV, or via URL/localStorage
+    const isDebug = import.meta.env.DEV || 
+                    new URLSearchParams(window.location.search).get('debug') === 'true' || 
+                    localStorage.getItem('options_portfolio_debug') === 'true';
+    
+    if (isDebug && visibleContracts.length > 0) {
+      const currentCodesStr = visibleContracts.map(c => c.code).join(',');
+      if (currentCodesStr !== lastLoggedCodesRef.current) {
+        console.group('%c[Options Portfolio Debug] Visible Contracts', 'color: #3b82f6; font-weight: bold;');
+        console.table(visibleContracts);
+        console.log('Summary Codes:', visibleContracts.map(c => c.code));
+        console.groupEnd();
+        lastLoggedCodesRef.current = currentCodesStr;
+      }
+    }
+  }, [visibleContracts]);
 
   const toggleExpiryGroup = (expiry: string) => {
     setExpandedExpiryGroups(prev => ({
