@@ -12,7 +12,7 @@ interface UnderlyingPriceMonitorProps {
 }
 
 export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobile: isMobileProp }: UnderlyingPriceMonitorProps) {
-  const { prices, isConnected, queryPrice } = useOptionPriceWebSocket();
+  const { prices, isConnected, realtimeQueryPrice } = useOptionPriceWebSocket();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [dragging, setDragging] = useState(false);
   const dragOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -144,11 +144,11 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
     });
   }, [clampPanelPos, persistPanelPos, viewportSize.height, viewportSize.width]);
 
-  const autoRefreshIntervalMs = 5000;
+  const autoRefreshIntervalMs = 2000;
   const { remainingMs, progress, triggerNow } = useAutoRefresh(
     () => {
       if (!symbol) return;
-      queryPrice([symbol]);
+      realtimeQueryPrice([symbol]);
     },
     {
       enabled: isConnected && !!symbol,

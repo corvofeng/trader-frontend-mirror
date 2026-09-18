@@ -25,6 +25,31 @@ type ServerPriceMessage = {
 const asRecord = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
 
+// Underlying ETF symbols that should always be treated as realtime
+const UNDERLYING_SYMBOLS = new Set([
+  '510050', '510300', '510500', '588000', '588080',
+  '159919', '159922', '159915', '159901'
+]);
+
+export const isUnderlyingCode = (code: string) => {
+  if (!code) return false;
+  // Handle both raw symbols (e.g. 510300) and full codes (e.g. 510300.SH)
+  const parts = code.split('.');
+  const base = parts[0];
+  
+  // 1. Explicitly defined underlyings (China ETF Options)
+  if (UNDERLYING_SYMBOLS.has(base)) return true;
+  
+  // 2. US stocks (usually 1-5 uppercase letters)
+  if (/^[A-Z]{1,5}$/.test(base)) return true;
+  
+  // 3. Heuristic: if it's a 6-digit code with just a suffix (.SH/.SZ), it's likely an underlying ETF/Stock
+  // China option contracts are typically 8 digits.
+  if (/^\d{6}$/.test(base) && parts.length <= 2) return true;
+
+  return false;
+};
+
 const parsePriceField = (
   val: PriceFieldSource
 ): { scalar: number | undefined; array: number[] | undefined } => {
@@ -56,6 +81,7 @@ interface OptionPriceWebSocketContextType {
   orders: OptionOrder[];
   optionsDataSnapshots: Record<string, OptionsData>;
   queryPrice: (contractCodes: string[]) => void;
+  realtimeQueryPrice: (contractCodes: string[]) => void;
   queryOptionsData: (symbol: string) => void;
   queryOrders: (accountId: string) => void;
   connect: () => void;
@@ -96,18 +122,39 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
   // High-frequency price update throttling refs
   const pendingPricesRef = useRef<Record<string, PriceUpdate>>({});
   const throttleTimeoutRef = useRef<number | null>(null);
+  const realtimeCodesRef = useRef<Set<string>>(new Set());
+
+  // Subscription request queueing refs
+  const pendingCodesRef = useRef<Set<string>>(new Set());
+  const subscriptionFlushTimerRef = useRef<number | null>(null);
 
   const queuePriceUpdate = useCallback((updates: Record<string, PriceUpdate>) => {
-    Object.assign(pendingPricesRef.current, updates);
+    const realtimeUpdates: Record<string, PriceUpdate> = {};
+    const throttledUpdates: Record<string, PriceUpdate> = {};
 
-    if (throttleTimeoutRef.current === null) {
-      throttleTimeoutRef.current = window.setTimeout(() => {
-        throttleTimeoutRef.current = null;
-        if (Object.keys(pendingPricesRef.current).length > 0) {
-          setPrices((prev) => ({ ...prev, ...pendingPricesRef.current }));
-          pendingPricesRef.current = {};
-        }
-      }, 1000); // 1000ms batching window (1 tick per second)
+    Object.entries(updates).forEach(([code, update]) => {
+      if (realtimeCodesRef.current.has(code) || isUnderlyingCode(code)) {
+        realtimeUpdates[code] = update;
+      } else {
+        throttledUpdates[code] = update;
+      }
+    });
+
+    if (Object.keys(realtimeUpdates).length > 0) {
+      setPrices((prev) => ({ ...prev, ...realtimeUpdates }));
+    }
+
+    if (Object.keys(throttledUpdates).length > 0) {
+      Object.assign(pendingPricesRef.current, throttledUpdates);
+      if (throttleTimeoutRef.current === null) {
+        throttleTimeoutRef.current = window.setTimeout(() => {
+          throttleTimeoutRef.current = null;
+          if (Object.keys(pendingPricesRef.current).length > 0) {
+            setPrices((prev) => ({ ...prev, ...pendingPricesRef.current }));
+            pendingPricesRef.current = {};
+          }
+        }, 1000); // 1000ms batching window (1 tick per second)
+      }
     }
   }, []);
 
@@ -276,6 +323,9 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
       if (throttleTimeoutRef.current !== null) {
         window.clearTimeout(throttleTimeoutRef.current);
       }
+      if (subscriptionFlushTimerRef.current !== null) {
+        window.clearTimeout(subscriptionFlushTimerRef.current);
+      }
     };
   }, [connect, clearAutoCloseTimer]);
 
@@ -303,9 +353,75 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
     return () => clearInterval(intervalId);
   }, [connect]);
 
+  const flushSubscriptions = useCallback(() => {
+    if (!clientRef.current || isConnected === false) return;
+
+    const toSubscribe = Array.from(pendingCodesRef.current);
+    if (toSubscribe.length === 0) {
+      subscriptionFlushTimerRef.current = null;
+      return;
+    }
+
+    // Decision: If total to subscribe is small (< 10), use one realtime_subscribe
+    if (toSubscribe.length < 10) {
+      console.log(`[WebSocket Queue] Batching ${toSubscribe.length} codes into single realtime_subscribe`);
+      clientRef.current.realtimeSubscribe(toSubscribe);
+    } else {
+      // Larger batches: split by priority
+      const realtime: string[] = [];
+      const normal: string[] = [];
+      
+      toSubscribe.forEach(code => {
+        if (realtimeCodesRef.current.has(code)) {
+          realtime.push(code);
+        } else {
+          normal.push(code);
+        }
+      });
+
+      if (realtime.length > 0) {
+        console.log(`[WebSocket Queue] Sending ${realtime.length} realtime subscriptions`);
+        clientRef.current.realtimeSubscribe(realtime);
+      }
+      if (normal.length > 0) {
+        console.log(`[WebSocket Queue] Sending ${normal.length} normal subscriptions`);
+        clientRef.current.subscribe(normal);
+      }
+    }
+
+    pendingCodesRef.current.clear();
+    subscriptionFlushTimerRef.current = null;
+  }, [isConnected]);
+
   const queryPrice = useCallback((contractCodes: string[]) => {
-    clientRef.current?.subscribe(contractCodes);
-  }, []);
+    contractCodes.forEach(code => {
+      pendingCodesRef.current.add(code);
+      if (isUnderlyingCode(code)) {
+        realtimeCodesRef.current.add(code);
+      }
+    });
+
+    if (subscriptionFlushTimerRef.current === null) {
+      console.log(`[WebSocket Queue] Starting 500ms flush timer for ${contractCodes.length} codes`);
+      subscriptionFlushTimerRef.current = window.setTimeout(flushSubscriptions, 500);
+    } else {
+      console.log(`[WebSocket Queue] Appended ${contractCodes.length} codes to existing queue`);
+    }
+  }, [flushSubscriptions]);
+
+  const realtimeQueryPrice = useCallback((contractCodes: string[]) => {
+    contractCodes.forEach(code => {
+      pendingCodesRef.current.add(code);
+      realtimeCodesRef.current.add(code);
+    });
+
+    if (subscriptionFlushTimerRef.current === null) {
+      console.log(`[WebSocket Queue] Starting 500ms flush timer for ${contractCodes.length} realtime codes`);
+      subscriptionFlushTimerRef.current = window.setTimeout(flushSubscriptions, 500);
+    } else {
+      console.log(`[WebSocket Queue] Appended ${contractCodes.length} realtime codes to existing queue`);
+    }
+  }, [flushSubscriptions]);
 
   const queryOptionsData = useCallback((symbol: string) => {
     if (!symbol) return;
@@ -324,5 +440,5 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
     }
   }, []);
 
-  return <OptionPriceWebSocketContext.Provider value={{ isConnected, prices, orders, optionsDataSnapshots, queryPrice, queryOptionsData, queryOrders, connect, send, portfolioSnapshot }}>{children}</OptionPriceWebSocketContext.Provider>;
+  return <OptionPriceWebSocketContext.Provider value={{ isConnected, prices, orders, optionsDataSnapshots, queryPrice, realtimeQueryPrice, queryOptionsData, queryOrders, connect, send, portfolioSnapshot }}>{children}</OptionPriceWebSocketContext.Provider>;
 }

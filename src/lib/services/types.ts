@@ -1588,6 +1588,7 @@ export interface OptionPriceWebSocketClient {
   close: () => void;
   send: (payload: unknown) => void;
   subscribe: (contractCodes: string[]) => void;
+  realtimeSubscribe: (contractCodes: string[]) => void;
   queryOptionsData: (symbol: string) => void;
   queryOrders: (accountId: string) => void;
   getReadyState: () => number;

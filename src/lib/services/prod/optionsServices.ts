@@ -386,6 +386,9 @@ export const optionsService: OptionsService = {
       subscribe: (contractCodes: string[]) => {
         send({ action: 'subscribe', contract_codes: contractCodes });
       },
+      realtimeSubscribe: (contractCodes: string[]) => {
+        send({ action: 'realtime_subscribe', contract_codes: contractCodes });
+      },
       queryOptionsData: (symbol: string) => {
         send({ action: 'query_options_data', symbol });
       },

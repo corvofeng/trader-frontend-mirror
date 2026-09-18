@@ -10,6 +10,7 @@ import { optionsService } from '../../../lib/services';
 import { logger } from '../../../shared/utils/logger';
 import toast from 'react-hot-toast';
 import { useAutoRefresh, useOptionPriceWebSocket } from '../hooks/useOptionPriceWebSocket';
+import { isUnderlyingCode } from '../context/OptionPriceWebSocketContext';
 import { AnimatedFlash } from './AnimatedFlash';
 import { RealTimeSpreadChart } from './RealTimeSpreadChart';
 import { getComboStatus } from '../utils/portfolioUi';
@@ -109,7 +110,7 @@ export function ExpiryGroupCard({
   onRefresh,
   wsRefreshNonce = 0
 }: ExpiryGroupCardProps) {
-  const { queryPrice, prices, isConnected, connect } = useOptionPriceWebSocket();
+  const { queryPrice, realtimeQueryPrice, prices, isConnected, connect } = useOptionPriceWebSocket();
   const [localState, setLocalState] = useState<{ data: OptionsData | null; symbol: string | null }>({ data: null, symbol: null });
   const { data: localOptionsData, symbol: localDataSymbol } = localState;
 
@@ -963,7 +964,7 @@ export function ExpiryGroupCard({
   }, [confirmData, optionsData, filteredPositions, selectedSymbol, localOptionsData, localDataSymbol]);
 
   // Calculate codes for pricing
-  const codes = useMemo(() => {
+  const { realtimeCodes, normalCodes } = useMemo(() => {
     const positionCodes = filteredPositions.map(p => p.contract_code_full).filter(Boolean) as string[];
     
     // Collect codes from all available data sources
@@ -983,17 +984,45 @@ export function ExpiryGroupCard({
     // Include selected underlying symbol if available
     const underlyingCode = selectedSymbol ? [selectedSymbol] : [];
     
-    return Array.from(new Set([...positionCodes, ...allOptionCodes, ...underlyingCode])).sort();
+    const all = Array.from(new Set([...positionCodes, ...allOptionCodes, ...underlyingCode])).sort();
+    
+    const realtime: string[] = [];
+    const normal: string[] = [];
+    
+    all.forEach(code => {
+      if (isUnderlyingCode(code)) {
+        realtime.push(code);
+      } else {
+        normal.push(code);
+      }
+    });
+    
+    return { realtimeCodes: realtime, normalCodes: normal };
   }, [filteredPositions, optionsData, localOptionsData, optionsDataMap, group.expiry, selectedSymbol]);
 
-  const quoteIntervalMs = (isExpanded || confirmData) ? 5000 : 10000;
-  const { remainingMs: quoteRemainingMs, progress: quoteProgress, triggerNow: triggerQuoteNow } = useAutoRefresh(
+  // Realtime refresher (2s)
+  const { triggerNow: triggerRealtimeNow } = useAutoRefresh(
     () => {
-      if (codes.length === 0) return;
-      queryPrice(codes);
+      if (realtimeCodes.length === 0) return;
+      realtimeQueryPrice(realtimeCodes);
     },
     {
-      enabled: isConnected && codes.length > 0,
+      enabled: isConnected && realtimeCodes.length > 0,
+      intervalMs: 2000,
+      immediate: true,
+      tickMs: 500,
+    }
+  );
+
+  // Normal refresher (5s)
+  const quoteIntervalMs = (isExpanded || confirmData) ? 5000 : 10000;
+  const { remainingMs: quoteRemainingMs, progress: quoteProgress, triggerNow: triggerNormalNow } = useAutoRefresh(
+    () => {
+      if (normalCodes.length === 0) return;
+      queryPrice(normalCodes);
+    },
+    {
+      enabled: isConnected && normalCodes.length > 0,
       intervalMs: quoteIntervalMs,
       immediate: true,
       tickMs: 1000,
@@ -1004,8 +1033,9 @@ export function ExpiryGroupCard({
   useEffect(() => {
     if (prevWsRefreshNonceRef.current === wsRefreshNonce) return;
     prevWsRefreshNonceRef.current = wsRefreshNonce;
-    triggerQuoteNow();
-  }, [wsRefreshNonce, triggerQuoteNow]);
+    triggerRealtimeNow();
+    triggerNormalNow();
+  }, [wsRefreshNonce, triggerRealtimeNow, triggerNormalNow]);
 
   useEffect(() => {
     if (!isPageLocked) return;
@@ -2668,7 +2698,7 @@ export function ExpiryGroupCard({
                                           onSetConfirmData={setConfirmData}
                                           isConnected={isConnected}
                                           onConnect={connect}
-                                          onQueryPrice={queryPrice}
+                                          onRealtimeQueryPrice={realtimeQueryPrice}
                                         />
                                       );
                                     }
@@ -2699,7 +2729,7 @@ export function ExpiryGroupCard({
                                       onSetConfirmData={setConfirmData}
                                       isConnected={isConnected}
                                       onConnect={connect}
-                                      onQueryPrice={queryPrice}
+                                      onRealtimeQueryPrice={realtimeQueryPrice}
                                     />
                                   ));
                                 })()}
@@ -4777,7 +4807,7 @@ interface TBoardRowProps {
   onSetConfirmData: (data: any) => void;
   isConnected: boolean;
   onConnect: () => void;
-  onQueryPrice: (codes: string[]) => void;
+  onRealtimeQueryPrice: (codes: string[]) => void;
 }
 
 const TBoardRow = React.memo(function TBoardRow({
@@ -4799,7 +4829,7 @@ const TBoardRow = React.memo(function TBoardRow({
   onSetConfirmData,
   isConnected,
   onConnect,
-  onQueryPrice,
+  onRealtimeQueryPrice,
 }: TBoardRowProps) {
   const tBoardValueTextClass = `inline-flex items-center justify-center text-[13px] font-semibold leading-tight ${themes[theme].text}`;
   const tBoardComboValueClass = `inline-flex min-w-[2.5rem] items-center justify-center text-[13px] font-semibold leading-tight ${themes[theme].text}`;
@@ -4953,7 +4983,7 @@ const TBoardRow = React.memo(function TBoardRow({
 
     if (uniqueCodes.length > 0) {
       if (!isConnected) onConnect();
-      onQueryPrice(uniqueCodes);
+      onRealtimeQueryPrice(uniqueCodes);
     }
 
     onSetConfirmData({
