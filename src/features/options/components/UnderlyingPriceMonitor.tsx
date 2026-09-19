@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useAutoRefresh, useOptionPriceWebSocket } from '../hooks/useOptionPriceWebSocket';
+import { OptionQuoteSubscription } from './OptionQuoteSubscription';
 import { AnimatedFlash } from './AnimatedFlash';
 import { Theme, themes } from '../../../lib/theme';
-import { ChevronLeft, ChevronRight, Hourglass, RefreshCw, Activity, Target } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Hourglass, RefreshCw, Activity } from 'lucide-react';
 
 interface UnderlyingPriceMonitorProps {
   symbol: string;
@@ -12,7 +13,10 @@ interface UnderlyingPriceMonitorProps {
 }
 
 export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobile: isMobileProp }: UnderlyingPriceMonitorProps) {
-  const { prices, isConnected, realtimeQueryPrice } = useOptionPriceWebSocket();
+  const {
+    prices,
+    isConnected,
+  } = useOptionPriceWebSocket();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [dragging, setDragging] = useState(false);
   const dragOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -145,10 +149,11 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
   }, [clampPanelPos, persistPanelPos, viewportSize.height, viewportSize.width]);
 
   const autoRefreshIntervalMs = 2000;
+  const [quoteRefreshNonce, setQuoteRefreshNonce] = useState(0);
   const { remainingMs, progress, triggerNow } = useAutoRefresh(
     () => {
       if (!symbol) return;
-      realtimeQueryPrice([symbol]);
+      setQuoteRefreshNonce((value) => value + 1);
     },
     {
       enabled: isConnected && !!symbol,
@@ -486,7 +491,9 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
   };
 
   return (
-    <div ref={containerRef} className={baseClass} style={style}>
+    <>
+      <OptionQuoteSubscription realtimeCodes={[symbol]} refreshNonce={quoteRefreshNonce} />
+      <div ref={containerRef} className={baseClass} style={style}>
       <div className="absolute inset-0 bg-gradient-to-b from-white/40 via-transparent to-transparent dark:from-white/5 pointer-events-none z-[1]" aria-hidden="true" />
       {/* Title bar (draggable) */}
       <div
@@ -731,6 +738,7 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
         )}
       </div>
 
-    </div>
+      </div>
+    </>
   );
 }

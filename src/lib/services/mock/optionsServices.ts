@@ -728,7 +728,10 @@ export const optionsService: OptionsService = {
       close,
       send,
       subscribe: (contractCodes: string[]) => {
-        subscribedCodes = Array.from(new Set(contractCodes.filter(Boolean)));
+        subscribedCodes = Array.from(new Set([...subscribedCodes, ...contractCodes.filter(Boolean)]));
+      },
+      realtimeSubscribe: (contractCodes: string[]) => {
+        subscribedCodes = Array.from(new Set([...subscribedCodes, ...contractCodes.filter(Boolean)]));
       },
       queryOptionsData: (symbol: string) => {
         void optionsService.getOptionsData(symbol).then(({ data }) => {

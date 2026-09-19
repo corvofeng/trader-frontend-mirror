@@ -329,12 +329,17 @@ export const optionsService: OptionsService = {
     let ws: WebSocket | null = null;
 
     const send = (payload: unknown) => {
-      if (!ws || ws.readyState !== WebSocket.OPEN) return;
-      if (typeof payload === 'string') {
-        ws.send(payload);
-      } else {
-        ws.send(JSON.stringify(payload));
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        if (!ws) {
+          console.warn('[WebSocket Service] Cannot send: ws is null');
+        } else if (ws.readyState !== WebSocket.OPEN) {
+          console.warn(`[WebSocket Service] Cannot send: ws state is ${ws.readyState}`);
+        }
+        return;
       }
+      const message = typeof payload === 'string' ? payload : JSON.stringify(payload);
+      console.log('[WebSocket Service] Sending message:', message);
+      ws.send(message);
     };
 
     const client: OptionPriceWebSocketClient = {

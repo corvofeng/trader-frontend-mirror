@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, X, Copy, Check, Layers, Radio } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { useOptionalOptionPriceWebSocketContext } from '../../../features/options/context/OptionPriceWebSocketContext';
+import { OptionQuoteSubscription } from '../../../features/options/components/OptionQuoteSubscription';
 import toast from 'react-hot-toast';
 
 export interface InteractiveMarkdownTableProps {
@@ -430,14 +431,8 @@ function ContractCellWithTick({
       clearTimeout(closeTimeoutRef.current);
       closeTimeoutRef.current = null;
     }
-    if (wsContext?.queryPrice) {
-      const codeToQuery = fullCode || baseCode;
-      if (codeToQuery) {
-        wsContext.queryPrice([codeToQuery]);
-      }
-    }
     setIsOpen(true);
-  }, [fullCode, baseCode, wsContext]);
+  }, []);
 
   const handleMouseLeave = useCallback(() => {
     if (isPinned) return;
@@ -864,13 +859,6 @@ export function InteractiveMarkdownTable({
     return Array.from(codes);
   }, [rows]);
 
-  // Subscribe to all contract codes via WebSocket
-  useEffect(() => {
-    if (allContractCodes.length > 0 && wsContext?.queryPrice) {
-      wsContext.queryPrice(allContractCodes);
-    }
-  }, [allContractCodes, wsContext]);
-
   // Column index for type filtering
   const typeColIndex = useMemo(() => {
     return displayHeaders.findIndex((h) => /^(类型|仓位类型|头寸类型)$/i.test(h.trim()));
@@ -1193,6 +1181,7 @@ export function InteractiveMarkdownTable({
 
   return (
     <div className="my-4 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/60 shadow-xs backdrop-blur-sm overflow-hidden transition-all">
+      <OptionQuoteSubscription ordinaryCodes={allContractCodes} />
       {/* Table Top Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-2.5 px-3.5 py-2.5 bg-slate-50/80 dark:bg-zinc-800/40 border-b border-slate-200/80 dark:border-zinc-800/80 text-xs">
         <div className="flex items-center gap-2 flex-wrap">

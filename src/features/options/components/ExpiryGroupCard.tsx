@@ -9,9 +9,9 @@ import type { CurrencyConfig } from '../../../shared/types';
 import { optionsService } from '../../../lib/services';
 import { logger } from '../../../shared/utils/logger';
 import toast from 'react-hot-toast';
-import { useAutoRefresh, useOptionPriceWebSocket } from '../hooks/useOptionPriceWebSocket';
-import { isUnderlyingCode } from '../context/OptionPriceWebSocketContext';
+import { useOptionPriceWebSocket } from '../hooks/useOptionPriceWebSocket';
 import { AnimatedFlash } from './AnimatedFlash';
+import { OptionQuoteSubscription } from './OptionQuoteSubscription';
 import { RealTimeSpreadChart } from './RealTimeSpreadChart';
 import { getComboStatus } from '../utils/portfolioUi';
 
@@ -27,6 +27,7 @@ const STANDARD_ETF_OPTION_UNDERLYINGS = new Set([
   '159915',
   '159901',
 ]);
+const invalidPriceLogKeys = new Set<string>();
 
 
 
@@ -110,7 +111,13 @@ export function ExpiryGroupCard({
   onRefresh,
   wsRefreshNonce = 0
 }: ExpiryGroupCardProps) {
-  const { queryPrice, realtimeQueryPrice, prices, isConnected, connect } = useOptionPriceWebSocket();
+  const {
+    realtimeQueryPrice,
+    prices,
+    isConnected,
+    connect,
+    reconnect
+  } = useOptionPriceWebSocket();
   const [localState, setLocalState] = useState<{ data: OptionsData | null; symbol: string | null }>({ data: null, symbol: null });
   const { data: localOptionsData, symbol: localDataSymbol } = localState;
 
@@ -963,79 +970,13 @@ export function ExpiryGroupCard({
     }
   }, [confirmData, optionsData, filteredPositions, selectedSymbol, localOptionsData, localDataSymbol]);
 
-  // Calculate codes for pricing
-  const { realtimeCodes, normalCodes } = useMemo(() => {
-    const positionCodes = filteredPositions.map(p => p.contract_code_full).filter(Boolean) as string[];
-    
-    // Collect codes from all available data sources
-    const dataSources = [optionsData, localOptionsData, ...(optionsDataMap ? Object.values(optionsDataMap) : [])]
-      .filter((d): d is OptionsData => !!d)
-      .filter(d => !selectedSymbol || d.opt_undl_code_full === selectedSymbol);
-    
-    const allOptionCodes = dataSources.flatMap(data => 
-      (data?.quotes || [])
-        .filter(q => q.expiry === group.expiry)
-        .flatMap(q => [
-          q.call_contract_code_full,
-          q.put_contract_code_full
-        ])
-    ).filter(Boolean) as string[];
-    
-    // Include selected underlying symbol if available
-    const underlyingCode = selectedSymbol ? [selectedSymbol] : [];
-    
-    const all = Array.from(new Set([...positionCodes, ...allOptionCodes, ...underlyingCode])).sort();
-    
-    const realtime: string[] = [];
-    const normal: string[] = [];
-    
-    all.forEach(code => {
-      if (isUnderlyingCode(code)) {
-        realtime.push(code);
-      } else {
-        normal.push(code);
-      }
-    });
-    
-    return { realtimeCodes: realtime, normalCodes: normal };
-  }, [filteredPositions, optionsData, localOptionsData, optionsDataMap, group.expiry, selectedSymbol]);
-
-  // Realtime refresher (2s)
-  const { triggerNow: triggerRealtimeNow } = useAutoRefresh(
-    () => {
-      if (realtimeCodes.length === 0) return;
-      realtimeQueryPrice(realtimeCodes);
-    },
-    {
-      enabled: isConnected && realtimeCodes.length > 0,
-      intervalMs: 2000,
-      immediate: true,
-      tickMs: 500,
-    }
-  );
-
-  // Normal refresher (5s)
-  const quoteIntervalMs = (isExpanded || confirmData) ? 5000 : 10000;
-  const { remainingMs: quoteRemainingMs, progress: quoteProgress, triggerNow: triggerNormalNow } = useAutoRefresh(
-    () => {
-      if (normalCodes.length === 0) return;
-      queryPrice(normalCodes);
-    },
-    {
-      enabled: isConnected && normalCodes.length > 0,
-      intervalMs: quoteIntervalMs,
-      immediate: true,
-      tickMs: 1000,
-    }
-  );
-
   const prevWsRefreshNonceRef = useRef<number>(wsRefreshNonce);
   useEffect(() => {
     if (prevWsRefreshNonceRef.current === wsRefreshNonce) return;
     prevWsRefreshNonceRef.current = wsRefreshNonce;
-    triggerRealtimeNow();
-    triggerNormalNow();
-  }, [wsRefreshNonce, triggerRealtimeNow, triggerNormalNow]);
+    // Manual refresh: trigger a reconnection to reset everything
+    reconnect();
+  }, [wsRefreshNonce, reconnect]);
 
   useEffect(() => {
     if (!isPageLocked) return;
@@ -1113,22 +1054,6 @@ export function ExpiryGroupCard({
   }, [allExpiryBuckets, confirmData?.meta?.expiry, filteredPositions, group.expiry]);
 
   const initializedConfirmRef = useRef<string | null>(null);
-  const lastWsQuoteRequestAtRef = useRef<Record<string, number>>({});
-
-  const throttledQueryPrice = useCallback(
-    (codesInput: Array<string | undefined | null>, minIntervalMs: number = 1500) => {
-      const list = normalizeCodeList(codesInput);
-      if (list.length === 0) return;
-      const now = Date.now();
-      const send = list.filter((c) => now - (lastWsQuoteRequestAtRef.current[c] ?? 0) > minIntervalMs);
-      if (send.length === 0) return;
-      send.forEach((c) => {
-        lastWsQuoteRequestAtRef.current[c] = now;
-      });
-      queryPrice(send);
-    },
-    [normalizeCodeList, queryPrice]
-  );
 
   useEffect(() => {
     if (!confirmData) {
@@ -1177,68 +1102,64 @@ export function ExpiryGroupCard({
     }
   }, [confirmData, collectIdsForCategory, filteredPositions]);
 
-  useEffect(() => {
-    if (confirmData?.meta?.action === 'sync_category' && isConnected) {
-      const codes: string[] = [];
-      if (confirmData.meta.contract_code_full) {
-        codes.push(confirmData.meta.contract_code_full);
-      } else {
+    const dialogSubscriptionCodes = useMemo(() => {
+      const codes: Array<string | undefined> = [];
+
+      if (confirmData) {
+        codes.push(
+          confirmData.meta?.contract_code_full || confirmData.meta?.contract_code,
+        ...confirmData.ids.map((id) => {
+          const position = filteredPositions.find((item) => item.id === id);
+          return position?.contract_code_full || position?.contract_code || position?.symbol;
+          })
+        );
+
+        if (confirmData.meta?.action === 'sync_category' && normalizeCodeList(codes).length === 0) {
         const s = Number(confirmData.meta.strike);
-        const c = confirmData.meta.category as 'call_obligation' | 'put_obligation' | 'call_right' | 'put_right' | 'call_covered' | 'put_covered';
+        const c = confirmData.meta.category as
+          | 'call_obligation'
+          | 'put_obligation'
+          | 'call_right'
+          | 'put_right'
+          | 'call_covered'
+          | 'put_covered';
         const ids = collectIdsForCategory(c, s);
-        ids.forEach(id => {
-          const p = filteredPositions.find(x => x.id === id);
+        ids.forEach((id) => {
+          const p = filteredPositions.find((x) => x.id === id);
           if (p?.contract_code_full) codes.push(p.contract_code_full);
         });
       }
-      
-      const unique = Array.from(new Set(codes));
-      if (unique.length > 0) {
-        queryPrice(unique);
+
+        if (
+          confirmData.meta?.action === 'unwind_combo_selection' ||
+          confirmData.meta?.action === 'combo_manage'
+        ) {
+          const strategies = confirmData.meta?.strategies || [];
+          codes.push(...strategies.flatMap((item) =>
+            (item.strategy?.positions || []).map((position) =>
+              position.contract_code_full || position.contract_code || position.symbol
+            )
+          ));
+        }
       }
-    }
-  }, [confirmData, isConnected, collectIdsForCategory, filteredPositions, queryPrice]);
 
-  useEffect(() => {
-    if (!confirmData) return;
-    if (confirmData.meta?.action !== 'unwind_combo_selection' && confirmData.meta?.action !== 'combo_manage') return;
-    const strategies = confirmData.meta?.strategies || [];
-    const codes = normalizeCodeList(
-      strategies.flatMap((item) =>
-        (item.strategy?.positions || []).map((p) => p.contract_code_full || p.contract_code || p.symbol)
-      )
-    );
-    if (codes.length === 0) return;
-    if (!isConnected) {
-      connect();
-      return;
-    }
-    throttledQueryPrice(codes, 0);
-    const timer = window.setInterval(() => {
-      throttledQueryPrice(codes);
-    }, 1500);
-    return () => window.clearInterval(timer);
-  }, [confirmData, connect, isConnected, normalizeCodeList, throttledQueryPrice]);
+      if (activeComboDraft) {
+        const buyPosition = activeComboDraft.combo.buy_position?.position;
+        const sellPosition = activeComboDraft.combo.sell_position?.position;
+        codes.push(
+          buyPosition?.contract_code_full || buyPosition?.contract_code,
+          sellPosition?.contract_code_full || sellPosition?.contract_code
+        );
+      }
 
-  useEffect(() => {
-    if (!activeComboDraft) return;
-    const buyPos = activeComboDraft.combo.buy_position?.position;
-    const sellPos = activeComboDraft.combo.sell_position?.position;
-    const codes = normalizeCodeList([
-      buyPos?.contract_code_full || buyPos?.contract_code,
-      sellPos?.contract_code_full || sellPos?.contract_code,
+      return normalizeCodeList(codes);
+    }, [
+      activeComboDraft,
+      collectIdsForCategory,
+      confirmData,
+      filteredPositions,
+      normalizeCodeList,
     ]);
-    if (codes.length === 0) return;
-    if (!isConnected) {
-      connect();
-      return;
-    }
-    throttledQueryPrice(codes, 0);
-    const timer = window.setInterval(() => {
-      throttledQueryPrice(codes);
-    }, 1500);
-    return () => window.clearInterval(timer);
-  }, [activeComboDraft, connect, isConnected, normalizeCodeList, throttledQueryPrice]);
 
   const advisedPricePreview = useMemo(() => {
     if (!activeComboDraft) return null;
@@ -2345,6 +2266,7 @@ export function ExpiryGroupCard({
           ? 'shadow-[0_1px_2px_rgba(30,64,175,0.04),0_10px_28px_-16px_rgba(37,99,235,0.10)]'
           : 'shadow-[0_1px_2px_rgba(15,23,42,0.04),0_10px_28px_-16px_rgba(15,23,42,0.08)]'
       }`}>
+        <OptionQuoteSubscription ordinaryCodes={dialogSubscriptionCodes} />
       <div className={`absolute inset-x-0 top-0 h-px z-10 bg-gradient-to-r ${
         theme === 'dark' ? 'from-zinc-800/60 via-zinc-900/20 to-transparent'
         : theme === 'blue' ? 'from-blue-50/90 via-blue-50/40 to-transparent'
@@ -3772,6 +3694,28 @@ export function ExpiryGroupCard({
               };
 
               const priceData = (code && prices[code]) || (fullCode && prices[fullCode]) || null;
+                const latestPrice = typeof priceData?.price === 'number' && Number.isFinite(priceData.price)
+                  ? priceData.price
+                  : undefined;
+                const isDebug = import.meta.env.DEV ||
+                  new URLSearchParams(window.location.search).get('debug') === 'true' ||
+                  localStorage.getItem('options_portfolio_debug') === 'true';
+                const invalidPriceLogKey = `${fullCode || code || 'unknown'}:${priceData?.timestamp || 'no-timestamp'}`;
+                if (priceData && latestPrice === undefined && isDebug && !invalidPriceLogKeys.has(invalidPriceLogKey)) {
+                  invalidPriceLogKeys.add(invalidPriceLogKey);
+                  console.groupCollapsed('[Options Portfolio Debug] Invalid option price');
+                  console.table([{
+                    code,
+                    fullCode,
+                    price: priceData.price,
+                    lastPrice: priceData.last_price,
+                    bid: priceData.bid,
+                    ask: priceData.ask,
+                    timestamp: priceData.timestamp,
+                  }]);
+                  console.log('Raw price data:', priceData);
+                  console.groupEnd();
+                }
               const wl = whitelists.find(w => (code && w.contract_code === code) || (fullCode && w.contract_code === fullCode));
 
               const categoryLabelMap: Record<string, string> = {
@@ -4125,7 +4069,9 @@ export function ExpiryGroupCard({
                       <div className="flex items-center justify-between text-xs">
                         <span className={`font-bold ${themes[theme].text} flex items-center gap-1.5`}>
                           <span>📈</span> 五档行情盘口
-                          <span className="font-mono text-blue-600 dark:text-blue-400 ml-1">最新: {priceData.price.toFixed(4)}</span>
+                          <span className="font-mono text-blue-600 dark:text-blue-400 ml-1">
+                            最新: {latestPrice !== undefined ? latestPrice.toFixed(4) : '-'}
+                          </span>
                         </span>
                         <span className="opacity-50 font-mono text-[10px]">{format(new Date(priceData.timestamp), 'HH:mm:ss')}</span>
                       </div>

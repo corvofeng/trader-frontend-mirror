@@ -10,6 +10,7 @@ import type { OptionsPortfolioData, OptionsPosition, OptionsStrategy, AdvisedCom
 import { computeCombosForPositions as computeCombosForStrategy } from '../utils/strategyCombos';
 import toast from 'react-hot-toast';
 import { ExpiryGroupCard } from './ExpiryGroupCard';
+import { OptionQuoteSubscription } from './OptionQuoteSubscription';
 import { useOptionPriceWebSocket } from '../hooks/useOptionPriceWebSocket';
 import { useClosePositions } from '../hooks/useClosePositions';
 import { UnderlyingPriceMonitor } from './UnderlyingPriceMonitor';
@@ -71,7 +72,13 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   const [isLogOpen, setIsLogOpen] = useState(false);
   const previousPositionsRef = useRef<Record<string, OptionsPosition>>({});
   const isBaselineEstablishedRef = useRef(false);
-  const { isConnected, send, portfolioSnapshot, prices, queryPrice } = useOptionPriceWebSocket();
+  const {
+    isConnected,
+    send,
+    portfolioSnapshot,
+    prices,
+    reconnect
+  } = useOptionPriceWebSocket();
   const requestedSymbolsRef = useRef<Set<string>>(new Set());
 
   // State for collapsible expiry groups
@@ -221,23 +228,16 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     };
   }, []);
 
-  // ScrollSpy to update active expiry based on viewport
+  // ScrollSpy determines the active month; quotes are loaded for every expiry in that month.
   useEffect(() => {
-    if (!portfolioData) return;
+    if (groups.length === 0) return;
 
     const handleScrollSpy = () => {
-      // Update active expiry status from ScrollSpy
-
-      const groups = portfolioData.expiryBuckets || portfolioData.expiryGroups || [];
-      if (groups.length === 0) return;
-
       // Header offset + sticky nav height approx
       // Adjust this value based on your actual header height + sticky nav height
       const offset = 220; 
-      const viewportHeight = window.innerHeight;
       
       let currentActive: string | null = null;
-      const visibleCodes = new Map<string, VisibleContractInfo>();
       
       // Iterate through groups to find which one is currently active
       for (const group of groups) {
@@ -249,38 +249,6 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
           if (rect.top <= offset) {
              currentActive = group.expiry;
           }
-
-          // New visibility detection for contract codes
-          const isVisible = rect.bottom > offset && rect.top < viewportHeight;
-          if (isVisible) {
-            // Handle different bucket formats (expiryBuckets vs expiryGroups)
-            const singlePositions = (group as any).single || (group as any).positions || [];
-            const complexStrategies = (group as any).complex || [];
-
-            singlePositions.forEach((p: OptionsPosition) => {
-              if (p.contract_code_full) {
-                visibleCodes.set(p.contract_code_full, {
-                  code: p.contract_code_full,
-                  type: p.contract_type_zh || p.option_type || p.type,
-                  strike: p.strike,
-                  expiry: p.expiry
-                });
-              }
-            });
-            
-            complexStrategies.forEach((s: OptionsStrategy) => {
-              s.positions.forEach((p: OptionsPosition) => {
-                if (p.contract_code_full) {
-                  visibleCodes.set(p.contract_code_full, {
-                    code: p.contract_code_full,
-                    type: p.contract_type_zh || p.option_type || p.type,
-                    strike: p.strike,
-                    expiry: p.expiry
-                  });
-                }
-              });
-            });
-          }
         }
       }
       
@@ -290,8 +258,52 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
          currentActive = groups[0].expiry;
       }
 
+      const activeMonth = currentActive?.slice(0, 7);
+      const monthCodes = new Map<string, VisibleContractInfo>();
+      const addContract = (
+        code: string | undefined,
+        type: string,
+        strike: number,
+        expiry: string
+      ) => {
+        if (!code) return;
+        monthCodes.set(code, { code, type, strike, expiry });
+      };
+
+      groups
+        .filter((group) => group.expiry.slice(0, 7) === activeMonth)
+        .forEach((group) => {
+          const addPosition = (position: OptionsPosition) => {
+            addContract(
+              position.contract_code_full,
+              position.contract_type_zh || position.option_type || position.type,
+              position.strike,
+              position.expiry
+            );
+          };
+
+          group.single.forEach(addPosition);
+          group.complex.forEach((strategy) => strategy.positions.forEach(addPosition));
+        });
+
+      const chainDataSources = [optionsData, internalOptionsDataMap[activeSymbol]]
+        .filter((data): data is OptionsData => !!data);
+      chainDataSources.forEach((data) => {
+        data.quotes
+          .filter((quote) => quote.expiry.slice(0, 7) === activeMonth)
+          .forEach((quote) => {
+            addContract(quote.call_contract_code_full, 'call', quote.strike, quote.expiry);
+            addContract(quote.put_contract_code_full, 'put', quote.strike, quote.expiry);
+          });
+      });
+
+      const nextContracts = Array.from(monthCodes.values()).sort((a, b) => a.code.localeCompare(b.code));
       setActiveExpiry(prev => prev !== currentActive ? currentActive : prev);
-      setVisibleContracts(Array.from(visibleCodes.values()).sort((a, b) => a.code.localeCompare(b.code)));
+      setVisibleContracts((prev) => {
+        const unchanged = prev.length === nextContracts.length &&
+          prev.every((contract, index) => contract.code === nextContracts[index]?.code);
+        return unchanged ? prev : nextContracts;
+      });
     };
 
     let ticking = false;
@@ -310,7 +322,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     handleScrollSpy();
     
     return () => window.removeEventListener('scroll', onScroll);
-  }, [portfolioData]);
+  }, [activeSymbol, groups, internalOptionsDataMap, optionsData]);
 
   // Debug logging for visible contracts
   useEffect(() => {
@@ -326,16 +338,25 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                     localStorage.getItem('options_portfolio_debug') === 'true';
     
     if (isDebug && visibleContracts.length > 0) {
-      const currentCodesStr = visibleContracts.map(c => c.code).join(',');
+      const currentCodesStr = `${activeMonthKey || 'unknown'}:${visibleContracts.map(c => c.code).join(',')}`;
       if (currentCodesStr !== lastLoggedCodesRef.current) {
-        console.group('%c[Options Portfolio Debug] Visible Contracts', 'color: #3b82f6; font-weight: bold;');
+        console.groupCollapsed(
+          `%c[Options Portfolio Debug] Month Contracts: ${activeMonthKey || 'unknown'}`,
+          'color: #3b82f6; font-weight: bold;'
+        );
+        console.table([{
+          month: activeMonthKey,
+          total: visibleContracts.length,
+          calls: visibleContracts.filter((contract) => contract.type.toLowerCase().includes('call')).length,
+          puts: visibleContracts.filter((contract) => contract.type.toLowerCase().includes('put')).length,
+        }]);
         console.table(visibleContracts);
         console.log('Summary Codes:', visibleContracts.map(c => c.code));
         console.groupEnd();
         lastLoggedCodesRef.current = currentCodesStr;
       }
     }
-  }, [visibleContracts]);
+  }, [activeMonthKey, visibleContracts]);
 
   const toggleExpiryGroup = (expiry: string) => {
     setExpandedExpiryGroups(prev => ({
@@ -357,6 +378,11 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       setActiveSymbol(selectedSymbol);
     }
   }, [selectedSymbol]);
+
+  const visibleCodes = useMemo(
+    () => visibleContracts.map((contract) => contract.code),
+    [visibleContracts]
+  );
 
   // Reset baseline when account changes
   useEffect(() => {
@@ -542,9 +568,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     const effectiveSymbol = activeSymbol || selectedSymbol || '';
     if (!effectiveSymbol) return;
     setWsRefreshNonce((prev) => prev + 1);
-    if (isConnected) {
-      queryPrice([effectiveSymbol]);
-    }
+
     const refreshed = await fetchPortfolio();
 
     const symbols = new Set<string>();
@@ -587,7 +611,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       }
       return next;
     });
-  }, [activeSymbol, fetchPortfolio, isConnected, queryPrice, selectedSymbol]);
+  }, [activeSymbol, fetchPortfolio, selectedSymbol]);
 
   useEffect(() => {
     void refreshPortfolioAndQuotes();
@@ -731,28 +755,54 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
 
   const refreshButton = useMemo(() => {
     const btn = (
-      <button
-        onClick={refreshPortfolioAndQuotes}
-        disabled={isLoading}
+      <div
         style={{
           position: 'fixed',
           bottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
           right: 'calc(16px + env(safe-area-inset-right, 0px))',
           zIndex: 2147483000,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px',
         }}
-        className={`p-3 rounded-full shadow-[0_8px_24px_-8px_rgba(15,23,42,0.35)] btn-tactile ${
-          isLoading ? 'opacity-70 cursor-wait' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-        } ${themes[theme].card} ${themes[theme].border} border ring-1 ring-black/5 dark:ring-white/5 backdrop-blur-xl relative overflow-hidden`}
-        aria-label="Refresh Portfolio"
-        title="刷新持仓"
       >
-        <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent dark:from-white/5 pointer-events-none" />
-        <RefreshCw className={`w-6 h-6 relative ${themes[theme].text} ${isLoading ? 'animate-spin' : ''}`} strokeWidth={1.75} />
-      </button>
+        {/* WebSocket Reconnect Button */}
+        <button
+          onClick={reconnect}
+          className={`p-3 rounded-full shadow-[0_8px_24px_-8px_rgba(15,23,42,0.35)] btn-tactile ${
+            !isConnected ? 'bg-red-500/10' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+          } ${themes[theme].card} ${themes[theme].border} border ring-1 ring-black/5 dark:ring-white/5 backdrop-blur-xl relative overflow-hidden`}
+          aria-label="Reconnect WebSocket"
+          title="重连行情服务"
+        >
+          <Activity
+            className={`w-6 h-6 relative ${!isConnected ? 'text-red-500' : 'text-green-500'}`}
+            strokeWidth={1.75}
+          />
+          {!isConnected && <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full animate-ping" />}
+        </button>
+
+        {/* Portfolio Refresh Button */}
+        <button
+          onClick={refreshPortfolioAndQuotes}
+          disabled={isLoading}
+          className={`p-3 rounded-full shadow-[0_8px_24px_-8px_rgba(15,23,42,0.35)] btn-tactile ${
+            isLoading ? 'opacity-70 cursor-wait' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+          } ${themes[theme].card} ${themes[theme].border} border ring-1 ring-black/5 dark:ring-white/5 backdrop-blur-xl relative overflow-hidden`}
+          aria-label="Refresh Portfolio"
+          title="刷新持仓"
+        >
+          <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent dark:from-white/5 pointer-events-none" />
+          <RefreshCw
+            className={`w-6 h-6 relative ${themes[theme].text} ${isLoading ? 'animate-spin' : ''}`}
+            strokeWidth={1.75}
+          />
+        </button>
+      </div>
     );
     if (typeof document === 'undefined') return btn;
     return createPortal(btn, document.body);
-  }, [refreshPortfolioAndQuotes, isLoading, theme]);
+  }, [refreshPortfolioAndQuotes, isLoading, theme, reconnect, isConnected]);
 
   const mobileMonthToc = useMemo(() => {
     if (!isMobile || months.length === 0) return null;
@@ -845,6 +895,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   if (isLoading && !portfolioData) {
     return (
       <>
+          <OptionQuoteSubscription realtimeCodes={[activeSymbol]} />
         <div className={`${themes[theme].card} rounded-xl ${cardShadowFn} p-8 border ${themes[theme].border}`}>
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4 shadow-sm shadow-blue-500/20"></div>
@@ -860,6 +911,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   if (!portfolioData) {
     return (
       <>
+          <OptionQuoteSubscription realtimeCodes={[activeSymbol]} />
         <div className={`${themes[theme].card} rounded-xl ${cardShadowFn} p-8 border ${themes[theme].border} relative isolate overflow-hidden`}>
           <div className={`absolute inset-x-0 top-0 h-px z-10 bg-gradient-to-r ${
             theme === 'dark' ? 'from-zinc-800/60 via-zinc-900/20 to-transparent'
@@ -911,6 +963,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
 
   return (
     <div className="space-y-4 sm:space-y-5">
+      <OptionQuoteSubscription ordinaryCodes={visibleCodes} realtimeCodes={[activeSymbol]} />
       {portfolioData.is_snapshot && (
         <div className={`px-4 py-3 sm:px-4 rounded-xl ${themes[theme].semantic.snapshotBanner} border ${themes[theme].border} ${cardShadowFn}`}>
           <div className="flex items-start gap-3">

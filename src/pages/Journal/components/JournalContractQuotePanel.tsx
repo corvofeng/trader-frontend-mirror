@@ -14,7 +14,8 @@ import {
 import { Line } from 'react-chartjs-2';
 
 import { OptionPriceWebSocketProvider } from '../../../features/options/context/OptionPriceWebSocketContext';
-import { useAutoRefresh, useOptionPriceWebSocket } from '../../../features/options/hooks/useOptionPriceWebSocket';
+import { OptionQuoteSubscription } from '../../../features/options/components/OptionQuoteSubscription';
+import { useOptionPriceWebSocket } from '../../../features/options/hooks/useOptionPriceWebSocket';
 import { type Theme, themes } from '../../../lib/theme';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend);
@@ -55,34 +56,15 @@ function JournalContractQuotePanelInner({
   selectedQuoteLevel,
   onSelectPrice,
 }: JournalContractQuotePanelInnerProps) {
-  const { prices, isConnected, queryPrice } = useOptionPriceWebSocket();
+  const { prices, isConnected, reconnect } = useOptionPriceWebSocket();
   const normalizedCode = contractCode.trim();
   const [history, setHistory] = useState<Array<{ time: string; price: number }>>([]);
   const lastPushedAtRef = useRef<number>(0);
-
-  const autoRefreshIntervalMs = 5000;
-  const { remainingMs, progress, triggerNow } = useAutoRefresh(
-    () => {
-      if (!normalizedCode) return;
-      queryPrice([normalizedCode]);
-    },
-    {
-      enabled: isConnected && normalizedCode.length > 0,
-      intervalMs: autoRefreshIntervalMs,
-      immediate: true,
-      tickMs: 500,
-    }
-  );
 
   useEffect(() => {
     setHistory([]);
     lastPushedAtRef.current = 0;
   }, [normalizedCode]);
-
-  useEffect(() => {
-    if (!isConnected || !normalizedCode) return;
-    queryPrice([normalizedCode]);
-  }, [isConnected, normalizedCode, queryPrice]);
 
   const priceData = prices[normalizedCode];
   const currentPrice = priceData?.price;
@@ -234,32 +216,23 @@ function JournalContractQuotePanelInner({
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <div className="min-w-[90px]">
-              <div className={`text-[11px] uppercase tracking-wide ${themes[theme].text} opacity-60`}>最新价</div>
+              <div className={`text-[11px] uppercase tracking-wide ${themes[theme].text} opacity-60`}>
+                最新价
+              </div>
               <div className={`text-2xl font-bold ${themes[theme].text}`}>
                 {typeof currentPrice === 'number' ? currentPrice.toFixed(4) : '-'}
               </div>
             </div>
-            <div className="min-w-[160px]">
-              <div className="mb-1 flex items-center justify-between text-[11px]">
-                <span className={`${themes[theme].text} opacity-60`}>自动刷新</span>
-                <span className={`${themes[theme].text} opacity-60`}>
-                  {isConnected ? `${Math.ceil(remainingMs / 1000)}s` : '--'}
-                </span>
-              </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                <div className="h-full bg-blue-500" style={{ width: `${Math.round(progress * 100)}%` }} />
-              </div>
-            </div>
             <button
               type="button"
-              onClick={triggerNow}
+              onClick={reconnect}
               disabled={!isConnected || !normalizedCode}
-              className={`inline-flex items-center rounded-md px-3 py-2 text-sm font-medium ${themes[theme].secondary} ${
-                !isConnected ? 'cursor-not-allowed opacity-50' : ''
-              }`}
+              className={`inline-flex items-center rounded-md px-3 py-2 text-sm font-medium ${
+                themes[theme].secondary
+              } ${!isConnected ? 'cursor-not-allowed opacity-50' : ''}`}
             >
               <RefreshCw className="mr-2 h-4 w-4" />
-              刷新行情
+              刷新连接
             </button>
           </div>
         </div>
@@ -422,15 +395,17 @@ export function JournalContractQuotePanel({
 
   return (
     <OptionPriceWebSocketProvider>
-      <JournalContractQuotePanelInner
-        contractCode={contractCode}
-        contractName={contractName}
-        theme={theme}
-        selectedQuotePrice={selectedQuotePrice}
-        selectedQuoteSide={selectedQuoteSide}
-        selectedQuoteLevel={selectedQuoteLevel}
-        onSelectPrice={onSelectPrice}
-      />
+        <OptionQuoteSubscription ordinaryCodes={[contractCode]}>
+          <JournalContractQuotePanelInner
+            contractCode={contractCode}
+            contractName={contractName}
+            theme={theme}
+            selectedQuotePrice={selectedQuotePrice}
+            selectedQuoteSide={selectedQuoteSide}
+            selectedQuoteLevel={selectedQuoteLevel}
+            onSelectPrice={onSelectPrice}
+          />
+        </OptionQuoteSubscription>
     </OptionPriceWebSocketProvider>
   );
 }
