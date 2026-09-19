@@ -112,10 +112,7 @@ export function ExpiryGroupCard({
   wsRefreshNonce = 0
 }: ExpiryGroupCardProps) {
   const {
-    realtimeQueryPrice,
     prices,
-    isConnected,
-    connect,
     reconnect
   } = useOptionPriceWebSocket();
   const [localState, setLocalState] = useState<{ data: OptionsData | null; symbol: string | null }>({ data: null, symbol: null });
@@ -2266,7 +2263,7 @@ export function ExpiryGroupCard({
           ? 'shadow-[0_1px_2px_rgba(30,64,175,0.04),0_10px_28px_-16px_rgba(37,99,235,0.10)]'
           : 'shadow-[0_1px_2px_rgba(15,23,42,0.04),0_10px_28px_-16px_rgba(15,23,42,0.08)]'
       }`}>
-        <OptionQuoteSubscription ordinaryCodes={dialogSubscriptionCodes} />
+        <OptionQuoteSubscription realtimeCodes={dialogSubscriptionCodes} />
       <div className={`absolute inset-x-0 top-0 h-px z-10 bg-gradient-to-r ${
         theme === 'dark' ? 'from-zinc-800/60 via-zinc-900/20 to-transparent'
         : theme === 'blue' ? 'from-blue-50/90 via-blue-50/40 to-transparent'
@@ -2618,9 +2615,6 @@ export function ExpiryGroupCard({
                                           localOptionsData={localOptionsData}
                                           filteredPositions={filteredPositions}
                                           onSetConfirmData={setConfirmData}
-                                          isConnected={isConnected}
-                                          onConnect={connect}
-                                          onRealtimeQueryPrice={realtimeQueryPrice}
                                         />
                                       );
                                     }
@@ -2649,9 +2643,6 @@ export function ExpiryGroupCard({
                                       localOptionsData={localOptionsData}
                                       filteredPositions={filteredPositions}
                                       onSetConfirmData={setConfirmData}
-                                      isConnected={isConnected}
-                                      onConnect={connect}
-                                      onRealtimeQueryPrice={realtimeQueryPrice}
                                     />
                                   ));
                                 })()}
@@ -4751,9 +4742,6 @@ interface TBoardRowProps {
   localOptionsData?: OptionsData | null | undefined;
   filteredPositions: OptionsPosition[];
   onSetConfirmData: (data: any) => void;
-  isConnected: boolean;
-  onConnect: () => void;
-  onRealtimeQueryPrice: (codes: string[]) => void;
 }
 
 const TBoardRow = React.memo(function TBoardRow({
@@ -4773,9 +4761,6 @@ const TBoardRow = React.memo(function TBoardRow({
   localOptionsData,
   filteredPositions,
   onSetConfirmData,
-  isConnected,
-  onConnect,
-  onRealtimeQueryPrice,
 }: TBoardRowProps) {
   const tBoardValueTextClass = `inline-flex items-center justify-center text-[13px] font-semibold leading-tight ${themes[theme].text}`;
   const tBoardComboValueClass = `inline-flex min-w-[2.5rem] items-center justify-center text-[13px] font-semibold leading-tight ${themes[theme].text}`;
@@ -4925,11 +4910,6 @@ const TBoardRow = React.memo(function TBoardRow({
       console.log('Current Total Qty:', currentSum);
       console.log('Target Codes:', uniqueCodes);
       console.groupEnd();
-    }
-
-    if (uniqueCodes.length > 0) {
-      if (!isConnected) onConnect();
-      onRealtimeQueryPrice(uniqueCodes);
     }
 
     onSetConfirmData({

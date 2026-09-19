@@ -40,6 +40,7 @@ const UNDERLYING_SYMBOLS = new Set([
   '510050', '510300', '510500', '588000', '588080',
   '159919', '159922', '159915', '159901'
 ]);
+const REALTIME_REFRESH_INTERVAL_MS = 2000;
 
 export const isUnderlyingCode = (code: string) => {
   if (!code) return false;
@@ -58,6 +59,37 @@ export const isUnderlyingCode = (code: string) => {
   if (/^\d{6}$/.test(base) && parts.length <= 2) return true;
 
   return false;
+};
+
+// eslint-disable-next-line react-refresh/only-export-components
+export const buildRealtimeSubscriptionBatches = (
+  codes: string[],
+  maxCodesPerMessage = 5
+) => {
+  const normalizedCodes = preferQualifiedCodes(codes).sort();
+  const underlyings = normalizedCodes.filter(isUnderlyingCode);
+  const contracts = normalizedCodes.filter((code) => !isUnderlyingCode(code));
+  const batches: string[][] = [];
+
+  if (contracts.length === 0) {
+    for (let index = 0; index < underlyings.length; index += maxCodesPerMessage) {
+      batches.push(underlyings.slice(index, index + maxCodesPerMessage));
+    }
+    return batches;
+  }
+
+  if (underlyings.length >= maxCodesPerMessage) {
+    for (let index = 0; index < underlyings.length; index += maxCodesPerMessage) {
+      batches.push(underlyings.slice(index, index + maxCodesPerMessage));
+    }
+    return batches;
+  }
+
+  const contractBatchSize = maxCodesPerMessage - underlyings.length;
+  for (let index = 0; index < contracts.length; index += contractBatchSize) {
+    batches.push([...underlyings, ...contracts.slice(index, index + contractBatchSize)]);
+  }
+  return batches;
 };
 
 const parsePriceField = (
@@ -142,6 +174,7 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
 
   const subscriptionFlushTimerRef = useRef<number | null>(null);
   const flushSubscriptionsRef = useRef<() => void>(() => undefined);
+  const lastRealtimeRequestAtRef = useRef(0);
 
   const queuePriceUpdate = useCallback((updates: Record<string, PriceUpdate>) => {
     const realtimeUpdates: Record<string, PriceUpdate> = {};
@@ -389,33 +422,14 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
       return;
     }
 
-    const underlyings = ownCodes.filter(isUnderlyingCode);
-    const contracts = ownCodes.filter((code) => !isUnderlyingCode(code));
-    const maxCodesPerMessage = 5;
-    const batches: string[][] = [];
-
-    if (contracts.length === 0) {
-      for (let index = 0; index < underlyings.length; index += maxCodesPerMessage) {
-        batches.push(underlyings.slice(index, index + maxCodesPerMessage));
-      }
-    } else if (underlyings.length < maxCodesPerMessage) {
-      const contractBatchSize = maxCodesPerMessage - underlyings.length;
-      for (let index = 0; index < contracts.length; index += contractBatchSize) {
-        batches.push([...underlyings, ...contracts.slice(index, index + contractBatchSize)]);
-      }
-    } else {
-      for (let index = 0; index < underlyings.length; index += maxCodesPerMessage) {
-        batches.push(underlyings.slice(index, index + maxCodesPerMessage));
-      }
-      for (let index = 0; index < contracts.length; index += maxCodesPerMessage) {
-        batches.push(contracts.slice(index, index + maxCodesPerMessage));
-      }
-    }
-
-    batches.filter((batch) => batch.length > 0).forEach((batch) => {
+    const batches = buildRealtimeSubscriptionBatches(ownCodes);
+    batches.forEach((batch) => {
       console.log('[OptionWS] realtime_subscribe', { contract_codes: batch });
       client.realtimeSubscribe(batch);
     });
+    if (batches.length > 0) {
+      lastRealtimeRequestAtRef.current = Date.now();
+    }
   }, []);
 
   const flushSubscriptions = useCallback(() => {
@@ -490,14 +504,50 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
 
   const realtimeQueryPrice = useCallback(
     (contractCodes: string[]) => {
-      const codes = Array.from(new Set(contractCodes.map((code) => code.trim()).filter(Boolean)));
-      if (codes.length === 0) return;
-      codes.forEach((_, index) => {
-        if (index % 5 === 0) clientRef.current?.realtimeSubscribe(codes.slice(index, index + 5));
+      const activeCodes = Array.from(realtimeCodesRef.current.keys());
+      const batches = buildRealtimeSubscriptionBatches([...activeCodes, ...contractCodes]);
+      batches.forEach((batch) => {
+        clientRef.current?.realtimeSubscribe(batch);
       });
+      if (batches.length > 0) {
+        lastRealtimeRequestAtRef.current = Date.now();
+      }
     },
     []
   );
+
+  useEffect(() => {
+    let timer: number | null = null;
+    let cancelled = false;
+
+    const scheduleNextRefresh = () => {
+      if (cancelled) return;
+
+      const elapsed = Date.now() - lastRealtimeRequestAtRef.current;
+      const delay = realtimeCodesRef.current.size > 0 && lastRealtimeRequestAtRef.current > 0
+        ? Math.max(100, REALTIME_REFRESH_INTERVAL_MS - elapsed)
+        : REALTIME_REFRESH_INTERVAL_MS;
+
+      timer = window.setTimeout(() => {
+        if (cancelled) return;
+
+        const timeSinceLastRequest = Date.now() - lastRealtimeRequestAtRef.current;
+        if (
+          realtimeCodesRef.current.size > 0 &&
+          timeSinceLastRequest >= REALTIME_REFRESH_INTERVAL_MS
+        ) {
+          sendSubscriptionList('realtime');
+        }
+        scheduleNextRefresh();
+      }, delay);
+    };
+
+    scheduleNextRefresh();
+    return () => {
+      cancelled = true;
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [sendSubscriptionList]);
 
   useEffect(() => {
     const ordinaryRefreshTimer = window.setInterval(() => {

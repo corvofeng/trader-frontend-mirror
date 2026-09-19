@@ -16,6 +16,7 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
   const {
     prices,
     isConnected,
+    realtimeQueryPrice,
   } = useOptionPriceWebSocket();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -149,16 +150,12 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
   }, [clampPanelPos, persistPanelPos, viewportSize.height, viewportSize.width]);
 
   const autoRefreshIntervalMs = 2000;
-  const [quoteRefreshNonce, setQuoteRefreshNonce] = useState(0);
-  const { remainingMs, progress, triggerNow } = useAutoRefresh(
-    () => {
-      if (!symbol) return;
-      setQuoteRefreshNonce((value) => value + 1);
-    },
+  const { remainingMs, progress, triggerNow: resetRefreshCountdown } = useAutoRefresh(
+    () => undefined,
     {
       enabled: isConnected && !!symbol,
       intervalMs: autoRefreshIntervalMs,
-      immediate: true,
+      immediate: false,
       tickMs: 500,
     }
   );
@@ -167,16 +164,22 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
   useEffect(() => {
     if (prevRefreshNonceRef.current === refreshNonce) return;
     prevRefreshNonceRef.current = refreshNonce;
-    triggerNow();
-  }, [refreshNonce, triggerNow]);
+    if (symbol && isConnected) {
+      realtimeQueryPrice([symbol]);
+      resetRefreshCountdown();
+    }
+  }, [isConnected, realtimeQueryPrice, refreshNonce, resetRefreshCountdown, symbol]);
 
   useEffect(() => {
     setRecentPrices([]);
     setIsFreshTick(false);
-    if (symbol && isConnected) {
-      triggerNow();
-    }
-  }, [symbol, isConnected, triggerNow]);
+  }, [symbol]);
+
+  const handleManualRefresh = useCallback(() => {
+    if (!symbol || !isConnected) return;
+    realtimeQueryPrice([symbol]);
+    resetRefreshCountdown();
+  }, [isConnected, realtimeQueryPrice, resetRefreshCountdown, symbol]);
 
   const priceData = prices[symbol];
   const currentPrice = priceData?.price;
@@ -492,7 +495,7 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
 
   return (
     <>
-      <OptionQuoteSubscription realtimeCodes={[symbol]} refreshNonce={quoteRefreshNonce} />
+      <OptionQuoteSubscription realtimeCodes={[symbol]} />
       <div ref={containerRef} className={baseClass} style={style}>
       <div className="absolute inset-0 bg-gradient-to-b from-white/40 via-transparent to-transparent dark:from-white/5 pointer-events-none z-[1]" aria-hidden="true" />
       {/* Title bar (draggable) */}
@@ -565,7 +568,7 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
           <div className="flex items-center gap-1 shrink-0">
             <button
               type="button"
-              onClick={triggerNow}
+              onClick={handleManualRefresh}
               disabled={!isConnected || !symbol}
               className={`${themes[theme].secondary} rounded-lg p-1 transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 hover:opacity-90`}
               aria-label="刷新行情"
