@@ -4,6 +4,7 @@ import { format } from 'date-fns';
 import { Theme, themes } from '../../../lib/theme';
 import { StockChart } from '../../trading/components/StockChart';
 import type { Trade } from '../../../lib/services/types';
+import { isBuyOperation } from '../../../shared/utils/trade';
 
 interface StockAnalysisModalProps {
   stockCode: string;
@@ -67,42 +68,45 @@ export function StockAnalysisModal({ stockCode, stockName, theme, userId, accoun
                   <tbody className={`divide-y ${themes[theme].border} ${themes[theme].text}`}>
                     {[...trades]
                       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                      .map(trade => (
-                      <tr 
-                        key={trade.id} 
-                        className={`transition-colors ${
-                          trade.operation === 'buy'
-                            ? 'bg-green-50/40 dark:bg-green-950/10 hover:bg-green-100/40 dark:hover:bg-green-950/25'
-                            : 'bg-red-50/40 dark:bg-red-950/10 hover:bg-red-100/40 dark:hover:bg-red-950/25'
-                        }`}
-                      >
-                        <td className="px-6 py-4 whitespace-nowrap font-medium">
-                          {format(new Date(trade.created_at), 'yyyy-MM-dd HH:mm')}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                            trade.operation === 'buy' 
-                              ? 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800' 
-                              : 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800'
+                      .map(trade => {
+                        const isBuy = isBuyOperation(trade.operation);
+                        return (
+                        <tr 
+                          key={trade.id} 
+                          className={`transition-colors ${
+                            isBuy
+                              ? 'bg-green-50/40 dark:bg-green-950/10 hover:bg-green-100/40 dark:hover:bg-green-950/25'
+                              : 'bg-red-50/40 dark:bg-red-950/10 hover:bg-red-100/40 dark:hover:bg-red-950/25'
+                          }`}
+                        >
+                          <td className="px-6 py-4 whitespace-nowrap font-medium">
+                            {format(new Date(trade.created_at), 'yyyy-MM-dd HH:mm')}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                              isBuy 
+                                ? 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800' 
+                                : 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800'
+                            }`}>
+                              {isBuy ? '买入' : '卖出'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right whitespace-nowrap font-mono">
+                            {trade.target_price.toFixed(2)}
+                          </td>
+                          <td className={`px-6 py-4 text-right whitespace-nowrap font-mono font-medium ${
+                            isBuy ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                           }`}>
-                            {trade.operation === 'buy' ? '买入' : '卖出'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-right whitespace-nowrap font-mono">
-                          {trade.target_price.toFixed(2)}
-                        </td>
-                        <td className={`px-6 py-4 text-right whitespace-nowrap font-mono font-medium ${
-                          trade.operation === 'buy' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                        }`}>
-                          {trade.operation === 'buy' ? '+' : '-'}{trade.quantity.toLocaleString()}
-                        </td>
-                        <td className={`px-6 py-4 text-right whitespace-nowrap font-mono font-medium ${
-                          trade.operation === 'buy' ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'
-                        }`}>
-                          {trade.operation === 'buy' ? '-' : '+'}{(trade.target_price * trade.quantity).toFixed(2)}
-                        </td>
-                      </tr>
-                    ))}
+                            {isBuy ? '+' : '-'}{trade.quantity.toLocaleString()}
+                          </td>
+                          <td className={`px-6 py-4 text-right whitespace-nowrap font-mono font-medium ${
+                            isBuy ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'
+                          }`}>
+                            {isBuy ? '-' : '+'}{(trade.target_price * trade.quantity).toFixed(2)}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

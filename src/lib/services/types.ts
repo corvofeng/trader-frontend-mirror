@@ -23,14 +23,14 @@ export interface Trade {
   account_alias?: string;
   stock_code: string;
   stock_name?: string;
-  operation: 'buy' | 'sell';
+  operation: 'buy' | 'sell' | string;
   target_price: number;
   quantity: number;
   notes: string;
   status: 'pending' | 'completed' | 'cancelled';
   execute_immediately?: boolean;
   created_at: string;
-  updated_at: string;
+  updated_at?: string | null;
 }
 
 export interface Holding {

@@ -35,6 +35,7 @@ import {
   JOURNAL_ACCOUNT_STORAGE,
   resolveCurrentAccountAlias,
 } from '../../../shared/utils/accountSelection';
+import { normalizeTrade } from '../../../shared/utils/trade';
 
 let cachedUser: User | null = null;
 let pendingUserPromise: Promise<ServiceResponse<{ user: User | null }>> | null = null;
@@ -109,7 +110,7 @@ const actionsCache = new Map<string, CacheEntry<Trade[]>>();
 const actionsPending = new Map<string, Promise<Trade[]>>();
 
 export const tradeService: TradeService = {
-  getTrades: async (userId: string, stock_code?: string, status?: string, accountAlias?: string) => {
+  getTrades: async (_userId: string, stock_code?: string, status?: string, accountAlias?: string) => {
     const params = new URLSearchParams();
 
     const targetAccount = accountAlias || getCurrentAccountAlias() || '';
@@ -129,7 +130,7 @@ export const tradeService: TradeService = {
             const url = params.toString() ? `/api/actions?${params.toString()}` : '/api/actions';
             const res = await fetch(url);
             const json = await res.json();
-            const list = Array.isArray(json) ? (json as Trade[]) : [];
+            const list = Array.isArray(json) ? (json as any[]).map(normalizeTrade) : [];
             setCached(actionsCache, cacheKey, list, 15_000);
             return list;
           })();
@@ -176,7 +177,7 @@ export const tradeService: TradeService = {
     actionsPending.clear();
 
     const newTrade = await response.json();
-    return { data: newTrade, error: null };
+    return { data: normalizeTrade(newTrade), error: null };
   },
 
   updateTrade: async (trade: Trade) => {
@@ -201,7 +202,7 @@ export const tradeService: TradeService = {
     actionsCache.clear();
     actionsPending.clear();
 
-    return { data: trade, error: null };
+    return { data: normalizeTrade(trade), error: null };
   }
 };
 
@@ -923,8 +924,9 @@ export const portfolioService: PortfolioService = {
           throw new Error('Failed to fetch recent trades');
         }
         const data = await response.json();
-        setCached(recentTradesCache, cacheKey, data, 15_000);
-        return data as Trade[];
+        const list = Array.isArray(data) ? (data as any[]).map(normalizeTrade) : [];
+        setCached(recentTradesCache, cacheKey, list, 15_000);
+        return list;
       })();
 
       recentTradesPending.set(cacheKey, promise);
@@ -1099,7 +1101,8 @@ export const portfolioService: PortfolioService = {
         throw new Error('Failed to fetch shared portfolio trades');
       }
       const data = await response.json();
-      return { data, error: null };
+      const list = Array.isArray(data) ? (data as any[]).map(normalizeTrade) : [];
+      return { data: list, error: null };
     } catch (error) {
       console.error('Error fetching shared portfolio trades:', error);
       return { data: null, error: error as Error };

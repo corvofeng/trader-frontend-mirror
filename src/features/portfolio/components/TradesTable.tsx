@@ -2,6 +2,7 @@ import { format } from 'date-fns';
 import { Theme, themes } from '../../../lib/theme';
 import type { Trade } from '../../../lib/services/types';
 import { formatCurrency } from '../../../shared/utils/format';
+import { isBuyOperation } from '../../../shared/utils/trade';
 import { ChevronLeft, ChevronRight, TrendingUp } from 'lucide-react';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 
@@ -147,12 +148,12 @@ export function TradesTable({
                           </div>
                           <span
                             className={`sm:hidden inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${
-                              trade.operation === 'buy'
+                              isBuyOperation(trade.operation)
                                 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
                                 : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'
                             }`}
                           >
-                            {trade.operation === 'buy' ? '买入' : '卖出'}
+                            {isBuyOperation(trade.operation) ? '买入' : '卖出'}
                           </span>
                         </div>
                         <div className={`text-xs sm:text-base ${themes[theme].text} opacity-75 truncate`}>
@@ -201,12 +202,12 @@ export function TradesTable({
                 <td className={`hidden sm:table-cell px-6 py-4 text-center align-middle`}>
                   <span
                     className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold shadow-sm transition-all duration-200 ${
-                      trade.operation === 'buy'
+                      isBuyOperation(trade.operation)
                         ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 ring-1 ring-emerald-500/20'
                         : 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300 ring-1 ring-rose-500/20'
                     }`}
                   >
-                    {trade.operation === 'buy' ? '买入' : '卖出'}
+                    {isBuyOperation(trade.operation) ? '买入' : '卖出'}
                   </span>
                 </td>
                 <td className={`hidden sm:table-cell px-6 py-4 text-right text-base font-mono ${themes[theme].text}`}>

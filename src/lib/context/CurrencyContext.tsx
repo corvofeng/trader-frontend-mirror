@@ -41,7 +41,8 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(false);
   };
 
-  const currencyConfig = currencyConfigs[currency];
+  const normalizedKey = (currency || 'USD').toUpperCase();
+  const currencyConfig = currencyConfigs[normalizedKey] || currencyConfigs[currency] || currencyConfigs['USD'];
   const regionalColors = regionalColorConfigs[currencyConfig?.region || 'US'];
 
   const getThemedColors = (theme: Theme) => {

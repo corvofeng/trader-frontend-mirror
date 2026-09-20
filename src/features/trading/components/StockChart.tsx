@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { themes } from '../../../shared/constants/theme';
 import { stockService, authService, portfolioService } from '../../../lib/services';
 import { formatCurrency } from '../../../shared/utils/format';
+import { isBuyOperation } from '../../../shared/utils/trade';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { ZoomIn, ZoomOut, Lock, Unlock, Maximize2, Minimize2, Grid, LineChart, CandlestickChart, BarChart } from 'lucide-react';
 import type { StockData, Trade, Stock } from '../../../lib/services/types';
@@ -212,7 +213,7 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
     sortedTrades.forEach(trade => {
       const time = Math.floor(new Date(trade.created_at).getTime() / 1000) as UTCTimestamp;
       
-      if (trade.operation === 'buy') {
+      if (isBuyOperation(trade.operation)) {
         totalCost += trade.quantity * trade.target_price;
         currentQuantity += trade.quantity;
       } else {
@@ -346,7 +347,7 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
     if (isDisposed.current || !candlestickSeries) return;
 
     const markers = trades.map(trade => {
-      const isBuy = trade.operation === 'buy';
+      const isBuy = isBuyOperation(trade.operation);
       const tradeColor = isBuy ? chartColors.upColor : chartColors.downColor;
       const time = Math.floor(new Date(trade.created_at).getTime() / 1000) as UTCTimestamp;
       const formattedPrice = formatCurrency(trade.target_price, currencyConfig);
@@ -384,7 +385,7 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
 
     // Add new price lines
     pendingTrades.forEach(trade => {
-      const isBuy = trade.operation === 'buy';
+      const isBuy = isBuyOperation(trade.operation);
       const color = isBuy ? '#22c55e' : '#ef4444'; // green-500 : red-500
       
       const priceLine = candlestickSeriesRef.current?.createPriceLine({

@@ -3,6 +3,8 @@ import { format } from 'date-fns';
 import { ArrowUpCircle, ArrowDownCircle, BarChart2, Check, X, Clock, Edit2, Save, ListFilter, ChevronDown, RefreshCw } from 'lucide-react';
 import { authService, tradeService, stockConfigService } from '../../../lib/services';
 import { Theme, themes } from '../../../lib/theme';
+import { useCurrency } from '../../../lib/context/CurrencyContext';
+import { isBuyOperation, formatCurrency } from '../../../shared/utils';
 import { StockChart } from './StockChart';
 import type { Trade, StockConfig } from '../../../lib/services/types';
 import toast from 'react-hot-toast';
@@ -32,6 +34,7 @@ const areTradesEquivalent = (left: Trade[], right: Trade[]) => {
 };
 
 export function TradeList({ selectedStockCode, theme, showCompleted = false, selectedAccountId }: TradeListProps) {
+  const { currencyConfig } = useCurrency();
   const [trades, setTrades] = useState<Trade[]>([]);
   const [historyTradesByStock, setHistoryTradesByStock] = useState<Record<string, Trade[]>>({});
   const historyTradesHandlersRef = useRef<Record<string, (loadedTrades: Trade[]) => void>>({});
@@ -208,8 +211,8 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
     }
   };
 
-  const getOperationStyle = (operation: 'buy' | 'sell') => {
-    if (operation === 'buy') {
+  const getOperationStyle = (operation: string) => {
+    if (isBuyOperation(operation)) {
       return {
         icon: ArrowUpCircle,
         label: 'Buy',
@@ -434,11 +437,13 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
               </tr>
             </thead>
             <tbody className={`divide-y ${themes[theme].border} ${themes[theme].text}`}>
-              {historyTrades.map((trade) => (
+              {historyTrades.map((trade) => {
+                const isBuy = isBuyOperation(trade.operation);
+                return (
                 <tr 
                   key={trade.id}
                   className={`transition-colors ${
-                    trade.operation === 'buy'
+                    isBuy
                       ? 'bg-green-50/40 dark:bg-green-950/10 hover:bg-green-100/40 dark:hover:bg-green-950/25'
                       : 'bg-red-50/40 dark:bg-red-950/10 hover:bg-red-100/40 dark:hover:bg-red-950/25'
                   }`}
@@ -448,28 +453,29 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                      trade.operation === 'buy'
+                      isBuy
                         ? 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800'
                         : 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800'
                     }`}>
-                      {trade.operation === 'buy' ? '买入' : '卖出'}
+                      {isBuy ? '买入' : '卖出'}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right whitespace-nowrap font-mono">
-                    {trade.target_price.toFixed(2)}
+                    {formatCurrency(trade.target_price, currencyConfig)}
                   </td>
                   <td className={`px-4 py-3 text-right whitespace-nowrap font-mono font-medium ${
-                    trade.operation === 'buy' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                    isBuy ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                   }`}>
-                    {trade.operation === 'buy' ? '+' : '-'}{trade.quantity.toLocaleString()}
+                    {isBuy ? '+' : '-'}{trade.quantity.toLocaleString()}
                   </td>
                   <td className={`px-4 py-3 text-right whitespace-nowrap font-mono font-medium ${
-                    trade.operation === 'buy' ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'
+                    isBuy ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'
                   }`}>
-                    {trade.operation === 'buy' ? '-' : '+'}{(trade.target_price * trade.quantity).toFixed(2)}
+                    {isBuy ? '-' : '+'}{formatCurrency(trade.target_price * trade.quantity, currencyConfig)}
                   </td>
                 </tr>
-              ))}
+              );
+            })}
             </tbody>
           </table>
         </div>
@@ -628,11 +634,11 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
                                       </span>
                                     </div>
                                     <div className={`text-sm ${themes[theme].text} opacity-75 mt-1`}>
-                                      <span className="font-medium">{operationStyle.label}</span> at ${trade.target_price.toFixed(2)} × {trade.quantity}
+                                      <span className="font-medium">{operationStyle.label}</span> at {formatCurrency(trade.target_price, currencyConfig)} × {trade.quantity}
                                     </div>
                                     <div className={`flex flex-col text-sm ${themes[theme].text} opacity-75 mt-0.5`}>
                                       <span>Created: {format(new Date(trade.created_at), 'MMM d, yyyy HH:mm')}</span>
-                                      {trade.updated_at !== trade.created_at && (
+                                      {trade.updated_at && trade.updated_at !== trade.created_at && (
                                         <span>Updated: {format(new Date(trade.updated_at), 'MMM d, yyyy HH:mm')}</span>
                                       )}
                                     </div>
@@ -682,7 +688,7 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
                                         </div>
                                         {trade.status !== 'pending' && (
                                           <div className={`text-xs ${themes[theme].text} opacity-75 mt-2`}>
-                                            {trade.status === 'completed' ? 'Completed' : 'Cancelled'} on {format(new Date(trade.updated_at), 'MMM d, yyyy HH:mm')}
+                                            {trade.status === 'completed' ? 'Completed' : 'Cancelled'} on {format(new Date(trade.updated_at || trade.created_at), 'MMM d, yyyy HH:mm')}
                                           </div>
                                         )}
                                         <button
@@ -783,11 +789,11 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
                                   </span>
                                 </div>
                                 <div className={`text-sm ${themes[theme].text} opacity-75 mt-1`}>
-                                  <span className="font-medium">{operationStyle.label}</span> at ${trade.target_price.toFixed(2)} × {trade.quantity}
+                                  <span className="font-medium">{operationStyle.label}</span> at {formatCurrency(trade.target_price, currencyConfig)} × {trade.quantity}
                                 </div>
                                 <div className={`flex flex-col text-sm ${themes[theme].text} opacity-75 mt-0.5`}>
                                   <span>Created: {format(new Date(trade.created_at), 'MMM d, yyyy HH:mm')}</span>
-                                  {trade.updated_at !== trade.created_at && (
+                                  {trade.updated_at && trade.updated_at !== trade.created_at && (
                                     <span>Updated: {format(new Date(trade.updated_at), 'MMM d, yyyy HH:mm')}</span>
                                   )}
                                 </div>
@@ -837,7 +843,7 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
                                     </div>
                                     {trade.status !== 'pending' && (
                                       <div className={`text-xs ${themes[theme].text} opacity-75 mt-2`}>
-                                        {trade.status === 'completed' ? 'Completed' : 'Cancelled'} on {format(new Date(trade.updated_at), 'MMM d, yyyy HH:mm')}
+                                        {trade.status === 'completed' ? 'Completed' : 'Cancelled'} on {format(new Date(trade.updated_at || trade.created_at), 'MMM d, yyyy HH:mm')}
                                       </div>
                                     )}
                                     <button

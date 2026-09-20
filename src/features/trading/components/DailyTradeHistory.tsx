@@ -3,6 +3,9 @@ import { format } from 'date-fns';
 import { Theme, themes } from '../../../lib/theme';
 import { authService, portfolioService } from '../../../lib/services';
 import type { Trade } from '../../../lib/services/types';
+import { isBuyOperation } from '../../../shared/utils/trade';
+import { formatCurrency } from '../../../shared/utils/format';
+import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
 interface DailyTradeHistoryProps {
@@ -29,6 +32,7 @@ function groupTradesDailyByStock(trades: Trade[]) {
 }
 
 export function DailyTradeHistory({ theme, startDate, endDate, selectedStockCode, selectedAccountId }: DailyTradeHistoryProps) {
+  const { currencyConfig } = useCurrency();
   const [trades, setTrades] = useState<Trade[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedDays, setExpandedDays] = useState<string[]>([]);
@@ -115,8 +119,8 @@ export function DailyTradeHistory({ theme, startDate, endDate, selectedStockCode
                       const key = `${day}|${stock}`;
                       const isGroupExpanded = expandedGroups.includes(key);
                       const displayCode = items[0]?.stock_code ?? '';
-                      const buyCount = items.filter(t => t.operation === 'buy').length;
-                      const sellCount = items.filter(t => t.operation === 'sell').length;
+                      const buyCount = items.filter(t => isBuyOperation(t.operation)).length;
+                      const sellCount = items.filter(t => !isBuyOperation(t.operation)).length;
                       return (
                         <div key={key} className={`rounded-lg p-3 sm:p-4 ${themes[theme].background}`}>
                           <button onClick={() => toggleGroup(day, stock)} className="w-full text-left">
@@ -154,10 +158,10 @@ export function DailyTradeHistory({ theme, startDate, endDate, selectedStockCode
                                       .map((t) => (
                                         <tr key={`${t.id}-${t.created_at}`} className={themes[theme].cardHover}>
                                           <td className={`px-3 py-2 text-sm ${themes[theme].text}`}>{format(new Date(t.created_at), 'HH:mm')}</td>
-                                          <td className={`px-3 py-2 text-sm text-center ${themes[theme].text}`}>{t.operation === 'buy' ? '买入' : '卖出'}</td>
-                                          <td className={`px-3 py-2 text-sm text-right ${themes[theme].text}`}>{t.target_price.toFixed(2)}</td>
+                                          <td className={`px-3 py-2 text-sm text-center ${themes[theme].text}`}>{isBuyOperation(t.operation) ? '买入' : '卖出'}</td>
+                                          <td className={`px-3 py-2 text-sm text-right ${themes[theme].text}`}>{formatCurrency(t.target_price, currencyConfig)}</td>
                                           <td className={`px-3 py-2 text-sm text-right ${themes[theme].text}`}>{t.quantity}</td>
-                                          <td className={`px-3 py-2 text-sm text-right ${themes[theme].text}`}>{(t.quantity * t.target_price).toFixed(2)}</td>
+                                          <td className={`px-3 py-2 text-sm text-right ${themes[theme].text}`}>{formatCurrency(t.quantity * t.target_price, currencyConfig)}</td>
                                           <td className={`px-3 py-2 text-sm ${themes[theme].text}`}>{t.notes || '-'}</td>
                                         </tr>
                                       ))}
