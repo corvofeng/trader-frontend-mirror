@@ -13,6 +13,7 @@ import { useOptionPriceWebSocket } from '../hooks/useOptionPriceWebSocket';
 import { AnimatedFlash } from './AnimatedFlash';
 import { OptionQuoteSubscription } from './OptionQuoteSubscription';
 import { RealTimeSpreadChart } from './RealTimeSpreadChart';
+import { OpenInterestOverlay, formatOINumber } from './OpenInterestOverlay';
 import { getComboStatus } from '../utils/portfolioUi';
 
 const STANDARD_ETF_OPTION_CONTRACT_UNIT = 10000;
@@ -195,6 +196,21 @@ export function ExpiryGroupCard({
   const requestedContractUnitRef = useRef<Record<string, number>>({});
   const tBoardScrollRef = useRef<HTMLDivElement | null>(null);
   const strikeHeaderRef = useRef<HTMLTableCellElement | null>(null);
+  const tBoardTableRef = useRef<HTMLTableElement | null>(null);
+  const [showOpenInterestOverlay, setShowOpenInterestOverlay] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('tboard_show_oi_overlay');
+      return saved !== 'false';
+    } catch {
+      return true;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('tboard_show_oi_overlay', String(showOpenInterestOverlay));
+    } catch {}
+  }, [showOpenInterestOverlay]);
   const lastLoggedConfirmRef = useRef<string | null>(null);
   
 
@@ -503,6 +519,78 @@ export function ExpiryGroupCard({
 
     return { strikes, metrics };
   }, [allExpiryBuckets, group.expiry, group.complex, selectedSymbol, filteredPositions, optionsData, localOptionsData, optionsDataMap, underlyingPrice]);
+
+  const { openInterestByStrike, maxOpenInterest } = useMemo(() => {
+    const list = (tBoardStrikesAndMetrics.metrics || []).map((metric) => {
+      const quote = quotesByStrike.get(metric.s);
+      const rawQuote = quote as (OptionQuote & {
+        call_open_interest?: number;
+        put_open_interest?: number;
+        call_oi?: number;
+        put_oi?: number;
+        callOi?: number;
+        putOi?: number;
+      }) | undefined;
+      const call = Number(
+        rawQuote?.callOpenInterest ??
+        rawQuote?.call_open_interest ??
+        rawQuote?.call_oi ??
+        rawQuote?.callOi ??
+        0
+      );
+      const put = Number(
+        rawQuote?.putOpenInterest ??
+        rawQuote?.put_open_interest ??
+        rawQuote?.put_oi ??
+        rawQuote?.putOi ??
+        0
+      );
+      return {
+        strike: metric.s,
+        call: Number.isFinite(call) && call > 0 ? call : 0,
+        put: Number.isFinite(put) && put > 0 ? put : 0,
+      };
+    });
+    const maxOI = Math.max(1, ...list.flatMap(item => [item.call, item.put]));
+    return { openInterestByStrike: list, maxOpenInterest: maxOI };
+  }, [tBoardStrikesAndMetrics.metrics, quotesByStrike]);
+
+  const oiSummary = useMemo(() => {
+    if (!openInterestByStrike || openInterestByStrike.length === 0) return null;
+    let maxCall = 0;
+    let maxCallStrike = 0;
+    let maxPut = 0;
+    let maxPutStrike = 0;
+    let totalCall = 0;
+    let totalPut = 0;
+
+    openInterestByStrike.forEach(item => {
+      totalCall += item.call;
+      totalPut += item.put;
+      if (item.call > maxCall) {
+        maxCall = item.call;
+        maxCallStrike = item.strike;
+      }
+      if (item.put > maxPut) {
+        maxPut = item.put;
+        maxPutStrike = item.strike;
+      }
+    });
+
+    if (totalCall === 0 && totalPut === 0) return null;
+
+    const pcr = totalCall > 0 ? (totalPut / totalCall).toFixed(2) : '--';
+
+    return {
+      maxCall,
+      maxCallStrike,
+      maxPut,
+      maxPutStrike,
+      totalCall,
+      totalPut,
+      pcr,
+    };
+  }, [openInterestByStrike]);
 
   const embeddedComboDraft = useMemo<ComboDraftState | null>(() => {
     if (confirmData?.meta?.action !== 'combo_manage' || !confirmData.meta.comboCandidate) return null;
@@ -2449,18 +2537,66 @@ export function ExpiryGroupCard({
             return (
               <div className="space-y-4 sm:space-y-5">
                 <div className="mt-0">
-                    <div 
-                      className="flex items-center gap-2 mb-2.5 cursor-pointer select-none hover:opacity-80 transition-opacity"
-                      onClick={onToggleTBoard}
-                    >
-                      <div className={`w-4 h-4 rounded ${theme === 'dark' ? 'bg-zinc-600' : theme === 'blue' ? 'bg-blue-400' : 'bg-slate-400'}`}></div>
-                      <h4 className={`text-[15px] sm:text-[17px] font-semibold tracking-tight ${themes[theme].text}`}>
-                        {filteredPositions.length > 0 ? '持仓T型数量看板' : 'T型报价'}
-                      </h4>
-                      {isTBoardExpanded ? (
-                        <ChevronUp className={`w-4 h-4 ${themes[theme].text} opacity-50`} strokeWidth={2} />
-                      ) : (
-                        <ChevronDown className={`w-4 h-4 ${themes[theme].text} opacity-50`} strokeWidth={2} />
+                    <div className="flex items-center justify-between mb-2.5">
+                      <div 
+                        className="flex items-center gap-2 cursor-pointer select-none hover:opacity-80 transition-opacity"
+                        onClick={onToggleTBoard}
+                      >
+                        <div className={`w-4 h-4 rounded ${theme === 'dark' ? 'bg-zinc-600' : theme === 'blue' ? 'bg-blue-400' : 'bg-slate-400'}`}></div>
+                        <h4 className={`text-[15px] sm:text-[17px] font-semibold tracking-tight ${themes[theme].text}`}>
+                          {filteredPositions.length > 0 ? '持仓T型数量看板' : 'T型报价'}
+                        </h4>
+                        {isTBoardExpanded ? (
+                          <ChevronUp className={`w-4 h-4 ${themes[theme].text} opacity-50`} strokeWidth={2} />
+                        ) : (
+                          <ChevronDown className={`w-4 h-4 ${themes[theme].text} opacity-50`} strokeWidth={2} />
+                        )}
+                      </div>
+
+                      {isTBoardExpanded && (
+                        <div className="flex items-center gap-2">
+                          {showOpenInterestOverlay && oiSummary && (
+                            <div className="hidden md:flex items-center gap-2 text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-slate-100/90 dark:bg-zinc-800/90 border border-slate-200/80 dark:border-zinc-700/60 shadow-xs">
+                              {oiSummary.maxCall > 0 && (
+                                <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium" title={`全市场 Call 最大未平仓量: 行权价 ${oiSummary.maxCallStrike} (${oiSummary.maxCall.toLocaleString()} 张)`}>
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                  Call主力 {oiSummary.maxCallStrike} ({formatOINumber(oiSummary.maxCall)})
+                                </span>
+                              )}
+                              {oiSummary.maxCall > 0 && oiSummary.maxPut > 0 && (
+                                <span className="text-gray-300 dark:text-zinc-600">|</span>
+                              )}
+                              {oiSummary.maxPut > 0 && (
+                                <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400 font-medium" title={`全市场 Put 最大未平仓量: 行权价 ${oiSummary.maxPutStrike} (${oiSummary.maxPut.toLocaleString()} 张)`}>
+                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                  Put主力 {oiSummary.maxPutStrike} ({formatOINumber(oiSummary.maxPut)})
+                                </span>
+                              )}
+                              <span className="text-gray-300 dark:text-zinc-600">|</span>
+                              <span className="text-gray-600 dark:text-zinc-300">
+                                P/C比: <span className="font-bold text-slate-800 dark:text-zinc-200">{oiSummary.pcr}</span>
+                              </span>
+                            </div>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowOpenInterestOverlay(prev => !prev);
+                            }}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all shadow-xs ${
+                              showOpenInterestOverlay
+                                ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30'
+                                : 'bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-gray-400 border border-transparent hover:bg-gray-200 dark:hover:bg-zinc-700'
+                            }`}
+                            title="开启或关闭市场未平仓量 (OI) 分布平滑曲线图层"
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full ${showOpenInterestOverlay ? 'bg-blue-500 animate-pulse' : 'bg-gray-400'}`} />
+                            <span>未平仓量 (OI) 图层</span>
+                            <span className="text-[10px] font-mono opacity-80">{showOpenInterestOverlay ? 'ON' : 'OFF'}</span>
+                          </button>
+                        </div>
                       )}
                     </div>
                     {isTBoardExpanded && (
@@ -2507,147 +2643,158 @@ export function ExpiryGroupCard({
                             className="overflow-x-auto"
                             onScroll={handleTBoardScroll}
                           >
-                            <table
-                              className="w-full text-xs min-w-[980px]"
-                              style={isMobileViewport ? { zoom: mobileTBoardScale } : undefined}
-                            >
-                              <thead>
-                                <tr className={`${themes[theme].text} opacity-75`}>
-                                  <th className="text-center py-2" colSpan={7}>Calls</th>
-                                  <th className={`text-center py-2 border-l border-r ${themes[theme].border}`}></th>
-                                  <th className="text-center py-2" colSpan={7}>Puts</th>
-                                </tr>
-                                <tr className={`text-xs ${themes[theme].text} opacity-70`}>
-                                  <th className="text-center py-2">组合</th>
-                                  <th className="text-center py-2">备兑</th>
-                                  <th className="text-center py-2">义务</th>
-                                  <th className="text-center py-2 px-2">权利</th>
-                                  <th className="text-center py-2 px-2">保证金</th>
-                                  <th className="text-center py-2 px-2">时间价值</th>
-                                  <th className={`text-center py-2 px-2 border-r ${themes[theme].border}`}>现价</th>
-                                  <th ref={strikeHeaderRef} className="text-center py-2 px-3">行权价</th>
-                                  <th className={`text-center py-2 px-2 border-l ${themes[theme].border}`}>现价</th>
-                                  <th className="text-center py-2 px-2">时间价值</th>
-                                  <th className="text-center py-2 px-2">保证金</th>
-                                  <th className="text-center py-2 px-2">权利</th>
-                                  <th className="text-center py-2">义务</th>
-                                  <th className="text-center py-2">备兑</th>
-                                  <th className="text-center py-2">组合</th>
-                                </tr>
-                              </thead>
-                              <tbody className={`divide-y ${themes[theme].border}`}>
-                                {(() => {
-                                  const { metrics } = tBoardStrikesAndMetrics;
-                                  const maxRisk = Math.max(1, ...metrics.map(m => m.risk));
-                                  const resolveMaxTimeValueForStrike = (strike: number): number => {
-                                    const quote = quotesByStrike.get(strike);
-                                    if (!quote) return 0;
-                                    let callTV: number | null = null;
-                                    let putTV: number | null = null;
-                                    const qCallTV = quote.callTimeValue;
-                                    const qPutTV = quote.putTimeValue;
-                                    if (typeof qCallTV === 'number' && Number.isFinite(qCallTV)) callTV = qCallTV;
-                                    if (typeof qPutTV === 'number' && Number.isFinite(qPutTV)) putTV = qPutTV;
-                                    if ((callTV == null || putTV == null) && underlyingPrice != null) {
-                                      const callCode = quote.call_contract_code || '';
-                                      const callFullCode = quote.call_contract_code_full || '';
-                                      const putCode = quote.put_contract_code || '';
-                                      const putFullCode = quote.put_contract_code_full || '';
-                                      const callPrice = (callCode && prices[callCode]?.price) || (callFullCode && prices[callFullCode]?.price) || quote.call_last_price;
-                                      const putPrice = (putCode && prices[putCode]?.price) || (putFullCode && prices[putFullCode]?.price) || quote.put_last_price;
-                                      if (callTV == null && typeof callPrice === 'number' && Number.isFinite(callPrice)) { callTV = callPrice - Math.max(0, underlyingPrice - strike); }
-                                      if (putTV == null && typeof putPrice === 'number' && Number.isFinite(putPrice)) { putTV = putPrice - Math.max(0, strike - underlyingPrice); }
-                                    }
-                                    return Math.max(0, callTV ?? 0, putTV ?? 0);
-                                  };
-                                  const maxTimeValue = Math.max(0, ...metrics.map(m => resolveMaxTimeValueForStrike(m.s)));
-
-                                  // ---- Spot price indicator line ----
-                                  if (underlyingPrice != null && metrics.length > 0) {
-                                    let insertIdx = metrics.length;
-                                    for (let i = 0; i < metrics.length; i++) {
-                                      if (metrics[i].s >= underlyingPrice) {
-                                        insertIdx = i;
-                                        break;
+                            <div className="relative inline-block min-w-full">
+                              <table
+                                ref={tBoardTableRef}
+                                className="w-full text-xs min-w-[1120px]"
+                                style={isMobileViewport ? { zoom: mobileTBoardScale } : undefined}
+                              >
+                                <thead>
+                                  <tr className={`${themes[theme].text} opacity-75`}>
+                                    <th className="text-center py-2" colSpan={7}>Calls</th>
+                                    <th className={`text-center py-2 border-l border-r ${themes[theme].border}`}></th>
+                                    <th className="text-center py-2" colSpan={7}>Puts</th>
+                                  </tr>
+                                  <tr className={`text-xs ${themes[theme].text} opacity-70`}>
+                                    <th className="text-center py-2">组合</th>
+                                    <th className="text-center py-2">备兑</th>
+                                    <th className="text-center py-2">义务</th>
+                                    <th className="text-center py-2 px-2">权利</th>
+                                    <th className="text-center py-2 px-2">保证金</th>
+                                    <th className="text-center py-2 px-2">时间价值</th>
+                                    <th className={`text-center py-2 px-2 border-r ${themes[theme].border}`}>现价</th>
+                                    <th ref={strikeHeaderRef} className="text-center py-2 px-3">行权价</th>
+                                    <th className={`text-center py-2 px-2 border-l ${themes[theme].border}`}>现价</th>
+                                    <th className="text-center py-2 px-2">时间价值</th>
+                                    <th className="text-center py-2 px-2">保证金</th>
+                                    <th className="text-center py-2 px-2">权利</th>
+                                    <th className="text-center py-2">义务</th>
+                                    <th className="text-center py-2">备兑</th>
+                                    <th className="text-center py-2">组合</th>
+                                  </tr>
+                                </thead>
+                                <tbody className={`divide-y ${themes[theme].border}`}>
+                                  {(() => {
+                                    const { metrics } = tBoardStrikesAndMetrics;
+                                    const maxRisk = Math.max(1, ...metrics.map(m => m.risk));
+                                    const resolveMaxTimeValueForStrike = (strike: number): number => {
+                                      const quote = quotesByStrike.get(strike);
+                                      if (!quote) return 0;
+                                      let callTV: number | null = null;
+                                      let putTV: number | null = null;
+                                      const qCallTV = quote.callTimeValue;
+                                      const qPutTV = quote.putTimeValue;
+                                      if (typeof qCallTV === 'number' && Number.isFinite(qCallTV)) callTV = qCallTV;
+                                      if (typeof qPutTV === 'number' && Number.isFinite(qPutTV)) putTV = qPutTV;
+                                      if ((callTV == null || putTV == null) && underlyingPrice != null) {
+                                        const callCode = quote.call_contract_code || '';
+                                        const callFullCode = quote.call_contract_code_full || '';
+                                        const putCode = quote.put_contract_code || '';
+                                        const putFullCode = quote.put_contract_code_full || '';
+                                        const callPrice = (callCode && prices[callCode]?.price) || (callFullCode && prices[callFullCode]?.price) || quote.call_last_price;
+                                        const putPrice = (putCode && prices[putCode]?.price) || (putFullCode && prices[putFullCode]?.price) || quote.put_last_price;
+                                        if (callTV == null && typeof callPrice === 'number' && Number.isFinite(callPrice)) { callTV = callPrice - Math.max(0, underlyingPrice - strike); }
+                                        if (putTV == null && typeof putPrice === 'number' && Number.isFinite(putPrice)) { putTV = putPrice - Math.max(0, strike - underlyingPrice); }
                                       }
-                                    }
+                                      return Math.max(0, callTV ?? 0, putTV ?? 0);
+                                    };
+                                    const maxTimeValue = Math.max(0, ...metrics.map(m => resolveMaxTimeValueForStrike(m.s)));
 
-                                    const isInRange = underlyingPrice >= metrics[0].s && underlyingPrice <= metrics[metrics.length - 1].s;
-                                    const spotColor = isInRange
-                                      ? 'text-yellow-600 dark:text-yellow-400'
-                                      : 'text-orange-500 dark:text-orange-400';
+                                    // ---- Spot price indicator line ----
+                                    if (underlyingPrice != null && metrics.length > 0) {
+                                      let insertIdx = metrics.length;
+                                      for (let i = 0; i < metrics.length; i++) {
+                                        if (metrics[i].s >= underlyingPrice) {
+                                          insertIdx = i;
+                                          break;
+                                        }
+                                      }
 
-                                    const spotIndicator = (
-                                      <tr key={`spot-${group.expiry}`} style={{ background: 'transparent' }}>
-                                        <td colSpan={15} className="py-1 px-2">
-                                          <div className="flex items-center gap-1.5">
-                                            <div className="h-px flex-1 bg-gradient-to-r from-transparent via-yellow-500/60 to-transparent" />
-                                            <span className={`text-[11px] font-semibold whitespace-nowrap ${spotColor}`}>
-                                              {isInRange ? '' : '⚠ '}标的价格: {formatCurrency(underlyingPrice, currencyConfig, 4)}
-                                            </span>
-                                            <div className="h-px flex-1 bg-gradient-to-r from-transparent via-yellow-500/60 to-transparent" />
-                                          </div>
-                                        </td>
-                                      </tr>
-                                    );
+                                      const isInRange = underlyingPrice >= metrics[0].s && underlyingPrice <= metrics[metrics.length - 1].s;
+                                      const spotColor = isInRange
+                                        ? 'text-yellow-600 dark:text-yellow-400'
+                                        : 'text-orange-500 dark:text-orange-400';
 
-                                    const rows: React.ReactNode[] = [];
-                                    for (let i = 0; i < metrics.length; i++) {
-                                      if (i === insertIdx) {
+                                      const spotIndicator = (
+                                        <tr key={`spot-${group.expiry}`} style={{ background: 'transparent' }}>
+                                          <td colSpan={15} className="py-1 px-2">
+                                            <div className="flex items-center gap-1.5">
+                                              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-yellow-500/60 to-transparent" />
+                                              <span className={`text-[11px] font-semibold whitespace-nowrap ${spotColor}`}>
+                                                {isInRange ? '' : '⚠ '}标的价格: {formatCurrency(underlyingPrice, currencyConfig, 4)}
+                                              </span>
+                                              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-yellow-500/60 to-transparent" />
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      );
+
+                                      const rows: React.ReactNode[] = [];
+                                      for (let i = 0; i < metrics.length; i++) {
+                                        if (i === insertIdx) {
+                                          rows.push(spotIndicator);
+                                        }
+                                        rows.push(
+                                          <TBoardRow
+                                            key={`trow-top-${group.expiry}-${metrics[i].s}`}
+                                            metric={metrics[i]}
+                                            theme={theme}
+                                            maxRisk={maxRisk}
+                                            maxTimeValue={maxTimeValue}
+                                            underlyingPrice={underlyingPrice}
+                                            quotesByStrike={quotesByStrike}
+                                            prices={prices}
+                                            currencyConfig={currencyConfig}
+                                            strikes={strikes}
+                                            groupExpiry={group.expiry}
+                                            selectedSymbol={selectedSymbol}
+                                            optionsData={optionsData}
+                                            optionsDataMap={optionsDataMap}
+                                            localOptionsData={localOptionsData}
+                                            filteredPositions={filteredPositions}
+                                            onSetConfirmData={setConfirmData}
+                                          />
+                                        );
+                                      }
+                                      if (insertIdx === metrics.length) {
                                         rows.push(spotIndicator);
                                       }
-                                      rows.push(
-                                        <TBoardRow
-                                          key={`trow-top-${group.expiry}-${metrics[i].s}`}
-                                          metric={metrics[i]}
-                                          theme={theme}
-                                          maxRisk={maxRisk}
-                                          maxTimeValue={maxTimeValue}
-                                          underlyingPrice={underlyingPrice}
-                                          quotesByStrike={quotesByStrike}
-                                          prices={prices}
-                                          currencyConfig={currencyConfig}
-                                          strikes={strikes}
-                                          groupExpiry={group.expiry}
-                                          selectedSymbol={selectedSymbol}
-                                          optionsData={optionsData}
-                                          optionsDataMap={optionsDataMap}
-                                          localOptionsData={localOptionsData}
-                                          filteredPositions={filteredPositions}
-                                          onSetConfirmData={setConfirmData}
-                                        />
-                                      );
+                                      return rows;
                                     }
-                                    if (insertIdx === metrics.length) {
-                                      rows.push(spotIndicator);
-                                    }
-                                    return rows;
-                                  }
 
-                                  return metrics.map(m => (
-                                    <TBoardRow
-                                      key={`trow-top-${group.expiry}-${m.s}`}
-                                      metric={m}
-                                      theme={theme}
-                                      maxRisk={maxRisk}
-                                      maxTimeValue={maxTimeValue}
-                                      underlyingPrice={underlyingPrice}
-                                      quotesByStrike={quotesByStrike}
-                                      prices={prices}
-                                      currencyConfig={currencyConfig}
-                                      strikes={strikes}
-                                      groupExpiry={group.expiry}
-                                      selectedSymbol={selectedSymbol}
-                                      optionsData={optionsData}
-                                      optionsDataMap={optionsDataMap}
-                                      localOptionsData={localOptionsData}
-                                      filteredPositions={filteredPositions}
-                                      onSetConfirmData={setConfirmData}
-                                    />
-                                  ));
-                                })()}
-                              </tbody>
-                            </table>
+                                    return metrics.map((m) => (
+                                      <TBoardRow
+                                        key={`trow-top-${group.expiry}-${m.s}`}
+                                        metric={m}
+                                        theme={theme}
+                                        maxRisk={maxRisk}
+                                        maxTimeValue={maxTimeValue}
+                                        underlyingPrice={underlyingPrice}
+                                        quotesByStrike={quotesByStrike}
+                                        prices={prices}
+                                        currencyConfig={currencyConfig}
+                                        strikes={strikes}
+                                        groupExpiry={group.expiry}
+                                        selectedSymbol={selectedSymbol}
+                                        optionsData={optionsData}
+                                        optionsDataMap={optionsDataMap}
+                                        localOptionsData={localOptionsData}
+                                        filteredPositions={filteredPositions}
+                                        onSetConfirmData={setConfirmData}
+                                      />
+                                    ));
+                                  })()}
+                                </tbody>
+                              </table>
+                              <OpenInterestOverlay
+                                tableRef={tBoardTableRef}
+                                strikeHeaderRef={strikeHeaderRef}
+                                theme={theme}
+                                data={openInterestByStrike}
+                                maxOpenInterest={maxOpenInterest}
+                                visible={showOpenInterestOverlay}
+                              />
+                            </div>
                           </div>
                           </div>
                         );
@@ -4983,7 +5130,7 @@ const TBoardRow = React.memo(function TBoardRow({
   };
 
   return (
-    <tr style={{ backgroundImage: rowBg, contentVisibility: 'auto' as any, contain: 'layout style paint' as any }} className={themes[theme].cardHover}>
+    <tr data-strike={m.s} style={{ backgroundImage: rowBg, contentVisibility: 'auto' as any, contain: 'layout style paint' as any }} className={themes[theme].cardHover}>
       <td className={`align-top text-center py-2 ${themes[theme].text}`}>
         <div className="flex flex-col items-center gap-1.5">
           {m.comboCallStrategies.length > 0 ? (
@@ -5036,7 +5183,7 @@ const TBoardRow = React.memo(function TBoardRow({
       <td className={`text-center py-1.5 px-2 w-20 border-r ${themes[theme].border} ${themes[theme].text} text-xs leading-tight`}>
         <AnimatedFlash value={callPrice || '-'} className="font-mono text-xs" type="price" />
       </td>
-      <td className={`text-center py-1.5 px-2 w-20 ${themes[theme].text}`}>{m.s}
+      <td data-role="strike" className={`text-center py-1.5 px-2 w-20 ${themes[theme].text}`}>{m.s}
       </td>
       <td className={`text-center py-1.5 px-2 w-20 border-l ${themes[theme].border} ${themes[theme].text} text-xs leading-tight`}>
         <AnimatedFlash value={putPrice || '-'} className="font-mono text-xs" type="price" />
