@@ -1734,7 +1734,7 @@ export function ExpiryGroupCard({
     }
   }, [advisedModal, confirmData, group.expiry, localOptionsData, optionsData, optionsDataMap, selectedSymbol]);
 
-  const renderL2MarketData = useCallback((contractCode: string) => {
+  const renderL5MarketData = useCallback((contractCode: string) => {
     const priceData = prices[contractCode];
     if (!priceData) {
       return (
@@ -1761,65 +1761,174 @@ export function ExpiryGroupCard({
     );
 
     return (
-      <div className="grid grid-cols-2 gap-3 text-[11px] p-2 bg-black/5 dark:bg-white/5 rounded-b border-t border-current/5">
-        {/* 买盘 */}
-        <div className="space-y-1">
-          <div className="flex justify-between px-1.5 py-0.5 text-[10px] font-bold text-red-500 border-b border-red-500/20">
-            <span>买盘</span>
-            <span>价格</span>
-            <span>量</span>
-          </div>
-          <div className="space-y-0.5">
-            {bids.map((b) => {
-              const pct = b.vol ? Math.min(100, Math.round((b.vol / maxVol) * 100)) : 0;
-              return (
-                <div
-                  key={`bid-${b.level}`}
-                  className="relative flex items-center justify-between px-1.5 py-0.5 rounded"
-                >
-                  <div
-                    className="absolute right-0 top-0 bottom-0 bg-red-500/10 rounded pointer-events-none transition-all"
-                    style={{ width: `${pct}%` }}
-                  />
-                  <span className="opacity-60 relative z-10 text-[10px]">{b.level}</span>
-                  <span className="font-mono text-red-500 font-semibold relative z-10">{b.price != null ? b.price.toFixed(4) : '-'}</span>
-                  <span className="font-mono opacity-80 relative z-10 text-[10px]">{b.vol ?? '-'}</span>
-                </div>
-              );
-            })}
-          </div>
+      <div className="p-2 bg-black/5 dark:bg-white/5 rounded-b border-t border-current/5 space-y-1.5">
+        <div className="flex items-center justify-between px-1 text-[10px] opacity-60">
+          <span className="font-medium">五档深度行情 (L5)</span>
+          {priceData.timestamp ? (
+            <span className="font-mono">{format(new Date(priceData.timestamp), 'HH:mm:ss')}</span>
+          ) : null}
         </div>
-
-        {/* 卖盘 */}
-        <div className="space-y-1">
-          <div className="flex justify-between px-1.5 py-0.5 text-[10px] font-bold text-green-500 border-b border-green-500/20">
-            <span>卖盘</span>
-            <span>价格</span>
-            <span>量</span>
-          </div>
-          <div className="space-y-0.5">
-            {asks.map((a) => {
-              const pct = a.vol ? Math.min(100, Math.round((a.vol / maxVol) * 100)) : 0;
-              return (
-                <div
-                  key={`ask-${a.level}`}
-                  className="relative flex items-center justify-between px-1.5 py-0.5 rounded"
-                >
+        <div className="grid grid-cols-2 gap-3 text-[11px]">
+          {/* 买盘 */}
+          <div className="space-y-1">
+            <div className="flex justify-between px-1.5 py-0.5 text-[10px] font-bold text-red-500 border-b border-red-500/20">
+              <span>买盘</span>
+              <span>价格</span>
+              <span>量</span>
+            </div>
+            <div className="space-y-0.5">
+              {bids.map((b) => {
+                const pct = b.vol ? Math.min(100, Math.round((b.vol / maxVol) * 100)) : 0;
+                return (
                   <div
-                    className="absolute right-0 top-0 bottom-0 bg-green-500/10 rounded pointer-events-none transition-all"
-                    style={{ width: `${pct}%` }}
-                  />
-                  <span className="opacity-60 relative z-10 text-[10px]">{a.level}</span>
-                  <span className="font-mono text-green-500 font-semibold relative z-10">{a.price != null ? a.price.toFixed(4) : '-'}</span>
-                  <span className="font-mono opacity-80 relative z-10 text-[10px]">{a.vol ?? '-'}</span>
-                </div>
-              );
-            })}
+                    key={`bid-${b.level}`}
+                    className="relative flex items-center justify-between px-1.5 py-0.5 rounded"
+                  >
+                    <div
+                      className="absolute right-0 top-0 bottom-0 bg-red-500/10 rounded pointer-events-none transition-all"
+                      style={{ width: `${pct}%` }}
+                    />
+                    <span className="opacity-60 relative z-10 text-[10px]">{b.level}</span>
+                    <span className="font-mono text-red-500 font-semibold relative z-10">{b.price != null ? b.price.toFixed(4) : '-'}</span>
+                    <span className="font-mono opacity-80 relative z-10 text-[10px]">{b.vol ?? '-'}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 卖盘 */}
+          <div className="space-y-1">
+            <div className="flex justify-between px-1.5 py-0.5 text-[10px] font-bold text-green-500 border-b border-green-500/20">
+              <span>卖盘</span>
+              <span>价格</span>
+              <span>量</span>
+            </div>
+            <div className="space-y-0.5">
+              {asks.map((a) => {
+                const pct = a.vol ? Math.min(100, Math.round((a.vol / maxVol) * 100)) : 0;
+                return (
+                  <div
+                    key={`ask-${a.level}`}
+                    className="relative flex items-center justify-between px-1.5 py-0.5 rounded"
+                  >
+                    <div
+                      className="absolute right-0 top-0 bottom-0 bg-green-500/10 rounded pointer-events-none transition-all"
+                      style={{ width: `${pct}%` }}
+                    />
+                    <span className="opacity-60 relative z-10 text-[10px]">{a.level}</span>
+                    <span className="font-mono text-green-500 font-semibold relative z-10">{a.price != null ? a.price.toFixed(4) : '-'}</span>
+                    <span className="font-mono opacity-80 relative z-10 text-[10px]">{a.vol ?? '-'}</span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
     );
   }, [prices]);
+
+  const renderLegMarketQuote = useCallback((
+    contractCode: string,
+    legType?: 'buy' | 'sell',
+    targetQty?: number
+  ) => {
+    const priceData = prices[contractCode];
+    const bid1Price = priceData?.bid_price?.[0] ?? priceData?.bid;
+    const bid1Vol = priceData?.bid_vol?.[0];
+    const ask1Price = priceData?.ask_price?.[0] ?? priceData?.ask;
+    const ask1Vol = priceData?.ask_vol?.[0];
+    const lastPrice = priceData?.price ?? priceData?.last_price;
+
+    const totalVol = (bid1Vol != null && ask1Vol != null) ? (bid1Vol + ask1Vol) : null;
+    const bidPct = totalVol && totalVol > 0 ? Math.round(((bid1Vol || 0) / totalVol) * 100) : 50;
+    const askPct = totalVol && totalVol > 0 ? 100 - bidPct : 50;
+    const spread = (ask1Price != null && bid1Price != null) ? (ask1Price - bid1Price) : null;
+
+    return (
+      <details className="group border-t border-current/5">
+        <summary className={`flex items-center justify-between px-3 py-2 text-[11px] cursor-pointer hover:bg-current/5 transition-colors select-none ${themes[theme].text}`}>
+          {/* 左侧：买1 */}
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-500/10 text-red-500 font-bold shrink-0">
+              买1
+            </span>
+            <div className="flex flex-col">
+              <div className="flex items-baseline gap-1.5">
+                <span className="font-mono font-bold text-red-500 text-[12px] leading-tight">
+                  {bid1Price != null ? bid1Price.toFixed(4) : '-'}
+                </span>
+                <span className="font-mono text-[10px] opacity-75 leading-tight">
+                  量 <span className="font-semibold">{bid1Vol ?? '-'}</span>
+                </span>
+              </div>
+              {legType === 'sell' && targetQty != null && bid1Vol != null && (
+                <span className={`text-[9px] font-mono leading-tight ${bid1Vol >= targetQty ? 'text-emerald-500' : 'text-amber-500'}`}>
+                  承接: {bid1Vol >= targetQty ? `充足 (需${targetQty})` : `仅${bid1Vol}/需${targetQty}`}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* 中间：最新价 + 点差 + 点击下拉 + 纯净力量对比条 */}
+          <div className="flex flex-col items-center justify-center px-2 py-0.5 rounded hover:bg-current/5 transition-colors">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <span className="text-[10px] opacity-50">最新</span>
+              <span className="font-mono font-bold text-foreground text-[11px]">
+                {lastPrice != null ? lastPrice.toFixed(4) : '-'}
+              </span>
+              {spread != null && (
+                <span className="font-mono text-[9.5px] opacity-60 pl-1 border-l border-current/10">
+                  点差 {spread.toFixed(4)}
+                </span>
+              )}
+              <span className="flex items-center gap-0.5 text-[10px] font-medium text-purple-600 dark:text-purple-400 ml-0.5">
+                <span className="group-open:hidden">五档</span>
+                <span className="hidden group-open:inline">收起</span>
+                <ChevronDown className="w-3.5 h-3.5 transition-transform group-open:rotate-180" />
+              </span>
+            </div>
+
+            {totalVol != null && totalVol > 0 ? (
+              <div
+                className="w-24 sm:w-28 h-1 bg-black/10 dark:bg-white/10 rounded-full overflow-hidden flex mt-1"
+                title={`买卖挂单量比：买1 ${bid1Vol}张 (${bidPct}%) / 卖1 ${ask1Vol}张 (${askPct}%)`}
+              >
+                <div className="bg-red-500 h-full transition-all" style={{ width: `${bidPct}%` }} />
+                <div className="bg-green-500 h-full transition-all" style={{ width: `${askPct}%` }} />
+              </div>
+            ) : (
+              <span className="text-[9px] opacity-40 font-mono mt-0.5">五档深度行情</span>
+            )}
+          </div>
+
+          {/* 右侧：卖1 */}
+          <div className="flex items-center justify-end gap-2 min-w-0 text-right">
+            <div className="flex flex-col items-end">
+              <div className="flex items-baseline gap-1.5">
+                <span className="font-mono text-[10px] opacity-75 leading-tight">
+                  量 <span className="font-semibold">{ask1Vol ?? '-'}</span>
+                </span>
+                <span className="font-mono font-bold text-green-500 text-[12px] leading-tight">
+                  {ask1Price != null ? ask1Price.toFixed(4) : '-'}
+                </span>
+              </div>
+              {legType === 'buy' && targetQty != null && ask1Vol != null && (
+                <span className={`text-[9px] font-mono leading-tight ${ask1Vol >= targetQty ? 'text-emerald-500' : 'text-amber-500'}`}>
+                  承接: {ask1Vol >= targetQty ? `充足 (需${targetQty})` : `仅${ask1Vol}/需${targetQty}`}
+                </span>
+              )}
+            </div>
+            <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-500/10 text-green-500 font-bold shrink-0">
+              卖1
+            </span>
+          </div>
+        </summary>
+        {renderL5MarketData(contractCode)}
+      </details>
+    );
+  }, [prices, theme, renderL5MarketData]);
 
   const renderComboDraftPanel = useCallback((draft: ComboDraftState, embedded = false) => (
     <>
@@ -1999,23 +2108,11 @@ export function ExpiryGroupCard({
               </div>
             </div>
             
-            <details className="group border-t border-current/5">
-              <summary className={`flex items-center justify-between px-2 py-1 text-[10px] cursor-pointer hover:bg-current/5 transition-colors ${themes[theme].text} opacity-60`}>
-                <span className="flex items-center gap-1">
-                  <ChevronDown className="w-3 h-3 transition-transform group-open:rotate-180" />
-                  查看 L2 行情
-                </span>
-                {(() => {
-                  const price = prices[draft.combo.buy_position.position.contract_code_full || draft.combo.buy_position.position.symbol];
-                  return price ? (
-                    <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">
-                      {price.price.toFixed(4)}
-                    </span>
-                  ) : null;
-                })()}
-              </summary>
-              {renderL2MarketData(draft.combo.buy_position.position.contract_code_full || draft.combo.buy_position.position.symbol)}
-            </details>
+            {renderLegMarketQuote(
+              draft.combo.buy_position.position.contract_code_full || draft.combo.buy_position.position.symbol,
+              'buy',
+              draft.quantity
+            )}
           </div>
 
           {/* Sell Leg (义务仓) */}
@@ -2066,23 +2163,11 @@ export function ExpiryGroupCard({
               </div>
             </div>
 
-            <details className="group border-t border-current/5">
-              <summary className={`flex items-center justify-between px-2 py-1 text-[10px] cursor-pointer hover:bg-current/5 transition-colors ${themes[theme].text} opacity-60`}>
-                <span className="flex items-center gap-1">
-                  <ChevronDown className="w-3 h-3 transition-transform group-open:rotate-180" />
-                  查看 L2 行情
-                </span>
-                {(() => {
-                  const price = prices[draft.combo.sell_position.position.contract_code_full || draft.combo.sell_position.position.symbol];
-                  return price ? (
-                    <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">
-                      {price.price.toFixed(4)}
-                    </span>
-                  ) : null;
-                })()}
-              </summary>
-              {renderL2MarketData(draft.combo.sell_position.position.contract_code_full || draft.combo.sell_position.position.symbol)}
-            </details>
+            {renderLegMarketQuote(
+              draft.combo.sell_position.position.contract_code_full || draft.combo.sell_position.position.symbol,
+              'sell',
+              draft.quantity
+            )}
           </div>
         </div>
       </div>
@@ -2155,7 +2240,7 @@ export function ExpiryGroupCard({
     formatStrikeNumber,
     updateComboSellStrike,
     prices,
-    renderL2MarketData
+    renderLegMarketQuote
   ]);
 
   const renderStatusBadge = useCallback((item: OptionsStrategy | OptionsPosition, type: 'complex' | 'single') => {
