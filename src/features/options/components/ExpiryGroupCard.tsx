@@ -3135,7 +3135,11 @@ export function ExpiryGroupCard({
             <X className="w-5 h-5" strokeWidth={2} />
           </button>
         </div>
-        <div className={`mt-0 px-4 pb-[calc(env(safe-area-inset-bottom)+20px)] sm:px-6 sm:pb-6 overflow-y-auto min-h-0 flex-1 space-y-2`}>
+        <div className={`px-4 pt-3.5 sm:px-6 sm:pt-4 overflow-y-auto min-h-0 flex-1 space-y-3 ${
+          (confirmData.meta?.action !== 'unwind_combo_selection' && confirmData.meta?.action !== 'combo_manage')
+            ? 'pb-4 sm:pb-5'
+            : 'pb-[calc(env(safe-area-inset-bottom,0px)+20px)] sm:pb-6'
+        }`}>
           {confirmData.meta?.action === 'unwind_combo_selection' || confirmData.meta?.action === 'combo_manage' ? (
             <div className="space-y-4">
               {confirmData.meta?.action === 'combo_manage' && embeddedComboDraft ? (
@@ -4474,13 +4478,19 @@ export function ExpiryGroupCard({
         )}
         </div>
         {confirmData.meta?.action !== 'unwind_combo_selection' && confirmData.meta?.action !== 'combo_manage' && (
-        <div className="mt-4 flex justify-end gap-2">
+        <div className={`shrink-0 flex items-center justify-end gap-2.5 sm:gap-3 px-4 py-3 sm:px-6 sm:py-3.5 border-t ${themes[theme].border} ${themes[theme].card} pb-[calc(env(safe-area-inset-bottom,0px)+12px)] sm:pb-3.5`}>
           <button
-            className={`px-3 py-2 rounded-md text-sm ${themes[theme].secondary}`}
-            onClick={() => setConfirmData(null)}
+            type="button"
+            disabled={isPageLocked}
+            className={`px-4 py-2 sm:py-2.5 rounded-xl text-sm font-medium ${themes[theme].secondary} active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed`}
+            onClick={() => {
+              if (!isPageLocked) setConfirmData(null);
+            }}
           >取消</button>
           <button
-            className={`px-3 py-2 rounded-md text-sm bg-red-600 text-white hover:bg-red-700`}
+            type="button"
+            disabled={isPageLocked}
+            className="px-4 py-2 sm:py-2.5 rounded-xl text-sm font-medium text-white bg-rose-600 hover:bg-rose-700 active:scale-95 transition-all shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
             onClick={async () => {
               if (confirmData?.meta?.action === 'sync_category') {
                 const strike = Number(confirmData.meta?.strike || 0);
@@ -4564,7 +4574,9 @@ export function ExpiryGroupCard({
             }
             return (
               <button
-                className={`px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 active:scale-95 transition-all shadow-sm`}
+                type="button"
+                disabled={isPageLocked}
+                className="px-5 py-2 sm:py-2.5 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 active:scale-95 transition-all shadow-sm shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={async () => {
               if (confirmData.meta?.action === 'sync_category') {
                 const key = confirmData.ids[0];
