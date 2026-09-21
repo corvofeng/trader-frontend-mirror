@@ -204,23 +204,72 @@ export const OpenInterestOverlay: React.FC<OpenInterestOverlayProps> = ({
   }, [visible, points, dimensions, strikeCol]);
 
   const [hoveredStrike, setHoveredStrike] = useState<number | null>(null);
+  const pointsRef = React.useRef(points);
+  pointsRef.current = points;
 
-  // Track hovered row across the table
+  // Track mouse coordinates over the table to detect when hovering over a strike level (points or strike cell)
   useEffect(() => {
+    if (!visible) {
+      setHoveredStrike(null);
+      return;
+    }
+
     const table = tableRef.current;
-    if (!table || !visible) return;
+    if (!table) return;
 
     const handleMouseMove = (e: MouseEvent) => {
-      const target = e.target as HTMLElement | null;
-      const row = target?.closest<HTMLTableRowElement>('tr[data-strike]');
-      if (row) {
-        const s = Number(row.getAttribute('data-strike'));
-        if (Number.isFinite(s)) {
-          setHoveredStrike(s);
-          return;
+      const currentPoints = pointsRef.current;
+      if (!currentPoints || currentPoints.length === 0) return;
+
+      const rect = table.getBoundingClientRect();
+      const scaleX = table.offsetWidth / (rect.width || 1);
+      const scaleY = table.offsetHeight / (rect.height || 1);
+      const mouseX = (e.clientX - rect.left) * scaleX;
+      const mouseY = (e.clientY - rect.top) * scaleY;
+
+      const HIT_RADIUS = 20;
+      const HIT_RADIUS_SQ = HIT_RADIUS * HIT_RADIUS;
+
+      let found: number | null = null;
+      let minDistanceSq = HIT_RADIUS_SQ;
+
+      for (const p of currentPoints) {
+        if (Math.abs(mouseY - p.centerY) > HIT_RADIUS) continue;
+
+        // Check Call Point
+        if (p.callOI > 0) {
+          const dx = mouseX - p.callX;
+          const dy = mouseY - p.centerY;
+          const d2 = dx * dx + dy * dy;
+          if (d2 <= minDistanceSq) {
+            minDistanceSq = d2;
+            found = p.strike;
+          }
+        }
+
+        // Check Put Point
+        if (p.putOI > 0) {
+          const dx = mouseX - p.putX;
+          const dy = mouseY - p.centerY;
+          const d2 = dx * dx + dy * dy;
+          if (d2 <= minDistanceSq) {
+            minDistanceSq = d2;
+            found = p.strike;
+          }
+        }
+
+        // Check Strike Cell (between strikeCol.left and strikeCol.right)
+        if (mouseX >= strikeCol.left - 6 && mouseX <= strikeCol.right + 6) {
+          const dy = mouseY - p.centerY;
+          const d2 = dy * dy;
+          if (d2 <= minDistanceSq) {
+            minDistanceSq = d2;
+            found = p.strike;
+          }
         }
       }
-      setHoveredStrike(null);
+
+      setHoveredStrike(found);
     };
 
     const handleMouseLeave = () => {
@@ -233,8 +282,20 @@ export const OpenInterestOverlay: React.FC<OpenInterestOverlayProps> = ({
     return () => {
       table.removeEventListener('mousemove', handleMouseMove);
       table.removeEventListener('mouseleave', handleMouseLeave);
+      table.style.cursor = '';
     };
-  }, [tableRef, visible]);
+  }, [tableRef, visible, strikeCol]);
+
+  // Synchronize pointer cursor on table when hovering over a strike level
+  useEffect(() => {
+    const table = tableRef.current;
+    if (!table) return;
+    if (hoveredStrike != null) {
+      table.style.cursor = 'pointer';
+    } else {
+      table.style.cursor = '';
+    }
+  }, [tableRef, hoveredStrike]);
 
   if (!visible || dimensions.width <= 0 || dimensions.height <= 0 || points.length === 0) {
     return null;
@@ -354,20 +415,20 @@ export const OpenInterestOverlay: React.FC<OpenInterestOverlayProps> = ({
         </g>
       )}
 
-      {/* Subtle Micro Data Dots (No Static Text to Block Prices/Time Value) */}
+      {/* Subtle Micro Data Dots */}
       {points.map(p => {
         const hasCall = p.callOI > 0;
         const hasPut = p.putOI > 0;
         const isHovered = hoveredStrike === p.strike;
 
         return (
-          <g key={`oi-pts-${p.strike}`}>
+          <g key={`oi-pts-${p.strike}`} className="pointer-events-none">
             {/* Call Point */}
             {hasCall && (
               <circle
                 cx={p.callX}
                 cy={p.centerY}
-                r={isHovered ? 4.5 : 2.5}
+                r={isHovered ? 5.5 : 2.5}
                 className={`transition-all duration-150 ${
                   isHovered
                     ? 'fill-emerald-400 stroke-2 stroke-white dark:stroke-zinc-950'
@@ -381,7 +442,7 @@ export const OpenInterestOverlay: React.FC<OpenInterestOverlayProps> = ({
               <circle
                 cx={p.putX}
                 cy={p.centerY}
-                r={isHovered ? 4.5 : 2.5}
+                r={isHovered ? 5.5 : 2.5}
                 className={`transition-all duration-150 ${
                   isHovered
                     ? 'fill-rose-400 stroke-2 stroke-white dark:stroke-zinc-950'
@@ -393,7 +454,7 @@ export const OpenInterestOverlay: React.FC<OpenInterestOverlayProps> = ({
         );
       })}
 
-      {/* Hovered State: Interactive Crosshair & Floating HUD Card */}
+      {/* Hovered State: Separate Call and Put HUD cards and Strike/PCR center pill */}
       {hoveredPoint && (
         <g key={`oi-hover-hud-${hoveredPoint.strike}`} className="pointer-events-none">
           {/* Crosshair Guideline across the row */}
@@ -402,18 +463,18 @@ export const OpenInterestOverlay: React.FC<OpenInterestOverlayProps> = ({
             y1={hoveredPoint.centerY}
             x2={Math.max(hoveredPoint.putX, strikeCol.right + 40)}
             y2={hoveredPoint.centerY}
-            className="stroke-indigo-400 dark:stroke-indigo-300 opacity-50"
+            className="stroke-indigo-400/50 dark:stroke-indigo-300/50"
             strokeDasharray="3 3"
             strokeWidth="1.2"
           />
 
-          {/* Pulse Rings on Hovered Nodes */}
+          {/* Pulse Rings on active Nodes */}
           {hoveredPoint.callOI > 0 && (
             <circle
               cx={hoveredPoint.callX}
               cy={hoveredPoint.centerY}
               r="8"
-              className="fill-none stroke-emerald-500/50 dark:stroke-emerald-400/50 stroke-1 animate-ping"
+              className="fill-none stroke-emerald-500/60 dark:stroke-emerald-400/60 stroke-1 animate-ping"
             />
           )}
           {hoveredPoint.putOI > 0 && (
@@ -421,63 +482,155 @@ export const OpenInterestOverlay: React.FC<OpenInterestOverlayProps> = ({
               cx={hoveredPoint.putX}
               cy={hoveredPoint.centerY}
               r="8"
-              className="fill-none stroke-rose-500/50 dark:stroke-rose-400/50 stroke-1 animate-ping"
+              className="fill-none stroke-rose-500/60 dark:stroke-rose-400/60 stroke-1 animate-ping"
             />
           )}
 
-          {/* Floating Data HUD Card (Centered above or below the row) */}
           {(() => {
-            const cardWidth = 240;
-            const cardHeight = 72;
-            const cardX = Math.max(10, Math.min(dimensions.width - cardWidth - 10, strikeCenterX - cardWidth / 2));
-            const cardY = hoveredPoint.centerY > 90 ? hoveredPoint.centerY - cardHeight - 12 : hoveredPoint.centerY + 14;
+            const isAbove = hoveredPoint.centerY > 65;
+            const cardHeight = 48;
+            const cardY = isAbove ? hoveredPoint.centerY - cardHeight - 10 : hoveredPoint.centerY + 12;
+
+            const cardWidth = 142;
+
+            // Call Card on the Left side, anchored over callX
+            const callCardX = Math.max(10, Math.min(strikeCol.left - cardWidth - 6, hoveredPoint.callX - cardWidth / 2));
+            const callArrowX = Math.max(callCardX + 12, Math.min(callCardX + cardWidth - 12, hoveredPoint.callX));
+
+            // Put Card on the Right side, anchored over putX
+            const putCardX = Math.min(dimensions.width - cardWidth - 10, Math.max(strikeCol.right + 6, hoveredPoint.putX - cardWidth / 2));
+            const putArrowX = Math.max(putCardX + 12, Math.min(putCardX + cardWidth - 12, hoveredPoint.putX));
+
+            // Center Strike & PCR Pill
+            const pcrWidth = 88;
+            const pcrHeight = 36;
+            const pcrX = strikeCenterX - pcrWidth / 2;
+            const pcrY = isAbove ? hoveredPoint.centerY - pcrHeight - 10 : hoveredPoint.centerY + 12;
 
             const pcrText = hoveredPoint.callOI > 0
               ? (hoveredPoint.putOI / hoveredPoint.callOI).toFixed(2)
               : hoveredPoint.putOI > 0 ? '∞' : '--';
 
             return (
-              <foreignObject
-                x={cardX}
-                y={cardY}
-                width={cardWidth}
-                height={cardHeight}
-                className="overflow-visible pointer-events-none"
-              >
-                <div
-                  className="w-full h-full bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border border-slate-200/90 dark:border-zinc-700/90 shadow-xl rounded-xl p-2 px-3 text-xs flex flex-col justify-between transition-all duration-150 ring-1 ring-black/5 dark:ring-white/10"
+              <g className="pointer-events-none">
+                {/* 1. Left Call Card */}
+                {hoveredPoint.callOI > 0 && (
+                  <g>
+                    {isAbove ? (
+                      <polygon
+                        points={`${callArrowX - 5},${cardY + cardHeight - 1} ${callArrowX + 5},${cardY + cardHeight - 1} ${callArrowX},${cardY + cardHeight + 5}`}
+                        className="fill-white dark:fill-zinc-900 text-emerald-500/40 dark:text-emerald-500/50"
+                        stroke="currentColor"
+                        strokeWidth="1"
+                        strokeLinejoin="round"
+                      />
+                    ) : (
+                      <polygon
+                        points={`${callArrowX - 5},${cardY + 1} ${callArrowX + 5},${cardY + 1} ${callArrowX},${cardY - 5}`}
+                        className="fill-white dark:fill-zinc-900 text-emerald-500/40 dark:text-emerald-500/50"
+                        stroke="currentColor"
+                        strokeWidth="1"
+                        strokeLinejoin="round"
+                      />
+                    )}
+                    <foreignObject
+                      x={callCardX}
+                      y={cardY}
+                      width={cardWidth}
+                      height={cardHeight}
+                      className="overflow-visible pointer-events-none"
+                    >
+                      <div className="w-full h-full bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border border-emerald-500/40 dark:border-emerald-500/50 shadow-lg rounded-xl p-1.5 px-2.5 flex flex-col justify-between ring-1 ring-emerald-500/20">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10.5px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            Call 未平仓
+                          </span>
+                          {hoveredPoint.callOI >= 10000 && (
+                            <span className="text-[9.5px] font-mono font-semibold text-emerald-700 dark:text-emerald-300">
+                              {formatOINumber(hoveredPoint.callOI)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-baseline justify-between font-mono">
+                          <span className="text-[12px] font-bold text-slate-900 dark:text-zinc-100">
+                            {hoveredPoint.callOI.toLocaleString()}
+                          </span>
+                          <span className="text-[9.5px] font-normal text-slate-400 dark:text-zinc-500">张</span>
+                        </div>
+                      </div>
+                    </foreignObject>
+                  </g>
+                )}
+
+                {/* 2. Center Strike & PCR Pill */}
+                <foreignObject
+                  x={pcrX}
+                  y={pcrY}
+                  width={pcrWidth}
+                  height={pcrHeight}
+                  className="overflow-visible pointer-events-none"
                 >
-                  <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-zinc-800">
-                    <span className="font-bold font-mono text-slate-800 dark:text-zinc-100 flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-                      行权价 {hoveredPoint.strike}
+                  <div className="w-full h-full bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border border-indigo-200/90 dark:border-indigo-800/80 shadow-md rounded-xl p-1 px-1.5 flex flex-col items-center justify-center font-mono ring-1 ring-indigo-500/20">
+                    <span className="text-[9.5px] font-bold text-slate-800 dark:text-zinc-100 leading-tight">
+                      @{hoveredPoint.strike}
                     </span>
-                    <span className="text-[10.5px] text-slate-500 dark:text-zinc-400 font-mono">
-                      P/C比: <span className="font-semibold text-slate-700 dark:text-zinc-200">{pcrText}</span>
+                    <span className="text-[10px] font-medium text-indigo-600 dark:text-indigo-400 leading-tight">
+                      P/C: {pcrText}
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 pt-1 font-mono text-[11px]">
-                    <div className="flex flex-col">
-                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                        Call: {formatOINumber(hoveredPoint.callOI) || '0'}
-                      </span>
-                      <span className="text-[10px] text-slate-400 dark:text-zinc-500">
-                        {hoveredPoint.callOI.toLocaleString()} 张
-                      </span>
-                    </div>
-                    <div className="flex flex-col items-end">
-                      <span className="text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1">
-                        Put: {formatOINumber(hoveredPoint.putOI) || '0'}
-                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block" />
-                      </span>
-                      <span className="text-[10px] text-slate-400 dark:text-zinc-500">
-                        {hoveredPoint.putOI.toLocaleString()} 张
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </foreignObject>
+                </foreignObject>
+
+                {/* 3. Right Put Card */}
+                {hoveredPoint.putOI > 0 && (
+                  <g>
+                    {isAbove ? (
+                      <polygon
+                        points={`${putArrowX - 5},${cardY + cardHeight - 1} ${putArrowX + 5},${cardY + cardHeight - 1} ${putArrowX},${cardY + cardHeight + 5}`}
+                        className="fill-white dark:fill-zinc-900 text-rose-500/40 dark:text-rose-500/50"
+                        stroke="currentColor"
+                        strokeWidth="1"
+                        strokeLinejoin="round"
+                      />
+                    ) : (
+                      <polygon
+                        points={`${putArrowX - 5},${cardY + 1} ${putArrowX + 5},${cardY + 1} ${putArrowX},${cardY - 5}`}
+                        className="fill-white dark:fill-zinc-900 text-rose-500/40 dark:text-rose-500/50"
+                        stroke="currentColor"
+                        strokeWidth="1"
+                        strokeLinejoin="round"
+                      />
+                    )}
+                    <foreignObject
+                      x={putCardX}
+                      y={cardY}
+                      width={cardWidth}
+                      height={cardHeight}
+                      className="overflow-visible pointer-events-none"
+                    >
+                      <div className="w-full h-full bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border border-rose-500/40 dark:border-rose-500/50 shadow-lg rounded-xl p-1.5 px-2.5 flex flex-col justify-between ring-1 ring-rose-500/20">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10.5px] font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                            Put 未平仓
+                          </span>
+                          {hoveredPoint.putOI >= 10000 && (
+                            <span className="text-[9.5px] font-mono font-semibold text-rose-700 dark:text-rose-300">
+                              {formatOINumber(hoveredPoint.putOI)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-baseline justify-between font-mono">
+                          <span className="text-[12px] font-bold text-slate-900 dark:text-zinc-100">
+                            {hoveredPoint.putOI.toLocaleString()}
+                          </span>
+                          <span className="text-[9.5px] font-normal text-slate-400 dark:text-zinc-500">张</span>
+                        </div>
+                      </div>
+                    </foreignObject>
+                  </g>
+                )}
+              </g>
             );
           })()}
         </g>
