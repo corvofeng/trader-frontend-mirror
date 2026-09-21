@@ -16,10 +16,9 @@ import { Line } from 'react-chartjs-2';
 import { StockChart } from '../../../features/trading/components/StockChart';
 import type { StockPrice } from '../../../lib/services/types';
 import { type Theme, themes } from '../../../lib/theme';
-import {
-  StockPriceWebSocketProvider,
-  useStockPriceWebSocketContext,
-} from '../../../features/stocks/context/StockPriceWebSocketContext';
+import { OptionPriceWebSocketProvider } from '../../../features/options/context/OptionPriceWebSocketContext';
+import { OptionQuoteSubscription } from '../../../features/options/components/OptionQuoteSubscription';
+import { useOptionPriceWebSocket } from '../../../features/options/hooks/useOptionPriceWebSocket';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend);
 
@@ -146,35 +145,38 @@ function QuoteBlockWithWS({
   onSelectPrice,
 }: StockQuotePanelInnerProps) {
   const normalizedCode = stockCode.trim();
-  const { prices, isConnected, subscribe, lastErrorMessage, errorCount, connect } = useStockPriceWebSocketContext();
+  const { prices, isConnected, reconnect, queryPrice } = useOptionPriceWebSocket();
 
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [subscribedAt, setSubscribedAt] = useState<number>(0);
 
-  const wsPrice = prices[normalizedCode];
+  const wsPrice =
+    prices[normalizedCode] ??
+    (normalizedCode.includes('.')
+      ? prices[normalizedCode.split('.')[0]]
+      : (prices[`${normalizedCode}.SH`] ?? prices[`${normalizedCode}.SZ`]));
   const hasWsData = Boolean(wsPrice && typeof wsPrice.price === 'number' && Number.isFinite(wsPrice.price));
-  const wsHandshakeFailed = isConnected === false && (lastErrorMessage != null || errorCount > 0);
   const wsWaiting = isConnected && !hasWsData;
-  const wsConnecting = !isConnected && !wsHandshakeFailed;
+  const wsConnecting = !isConnected;
 
   const quote: StockPrice | null = useMemo(() => {
     if (!wsPrice) return null;
     return {
-      stock_code: wsPrice.stock_code ?? normalizedCode,
-      stock_name: wsPrice.stock_name || stockName || wsPrice.stock_code || normalizedCode,
+      stock_code: wsPrice.contract_code ?? normalizedCode,
+      stock_name: stockName || wsPrice.contract_code || normalizedCode,
       price: wsPrice.price,
       last_price: wsPrice.last_price,
       bid: wsPrice.bid,
       ask: wsPrice.ask,
       bid_price: wsPrice.bid_price,
-      bid_prices: (wsPrice as { bid_prices?: (number | null)[] }).bid_prices ?? wsPrice.bid_price,
+      bid_prices: wsPrice.bid_price,
       bid_vol: wsPrice.bid_vol,
-      bid_volume: (wsPrice as { bid_volume?: (number | null)[] }).bid_volume ?? wsPrice.bid_vol,
+      bid_volume: wsPrice.bid_vol,
       ask_price: wsPrice.ask_price,
-      ask_prices: (wsPrice as { ask_prices?: (number | null)[] }).ask_prices ?? wsPrice.ask_price,
+      ask_prices: wsPrice.ask_price,
       ask_vol: wsPrice.ask_vol,
-      ask_volume: (wsPrice as { ask_volume?: (number | null)[] }).ask_volume ?? wsPrice.ask_vol,
+      ask_volume: wsPrice.ask_vol,
       pre_close: (wsPrice as { pre_close?: number }).pre_close,
       open: (wsPrice as { open?: number }).open,
       high: (wsPrice as { high?: number }).high,
@@ -187,10 +189,9 @@ function QuoteBlockWithWS({
   useEffect(() => {
     if (!normalizedCode) return;
     if (isConnected) {
-      subscribe([normalizedCode]);
       setSubscribedAt(Date.now());
     }
-  }, [isConnected, normalizedCode, subscribe]);
+  }, [isConnected, normalizedCode]);
 
   useEffect(() => {
     if (!wsPrice) return;
@@ -216,12 +217,12 @@ function QuoteBlockWithWS({
 
   const triggerNow = useCallback(() => {
     if (!isConnected) {
-      connect();
+      reconnect();
     } else {
-      subscribe([normalizedCode]);
+      queryPrice([normalizedCode]);
       setSubscribedAt(Date.now());
     }
-  }, [isConnected, connect, normalizedCode, subscribe]);
+  }, [isConnected, reconnect, normalizedCode, queryPrice]);
 
   const currentPrice = quote?.price ?? null;
   const lastPrice = pickFirstNumber([quote?.last_price, quote?.pre_close, quote?.price]);
@@ -362,13 +363,6 @@ function QuoteBlockWithWS({
   );
 
   const statusBadge = useMemo(() => {
-    if (wsHandshakeFailed) {
-      return {
-        className: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
-        text: lastErrorMessage ? `WS 异常：${lastErrorMessage}` : 'WS 连接失败',
-        pulse: false,
-      };
-    }
     if (wsConnecting) {
       return {
         className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
@@ -388,7 +382,7 @@ function QuoteBlockWithWS({
       text: 'WS 实时',
       pulse: false,
     };
-  }, [wsHandshakeFailed, wsConnecting, wsWaiting, lastErrorMessage]);
+  }, [wsConnecting, wsWaiting]);
 
   const waitingElapsedSec = wsWaiting && subscribedAt > 0
     ? Math.max(0, Math.floor((Date.now() - subscribedAt) / 1000))
@@ -427,8 +421,8 @@ function QuoteBlockWithWS({
                 : wsWaiting
                   ? `等待行情推送${waitingElapsedSec > 0 ? `（已等 ${waitingElapsedSec}s）` : '...'}`
                   : '等待行情返回...'}
-            {wsHandshakeFailed && lastErrorMessage ? (
-              <span className="ml-1 text-rose-500 dark:text-rose-400"> · {lastErrorMessage}</span>
+            {!isConnected ? (
+              <span className="ml-1 text-amber-500 dark:text-amber-400"> · 未连接</span>
             ) : null}
           </div>
         </div>
@@ -443,7 +437,7 @@ function QuoteBlockWithWS({
             <div className="mb-1 flex items-center justify-between text-[11px]">
               <span className={`${themes[theme].text} opacity-60`}>数据模式</span>
               <span className={`${themes[theme].text} opacity-60`}>
-                {wsHandshakeFailed ? '不可用' : 'WebSocket 实时'}
+                {!isConnected ? '连接中' : 'WebSocket 实时'}
               </span>
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
@@ -457,7 +451,7 @@ function QuoteBlockWithWS({
                         ? 'bg-sky-500 animate-pulse'
                         : 'bg-rose-500'
                 }`}
-                style={{ width: hasWsData ? '100%' : wsHandshakeFailed ? '20%' : '60%' }}
+                style={{ width: hasWsData ? '100%' : !isConnected ? '20%' : '60%' }}
               />
             </div>
           </div>
@@ -468,7 +462,7 @@ function QuoteBlockWithWS({
             className={`inline-flex items-center rounded-md px-3 py-2 text-sm font-medium ${themes[theme].secondary}`}
           >
             <RefreshCw className="mr-2 h-4 w-4" />
-            {wsHandshakeFailed ? '重连 WS' : '重新订阅'}
+            {!isConnected ? '重连 WS' : '重新订阅'}
           </button>
         </div>
       </div>
@@ -599,9 +593,7 @@ function QuoteBlockWithWS({
                     ? '正在建立 WebSocket 连接...'
                     : wsWaiting
                       ? '已订阅，等待服务器推送首个行情点...'
-                      : wsHandshakeFailed
-                        ? 'WS 连接异常，尝试点击「重连 WS」'
-                        : '暂无行情数据'}
+                      : '暂无行情数据'}
                 </div>
               )}
             </div>
@@ -645,9 +637,11 @@ export function StockQuotePanel(props: StockQuotePanelProps) {
         </div>
       </div>
       <div className="space-y-4 p-4 sm:p-6">
-        <StockPriceWebSocketProvider>
-          <QuoteBlockQuoteOnly {...props} stockCode={stockCode} />
-        </StockPriceWebSocketProvider>
+        <OptionPriceWebSocketProvider>
+          <OptionQuoteSubscription realtimeCodes={[stockCode]}>
+            <QuoteBlockQuoteOnly {...props} stockCode={stockCode} />
+          </OptionQuoteSubscription>
+        </OptionPriceWebSocketProvider>
         <KlineBlock stockCode={stockCode.trim()} theme={theme} userId={props.userId} accountId={props.accountId} />
       </div>
     </div>

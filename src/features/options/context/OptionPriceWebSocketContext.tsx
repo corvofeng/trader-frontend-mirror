@@ -314,7 +314,7 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
                   const bidData = parsePriceField(bidSource);
                   const askData = parsePriceField(askSource);
 
-                  updates[item.contract_code] = {
+                  const updateObj: PriceUpdate = {
                     ...item,
                     price: item.last_price ?? item.price,
                     bid: bidData.scalar,
@@ -324,6 +324,13 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
                     bid_vol: item.bid_vol ?? [],
                     ask_vol: item.ask_vol ?? []
                   };
+                  updates[item.contract_code] = updateObj;
+                  if (item.contract_code.includes('.')) {
+                    const base = item.contract_code.split('.')[0];
+                    if (!updates[base]) {
+                      updates[base] = updateObj;
+                    }
+                  }
                 }
               });
               queuePriceUpdate(updates);
@@ -349,7 +356,11 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
                 ask_vol: record.ask_vol ?? []
               };
 
-              queuePriceUpdate({ [record.contract_code]: processedData });
+              const updateMap: Record<string, PriceUpdate> = { [record.contract_code]: processedData };
+              if (record.contract_code.includes('.')) {
+                updateMap[record.contract_code.split('.')[0]] = processedData;
+              }
+              queuePriceUpdate(updateMap);
             }
           } catch (e) {
             console.error('Failed to handle WebSocket message:', e);
