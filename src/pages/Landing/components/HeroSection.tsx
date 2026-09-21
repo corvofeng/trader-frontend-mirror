@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { TrendingUp, ArrowRight, ShieldCheck, Activity, LineChart, Zap } from 'lucide-react';
+import { TrendingUp, ArrowRight, ShieldCheck, Activity, Zap } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { accountService, portfolioService } from '../../../lib/services';
 import type { Holding, User, Account, PortfolioKlinePoint } from '../../../lib/services/types';
 import { landingTranslations, Language } from '../i18n';
 import { getCurrencySymbolFromCode } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
-
+import { AssetTrendChart, TrendDataPoint } from './AssetTrendChart';
 
 interface HeroSectionProps {
   theme: Theme;
@@ -18,31 +18,40 @@ interface HeroSectionProps {
   lang?: Language;
 }
 
-interface DailyBarItem {
-  change: number;
-  dateStr: string;
-}
-
 const DEFAULT_USER_ID = 'mock-user-id';
 
-// Default realistic 15-day daily PnL change dataset as fallback
-const FALLBACK_DAILY_BARS: DailyBarItem[] = [
-  { change: 320, dateStr: 'Day 1' },
-  { change: -140, dateStr: 'Day 2' },
-  { change: 510, dateStr: 'Day 3' },
-  { change: 180, dateStr: 'Day 4' },
-  { change: -220, dateStr: 'Day 5' },
-  { change: 450, dateStr: 'Day 6' },
-  { change: -110, dateStr: 'Day 7' },
-  { change: 290, dateStr: 'Day 8' },
-  { change: 80, dateStr: 'Day 9' },
-  { change: -310, dateStr: 'Day 10' },
-  { change: 620, dateStr: 'Day 11' },
-  { change: 150, dateStr: 'Day 12' },
-  { change: -90, dateStr: 'Day 13' },
-  { change: 410, dateStr: 'Day 14' },
-  { change: 230, dateStr: 'Day 15' },
-];
+// Generate dynamic realistic 25-day daily asset & PnL change dataset as fallback
+function generateRealisticFallbackTrend(count = 25): TrendDataPoint[] {
+  const points: TrendDataPoint[] = [];
+  const now = new Date();
+  let currentAsset = 232150;
+
+  const dailyChangesPct = [
+    0.35, -0.22, 0.65, 0.42, -0.58, 0.81, -0.35, 0.45, 0.18, -0.72,
+    0.95, 0.32, -0.15, 0.58, 0.41, -0.48, 0.62, 0.28, -0.31, 0.55,
+    -0.20, 0.48, 0.36, -0.18, 0.82,
+  ];
+
+  for (let i = 0; i < count; i++) {
+    const d = new Date(now.getTime() - (count - 1 - i) * 24 * 60 * 60 * 1000);
+    const dateStr = d.toISOString().split('T')[0];
+    const dateLabel = `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    const pct = dailyChangesPct[i % dailyChangesPct.length];
+    const change = (currentAsset * pct) / 100;
+    currentAsset += change;
+
+    points.push({
+      date: dateStr,
+      dateLabel,
+      assetValue: Math.round(currentAsset * 100) / 100,
+      dailyChange: Math.round(change * 100) / 100,
+      dailyChangePct: Math.round(pct * 100) / 100,
+    });
+  }
+
+  return points;
+}
 
 export function HeroSection({ 
   theme, 
@@ -67,7 +76,7 @@ export function HeroSection({
   const [winRate, setWinRate] = useState<number>(66.7);
   const [winDays, setWinDays] = useState<number>(10);
   const [totalDays, setTotalDays] = useState<number>(15);
-  const [dailyBars, setDailyBars] = useState<DailyBarItem[]>(FALLBACK_DAILY_BARS);
+  const [trendData, setTrendData] = useState<TrendDataPoint[]>(() => generateRealisticFallbackTrend());
   const [thirtyDayNetPnL, setThirtyDayNetPnL] = useState<number>(2580.00);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -122,25 +131,32 @@ export function HeroSection({
           const candles: PortfolioKlinePoint[] = klineResponse.data || [];
 
           if (candles.length >= 2 && !cancelled) {
-            const calculatedBars: DailyBarItem[] = [];
+            const calculatedPoints: TrendDataPoint[] = [];
             for (let i = 1; i < candles.length; i++) {
-              const diff = candles[i].close - candles[i - 1].close - (candles[i].cash_flow ?? 0);
-              calculatedBars.push({
-                change: diff,
-                dateStr: candles[i].date,
+              const prev = candles[i - 1];
+              const curr = candles[i];
+              const diff = curr.close - prev.close - (curr.cash_flow ?? 0);
+              const pct = prev.close > 0 ? (diff / prev.close) * 100 : 0;
+              const dateStr = curr.date;
+              const dateLabel = dateStr.length >= 10 ? dateStr.slice(5) : dateStr;
+
+              calculatedPoints.push({
+                date: dateStr,
+                dateLabel,
+                assetValue: curr.close,
+                dailyChange: Math.round(diff * 100) / 100,
+                dailyChangePct: Math.round(pct * 100) / 100,
               });
             }
 
-            if (calculatedBars.length > 0) {
-              // Take last 15-20 days for optimal bar chart resolution
-              const sampledBars = calculatedBars.slice(-18);
-              setDailyBars(featuredBars(sampledBars));
-              const netChange = calculatedBars.reduce((sum, bar) => sum + bar.change, 0);
+            if (calculatedPoints.length > 0) {
+              setTrendData(calculatedPoints);
+              const netChange = calculatedPoints.reduce((sum, p) => sum + p.dailyChange, 0);
               setThirtyDayNetPnL(netChange);
 
               // Calculate daily win rate over the last 30 days
-              const positiveDaysCount = calculatedBars.filter((bar) => bar.change > 0).length;
-              const totalDaysCount = calculatedBars.length;
+              const positiveDaysCount = calculatedPoints.filter((p) => p.dailyChange > 0).length;
+              const totalDaysCount = calculatedPoints.length;
               const calculatedWinRate = Number(((positiveDaysCount / totalDaysCount) * 100).toFixed(1));
               setWinRate(calculatedWinRate);
               setWinDays(positiveDaysCount);
@@ -178,8 +194,6 @@ export function HeroSection({
   }, [user]);
 
   const isPortfolioPositive = portfolioSummary.dailyChangePct >= 0;
-  const is30DayPositive = thirtyDayNetPnL >= 0;
-  const maxAbsChange = Math.max(...dailyBars.map((b) => Math.abs(b.change)), 1);
 
   return (
     <div className={`relative overflow-hidden ${themes[theme].background} border-b ${themes[theme].border} transition-colors duration-200`}>
@@ -285,7 +299,7 @@ export function HeroSection({
                     </div>
 
                     <div className="p-3 sm:p-3.5 rounded-xl bg-slate-100/60 dark:bg-zinc-800/40 border border-slate-200/40 dark:border-zinc-700/40">
-                      <div className="text-xs opacity-70 mb-1 truncate">{(t as any).dailyPnL}</div>
+                      <div className="text-xs opacity-70 mb-1 truncate">{t.dailyPnL}</div>
                       <div 
                         className="text-lg sm:text-xl font-bold font-mono"
                         style={{ color: isPortfolioPositive ? regionalColors.upColor : regionalColors.downColor }}
@@ -296,55 +310,20 @@ export function HeroSection({
                         className="text-[11px] font-semibold mt-0.5 truncate"
                         style={{ color: isPortfolioPositive ? regionalColors.upColor : regionalColors.downColor }}
                       >
-                        {(t as any).dailyPnLSub} ({isPortfolioPositive ? '+' : ''}{portfolioSummary.dailyChangePct.toFixed(2)}%)
+                        {t.dailyPnLSub} ({isPortfolioPositive ? '+' : ''}{portfolioSummary.dailyChangePct.toFixed(2)}%)
                       </div>
                     </div>
                   </div>
 
-                  {/* 30-Day Daily PnL Bar Chart Component */}
-                  <div className="p-3.5 sm:p-4 rounded-xl bg-slate-100/60 dark:bg-zinc-800/40 border border-slate-200/40 dark:border-zinc-700/40">
-                    <div className="flex items-center justify-between text-xs mb-3">
-                      <span className="font-semibold flex items-center gap-1.5">
-                        <LineChart className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                        <span className="truncate">{t.unrealizedPnL}</span>
-                      </span>
-                      <span 
-                        className="font-mono font-bold shrink-0 ml-2"
-                        style={{ color: is30DayPositive ? regionalColors.upColor : regionalColors.downColor }}
-                      >
-                        {is30DayPositive ? '+' : ''}{portfolioSummary.currencySymbol}{thirtyDayNetPnL.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
-                    </div>
-
-                    {/* Daily PnL Bar Chart Grid */}
-                    <div className="h-20 flex items-center justify-between gap-0.5 sm:gap-1 pt-2 relative">
-                      {/* Center Baseline (0 Line) */}
-                      <div className="absolute inset-x-0 top-1/2 border-b border-dashed border-slate-300 dark:border-zinc-700 opacity-60 z-0 pointer-events-none" />
-
-                      {dailyBars.map((bar, i) => {
-                        const isPos = bar.change >= 0;
-                        const barHeightPct = bar.change === 0 ? 0 : Math.max(3, Math.min(48, (Math.abs(bar.change) / maxAbsChange) * 48));
-
-                        return (
-                          <div
-                            key={i}
-                            className="flex-1 relative flex items-center justify-center h-full z-10 group/bar cursor-pointer"
-                            title={`${bar.dateStr}: ${isPos ? '+' : ''}${portfolioSummary.currencySymbol}${bar.change.toFixed(2)}`}
-                          >
-                            <div
-                              className={`w-full max-w-[6px] sm:max-w-[10px] rounded-xs transition-all duration-300 hover:opacity-100 opacity-80 ${
-                                isPos ? 'self-end mb-10' : 'self-start mt-10'
-                              }`}
-                              style={{ 
-                                height: `${barHeightPct}%`,
-                                backgroundColor: isPos ? regionalColors.upColor : regionalColors.downColor 
-                              }}
-                            />
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
+                  {/* 30-Day Asset Trend & Daily PnL Composite Chart */}
+                  <AssetTrendChart
+                    data={trendData}
+                    currencySymbol={portfolioSummary.currencySymbol}
+                    upColor={regionalColors.upColor}
+                    downColor={regionalColors.downColor}
+                    thirtyDayNetPnL={thirtyDayNetPnL}
+                    lang={lang}
+                  />
                 </>
               )}
 
@@ -355,12 +334,6 @@ export function HeroSection({
       </div>
     </div>
   );
-}
-
-// Helper to filter/sanitize bars
-function featuredBars(bars: DailyBarItem[]): DailyBarItem[] {
-  if (bars.length === 0) return FALLBACK_DAILY_BARS;
-  return bars;
 }
 
 
