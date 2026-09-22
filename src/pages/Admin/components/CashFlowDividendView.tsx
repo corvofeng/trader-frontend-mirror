@@ -17,7 +17,9 @@ import {
   RefreshCw,
   PlusCircle,
   Sparkles,
-  Award
+  Award,
+  Camera,
+  ExternalLink
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Theme, themes } from '../../../lib/theme';
@@ -35,6 +37,7 @@ import {
   CounterpartyPrincipal,
   FeeCalculationMode,
 } from './cashFlowDividendUtils';
+import { CashFlowDividendShareModal } from './CashFlowDividendShareModal';
 
 interface CashFlowDividendViewProps {
   theme: Theme;
@@ -149,6 +152,9 @@ export function CashFlowDividendView({
 
   // Batch recording state
   const [isRecordingFlows, setIsRecordingFlows] = useState(false);
+  const [isFlowsRecorded, setIsFlowsRecorded] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [selectedSharePartner, setSelectedSharePartner] = useState<string | undefined>(undefined);
 
   // 2. Fetch current account latest profit and holdings
   const fetchAccountProfitAndHoldings = useCallback(async () => {
@@ -284,7 +290,10 @@ export function CashFlowDividendView({
         if (!res.error) successCount++;
       }
       toast.success(`成功生成 ${successCount} 笔分红出金流水记录！`);
+      setIsFlowsRecorded(true);
       if (onRefreshFlows) onRefreshFlows();
+      // 自动弹出分享截图弹窗，方便合伙人分红对账与微信分享
+      setIsShareModalOpen(true);
     } catch (err: any) {
       console.error('Failed to record dividend flows:', err);
       toast.error(err?.message || '批量录入分红流水失败');
@@ -783,6 +792,17 @@ export function CashFlowDividendView({
 
                     <button
                       type="button"
+                      disabled={!dividendPlan.isEligibleForDividend || dividendPlan.items.length === 0}
+                      onClick={() => setIsShareModalOpen(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 transition-colors shadow-2xs"
+                      title="生成客户分享截图（支持客户Hash脱敏）"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>📸 分享结算截图</span>
+                    </button>
+
+                    <button
+                      type="button"
                       disabled={!dividendPlan.isEligibleForDividend || isRecordingFlows}
                       onClick={handleRecordDividendFlows}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 transition-colors shadow-2xs"
@@ -975,6 +995,17 @@ export function CashFlowDividendView({
                                           </span>
                                         </div>
                                         <div className="flex items-center gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setSelectedSharePartner(item.rawName);
+                                              setIsShareModalOpen(true);
+                                            }}
+                                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 font-sans font-medium"
+                                          >
+                                            <ExternalLink className="w-3.5 h-3.5" />
+                                            <span>生成专属结算单 (图片/PDF)</span>
+                                          </button>
                                           <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
                                             {feeMode === 'progressive' ? '超额累进制（5%以内10%，超出50%）' : '指定费率制'}
                                           </span>
@@ -990,34 +1021,34 @@ export function CashFlowDividendView({
                                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
                                         {/* Step 1: Principal & Profit Allocation */}
                                         <div className="p-3 rounded-lg bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 space-y-1.5">
-                                          <div className="text-slate-600 dark:text-zinc-300 font-semibold flex items-center gap-1">
-                                            <span className="w-4 h-4 rounded-full bg-blue-600 text-white inline-flex items-center justify-center text-[10px]">
+                                          <div className="text-slate-600 dark:text-zinc-300 font-semibold flex items-center gap-1 whitespace-nowrap">
+                                            <span className="w-4 h-4 rounded-full bg-blue-600 text-white inline-flex items-center justify-center text-[10px] shrink-0">
                                               1
                                             </span>
                                             <span>基础出资与分配毛利</span>
                                           </div>
                                           <div className="space-y-1 text-slate-700 dark:text-zinc-300 font-mono text-[11px]">
-                                            <div className="flex justify-between">
+                                            <div className="flex justify-between items-center whitespace-nowrap">
                                               <span>累计净出资本金 (成本):</span>
                                               <span className="font-semibold">{formatMoney(item.netPrincipal)}</span>
                                             </div>
-                                            <div className="flex justify-between">
+                                            <div className="flex justify-between items-center whitespace-nowrap">
                                               <span>在活跃资金池占比:</span>
                                               <span className="font-semibold">{(item.shareRatio * 100).toFixed(2)}%</span>
                                             </div>
-                                            <div className="flex justify-between">
+                                            <div className="flex justify-between items-center whitespace-nowrap">
                                               <span>分配毛收益 (总利润×占比):</span>
                                               <span className="font-bold text-slate-900 dark:text-zinc-100">
                                                 {formatMoney(item.grossProfitShare)}
                                               </span>
                                             </div>
-                                            <div className="flex justify-between text-blue-600 dark:text-blue-400 font-semibold">
+                                            <div className="flex justify-between items-center text-blue-600 dark:text-blue-400 font-semibold whitespace-nowrap">
                                               <span>当期毛收益率 (毛利÷本金):</span>
                                               <span className="font-bold">
                                                 +{((item.profitRate || 0) * 100).toFixed(2)}%
                                               </span>
                                             </div>
-                                            <div className="flex justify-between text-slate-400 pt-1 border-t border-slate-200/60 dark:border-zinc-800">
+                                            <div className="flex justify-between items-center text-slate-400 pt-1 border-t border-slate-200/60 dark:border-zinc-800 whitespace-nowrap">
                                               <span>5% 门槛收益基准线:</span>
                                               <span>
                                                 {formatMoney(item.tierDetail?.hurdleProfitThreshold || item.netPrincipal * 0.05)}
@@ -1028,11 +1059,11 @@ export function CashFlowDividendView({
 
                                         {/* Step 2: Performance Fee Calculation */}
                                         <div className="p-3 rounded-lg bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-200/60 dark:border-indigo-900/50 space-y-1.5">
-                                          <div className="text-indigo-700 dark:text-indigo-300 font-semibold flex items-center gap-1">
-                                            <span className="w-4 h-4 rounded-full bg-indigo-600 text-white inline-flex items-center justify-center text-[10px]">
+                                          <div className="text-indigo-700 dark:text-indigo-300 font-semibold flex items-center gap-1 whitespace-nowrap">
+                                            <span className="w-4 h-4 rounded-full bg-indigo-600 text-white inline-flex items-center justify-center text-[10px] shrink-0">
                                               2
                                             </span>
-                                            <span>手续费扣除测算过程</span>
+                                            <span>手续费提成测算</span>
                                           </div>
                                           {item.isReentered ? (
                                             <div className="space-y-1 text-[11px] font-mono text-rose-700 dark:text-rose-400">
@@ -1045,27 +1076,37 @@ export function CashFlowDividendView({
                                             </div>
                                           ) : item.tierDetail ? (
                                             <div className="space-y-1.5 text-slate-700 dark:text-zinc-300 font-mono text-[11px]">
-                                              <div className="flex justify-between">
-                                                <span className="text-emerald-700 dark:text-emerald-400">
-                                                  阶梯① (≤5% 部分 10%提成):
-                                                </span>
-                                                <span className="font-semibold">
-                                                  ¥{item.tierDetail.tier1Profit.toFixed(2)} × 10% = ¥{item.tierDetail.tier1Fee.toFixed(2)}
-                                                </span>
+                                              {/* Tier 1 mini card */}
+                                              <div className="p-1.5 rounded bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/15 space-y-0.5">
+                                                <div className="flex items-center justify-between font-sans text-emerald-700 dark:text-emerald-400 font-medium text-[11px] whitespace-nowrap">
+                                                  <span>阶梯① (≤5% 基准毛利)</span>
+                                                  <span className="font-mono">计提 10%</span>
+                                                </div>
+                                                <div className="flex items-center justify-between font-mono text-xs whitespace-nowrap">
+                                                  <span className="text-slate-500">¥{item.tierDetail.tier1Profit.toFixed(2)} × 10%</span>
+                                                  <span className="font-bold text-emerald-700 dark:text-emerald-300">= ¥{item.tierDetail.tier1Fee.toFixed(2)}</span>
+                                                </div>
                                               </div>
-                                              <div className="flex justify-between">
-                                                <span className="text-amber-700 dark:text-amber-400">
-                                                  阶梯② (&gt;5% 超额 50%提成):
-                                                </span>
-                                                <span className="font-semibold">
-                                                  {item.tierDetail.tier2Profit > 0
-                                                    ? `¥${item.tierDetail.tier2Profit.toFixed(2)} × 50% = ¥${item.tierDetail.tier2Fee.toFixed(2)}`
-                                                    : '¥0.00 (未超5%门槛)'}
-                                                </span>
+
+                                              {/* Tier 2 mini card */}
+                                              <div className="p-1.5 rounded bg-amber-500/5 dark:bg-amber-500/10 border border-amber-500/15 space-y-0.5">
+                                                <div className="flex items-center justify-between font-sans text-amber-700 dark:text-amber-400 font-medium text-[11px] whitespace-nowrap">
+                                                  <span>阶梯② (&gt;5% 超额利润)</span>
+                                                  <span className="font-mono">计提 50%</span>
+                                                </div>
+                                                <div className="flex items-center justify-between font-mono text-xs whitespace-nowrap">
+                                                  <span className="text-slate-500">
+                                                    {item.tierDetail.tier2Profit > 0 ? `¥${item.tierDetail.tier2Profit.toFixed(2)} × 50%` : '未超 5% 门槛'}
+                                                  </span>
+                                                  <span className="font-bold text-amber-700 dark:text-amber-300">
+                                                    = ¥{item.tierDetail.tier2Fee.toFixed(2)}
+                                                  </span>
+                                                </div>
                                               </div>
-                                              <div className="flex justify-between pt-1 border-t border-indigo-200/80 dark:border-indigo-900 text-indigo-700 dark:text-indigo-300 font-bold">
-                                                <span>合计手续费扣除:</span>
-                                                <span>
+
+                                              <div className="flex justify-between items-center text-indigo-700 dark:text-indigo-300 font-semibold pt-1 border-t border-indigo-200/80 dark:border-indigo-900 font-mono text-[11px] whitespace-nowrap">
+                                                <span className="font-sans">合计手续费扣除:</span>
+                                                <span className="font-bold">
                                                   -¥{item.feeAmount.toFixed(2)} (综合费率 {(item.feeRate * 100).toFixed(1)}%)
                                                 </span>
                                               </div>
@@ -1111,8 +1152,8 @@ export function CashFlowDividendView({
 
                                         {/* Step 3: Net Dividend and Remaining Principal */}
                                         <div className="p-3 rounded-lg bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/50 space-y-1.5">
-                                          <div className="text-emerald-700 dark:text-emerald-300 font-semibold flex items-center gap-1">
-                                            <span className="w-4 h-4 rounded-full bg-emerald-600 text-white inline-flex items-center justify-center text-[10px]">
+                                          <div className="text-emerald-700 dark:text-emerald-300 font-semibold flex items-center gap-1 whitespace-nowrap">
+                                            <span className="w-4 h-4 rounded-full bg-emerald-600 text-white inline-flex items-center justify-center text-[10px] shrink-0">
                                               3
                                             </span>
                                             <span>实发现金分红与留存底仓</span>
@@ -1748,6 +1789,24 @@ export function CashFlowDividendView({
           )}
         </div>
       )}
+
+      {/* Dividend Share / Screenshot Modal */}
+      <CashFlowDividendShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => {
+          setIsShareModalOpen(false);
+          setSelectedSharePartner(undefined);
+        }}
+        theme={theme}
+        accountAlias={accountAlias}
+        plan={dividendPlan}
+        settleDate={settleDate}
+        allCounterparties={allCounterparties}
+        initialMasked={isMasked}
+        isFlowsRecorded={isFlowsRecorded}
+        initialPartnerRawName={selectedSharePartner}
+        initialViewMode={selectedSharePartner ? 'single' : 'all'}
+      />
     </div>
   );
 }
