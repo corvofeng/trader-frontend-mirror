@@ -2878,6 +2878,7 @@ export function ExpiryGroupCard({
                                 data={openInterestByStrike}
                                 maxOpenInterest={maxOpenInterest}
                                 visible={showOpenInterestOverlay}
+                                scale={isMobileViewport ? mobileTBoardScale : 1}
                               />
                             </div>
                           </div>

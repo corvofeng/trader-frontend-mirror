@@ -14,6 +14,8 @@ interface OpenInterestOverlayProps {
   data: StrikeOpenInterestItem[];
   maxOpenInterest: number;
   visible: boolean;
+  /** CSS zoom factor applied to the table (e.g. mobileTBoardScale). Defaults to 1. */
+  scale?: number;
 }
 
 interface MeasuredPoint {
@@ -82,6 +84,7 @@ export const OpenInterestOverlay: React.FC<OpenInterestOverlayProps> = ({
   data,
   maxOpenInterest,
   visible,
+  scale = 1,
 }) => {
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [points, setPoints] = useState<MeasuredPoint[]>([]);
@@ -91,24 +94,27 @@ export const OpenInterestOverlay: React.FC<OpenInterestOverlayProps> = ({
     const table = tableRef.current;
     if (!table) return;
 
-    const width = table.offsetWidth;
-    const height = table.offsetHeight;
+    // CSS `zoom` affects the visual layout but NOT offsetWidth/offsetHeight/offsetTop.
+    // We must multiply all offset* values by `scale` so that the SVG coordinate
+    // system matches the zoomed visual rendering on mobile.
+    const width = table.offsetWidth * scale;
+    const height = table.offsetHeight * scale;
 
     if (width <= 0 || height <= 0) return;
     setDimensions({ width, height });
 
-    // Measure strike column position
+    // Measure strike column position, accounting for scale
     let left = 0;
     let right = 0;
     const strikeHeader = strikeHeaderRef.current;
     if (strikeHeader) {
-      left = strikeHeader.offsetLeft;
-      right = left + strikeHeader.offsetWidth;
+      left = strikeHeader.offsetLeft * scale;
+      right = left + strikeHeader.offsetWidth * scale;
     } else {
       const firstStrikeCell = table.querySelector<HTMLTableCellElement>('td[data-role="strike"]');
       if (firstStrikeCell) {
-        left = firstStrikeCell.offsetLeft;
-        right = left + firstStrikeCell.offsetWidth;
+        left = firstStrikeCell.offsetLeft * scale;
+        right = left + firstStrikeCell.offsetWidth * scale;
       }
     }
 
@@ -119,7 +125,7 @@ export const OpenInterestOverlay: React.FC<OpenInterestOverlayProps> = ({
     const maxAmplitude = Math.min(160, Math.max(90, (left - 100) * 0.45));
     const safeMaxOI = Math.max(1, maxOpenInterest);
 
-    // Map each strike to its vertical position
+    // Map each strike to its vertical position, accounting for scale
     const measured: MeasuredPoint[] = [];
     const rows = table.querySelectorAll<HTMLTableRowElement>('tr[data-strike]');
     const rowMap = new Map<number, HTMLTableRowElement>();
@@ -132,8 +138,8 @@ export const OpenInterestOverlay: React.FC<OpenInterestOverlayProps> = ({
       const row = rowMap.get(item.strike);
       if (!row) return;
 
-      const rowTop = row.offsetTop;
-      const rowHeight = row.offsetHeight;
+      const rowTop = row.offsetTop * scale;
+      const rowHeight = row.offsetHeight * scale;
       const centerY = rowTop + rowHeight / 2;
 
       const callRatio = Math.min(1, Math.max(0, item.call / safeMaxOI));
@@ -155,7 +161,7 @@ export const OpenInterestOverlay: React.FC<OpenInterestOverlayProps> = ({
     });
 
     setPoints(measured);
-  }, [tableRef, strikeHeaderRef, data, maxOpenInterest]);
+  }, [tableRef, strikeHeaderRef, data, maxOpenInterest, scale]);
 
   // Re-measure on mount, resize, or data change
   useEffect(() => {
