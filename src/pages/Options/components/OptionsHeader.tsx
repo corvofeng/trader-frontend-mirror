@@ -51,10 +51,10 @@ export function OptionsHeader({
     <div className={`${themes[theme].card} rounded-lg p-4`}>
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
-          <h1 className={`text-2xl font-bold ${themes[theme].text}`}>
+          <h1 className={`text-base sm:text-2xl font-bold tracking-tight ${themes[theme].text}`}>
             Options Trading Analysis
           </h1>
-          <p className={`text-sm ${themes[theme].text} opacity-75 mt-1`}>
+          <p className={`hidden sm:block text-xs sm:text-sm ${themes[theme].text} opacity-75 mt-0.5`}>
             Advanced options analysis and trading tools
           </p>
         </div>

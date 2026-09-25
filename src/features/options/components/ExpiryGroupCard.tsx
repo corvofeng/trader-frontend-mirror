@@ -305,6 +305,7 @@ export function ExpiryGroupCard({
   }, [confirmData, advisedModal, allSinglePositions]);
   const hasUserAdjustedTBoardRef = useRef(false);
   const isProgrammaticTBoardScrollRef = useRef(false);
+  const initialCenteredRef = useRef(false);
   const basePositions = useMemo(() => filterAndSortPositions(group.single), [filterAndSortPositions, group.single]);
 
   const filteredPositions = useMemo(() => selectedSymbol
@@ -1596,37 +1597,73 @@ export function ExpiryGroupCard({
     return () => window.removeEventListener('resize', handleViewportChange);
   }, []);
 
+  const scrollToAtm = useCallback((smooth = true) => {
+    const container = tBoardScrollRef.current;
+    if (!container) return;
+
+    const strikeHeader = strikeHeaderRef.current;
+    let desiredScrollLeft = container.scrollLeft;
+    if (strikeHeader) {
+      const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth);
+      const containerRect = container.getBoundingClientRect();
+      const strikeRect = strikeHeader.getBoundingClientRect();
+      const deltaX = (strikeRect.left + strikeRect.width / 2) - (containerRect.left + containerRect.width / 2);
+      desiredScrollLeft = Math.max(
+        0,
+        Math.min(container.scrollLeft + deltaX, maxScrollLeft)
+      );
+    }
+
+    const spotRow = container.querySelector<HTMLElement>('[data-spot-indicator="true"]') ||
+                    container.querySelector<HTMLElement>('[data-atm-strike="true"]');
+    let desiredScrollTop = container.scrollTop;
+    if (spotRow) {
+      const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
+      const containerRect = container.getBoundingClientRect();
+      const spotRect = spotRow.getBoundingClientRect();
+      const deltaY = (spotRect.top + spotRect.height / 2) - (containerRect.top + containerRect.height / 2);
+      desiredScrollTop = Math.max(
+        0,
+        Math.min(container.scrollTop + deltaY, maxScrollTop)
+      );
+    }
+
+    isProgrammaticTBoardScrollRef.current = true;
+    container.scrollTo({
+      left: desiredScrollLeft,
+      top: desiredScrollTop,
+      behavior: smooth ? 'smooth' : 'auto'
+    });
+    window.setTimeout(() => {
+      isProgrammaticTBoardScrollRef.current = false;
+      initialCenteredRef.current = true;
+    }, 400);
+  }, []);
+
+  const strikesCount = tBoardStrikesAndMetrics.strikes.length;
+
   useEffect(() => {
-    if (!isMobileViewport || !isTBoardExpanded) return;
+    if (!isMobileViewport || !isTBoardExpanded || strikesCount === 0) return;
     if (hasUserAdjustedTBoardRef.current) return;
 
-    const container = tBoardScrollRef.current;
-    const strikeHeader = strikeHeaderRef.current;
-    if (!container || !strikeHeader) return;
-
-    const centerStrikeColumn = () => {
-      const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth);
-      const desiredScrollLeft = Math.max(
-        0,
-        Math.min(
-          strikeHeader.offsetLeft + strikeHeader.offsetWidth / 2 - container.clientWidth / 2,
-          maxScrollLeft
-        )
-      );
-
-      isProgrammaticTBoardScrollRef.current = true;
-      container.scrollLeft = desiredScrollLeft;
-      window.setTimeout(() => {
-        isProgrammaticTBoardScrollRef.current = false;
-      }, 80);
+    let timerId: number | undefined;
+    const center = () => {
+      scrollToAtm(false);
     };
 
-    const frameId = window.requestAnimationFrame(centerStrikeColumn);
-    return () => window.cancelAnimationFrame(frameId);
-  }, [isMobileViewport, isTBoardExpanded, mobileTBoardScale, filteredPositions.length, group.expiry]);
+    const frameId = window.requestAnimationFrame(() => {
+      center();
+      timerId = window.setTimeout(center, 120);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      if (timerId) window.clearTimeout(timerId);
+    };
+  }, [isMobileViewport, isTBoardExpanded, strikesCount, group.expiry, scrollToAtm]);
 
   const handleTBoardScroll = useCallback(() => {
-    if (isProgrammaticTBoardScrollRef.current) return;
+    if (isProgrammaticTBoardScrollRef.current || !initialCenteredRef.current) return;
     hasUserAdjustedTBoardRef.current = true;
   }, []);
 
@@ -1639,48 +1676,6 @@ export function ExpiryGroupCard({
 
   const exitFullscreen = useCallback(() => {
     setIsTBoardFullscreen(false);
-  }, []);
-
-  const scrollToAtm = useCallback((smooth = true) => {
-    const container = tBoardScrollRef.current;
-    if (!container) return;
-
-    const strikeHeader = strikeHeaderRef.current;
-    let desiredScrollLeft = container.scrollLeft;
-    if (strikeHeader) {
-      const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth);
-      desiredScrollLeft = Math.max(
-        0,
-        Math.min(
-          strikeHeader.offsetLeft + strikeHeader.offsetWidth / 2 - container.clientWidth / 2,
-          maxScrollLeft
-        )
-      );
-    }
-
-    const spotRow = container.querySelector<HTMLElement>('[data-spot-indicator="true"]') ||
-                    container.querySelector<HTMLElement>('[data-atm-strike="true"]');
-    let desiredScrollTop = container.scrollTop;
-    if (spotRow) {
-      const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
-      desiredScrollTop = Math.max(
-        0,
-        Math.min(
-          spotRow.offsetTop + spotRow.offsetHeight / 2 - container.clientHeight / 2,
-          maxScrollTop
-        )
-      );
-    }
-
-    isProgrammaticTBoardScrollRef.current = true;
-    container.scrollTo({
-      left: desiredScrollLeft,
-      top: desiredScrollTop,
-      behavior: smooth ? 'smooth' : 'auto'
-    });
-    window.setTimeout(() => {
-      isProgrammaticTBoardScrollRef.current = false;
-    }, 120);
   }, []);
 
   useEffect(() => {
@@ -1920,88 +1915,51 @@ export function ExpiryGroupCard({
     const ask1Vol = priceData?.ask_vol?.[0];
     const lastPrice = priceData?.price ?? priceData?.last_price;
 
-    const totalVol = (bid1Vol != null && ask1Vol != null) ? (bid1Vol + ask1Vol) : null;
-    const bidPct = totalVol && totalVol > 0 ? Math.round(((bid1Vol || 0) / totalVol) * 100) : 50;
-    const askPct = totalVol && totalVol > 0 ? 100 - bidPct : 50;
     const spread = (ask1Price != null && bid1Price != null) ? (ask1Price - bid1Price) : null;
+
+    const isBuyLeg = legType === 'buy';
+    const execPrice = isBuyLeg ? ask1Price : bid1Price;
+    const execVol = isBuyLeg ? ask1Vol : bid1Vol;
+    const isSufficient = targetQty != null && execVol != null ? execVol >= targetQty : null;
 
     return (
       <details className="group border-t border-current/10">
-        <summary className={`list-none [&::-webkit-details-marker]:hidden cursor-pointer p-2.5 sm:p-3 hover:bg-current/[0.02] active:bg-current/[0.04] transition-colors select-none ${themes[theme].text}`}>
-          {/* 买1 与 卖1 双栏卡片 */}
-          <div className="grid grid-cols-2 gap-2">
-            {/* 买1 (买盘) */}
-            <div className="flex flex-col justify-between p-2 rounded-lg bg-red-500/[0.04] dark:bg-red-500/[0.08] border border-red-500/15">
-              <div className="flex items-center justify-between">
-                <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-500/15 text-red-600 dark:text-red-400 font-bold shrink-0">
-                  买1
-                </span>
-                <span className="font-mono text-[11px] opacity-75">
-                  量 <b className="font-semibold opacity-100">{bid1Vol ?? '-'}</b>
-                </span>
-              </div>
-              <div className="mt-1 flex items-baseline">
-                <span className="font-mono font-bold text-red-500 text-sm sm:text-base leading-tight">
-                  {bid1Price != null ? bid1Price.toFixed(4) : '-'}
-                </span>
-              </div>
-              {legType === 'sell' && targetQty != null && bid1Vol != null && (
-                <div className="mt-1 pt-1 border-t border-red-500/10">
-                  <span className={`text-[10px] font-mono leading-tight font-medium ${bid1Vol >= targetQty ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
-                    承接: {bid1Vol >= targetQty ? `充足 (需${targetQty})` : `仅${bid1Vol}/需${targetQty}`}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* 卖1 (卖盘) */}
-            <div className="flex flex-col justify-between p-2 rounded-lg bg-green-500/[0.04] dark:bg-green-500/[0.08] border border-green-500/15">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-[11px] opacity-75">
-                  量 <b className="font-semibold opacity-100">{ask1Vol ?? '-'}</b>
-                </span>
-                <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-500/15 text-green-600 dark:text-green-400 font-bold shrink-0">
-                  卖1
-                </span>
-              </div>
-              <div className="mt-1 flex items-baseline justify-end">
-                <span className="font-mono font-bold text-green-500 text-sm sm:text-base leading-tight">
-                  {ask1Price != null ? ask1Price.toFixed(4) : '-'}
-                </span>
-              </div>
-              {legType === 'buy' && targetQty != null && ask1Vol != null && (
-                <div className="mt-1 pt-1 border-t border-green-500/10 text-right">
-                  <span className={`text-[10px] font-mono leading-tight font-medium ${ask1Vol >= targetQty ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
-                    承接: {ask1Vol >= targetQty ? `充足 (需${targetQty})` : `仅${ask1Vol}/需${targetQty}`}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* 辅助行情栏：最新价、点差、盘口量比、五档深度展开 */}
-          <div className="mt-2 pt-1.5 border-t border-current/5 flex items-center justify-between text-[11px]">
-            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-              <span className="opacity-75">
-                最新 <b className="font-mono font-semibold opacity-100">{lastPrice != null ? lastPrice.toFixed(4) : '-'}</b>
+        <summary className={`list-none [&::-webkit-details-marker]:hidden cursor-pointer px-2.5 py-1.5 hover:bg-current/[0.02] active:bg-current/[0.04] transition-colors select-none ${themes[theme].text}`}>
+          <div className="flex items-center justify-between gap-2 text-xs">
+            {/* Left: 对手成交盘 (重点高亮，突出执行价与承接状态) */}
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 ${
+                isBuyLeg
+                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                  : 'bg-rose-500/15 text-rose-600 dark:text-rose-400'
+              }`}>
+                {isBuyLeg ? '对盘卖1' : '对盘买1'}
               </span>
-              {spread != null && (
-                <span className="opacity-60 font-mono pl-2 border-l border-current/10">
-                  点差 {spread.toFixed(4)}
+              <span className="font-mono font-bold text-xs sm:text-sm">
+                {execPrice != null ? execPrice.toFixed(4) : '-'}
+              </span>
+              <span className="font-mono text-[10px] opacity-70">
+                ({execVol ?? '-'})
+              </span>
+              {isSufficient != null && (
+                <span className={`text-[10px] px-1 py-0.5 rounded font-medium ${
+                  isSufficient
+                    ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10'
+                    : 'text-amber-600 dark:text-amber-400 bg-amber-500/10'
+                }`}>
+                  {isSufficient ? '充足' : `仅${execVol}`}
                 </span>
               )}
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
-              {totalVol != null && totalVol > 0 ? (
-                <div
-                  className="w-14 sm:w-20 h-1.5 bg-black/10 dark:bg-white/10 rounded-full overflow-hidden flex"
-                  title={`买卖挂单量比：买1 ${bid1Vol}张 (${bidPct}%) / 卖1 ${ask1Vol}张 (${askPct}%)`}
-                >
-                  <div className="bg-red-500 h-full transition-all" style={{ width: `${bidPct}%` }} />
-                  <div className="bg-green-500 h-full transition-all" style={{ width: `${askPct}%` }} />
-                </div>
-              ) : null}
+            {/* Right: 另一侧买卖盘 + 最新价/五档折叠 */}
+            <div className="flex items-center gap-2 shrink-0 text-[11px]">
+              <span className="opacity-60 font-mono hidden sm:inline">
+                {isBuyLeg ? `买1 ${bid1Price != null ? bid1Price.toFixed(4) : '-'}` : `卖1 ${ask1Price != null ? ask1Price.toFixed(4) : '-'}`}
+              </span>
+              <span className="opacity-70 font-mono">
+                最新 {lastPrice != null ? lastPrice.toFixed(4) : '-'}{spread != null ? ` (差${spread.toFixed(4)})` : ''}
+              </span>
               <span className="inline-flex items-center gap-0.5 text-[11px] font-medium text-purple-600 dark:text-purple-400 hover:underline">
                 <span className="group-open:hidden">五档</span>
                 <span className="hidden group-open:inline">收起</span>
@@ -2211,35 +2169,33 @@ export function ExpiryGroupCard({
           </div>
         </div>
 
-        <div className={`rounded-lg p-2.5 sm:p-3 border ${themes[theme].border} ${themes[theme].background} space-y-2.5`}>
-          <div className={`text-sm font-semibold ${themes[theme].text}`}>组合腿配置</div>
+        <div className={`rounded-lg p-2 sm:p-2.5 border ${themes[theme].border} ${themes[theme].background} space-y-2`}>
+          <div className={`text-xs font-semibold ${themes[theme].text} opacity-80`}>组合腿配置</div>
           
           {/* Buy Leg (权利仓) */}
           <div className="flex flex-col border border-current/10 rounded-lg overflow-hidden">
-            <div className="flex flex-col gap-1.5 text-xs p-2.5 bg-blue-500/5">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-semibold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded text-[10px] shrink-0">
-                    买入 (权利)
-                  </span>
-                  <span className={`font-semibold truncate ${themes[theme].text}`}>
-                    {(() => {
-                      const p = draft.combo.buy_position.position;
-                      return getContractNameForPosition(p) || p.symbol;
-                    })()}
-                  </span>
-                </div>
-                <div className={`${themes[theme].text} opacity-80 font-mono text-[11px] shrink-0`}>
+            <div className="flex items-center justify-between gap-2 text-xs px-2.5 py-1.5 bg-blue-500/5">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="font-semibold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded text-[10px] shrink-0">
+                  买入 (权利)
+                </span>
+                <span className={`font-semibold truncate ${themes[theme].text}`}>
                   {(() => {
                     const p = draft.combo.buy_position.position;
-                    const avail = Number(p.available ?? p.quantity);
-                    const legQty = draft.quantity;
-                    return `数量 ${legQty}${avail !== legQty ? ` (可用 ${avail})` : ''}`;
+                    return getContractNameForPosition(p) || p.symbol;
                   })()}
-                </div>
+                </span>
+                <span className={`text-[11px] ${themes[theme].text} opacity-50 font-mono shrink-0`}>
+                  @{draft.combo.buy_strike}
+                </span>
               </div>
-              <div className={`text-[11px] ${themes[theme].text} opacity-50 font-mono pt-0.5`}>
-                {draft.combo.buy_position.position.symbol} • Strike: {draft.combo.buy_strike}
+              <div className={`${themes[theme].text} opacity-80 font-mono text-[11px] shrink-0`}>
+                {(() => {
+                  const p = draft.combo.buy_position.position;
+                  const avail = Number(p.available ?? p.quantity);
+                  const legQty = draft.quantity;
+                  return `数量 ${legQty}${avail !== legQty ? ` (可用 ${avail})` : ''}`;
+                })()}
               </div>
             </div>
             
@@ -2252,42 +2208,31 @@ export function ExpiryGroupCard({
 
           {/* Sell Leg (义务仓) */}
           <div className="flex flex-col border border-current/10 rounded-lg overflow-hidden">
-            <div className="flex flex-col gap-1.5 text-xs p-2.5 bg-rose-500/5">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-semibold text-rose-600 dark:text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded text-[10px] shrink-0">
-                    卖出 (义务)
-                  </span>
-                  <span className={`font-semibold truncate ${themes[theme].text}`}>
-                    {(() => {
-                      const p = draft.combo.sell_position.position;
-                      return getContractNameForPosition(p) || p.symbol;
-                    })()}
-                  </span>
-                </div>
-                <div className={`${themes[theme].text} opacity-80 font-mono text-[11px] shrink-0`}>
+            <div className="flex items-center justify-between gap-2 text-xs px-2.5 py-1.5 bg-rose-500/5">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="font-semibold text-rose-600 dark:text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded text-[10px] shrink-0">
+                  卖出 (义务)
+                </span>
+                <span className={`font-semibold truncate ${themes[theme].text}`}>
                   {(() => {
                     const p = draft.combo.sell_position.position;
-                    const avail = Number(p.available ?? p.quantity);
-                    const legQty = draft.quantity;
-                    return `数量 ${legQty}${avail !== legQty ? ` (可用 ${avail})` : ''}`;
+                    return getContractNameForPosition(p) || p.symbol;
                   })()}
-                </div>
+                </span>
+                <span className={`text-[11px] ${themes[theme].text} opacity-50 font-mono shrink-0`}>
+                  @{draft.combo.sell_strike}
+                </span>
               </div>
-              <div className="flex items-center justify-between gap-2 text-[11px] pt-0.5">
-                <div className={`${themes[theme].text} opacity-50 font-mono`}>
-                  {draft.combo.sell_position.position.symbol} • Strike: {draft.combo.sell_strike}
-                </div>
-                {/* Strike Selector for Sell Leg */}
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <span className="opacity-60 text-[11px]">切换行权价:</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-1">
+                  <span className="opacity-60 text-[10px]">换行权:</span>
                   <select
                     value={draft.combo.sell_strike}
                     onChange={(e) => {
                       const nextStrike = Number(e.target.value);
                       updateComboSellStrike(nextStrike, embedded);
                     }}
-                    className={`px-2 py-0.5 rounded text-[11px] font-mono border ${themes[theme].border} ${themes[theme].input} ${themes[theme].text} focus:outline-none`}
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-mono border ${themes[theme].border} ${themes[theme].input} ${themes[theme].text} focus:outline-none`}
                   >
                     {expiryStrikeLadder
                       .filter(s => s !== draft.combo.buy_strike)
@@ -2297,6 +2242,14 @@ export function ExpiryGroupCard({
                         </option>
                       ))}
                   </select>
+                </div>
+                <div className={`${themes[theme].text} opacity-80 font-mono text-[11px]`}>
+                  {(() => {
+                    const p = draft.combo.sell_position.position;
+                    const avail = Number(p.available ?? p.quantity);
+                    const legQty = draft.quantity;
+                    return `数量 ${legQty}${avail !== legQty ? ` (可用 ${avail})` : ''}`;
+                  })()}
                 </div>
               </div>
             </div>
@@ -2760,24 +2713,24 @@ export function ExpiryGroupCard({
             return (
               <div className="space-y-4 sm:space-y-5">
                 <div className="mt-0">
-                    <div className="flex items-center justify-between mb-2.5">
+                    <div className="flex items-center justify-between mb-2.5 gap-2">
                       <div 
-                        className="flex items-center gap-2 cursor-pointer select-none hover:opacity-80 transition-opacity"
+                        className="flex items-center gap-1.5 sm:gap-2 cursor-pointer select-none hover:opacity-80 transition-opacity min-w-0 shrink-0"
                         onClick={onToggleTBoard}
                       >
-                        <div className={`w-4 h-4 rounded ${theme === 'dark' ? 'bg-zinc-600' : theme === 'blue' ? 'bg-blue-400' : 'bg-slate-400'}`}></div>
-                        <h4 className={`text-[15px] sm:text-[17px] font-semibold tracking-tight ${themes[theme].text}`}>
+                        <div className={`w-3.5 h-3.5 sm:w-4 sm:h-4 rounded shrink-0 ${theme === 'dark' ? 'bg-zinc-600' : theme === 'blue' ? 'bg-blue-400' : 'bg-slate-400'}`}></div>
+                        <h4 className={`text-sm sm:text-[17px] font-semibold tracking-tight whitespace-nowrap ${themes[theme].text}`}>
                           {filteredPositions.length > 0 ? '持仓T型数量看板' : 'T型报价'}
                         </h4>
                         {isTBoardExpanded ? (
-                          <ChevronUp className={`w-4 h-4 ${themes[theme].text} opacity-50`} strokeWidth={2} />
+                          <ChevronUp className={`w-4 h-4 shrink-0 ${themes[theme].text} opacity-50`} strokeWidth={2} />
                         ) : (
-                          <ChevronDown className={`w-4 h-4 ${themes[theme].text} opacity-50`} strokeWidth={2} />
+                          <ChevronDown className={`w-4 h-4 shrink-0 ${themes[theme].text} opacity-50`} strokeWidth={2} />
                         )}
                       </div>
 
                       {isTBoardExpanded && (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                           {showOpenInterestOverlay && oiSummary && (
                             <div className="hidden md:flex items-center gap-2 text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-slate-100/90 dark:bg-zinc-800/90 border border-slate-200/80 dark:border-zinc-700/60 shadow-xs">
                               {oiSummary.maxCall > 0 && (
@@ -2808,7 +2761,7 @@ export function ExpiryGroupCard({
                               e.stopPropagation();
                               setShowOpenInterestOverlay(prev => !prev);
                             }}
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all shadow-xs ${
+                            className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-full text-xs font-medium transition-all shadow-xs ${
                               showOpenInterestOverlay
                                 ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30'
                                 : 'bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-gray-400 border border-transparent hover:bg-gray-200 dark:hover:bg-zinc-700'
@@ -2816,7 +2769,8 @@ export function ExpiryGroupCard({
                             title="开启或关闭市场未平仓量 (OI) 分布平滑曲线图层"
                           >
                             <span className={`w-1.5 h-1.5 rounded-full ${showOpenInterestOverlay ? 'bg-blue-500 animate-pulse' : 'bg-gray-400'}`} />
-                            <span>未平仓量 (OI) 图层</span>
+                            <span className="hidden sm:inline">未平仓量 (OI) 图层</span>
+                            <span className="sm:hidden">OI图层</span>
                             <span className="text-[10px] font-mono opacity-80">{showOpenInterestOverlay ? 'ON' : 'OFF'}</span>
                           </button>
 
@@ -2853,23 +2807,48 @@ export function ExpiryGroupCard({
                               );
                             }
                             return (
-                              <div className={inFullscreen ? "h-full flex flex-col" : "space-y-3"}>
+                              <div className={inFullscreen ? "h-full flex flex-col" : "space-y-2.5 sm:space-y-3"}>
                                 {!inFullscreen && (
-                                  <div className="md:hidden flex items-center justify-between gap-3">
-                                    <label className={`flex items-center gap-2 text-xs ${themes[theme].text} opacity-75`}>
-                                      <span>表格大小</span>
-                                      <span className="font-mono">{Math.round(mobileTBoardScale * 100)}%</span>
-                                    </label>
-                                    <input
-                                      type="range"
-                                      min={70}
-                                      max={110}
-                                      step={5}
-                                      value={Math.round(mobileTBoardScale * 100)}
-                                      onChange={(event) => setMobileTBoardScale(Number(event.target.value) / 100)}
-                                      className="w-32 accent-blue-600"
-                                      aria-label="调整T型持仓列表大小"
-                                    />
+                                  <div className="md:hidden flex items-center justify-between gap-2 py-0.5">
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          hasUserAdjustedTBoardRef.current = false;
+                                          scrollToAtm(true);
+                                        }}
+                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-blue-500/15 text-blue-600 dark:text-blue-400 hover:bg-blue-500/25 border border-blue-500/30 transition-all active:scale-95 whitespace-nowrap shadow-2xs"
+                                        title="一键定位平值与行权价"
+                                      >
+                                        <Crosshair className="w-3.5 h-3.5 shrink-0" />
+                                        <span>定位平值</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={enterFullscreen}
+                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white transition-all active:scale-95 whitespace-nowrap shadow-2xs"
+                                        title="进入全屏沉浸浏览与操作"
+                                      >
+                                        <Maximize2 className="w-3.5 h-3.5 shrink-0" />
+                                        <span>全屏</span>
+                                      </button>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 bg-black/5 dark:bg-white/5 px-2 py-0.5 rounded-lg border border-black/5 dark:border-white/5 shrink-0">
+                                      <span className="text-[11px] opacity-70">缩放</span>
+                                      <input
+                                        type="range"
+                                        min={70}
+                                        max={110}
+                                        step={5}
+                                        value={Math.round(mobileTBoardScale * 100)}
+                                        onChange={(event) => setMobileTBoardScale(Number(event.target.value) / 100)}
+                                        className="w-16 accent-blue-600 h-1 cursor-pointer"
+                                        aria-label="调整T型持仓列表大小"
+                                      />
+                                      <span className="text-[11px] font-mono opacity-80 min-w-[28px] text-right font-medium">
+                                        {Math.round(mobileTBoardScale * 100)}%
+                                      </span>
+                                    </div>
                                   </div>
                                 )}
                                 <div
@@ -2904,7 +2883,7 @@ export function ExpiryGroupCard({
                                           <th className="text-center py-2 px-2">保证金</th>
                                           <th className="text-center py-2 px-2">时间价值</th>
                                           <th className={`text-center py-2 px-2 border-r ${themes[theme].border}`}>现价</th>
-                                          <th ref={strikeHeaderRef} className="text-center py-2 px-3">行权价</th>
+                                          <th ref={strikeHeaderRef} className={`text-center py-2 px-3 font-bold ${themes[theme].text}`}>行权价</th>
                                           <th className={`text-center py-2 px-2 border-l ${themes[theme].border}`}>现价</th>
                                           <th className="text-center py-2 px-2">时间价值</th>
                                           <th className="text-center py-2 px-2">保证金</th>
@@ -3849,7 +3828,7 @@ export function ExpiryGroupCard({
 
                               {/* Section Items */}
                               <div className="space-y-2.5">
-                                {items.map((enriched, idx) => {
+                                {items.map((enriched) => {
                                   const {
                                     item,
                                     strategyId,
@@ -3857,11 +3836,9 @@ export function ExpiryGroupCard({
                                     est,
                                     strategyHistory,
                                     strategyStatus,
-                                    strategyWatchCodes,
                                     strategyWatchStatusText,
                                     strategyWatchQuoteLines,
                                     perf,
-                                    net,
                                     label,
                                     amountText,
                                     hedgeText,
@@ -5766,7 +5743,7 @@ const TBoardRow = React.memo(function TBoardRow({
       <td className={`text-center py-1.5 px-2 w-20 border-r ${themes[theme].border} ${themes[theme].text} text-xs leading-tight`}>
         <AnimatedFlash value={callPrice || '-'} className="font-mono text-xs" type="price" />
       </td>
-      <td data-role="strike" className={`text-center py-1.5 px-2 w-20 ${themes[theme].text}`}>{m.s}
+      <td data-role="strike" className={`text-center py-1.5 px-2 w-20 font-bold font-mono text-[13px] ${themes[theme].text}`}>{m.s}
       </td>
       <td className={`text-center py-1.5 px-2 w-20 border-l ${themes[theme].border} ${themes[theme].text} text-xs leading-tight`}>
         <AnimatedFlash value={putPrice || '-'} className="font-mono text-xs" type="price" />

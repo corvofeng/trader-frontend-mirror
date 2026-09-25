@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Calendar, Activity, RefreshCw, Layers } from 'lucide-react';
+import { Calendar, Activity, RefreshCw, Layers, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PortfolioActivityLog, ActivityLogEntry } from './PortfolioActivityLog';
 import { Theme, themes } from '../../../lib/theme';
 import { setCookie, getCookie } from '../../../shared/utils/cookie';
@@ -102,6 +102,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
 
   // State for mobile month navigation popover
   const [mobileMonthMenuOpen, setMobileMonthMenuOpen] = useState(false);
+  const [isFabCollapsed, setIsFabCollapsed] = useState(false);
 
   const groups = useMemo(() => {
     if (!portfolioData) return [];
@@ -754,55 +755,99 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   }, [theme]);
 
   const refreshButton = useMemo(() => {
+    if (isFabCollapsed && isMobile) {
+      const collapsedEl = (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
+            right: 0,
+            zIndex: 2147483000,
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setIsFabCollapsed(false)}
+            className={`px-1 py-2 rounded-l-lg shadow-md border border-r-0 ${themes[theme].card} ${themes[theme].border} opacity-40 hover:opacity-100 transition-opacity flex items-center justify-center`}
+            title="展开快捷刷新与状态"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      );
+      if (typeof document === 'undefined') return collapsedEl;
+      return createPortal(collapsedEl, document.body);
+    }
+
     const btn = (
       <div
         style={{
           position: 'fixed',
           bottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
-          right: 'calc(16px + env(safe-area-inset-right, 0px))',
+          right: 'calc(12px + env(safe-area-inset-right, 0px))',
           zIndex: 2147483000,
           display: 'flex',
           flexDirection: 'column',
-          gap: '12px',
+          alignItems: 'flex-end',
+          gap: isMobile ? '6px' : '12px',
         }}
       >
-        {/* WebSocket Reconnect Button */}
-        <button
-          onClick={reconnect}
-          className={`p-3 rounded-full shadow-[0_8px_24px_-8px_rgba(15,23,42,0.35)] btn-tactile ${
-            !isConnected ? 'bg-red-500/10' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-          } ${themes[theme].card} ${themes[theme].border} border ring-1 ring-black/5 dark:ring-white/5 backdrop-blur-xl relative overflow-hidden`}
-          aria-label="Reconnect WebSocket"
-          title="重连行情服务"
-        >
-          <Activity
-            className={`w-6 h-6 relative ${!isConnected ? 'text-red-500' : 'text-green-500'}`}
-            strokeWidth={1.75}
-          />
-          {!isConnected && <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full animate-ping" />}
-        </button>
+        {isMobile && (
+          <button
+            type="button"
+            onClick={() => setIsFabCollapsed(true)}
+            className="text-[10px] px-1.5 py-0.5 rounded-full bg-black/10 dark:bg-white/10 opacity-40 hover:opacity-100 transition-opacity flex items-center gap-0.5 text-muted-foreground select-none"
+            title="收起按钮"
+          >
+            <span>收起</span>
+            <ChevronRight className="w-3 h-3" />
+          </button>
+        )}
+
+        {/* WebSocket Reconnect Button: on mobile only shown if NOT connected */}
+        {(!isMobile || !isConnected) && (
+          <button
+            type="button"
+            onClick={reconnect}
+            className={`p-2 sm:p-3 rounded-full shadow-md btn-tactile ${
+              !isConnected ? 'bg-red-500/20 text-red-500 ring-2 ring-red-500/30 animate-pulse' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+            } ${themes[theme].card} ${themes[theme].border} border ring-1 ring-black/5 dark:ring-white/5 backdrop-blur-xl relative overflow-hidden opacity-40 sm:opacity-90 hover:opacity-100 active:opacity-100 transition-opacity`}
+            aria-label="Reconnect WebSocket"
+            title={!isConnected ? "行情连接断开，点击重连" : "重连行情服务"}
+          >
+            <Activity
+              className={`w-4 h-4 sm:w-5 sm:h-5 relative ${!isConnected ? 'text-red-500' : 'text-green-500'}`}
+              strokeWidth={1.75}
+            />
+            {!isConnected && <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full animate-ping" />}
+          </button>
+        )}
 
         {/* Portfolio Refresh Button */}
         <button
+          type="button"
           onClick={refreshPortfolioAndQuotes}
           disabled={isLoading}
-          className={`p-3 rounded-full shadow-[0_8px_24px_-8px_rgba(15,23,42,0.35)] btn-tactile ${
+          className={`p-2 sm:p-3 rounded-full shadow-md btn-tactile ${
             isLoading ? 'opacity-70 cursor-wait' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-          } ${themes[theme].card} ${themes[theme].border} border ring-1 ring-black/5 dark:ring-white/5 backdrop-blur-xl relative overflow-hidden`}
+          } ${themes[theme].card} ${themes[theme].border} border ring-1 ring-black/5 dark:ring-white/5 backdrop-blur-xl relative overflow-hidden opacity-40 sm:opacity-90 hover:opacity-100 active:opacity-100 transition-opacity`}
           aria-label="Refresh Portfolio"
           title="刷新持仓"
         >
           <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent dark:from-white/5 pointer-events-none" />
           <RefreshCw
-            className={`w-6 h-6 relative ${themes[theme].text} ${isLoading ? 'animate-spin' : ''}`}
+            className={`w-4 h-4 sm:w-5 sm:h-5 relative ${themes[theme].text} ${isLoading ? 'animate-spin' : ''}`}
             strokeWidth={1.75}
           />
+          {isMobile && isConnected && (
+            <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-500" title="行情实时推送已连接" />
+          )}
         </button>
       </div>
     );
     if (typeof document === 'undefined') return btn;
     return createPortal(btn, document.body);
-  }, [refreshPortfolioAndQuotes, isLoading, theme, reconnect, isConnected]);
+  }, [refreshPortfolioAndQuotes, isLoading, theme, reconnect, isConnected, isMobile, isFabCollapsed]);
 
   const mobileMonthToc = useMemo(() => {
     if (!isMobile || months.length === 0) return null;
@@ -811,14 +856,14 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         className="transition-all duration-300"
         style={{
           position: 'fixed',
-          bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))',
-          right: 'calc(16px + env(safe-area-inset-right, 0px))',
+          bottom: 'calc(65px + env(safe-area-inset-bottom, 0px))',
+          right: 'calc(12px + env(safe-area-inset-right, 0px))',
           zIndex: 2147482999,
         }}
       >
         <div className="relative">
           {mobileMonthMenuOpen && (
-            <div className={`absolute bottom-16 right-0 p-2 rounded-2xl popover-spring shadow-[0_12px_40px_-12px_rgba(15,23,42,0.28)] border flex flex-col gap-1.5 min-w-[80px] max-h-[260px] overflow-y-auto ${floatingGlassBg} backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/5`}
+            <div className={`absolute bottom-12 right-0 p-2 rounded-2xl popover-spring shadow-[0_12px_40px_-12px_rgba(15,23,42,0.28)] border flex flex-col gap-1.5 min-w-[80px] max-h-[260px] overflow-y-auto ${floatingGlassBg} backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/5`}
                  style={{boxShadow: theme === 'dark' ? '0 16px 48px -16px rgba(0,0,0,0.6)' : undefined}}>
               <div className="text-[9px] uppercase tracking-wider font-bold opacity-25 px-1 py-0.5 border-b border-current/10 mb-0.5 w-full text-center">
                 月份
@@ -878,12 +923,12 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
           )}
           <button
             onClick={() => setMobileMonthMenuOpen(prev => !prev)}
-            className={`p-3 rounded-full shadow-[0_8px_24px_-8px_rgba(15,23,42,0.35)] btn-tactile ${themes[theme].card} ${themes[theme].border} border hover:bg-gray-100 dark:hover:bg-gray-700 ring-1 ring-black/5 dark:ring-white/5 backdrop-blur-xl overflow-hidden relative`}
+            className={`p-2 sm:p-2.5 rounded-full shadow-md btn-tactile ${themes[theme].card} ${themes[theme].border} border hover:bg-gray-100 dark:hover:bg-gray-700 ring-1 ring-black/5 dark:ring-white/5 backdrop-blur-xl overflow-hidden relative opacity-40 sm:opacity-90 hover:opacity-100 active:opacity-100 transition-opacity`}
             aria-label="Toggle Expiry Months TOC"
             title="选择到期月份"
           >
             <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent dark:from-white/5 pointer-events-none" />
-            <Layers className={`w-6 h-6 relative ${themes[theme].text}`} strokeWidth={1.75} />
+            <Layers className={`w-4 h-4 sm:w-5 sm:h-5 relative ${themes[theme].text}`} strokeWidth={1.75} />
           </button>
         </div>
       </div>

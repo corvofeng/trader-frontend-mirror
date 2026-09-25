@@ -391,21 +391,21 @@ function OptionsContent({ theme }: OptionsProps) {
   ];
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
-      <div className="space-y-6">
-        <div className={`${themes[theme].card} rounded-xl p-5 border ${themes[theme].border} card-subtle-ring transition-colors duration-150`}>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <main className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 py-2.5 sm:py-8">
+      <div className="space-y-3 sm:space-y-6">
+        <div className={`${themes[theme].card} rounded-xl p-3 sm:p-5 border ${themes[theme].border} card-subtle-ring transition-colors duration-150`}>
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
-              <h1 className={`text-2xl font-bold tracking-tight ${themes[theme].text}`}>
+              <h1 className={`text-base sm:text-2xl font-bold tracking-tight ${themes[theme].text}`}>
                 Options Trading Analysis
               </h1>
-              <p className={`text-sm ${themes[theme].text} opacity-75 mt-1`}>
+              <p className={`hidden sm:block text-xs sm:text-sm ${themes[theme].text} opacity-75 mt-0.5`}>
                 Advanced options analysis and trading tools
               </p>
             </div>
-            <div className="w-full min-w-0 flex flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-4">
+            <div className="w-full min-w-0 flex flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-4">
               <div className="flex flex-wrap items-center gap-2 min-w-0">
-                <label className={`text-sm font-medium ${themes[theme].text}`}>
+                <label className={`text-xs sm:text-sm font-medium ${themes[theme].text}`}>
                   账户:
                 </label>
                 <AccountSelector
@@ -427,14 +427,14 @@ function OptionsContent({ theme }: OptionsProps) {
                     setRefreshKey((k) => k + 1);
                     toast.success('已触发行情数据刷新！', { id: 'options-refresh-toast' });
                   }}
-                  className={`inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm whitespace-nowrap btn-tactile ${themes[theme].secondary}`}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-md text-xs sm:text-sm whitespace-nowrap btn-tactile ${themes[theme].secondary}`}
                 >
-                  <RefreshCw className="w-4 h-4" />
+                  <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   刷新
                 </button>
               </div>
               <div className="flex flex-wrap items-center gap-2 min-w-0">
-                <label className={`text-sm font-medium ${themes[theme].text}`}>
+                <label className={`text-xs sm:text-sm font-medium ${themes[theme].text}`}>
                   Symbol:
                 </label>
                 {availableSymbols.length > 0 ? (
@@ -442,7 +442,7 @@ function OptionsContent({ theme }: OptionsProps) {
                     value={selectedSymbol}
                     onChange={(e) => setSelectedSymbol(e.target.value)}
                     disabled={isLoading || isLoadingSymbols}
-                    className={`max-w-full px-3 py-2 rounded-md text-sm ${themes[theme].input} ${themes[theme].text} ${
+                    className={`max-w-full px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-md text-xs sm:text-sm ${themes[theme].input} ${themes[theme].text} ${
                       isLoading || isLoadingSymbols ? 'opacity-50 cursor-not-allowed' : ''
                     }`}
                   >
@@ -453,17 +453,17 @@ function OptionsContent({ theme }: OptionsProps) {
                     ))}
                   </select>
                 ) : (
-                  <span className={`text-sm ${themes[theme].text} opacity-70`}>
+                  <span className={`text-xs sm:text-sm ${themes[theme].text} opacity-70`}>
                     No symbols available
                   </span>
                 )}
                 {activeTab === 'data' && (
-                  <div className={`flex items-center gap-1 px-2 py-1 rounded border ${themes[theme].border} shrink-0`}>
-                    <Hourglass className={`w-4 h-4 ${themes[theme].text} opacity-60`} />
-                    <div className="w-16 h-1 rounded bg-gray-200 dark:bg-gray-700 overflow-hidden">
+                  <div className={`flex items-center gap-1 px-1.5 py-1 sm:px-2 rounded border ${themes[theme].border} shrink-0`}>
+                    <Hourglass className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${themes[theme].text} opacity-60`} />
+                    <div className="w-14 sm:w-16 h-1 rounded bg-gray-200 dark:bg-gray-700 overflow-hidden">
                       <div className="h-1 bg-blue-500" style={{ width: `${Math.round(wsProgress * 100)}%` }} />
                     </div>
-                    <div className={`text-[10px] ${themes[theme].text} opacity-60 w-8 text-right`}>
+                    <div className={`text-[10px] ${themes[theme].text} opacity-60 w-7 sm:w-8 text-right`}>
                       {wsCountdownEnabled ? `${Math.ceil(wsRemainingMs / 1000)}s` : '--'}
                     </div>
                     <button
@@ -477,17 +477,17 @@ function OptionsContent({ theme }: OptionsProps) {
                         toast.success('期权数据刷新请求已发送！', { id: 'options-refresh-toast' });
                       }}
                       disabled={!selectedSymbol}
-                      className={`${themes[theme].secondary} rounded-md p-1.5 btn-tactile disabled:opacity-50 disabled:cursor-not-allowed`}
+                      className={`${themes[theme].secondary} rounded-md p-1 sm:p-1.5 btn-tactile disabled:opacity-50 disabled:cursor-not-allowed`}
                       title="刷新行情"
                       aria-label="刷新行情"
                     >
-                      <RefreshCw className="w-4 h-4" />
+                      <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </button>
                   </div>
                 )}
               </div>
               {(isLoading || isLoadingSymbols) && activeTab === 'data' && (
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
+                <div className="animate-spin rounded-full h-4 w-4 sm:h-5 sm:w-5 border-b-2 border-blue-500"></div>
               )}
             </div>
           </div>
