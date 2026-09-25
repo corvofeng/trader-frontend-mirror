@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Calendar, Activity, RefreshCw, Layers, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, Activity, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PortfolioActivityLog, ActivityLogEntry } from './PortfolioActivityLog';
 import { Theme, themes } from '../../../lib/theme';
 import { setCookie, getCookie } from '../../../shared/utils/cookie';
@@ -100,8 +100,6 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   
   const [wsRefreshNonce, setWsRefreshNonce] = useState(0);
 
-  // State for mobile month navigation popover
-  const [mobileMonthMenuOpen, setMobileMonthMenuOpen] = useState(false);
   const [isFabCollapsed, setIsFabCollapsed] = useState(false);
   const [isMonthTocCollapsed, setIsMonthTocCollapsed] = useState(false);
 
@@ -769,7 +767,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
           <button
             type="button"
             onClick={() => setIsFabCollapsed(false)}
-            className={`px-1.5 py-2.5 rounded-l-xl shadow-md border border-r-0 ${themes[theme].card} ${themes[theme].border} opacity-40 hover:opacity-100 transition-opacity flex items-center justify-center`}
+            className={`px-1.5 py-2.5 rounded-l-xl shadow-md border border-r-0 ${themes[theme].card} ${themes[theme].border} opacity-50 hover:opacity-100 transition-opacity flex items-center justify-center`}
             title="展开快捷操作"
           >
             <ChevronLeft className="w-3.5 h-3.5" />
@@ -784,20 +782,20 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       <div
         style={{
           position: 'fixed',
-          bottom: 'calc(14px + env(safe-area-inset-bottom, 0px))',
-          right: 'calc(8px + env(safe-area-inset-right, 0px))',
+          bottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
+          right: 'calc(12px + env(safe-area-inset-right, 0px))',
           zIndex: 2147483000,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'flex-end',
-          gap: isMobile ? '6px' : '10px',
+          gap: isMobile ? '8px' : '10px',
         }}
       >
         {isMobile && (
           <button
             type="button"
             onClick={() => setIsFabCollapsed(true)}
-            className="text-[10px] px-1.5 py-0.5 rounded-full bg-black/10 dark:bg-white/10 opacity-30 hover:opacity-100 transition-opacity flex items-center gap-0.5 text-muted-foreground select-none"
+            className="text-[10px] px-1.5 py-0.5 rounded-full bg-black/10 dark:bg-white/10 opacity-40 hover:opacity-100 transition-opacity flex items-center gap-0.5 text-muted-foreground select-none"
             title="收起操作按钮"
           >
             <span>收起</span>
@@ -805,110 +803,31 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
           </button>
         )}
 
-        {/* Mobile Month TOC (Layers) */}
-        {isMobile && months.length > 0 && (
-          <div className="relative">
-            {mobileMonthMenuOpen && (
-              <div
-                className={`absolute bottom-11 right-0 p-2 rounded-2xl popover-spring shadow-[0_12px_40px_-12px_rgba(15,23,42,0.28)] border flex flex-col gap-1.5 min-w-[80px] max-h-[260px] overflow-y-auto ${floatingGlassBg} backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/5`}
-                style={{boxShadow: theme === 'dark' ? '0 16px 48px -16px rgba(0,0,0,0.6)' : undefined}}
-              >
-                <div className="text-[9px] uppercase tracking-wider font-bold opacity-25 px-1 py-0.5 border-b border-current/10 mb-0.5 w-full text-center">
-                  月份
-                </div>
-                {months.map((m) => {
-                  const isActive = activeMonthKey === m.key;
-                  const monthNum = parseInt(m.key.split('-')[1], 10);
-                  const counts = monthlyStatusCounts[m.key] || { watch: 0, profit: 0, auto: 0, total: 0 };
-                  const hasAlerts = counts.watch > 0 || counts.profit > 0 || counts.auto > 0;
-                  
-                  return (
-                    <div key={m.key} className="flex items-center justify-between gap-3 px-1 py-0.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const el = document.getElementById(`expiry-group-${m.firstExpiry}`);
-                          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                          setMobileMonthMenuOpen(false);
-                        }}
-                        className={`text-center text-xs py-1 px-2.5 rounded-lg font-semibold btn-tactile ${
-                          isActive
-                            ? theme === 'dark'
-                              ? 'bg-blue-500/25 text-blue-400'
-                              : 'bg-blue-50 text-blue-600 border border-blue-100/70'
-                            : theme === 'dark'
-                              ? 'text-zinc-400 hover:bg-zinc-800/80'
-                              : theme === 'blue'
-                                ? 'text-slate-600 hover:bg-blue-50'
-                                : 'text-slate-600 hover:bg-slate-100'
-                        }`}
-                      >
-                        {monthNum}月
-                      </button>
-                      {hasAlerts && (
-                        <div className="flex gap-0.5 shrink-0">
-                          {counts.auto > 0 && (
-                            <span className="w-4.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-400">
-                              {counts.auto}
-                            </span>
-                          )}
-                          {counts.profit > 0 && (
-                            <span className="w-4.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-green-100 text-green-800 dark:bg-green-950/60 dark:text-green-400">
-                              {counts.profit}
-                            </span>
-                          )}
-                          {counts.watch > 0 && (
-                            <span className="w-4.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-950/60 dark:text-yellow-400">
-                              {counts.watch}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={() => setMobileMonthMenuOpen(prev => !prev)}
-              className={`p-2 rounded-full shadow-md btn-tactile ${themes[theme].card} ${themes[theme].border} border hover:bg-gray-100 dark:hover:bg-gray-700 ring-1 ring-black/5 dark:ring-white/5 backdrop-blur-xl overflow-hidden relative opacity-30 hover:opacity-100 active:opacity-100 transition-opacity`}
-              aria-label="Toggle Expiry Months TOC"
-              title="选择到期月份"
-            >
-              <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent dark:from-white/5 pointer-events-none" />
-              <Layers className="w-4 h-4 relative" strokeWidth={1.75} />
-            </button>
-          </div>
-        )}
-
-        {/* WebSocket Reconnect Button: on mobile only shown if NOT connected */}
-        {(!isMobile || !isConnected) && (
-          <button
-            type="button"
-            onClick={reconnect}
-            className={`p-2 sm:p-3 rounded-full shadow-md btn-tactile ${
-              !isConnected ? 'bg-red-500/20 text-red-500 ring-2 ring-red-500/30 animate-pulse' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-            } ${themes[theme].card} ${themes[theme].border} border ring-1 ring-black/5 dark:ring-white/5 backdrop-blur-xl relative overflow-hidden opacity-30 sm:opacity-90 hover:opacity-100 active:opacity-100 transition-opacity`}
-            aria-label="Reconnect WebSocket"
-            title={!isConnected ? "行情连接断开，点击重连" : "重连行情服务"}
-          >
-            <Activity
-              className={`w-4 h-4 sm:w-5 sm:h-5 relative ${!isConnected ? 'text-red-500' : 'text-green-500'}`}
-              strokeWidth={1.75}
-            />
-            {!isConnected && <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full animate-ping" />}
-          </button>
-        )}
+        {/* WebSocket Reconnect Button */}
+        <button
+          type="button"
+          onClick={reconnect}
+          className={`p-2.5 sm:p-3 rounded-full shadow-lg btn-tactile ${
+            !isConnected ? 'bg-red-500/20 text-red-500 ring-2 ring-red-500/30 animate-pulse' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+          } ${themes[theme].card} ${themes[theme].border} border ring-1 ring-black/5 dark:ring-white/5 backdrop-blur-xl relative overflow-hidden transition-all opacity-85 hover:opacity-100 active:opacity-100`}
+          aria-label="Reconnect WebSocket"
+          title={!isConnected ? "行情连接断开，点击重连" : "重连行情服务"}
+        >
+          <Activity
+            className={`w-4 h-4 sm:w-5 sm:h-5 relative ${!isConnected ? 'text-red-500' : 'text-green-500'}`}
+            strokeWidth={1.75}
+          />
+          {!isConnected && <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full animate-ping" />}
+        </button>
 
         {/* Portfolio Refresh Button */}
         <button
           type="button"
           onClick={refreshPortfolioAndQuotes}
           disabled={isLoading}
-          className={`p-2 sm:p-3 rounded-full shadow-md btn-tactile ${
+          className={`p-2.5 sm:p-3 rounded-full shadow-lg btn-tactile ${
             isLoading ? 'opacity-70 cursor-wait' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-          } ${themes[theme].card} ${themes[theme].border} border ring-1 ring-black/5 dark:ring-white/5 backdrop-blur-xl relative overflow-hidden opacity-30 sm:opacity-90 hover:opacity-100 active:opacity-100 transition-opacity`}
+          } ${themes[theme].card} ${themes[theme].border} border ring-1 ring-black/5 dark:ring-white/5 backdrop-blur-xl relative overflow-hidden opacity-85 hover:opacity-100 active:opacity-100 transition-all`}
           aria-label="Refresh Portfolio"
           title="刷新持仓"
         >
@@ -917,14 +836,15 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
             className={`w-4 h-4 sm:w-5 sm:h-5 relative ${themes[theme].text} ${isLoading ? 'animate-spin' : ''}`}
             strokeWidth={1.75}
           />
-          {isMobile && isConnected && (
+          {isConnected && (
             <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-500" title="行情实时推送已连接" />
           )}
         </button>
       </div>
     );
     if (typeof document === 'undefined') return btn;
-  }, [refreshPortfolioAndQuotes, isLoading, theme, reconnect, isConnected, isMobile, isFabCollapsed, months, mobileMonthMenuOpen, activeMonthKey, monthlyStatusCounts, floatingGlassBg]);
+    return createPortal(btn, document.body);
+  }, [refreshPortfolioAndQuotes, isLoading, theme, reconnect, isConnected, isMobile, isFabCollapsed]);
 
   if (isLoading && !portfolioData) {
     return (
@@ -1045,60 +965,6 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         {(() => {
           return (
             <>
-              {/* Sticky In-Flow Month Navigation Bar */}
-              {months.length > 0 && (
-                <div className={`sticky top-2 z-30 ${themes[theme].card} rounded-xl p-2 sm:p-2.5 border ${themes[theme].border} card-subtle-ring backdrop-blur-md shadow-xs mb-2`}>
-                  <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto overscroll-x-contain touch-pan-x scrollbar-none py-0.5">
-                    <span className={`text-xs font-semibold shrink-0 px-1 ${themes[theme].text} opacity-60 flex items-center gap-1`}>
-                      <Layers className="w-3.5 h-3.5" />
-                      月份:
-                    </span>
-                    {months.map((m) => {
-                      const isActive = activeMonthKey === m.key;
-                      const monthNum = parseInt(m.key.split('-')[1], 10);
-                      const counts = monthlyStatusCounts[m.key] || { watch: 0, profit: 0, auto: 0, total: 0 };
-                      const hasAlerts = counts.watch > 0 || counts.profit > 0 || counts.auto > 0;
-
-                      return (
-                        <button
-                          key={m.key}
-                          type="button"
-                          onClick={() => {
-                            const el = document.getElementById(`expiry-group-${m.firstExpiry}`);
-                            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                          }}
-                          className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs font-medium whitespace-nowrap btn-tactile transition-all shrink-0 ${
-                            isActive
-                              ? 'bg-blue-600 text-white shadow-xs font-semibold'
-                              : `${themes[theme].secondary} ${themes[theme].text} opacity-85 hover:opacity-100`
-                          }`}
-                        >
-                          <span>{monthNum}月</span>
-                          {hasAlerts && (
-                            <div className="flex items-center gap-0.5">
-                              {counts.auto > 0 && (
-                                <span className="px-1 py-0.2 text-[9px] font-bold rounded-full bg-red-500 text-white leading-tight">
-                                  {counts.auto}
-                                </span>
-                              )}
-                              {counts.profit > 0 && (
-                                <span className="px-1 py-0.2 text-[9px] font-bold rounded-full bg-emerald-500 text-white leading-tight">
-                                  {counts.profit}
-                                </span>
-                              )}
-                              {counts.watch > 0 && (
-                                <span className="px-1 py-0.2 text-[9px] font-bold rounded-full bg-amber-500 text-white leading-tight">
-                                  {counts.watch}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
 
               {/* Floating Right-Side Month TOC (High z-index to never be blocked by cards) */}
               {months.length > 0 && (

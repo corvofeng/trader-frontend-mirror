@@ -65,7 +65,9 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
 
   const clampPanelPos = useCallback((pos: { top: number; left: number }, size = viewportSize) => {
     const dims = getMonitorDims(size);
-    const top = Math.max(8, Math.min(pos.top, Math.max(8, size.height - dims.approxHeight)));
+    const isMobile = size.width < 768;
+    const bottomClearance = isMobile ? 104 : 20;
+    const top = Math.max(8, Math.min(pos.top, Math.max(8, size.height - dims.approxHeight - bottomClearance)));
     const left = Math.max(8, Math.min(pos.left, Math.max(8, size.width - dims.width - 8)));
     return { top, left };
   }, [getMonitorDims, viewportSize]);
@@ -73,7 +75,7 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
   const getDefaultPanelPos = useCallback((size = viewportSize) => {
     const dims = getMonitorDims(size);
     const topSeed = size.width < 1280
-      ? Math.max(96, size.height - dims.approxHeight - 88)
+      ? Math.max(76, size.height - dims.approxHeight - 112)
       : 96;
     return clampPanelPos(
       {
@@ -348,7 +350,7 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
       transition: `top 240ms ease, bottom 240ms ease, width 240ms ease, opacity 240ms ease, transform 240ms ease`
     };
     collapsedStyle.top = isMobile
-      ? 'calc(210px + env(safe-area-inset-top, 0px))'
+      ? 'calc(130px + env(safe-area-inset-top, 0px))'
       : clampPanelPos(panelPos).top;
 
     return (
