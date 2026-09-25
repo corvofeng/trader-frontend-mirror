@@ -1,7 +1,7 @@
 import React, { useCallback, useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { format } from 'date-fns';
-import { ChevronDown, ChevronUp, X, HelpCircle } from 'lucide-react';
+import { ChevronDown, ChevronUp, X, HelpCircle, Maximize2, Minimize2, Crosshair, RefreshCw, ArrowLeft } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
 import type { OptionsPosition, OptionsStrategy, AdvisedCombination, OptionsData, OptionQuote, OptionWhitelist } from '../../../lib/services/types';
@@ -192,6 +192,7 @@ export function ExpiryGroupCard({
     typeof window !== 'undefined' ? window.innerWidth < 768 : false
   ));
   const [mobileTBoardScale, setMobileTBoardScale] = useState(0.85);
+  const [isTBoardFullscreen, setIsTBoardFullscreen] = useState(false);
   const pageLockRef = useRef(false);
   const requestedContractUnitRef = useRef<Record<string, number>>({});
   const tBoardScrollRef = useRef<HTMLDivElement | null>(null);
@@ -1629,6 +1630,84 @@ export function ExpiryGroupCard({
     hasUserAdjustedTBoardRef.current = true;
   }, []);
 
+  const enterFullscreen = useCallback(() => {
+    if (!isTBoardExpanded) {
+      onToggleTBoard();
+    }
+    setIsTBoardFullscreen(true);
+  }, [isTBoardExpanded, onToggleTBoard]);
+
+  const exitFullscreen = useCallback(() => {
+    setIsTBoardFullscreen(false);
+  }, []);
+
+  const scrollToAtm = useCallback((smooth = true) => {
+    const container = tBoardScrollRef.current;
+    if (!container) return;
+
+    const strikeHeader = strikeHeaderRef.current;
+    let desiredScrollLeft = container.scrollLeft;
+    if (strikeHeader) {
+      const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth);
+      desiredScrollLeft = Math.max(
+        0,
+        Math.min(
+          strikeHeader.offsetLeft + strikeHeader.offsetWidth / 2 - container.clientWidth / 2,
+          maxScrollLeft
+        )
+      );
+    }
+
+    const spotRow = container.querySelector<HTMLElement>('[data-spot-indicator="true"]') ||
+                    container.querySelector<HTMLElement>('[data-atm-strike="true"]');
+    let desiredScrollTop = container.scrollTop;
+    if (spotRow) {
+      const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
+      desiredScrollTop = Math.max(
+        0,
+        Math.min(
+          spotRow.offsetTop + spotRow.offsetHeight / 2 - container.clientHeight / 2,
+          maxScrollTop
+        )
+      );
+    }
+
+    isProgrammaticTBoardScrollRef.current = true;
+    container.scrollTo({
+      left: desiredScrollLeft,
+      top: desiredScrollTop,
+      behavior: smooth ? 'smooth' : 'auto'
+    });
+    window.setTimeout(() => {
+      isProgrammaticTBoardScrollRef.current = false;
+    }, 120);
+  }, []);
+
+  useEffect(() => {
+    if (!isTBoardFullscreen) return;
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        exitFullscreen();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    const timer = window.setTimeout(() => {
+      scrollToAtm(false);
+    }, 80);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+      window.clearTimeout(timer);
+    };
+  }, [isTBoardFullscreen, exitFullscreen, scrollToAtm]);
+
   const expiryStatusText = useMemo(() => {
     if (group.daysToExpiry < 0) return `已过期${Math.abs(group.daysToExpiry)}天`;
     if (group.daysToExpiry === 0) return '今日到期';
@@ -2681,211 +2760,521 @@ export function ExpiryGroupCard({
                             <span>未平仓量 (OI) 图层</span>
                             <span className="text-[10px] font-mono opacity-80">{showOpenInterestOverlay ? 'ON' : 'OFF'}</span>
                           </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              enterFullscreen();
+                            }}
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all shadow-xs ${
+                              theme === 'dark'
+                                ? 'bg-zinc-800 text-zinc-200 hover:bg-zinc-700 hover:text-white border border-zinc-700/80'
+                                : theme === 'blue'
+                                  ? 'bg-blue-100/90 text-blue-700 hover:bg-blue-200 border border-blue-200'
+                                  : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                            }`}
+                            title="全屏查看T型报价 (适合手机/平板/大屏操作)"
+                          >
+                            <Maximize2 className="w-3.5 h-3.5" />
+                            <span>全屏</span>
+                          </button>
                         </div>
                       )}
                     </div>
                     {isTBoardExpanded && (
-                    <div className={`rounded-xl p-3 sm:p-4 border ${themes[theme].border} relative ${
-                      theme === 'dark'
-                        ? 'bg-zinc-950/40'
-                        : theme === 'blue'
-                          ? 'bg-blue-50/40'
-                          : 'bg-slate-50/70'
-                    }`}>
-                      {isRefreshing && (
-                        <div className="absolute inset-0 z-10 bg-white/50 dark:bg-black/50 flex items-center justify-center backdrop-blur-sm transition-opacity duration-300 rounded-xl">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                        </div>
-                      )}
-                      {(() => {
-                        const { strikes } = tBoardStrikesAndMetrics;
-                        const hasData = strikes.length > 0;
-                        if (!hasData) {
-                          return (
-                            <div className={`text-center text-sm ${themes[theme].text} opacity-75`}>暂无数据</div>
-                          );
-                        }
-                        return (
-                          <div className="space-y-3">
-                          <div className="md:hidden flex items-center justify-between gap-3">
-                            <label className={`flex items-center gap-2 text-xs ${themes[theme].text} opacity-75`}>
-                              <span>表格大小</span>
-                              <span className="font-mono">{Math.round(mobileTBoardScale * 100)}%</span>
-                            </label>
-                            <input
-                              type="range"
-                              min={70}
-                              max={110}
-                              step={5}
-                              value={Math.round(mobileTBoardScale * 100)}
-                              onChange={(event) => setMobileTBoardScale(Number(event.target.value) / 100)}
-                              className="w-32 accent-blue-600"
-                              aria-label="调整T型持仓列表大小"
-                            />
-                          </div>
-                          <div
-                            ref={tBoardScrollRef}
-                            className="overflow-x-auto"
-                            onScroll={handleTBoardScroll}
-                          >
-                            <div className="relative inline-block min-w-full">
-                              <table
-                                ref={tBoardTableRef}
-                                className="w-full text-xs min-w-[1120px]"
-                                style={isMobileViewport ? { zoom: mobileTBoardScale } : undefined}
-                              >
-                                <thead>
-                                  <tr className={`${themes[theme].text} opacity-75`}>
-                                    <th className="text-center py-2" colSpan={7}>Calls</th>
-                                    <th className={`text-center py-2 border-l border-r ${themes[theme].border}`}></th>
-                                    <th className="text-center py-2" colSpan={7}>Puts</th>
-                                  </tr>
-                                  <tr className={`text-xs ${themes[theme].text} opacity-70`}>
-                                    <th className="text-center py-2">组合</th>
-                                    <th className="text-center py-2">备兑</th>
-                                    <th className="text-center py-2">义务</th>
-                                    <th className="text-center py-2 px-2">权利</th>
-                                    <th className="text-center py-2 px-2">保证金</th>
-                                    <th className="text-center py-2 px-2">时间价值</th>
-                                    <th className={`text-center py-2 px-2 border-r ${themes[theme].border}`}>现价</th>
-                                    <th ref={strikeHeaderRef} className="text-center py-2 px-3">行权价</th>
-                                    <th className={`text-center py-2 px-2 border-l ${themes[theme].border}`}>现价</th>
-                                    <th className="text-center py-2 px-2">时间价值</th>
-                                    <th className="text-center py-2 px-2">保证金</th>
-                                    <th className="text-center py-2 px-2">权利</th>
-                                    <th className="text-center py-2">义务</th>
-                                    <th className="text-center py-2">备兑</th>
-                                    <th className="text-center py-2">组合</th>
-                                  </tr>
-                                </thead>
-                                <tbody className={`divide-y ${themes[theme].border}`}>
-                                  {(() => {
-                                    const { metrics } = tBoardStrikesAndMetrics;
-                                    const maxRisk = Math.max(1, ...metrics.map(m => m.risk));
-                                    const resolveMaxTimeValueForStrike = (strike: number): number => {
-                                      const quote = quotesByStrike.get(strike);
-                                      if (!quote) return 0;
-                                      let callTV: number | null = null;
-                                      let putTV: number | null = null;
-                                      const qCallTV = quote.callTimeValue;
-                                      const qPutTV = quote.putTimeValue;
-                                      if (typeof qCallTV === 'number' && Number.isFinite(qCallTV)) callTV = qCallTV;
-                                      if (typeof qPutTV === 'number' && Number.isFinite(qPutTV)) putTV = qPutTV;
-                                      if ((callTV == null || putTV == null) && underlyingPrice != null) {
-                                        const callCode = quote.call_contract_code || '';
-                                        const callFullCode = quote.call_contract_code_full || '';
-                                        const putCode = quote.put_contract_code || '';
-                                        const putFullCode = quote.put_contract_code_full || '';
-                                        const callPrice = (callCode && prices[callCode]?.price) || (callFullCode && prices[callFullCode]?.price) || quote.call_last_price;
-                                        const putPrice = (putCode && prices[putCode]?.price) || (putFullCode && prices[putFullCode]?.price) || quote.put_last_price;
-                                        if (callTV == null && typeof callPrice === 'number' && Number.isFinite(callPrice)) { callTV = callPrice - Math.max(0, underlyingPrice - strike); }
-                                        if (putTV == null && typeof putPrice === 'number' && Number.isFinite(putPrice)) { putTV = putPrice - Math.max(0, strike - underlyingPrice); }
-                                      }
-                                      return Math.max(0, callTV ?? 0, putTV ?? 0);
-                                    };
-                                    const maxTimeValue = Math.max(0, ...metrics.map(m => resolveMaxTimeValueForStrike(m.s)));
-
-                                    // ---- Spot price indicator line ----
-                                    if (underlyingPrice != null && metrics.length > 0) {
-                                      let insertIdx = metrics.length;
-                                      for (let i = 0; i < metrics.length; i++) {
-                                        if (metrics[i].s >= underlyingPrice) {
-                                          insertIdx = i;
-                                          break;
-                                        }
-                                      }
-
-                                      const isInRange = underlyingPrice >= metrics[0].s && underlyingPrice <= metrics[metrics.length - 1].s;
-                                      const spotColor = isInRange
-                                        ? 'text-yellow-600 dark:text-yellow-400'
-                                        : 'text-orange-500 dark:text-orange-400';
-
-                                      const spotIndicator = (
-                                        <tr key={`spot-${group.expiry}`} style={{ background: 'transparent' }}>
-                                          <td colSpan={15} className="py-1 px-2">
-                                            <div className="flex items-center gap-1.5">
-                                              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-yellow-500/60 to-transparent" />
-                                              <span className={`text-[11px] font-semibold whitespace-nowrap ${spotColor}`}>
-                                                {isInRange ? '' : '⚠ '}标的价格: {formatCurrency(underlyingPrice, currencyConfig, 4)}
-                                              </span>
-                                              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-yellow-500/60 to-transparent" />
-                                            </div>
-                                          </td>
+                      <>
+                        {(() => {
+                          const renderTBoardTableContent = (inFullscreen: boolean) => {
+                            const { strikes } = tBoardStrikesAndMetrics;
+                            const hasData = strikes.length > 0;
+                            if (!hasData) {
+                              return (
+                                <div className={`text-center py-12 text-sm ${themes[theme].text} opacity-75`}>暂无数据</div>
+                              );
+                            }
+                            return (
+                              <div className={inFullscreen ? "h-full flex flex-col" : "space-y-3"}>
+                                {!inFullscreen && (
+                                  <div className="md:hidden flex items-center justify-between gap-3">
+                                    <label className={`flex items-center gap-2 text-xs ${themes[theme].text} opacity-75`}>
+                                      <span>表格大小</span>
+                                      <span className="font-mono">{Math.round(mobileTBoardScale * 100)}%</span>
+                                    </label>
+                                    <input
+                                      type="range"
+                                      min={70}
+                                      max={110}
+                                      step={5}
+                                      value={Math.round(mobileTBoardScale * 100)}
+                                      onChange={(event) => setMobileTBoardScale(Number(event.target.value) / 100)}
+                                      className="w-32 accent-blue-600"
+                                      aria-label="调整T型持仓列表大小"
+                                    />
+                                  </div>
+                                )}
+                                <div
+                                  ref={tBoardScrollRef}
+                                  className={
+                                    inFullscreen
+                                      ? "flex-1 min-h-0 overflow-auto overscroll-contain select-none"
+                                      : "overflow-x-auto"
+                                  }
+                                  style={inFullscreen ? { WebkitOverflowScrolling: 'touch' } : undefined}
+                                  onScroll={handleTBoardScroll}
+                                >
+                                  <div className="relative inline-block min-w-full">
+                                    <table
+                                      ref={tBoardTableRef}
+                                      className="w-full text-xs min-w-[1120px]"
+                                      style={(isMobileViewport || inFullscreen) ? { zoom: mobileTBoardScale } : undefined}
+                                    >
+                                      <thead className={inFullscreen ? `sticky top-0 z-20 shadow-xs ${
+                                        theme === 'dark' ? 'bg-zinc-900/95' : theme === 'blue' ? 'bg-slate-900/95' : 'bg-slate-100/95'
+                                      } backdrop-blur-md` : undefined}>
+                                        <tr className={`${themes[theme].text} opacity-75`}>
+                                          <th className="text-center py-2" colSpan={7}>Calls</th>
+                                          <th className={`text-center py-2 border-l border-r ${themes[theme].border}`}></th>
+                                          <th className="text-center py-2" colSpan={7}>Puts</th>
                                         </tr>
-                                      );
+                                        <tr className={`text-xs ${themes[theme].text} opacity-70`}>
+                                          <th className="text-center py-2">组合</th>
+                                          <th className="text-center py-2">备兑</th>
+                                          <th className="text-center py-2">义务</th>
+                                          <th className="text-center py-2 px-2">权利</th>
+                                          <th className="text-center py-2 px-2">保证金</th>
+                                          <th className="text-center py-2 px-2">时间价值</th>
+                                          <th className={`text-center py-2 px-2 border-r ${themes[theme].border}`}>现价</th>
+                                          <th ref={strikeHeaderRef} className="text-center py-2 px-3">行权价</th>
+                                          <th className={`text-center py-2 px-2 border-l ${themes[theme].border}`}>现价</th>
+                                          <th className="text-center py-2 px-2">时间价值</th>
+                                          <th className="text-center py-2 px-2">保证金</th>
+                                          <th className="text-center py-2 px-2">权利</th>
+                                          <th className="text-center py-2">义务</th>
+                                          <th className="text-center py-2">备兑</th>
+                                          <th className="text-center py-2">组合</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className={`divide-y ${themes[theme].border}`}>
+                                        {(() => {
+                                          const { metrics } = tBoardStrikesAndMetrics;
+                                          const maxRisk = Math.max(1, ...metrics.map(m => m.risk));
+                                          const resolveMaxTimeValueForStrike = (strike: number): number => {
+                                            const quote = quotesByStrike.get(strike);
+                                            if (!quote) return 0;
+                                            let callTV: number | null = null;
+                                            let putTV: number | null = null;
+                                            const qCallTV = quote.callTimeValue;
+                                            const qPutTV = quote.putTimeValue;
+                                            if (typeof qCallTV === 'number' && Number.isFinite(qCallTV)) callTV = qCallTV;
+                                            if (typeof qPutTV === 'number' && Number.isFinite(qPutTV)) putTV = qPutTV;
+                                            if ((callTV == null || putTV == null) && underlyingPrice != null) {
+                                              const callCode = quote.call_contract_code || '';
+                                              const callFullCode = quote.call_contract_code_full || '';
+                                              const putCode = quote.put_contract_code || '';
+                                              const putFullCode = quote.put_contract_code_full || '';
+                                              const callPrice = (callCode && prices[callCode]?.price) || (callFullCode && prices[callFullCode]?.price) || quote.call_last_price;
+                                              const putPrice = (putCode && prices[putCode]?.price) || (putFullCode && prices[putFullCode]?.price) || quote.put_last_price;
+                                              if (callTV == null && typeof callPrice === 'number' && Number.isFinite(callPrice)) { callTV = callPrice - Math.max(0, underlyingPrice - strike); }
+                                              if (putTV == null && typeof putPrice === 'number' && Number.isFinite(putPrice)) { putTV = putPrice - Math.max(0, strike - underlyingPrice); }
+                                            }
+                                            return Math.max(0, callTV ?? 0, putTV ?? 0);
+                                          };
+                                          const maxTimeValue = Math.max(0, ...metrics.map(m => resolveMaxTimeValueForStrike(m.s)));
 
-                                      const rows: React.ReactNode[] = [];
-                                      for (let i = 0; i < metrics.length; i++) {
-                                        if (i === insertIdx) {
-                                          rows.push(spotIndicator);
-                                        }
-                                        rows.push(
-                                          <TBoardRow
-                                            key={`trow-top-${group.expiry}-${metrics[i].s}`}
-                                            metric={metrics[i]}
-                                            theme={theme}
-                                            maxRisk={maxRisk}
-                                            maxTimeValue={maxTimeValue}
-                                            underlyingPrice={underlyingPrice}
-                                            quotesByStrike={quotesByStrike}
-                                            prices={prices}
-                                            currencyConfig={currencyConfig}
-                                            strikes={strikes}
-                                            groupExpiry={group.expiry}
-                                            selectedSymbol={selectedSymbol}
-                                            optionsData={optionsData}
-                                            optionsDataMap={optionsDataMap}
-                                            localOptionsData={localOptionsData}
-                                            filteredPositions={filteredPositions}
-                                            onSetConfirmData={setConfirmData}
+                                          // ---- Spot price indicator line ----
+                                          if (underlyingPrice != null && metrics.length > 0) {
+                                            let insertIdx = metrics.length;
+                                            for (let i = 0; i < metrics.length; i++) {
+                                              if (metrics[i].s >= underlyingPrice) {
+                                                insertIdx = i;
+                                                break;
+                                              }
+                                            }
+
+                                            const isInRange = underlyingPrice >= metrics[0].s && underlyingPrice <= metrics[metrics.length - 1].s;
+                                            const spotColor = isInRange
+                                              ? 'text-yellow-600 dark:text-yellow-400'
+                                              : 'text-orange-500 dark:text-orange-400';
+
+                                            const spotIndicator = (
+                                              <tr key={`spot-${group.expiry}`} data-spot-indicator="true" style={{ background: 'transparent' }}>
+                                                <td colSpan={15} className="py-1 px-2">
+                                                  <div className="flex items-center gap-1.5">
+                                                    <div className="h-px flex-1 bg-gradient-to-r from-transparent via-yellow-500/60 to-transparent" />
+                                                    <span className={`text-[11px] font-semibold whitespace-nowrap ${spotColor}`}>
+                                                      {isInRange ? '' : '⚠ '}标的价格: {formatCurrency(underlyingPrice, currencyConfig, 4)}
+                                                    </span>
+                                                    <div className="h-px flex-1 bg-gradient-to-r from-transparent via-yellow-500/60 to-transparent" />
+                                                  </div>
+                                                </td>
+                                              </tr>
+                                            );
+
+                                            const rows: React.ReactNode[] = [];
+                                            for (let i = 0; i < metrics.length; i++) {
+                                              if (i === insertIdx) {
+                                                rows.push(spotIndicator);
+                                              }
+                                              rows.push(
+                                                <TBoardRow
+                                                  key={`trow-top-${group.expiry}-${metrics[i].s}`}
+                                                  metric={metrics[i]}
+                                                  theme={theme}
+                                                  maxRisk={maxRisk}
+                                                  maxTimeValue={maxTimeValue}
+                                                  underlyingPrice={underlyingPrice}
+                                                  quotesByStrike={quotesByStrike}
+                                                  prices={prices}
+                                                  currencyConfig={currencyConfig}
+                                                  strikes={strikes}
+                                                  groupExpiry={group.expiry}
+                                                  selectedSymbol={selectedSymbol}
+                                                  optionsData={optionsData}
+                                                  optionsDataMap={optionsDataMap}
+                                                  localOptionsData={localOptionsData}
+                                                  filteredPositions={filteredPositions}
+                                                  onSetConfirmData={setConfirmData}
+                                                />
+                                              );
+                                            }
+                                            if (insertIdx === metrics.length) {
+                                              rows.push(spotIndicator);
+                                            }
+                                            return rows;
+                                          }
+
+                                          return metrics.map((m) => (
+                                            <TBoardRow
+                                              key={`trow-top-${group.expiry}-${m.s}`}
+                                              metric={m}
+                                              theme={theme}
+                                              maxRisk={maxRisk}
+                                              maxTimeValue={maxTimeValue}
+                                              underlyingPrice={underlyingPrice}
+                                              quotesByStrike={quotesByStrike}
+                                              prices={prices}
+                                              currencyConfig={currencyConfig}
+                                              strikes={strikes}
+                                              groupExpiry={group.expiry}
+                                              selectedSymbol={selectedSymbol}
+                                              optionsData={optionsData}
+                                              optionsDataMap={optionsDataMap}
+                                              localOptionsData={localOptionsData}
+                                              filteredPositions={filteredPositions}
+                                              onSetConfirmData={setConfirmData}
+                                            />
+                                          ));
+                                        })()}
+                                      </tbody>
+                                    </table>
+                                    <OpenInterestOverlay
+                                      tableRef={tBoardTableRef}
+                                      strikeHeaderRef={strikeHeaderRef}
+                                      theme={theme}
+                                      data={openInterestByStrike}
+                                      maxOpenInterest={maxOpenInterest}
+                                      visible={showOpenInterestOverlay}
+                                      scale={(isMobileViewport || inFullscreen) ? mobileTBoardScale : 1}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          };
+
+                          return (
+                            <>
+                              {isTBoardFullscreen ? (
+                                <div className={`rounded-xl p-4 sm:p-5 border border-dashed ${themes[theme].border} flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
+                                  theme === 'dark' ? 'bg-zinc-900/40' : theme === 'blue' ? 'bg-blue-50/40' : 'bg-slate-50/70'
+                                }`}>
+                                  <div className="flex items-center gap-3">
+                                    <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
+                                      <Maximize2 className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                      <div className={`text-sm sm:text-base font-semibold ${themes[theme].text}`}>
+                                        T型报价已在全屏模式中打开
+                                      </div>
+                                      <div className={`text-xs opacity-75 ${themes[theme].text}`}>
+                                        当前正在全屏模式下浏览和操作，随时可恢复卡片视图
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={exitFullscreen}
+                                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition-colors shrink-0"
+                                  >
+                                    <Minimize2 className="w-3.5 h-3.5" />
+                                    <span>退出全屏</span>
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className={`rounded-xl p-3 sm:p-4 border ${themes[theme].border} relative ${
+                                  theme === 'dark'
+                                    ? 'bg-zinc-950/40'
+                                    : theme === 'blue'
+                                      ? 'bg-blue-50/40'
+                                      : 'bg-slate-50/70'
+                                }`}>
+                                  {isRefreshing && (
+                                    <div className="absolute inset-0 z-10 bg-white/50 dark:bg-black/50 flex items-center justify-center backdrop-blur-sm transition-opacity duration-300 rounded-xl">
+                                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                                    </div>
+                                  )}
+                                  {renderTBoardTableContent(false)}
+                                </div>
+                              )}
+
+                              {isTBoardFullscreen && createPortal(
+                                <div
+                                  className={`fixed inset-0 z-[9999] flex flex-col ${themes[theme].card} ${
+                                    theme === 'dark' ? 'bg-zinc-950 text-zinc-100' : theme === 'blue' ? 'bg-slate-900 text-slate-100' : 'bg-slate-50 text-slate-900'
+                                  } overflow-hidden`}
+                                  style={{ overscrollBehavior: 'contain' }}
+                                >
+                                  {/* Fullscreen Header */}
+                                  <header className={`shrink-0 border-b ${themes[theme].border} ${
+                                    theme === 'dark' ? 'bg-zinc-900/95' : theme === 'blue' ? 'bg-slate-900/95' : 'bg-white/95'
+                                  } backdrop-blur-md z-30 shadow-xs`}>
+                                    {/* Top Row: Symbol, Price, Expiry date, and main actions */}
+                                    <div className="flex items-center justify-between gap-2 px-3 py-2 sm:px-4 sm:py-2.5">
+                                      {/* Left: Back button + Symbol info */}
+                                      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                                        <button
+                                          type="button"
+                                          onClick={exitFullscreen}
+                                          className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors shadow-xs shrink-0 select-none whitespace-nowrap ${
+                                            theme === 'dark'
+                                              ? 'bg-zinc-800 text-zinc-200 hover:bg-zinc-700 active:bg-zinc-600'
+                                              : theme === 'blue'
+                                                ? 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
+                                                : 'bg-slate-100 text-slate-800 hover:bg-slate-200 active:bg-slate-300 border border-slate-200/80'
+                                          }`}
+                                          title="退出全屏 (Esc)"
+                                        >
+                                          <ArrowLeft className="w-4 h-4 shrink-0" />
+                                          <span className="font-semibold whitespace-nowrap">返回</span>
+                                        </button>
+
+                                        <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
+                                          <div className="flex items-baseline gap-1.5 min-w-0">
+                                            <span className={`text-sm sm:text-base font-bold truncate ${themes[theme].text}`}>
+                                              {selectedSymbol}
+                                            </span>
+                                            {underlyingPrice != null && (
+                                              <span className="text-xs sm:text-sm font-mono font-semibold text-amber-500 dark:text-yellow-400 whitespace-nowrap">
+                                                {formatCurrency(underlyingPrice, currencyConfig, 4)}
+                                              </span>
+                                            )}
+                                          </div>
+
+                                          <span className={`text-[11px] sm:text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${
+                                            theme === 'dark' ? 'bg-zinc-800 text-zinc-300' : 'bg-slate-200/80 text-slate-700'
+                                          }`}>
+                                            {group.expiry}
+                                          </span>
+
+                                          <span className={`hidden sm:inline-block text-[11px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${profitLossBadgeClass}`}>
+                                            {expiryStatusText}
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      {/* Right (Desktop): All controls inline */}
+                                      <div className="hidden sm:flex items-center gap-2 shrink-0">
+                                        {showOpenInterestOverlay && oiSummary && (
+                                          <div className="hidden lg:flex items-center gap-2 text-[11px] font-mono px-2.5 py-1 rounded-full bg-slate-100/90 dark:bg-zinc-800/90 border border-slate-200/80 dark:border-zinc-700/60">
+                                            {oiSummary.maxCall > 0 && (
+                                              <span className="text-emerald-500 font-medium">
+                                                Call主力 {oiSummary.maxCallStrike} ({formatOINumber(oiSummary.maxCall)})
+                                              </span>
+                                            )}
+                                            {oiSummary.maxCall > 0 && oiSummary.maxPut > 0 && <span className="opacity-40">|</span>}
+                                            {oiSummary.maxPut > 0 && (
+                                              <span className="text-rose-500 font-medium">
+                                                Put主力 {oiSummary.maxPutStrike} ({formatOINumber(oiSummary.maxPut)})
+                                              </span>
+                                            )}
+                                            <span className="opacity-40">|</span>
+                                            <span>PCR: {oiSummary.pcr}</span>
+                                          </div>
+                                        )}
+
+                                        <button
+                                          type="button"
+                                          onClick={() => scrollToAtm(true)}
+                                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-500/15 text-blue-600 dark:text-blue-400 hover:bg-blue-500/25 border border-blue-500/30 transition-colors whitespace-nowrap"
+                                          title="一键定位居中平值行权价与标的价格"
+                                        >
+                                          <Crosshair className="w-3.5 h-3.5 shrink-0" />
+                                          <span>定位平值</span>
+                                        </button>
+
+                                        <div className="flex items-center gap-1.5 bg-black/5 dark:bg-white/5 px-2.5 py-1 rounded-lg border border-black/5 dark:border-white/5">
+                                          <span className="text-xs opacity-70 font-mono">缩放</span>
+                                          <input
+                                            type="range"
+                                            min={70}
+                                            max={110}
+                                            step={5}
+                                            value={Math.round(mobileTBoardScale * 100)}
+                                            onChange={(event) => setMobileTBoardScale(Number(event.target.value) / 100)}
+                                            className="w-20 accent-blue-600 h-1.5 cursor-pointer"
+                                            aria-label="调整全屏T型报价表格大小"
                                           />
-                                        );
-                                      }
-                                      if (insertIdx === metrics.length) {
-                                        rows.push(spotIndicator);
-                                      }
-                                      return rows;
-                                    }
+                                          <span className="text-xs font-mono opacity-80 min-w-[32px] text-right">
+                                            {Math.round(mobileTBoardScale * 100)}%
+                                          </span>
+                                        </div>
 
-                                    return metrics.map((m) => (
-                                      <TBoardRow
-                                        key={`trow-top-${group.expiry}-${m.s}`}
-                                        metric={m}
-                                        theme={theme}
-                                        maxRisk={maxRisk}
-                                        maxTimeValue={maxTimeValue}
-                                        underlyingPrice={underlyingPrice}
-                                        quotesByStrike={quotesByStrike}
-                                        prices={prices}
-                                        currencyConfig={currencyConfig}
-                                        strikes={strikes}
-                                        groupExpiry={group.expiry}
-                                        selectedSymbol={selectedSymbol}
-                                        optionsData={optionsData}
-                                        optionsDataMap={optionsDataMap}
-                                        localOptionsData={localOptionsData}
-                                        filteredPositions={filteredPositions}
-                                        onSetConfirmData={setConfirmData}
-                                      />
-                                    ));
-                                  })()}
-                                </tbody>
-                              </table>
-                              <OpenInterestOverlay
-                                tableRef={tBoardTableRef}
-                                strikeHeaderRef={strikeHeaderRef}
-                                theme={theme}
-                                data={openInterestByStrike}
-                                maxOpenInterest={maxOpenInterest}
-                                visible={showOpenInterestOverlay}
-                                scale={isMobileViewport ? mobileTBoardScale : 1}
-                              />
-                            </div>
-                          </div>
-                          </div>
-                        );
-                      })()}
-                    </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => setShowOpenInterestOverlay(prev => !prev)}
+                                          className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
+                                            showOpenInterestOverlay
+                                              ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30'
+                                              : 'bg-black/5 dark:bg-white/5 opacity-70 hover:opacity-100'
+                                          }`}
+                                          title="切换未平仓量 (OI) 平滑分布曲线"
+                                        >
+                                          <span className={`w-1.5 h-1.5 rounded-full ${showOpenInterestOverlay ? 'bg-blue-500 animate-pulse' : 'bg-gray-400'}`} />
+                                          <span>OI图层</span>
+                                          <span className="text-[10px] font-mono">{showOpenInterestOverlay ? 'ON' : 'OFF'}</span>
+                                        </button>
+
+                                        {onRefresh && (
+                                          <button
+                                            type="button"
+                                            onClick={() => onRefresh()}
+                                            disabled={isRefreshing}
+                                            className="p-1.5 rounded-lg text-xs hover:bg-black/5 dark:hover:bg-white/10 transition-colors disabled:opacity-50 shrink-0"
+                                            title="刷新数据"
+                                          >
+                                            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-blue-500' : ''}`} />
+                                          </button>
+                                        )}
+
+                                        <button
+                                          type="button"
+                                          onClick={exitFullscreen}
+                                          className="p-1.5 rounded-lg text-xs opacity-70 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/10 transition-colors shrink-0"
+                                          title="退出全屏 (Esc)"
+                                        >
+                                          <Minimize2 className="w-4 h-4" />
+                                        </button>
+                                      </div>
+
+                                      {/* Right (Mobile): Only Refresh + Close/Minimize */}
+                                      <div className="flex sm:hidden items-center gap-1 shrink-0">
+                                        {onRefresh && (
+                                          <button
+                                            type="button"
+                                            onClick={() => onRefresh()}
+                                            disabled={isRefreshing}
+                                            className="p-1.5 rounded-lg text-xs hover:bg-black/5 dark:hover:bg-white/10 transition-colors disabled:opacity-50"
+                                            title="刷新数据"
+                                          >
+                                            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-blue-500' : ''}`} />
+                                          </button>
+                                        )}
+                                        <button
+                                          type="button"
+                                          onClick={exitFullscreen}
+                                          className="p-1.5 rounded-lg text-xs opacity-75 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                                          title="退出全屏 (Esc)"
+                                        >
+                                          <Minimize2 className="w-4 h-4" />
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    {/* Mobile Second Row: Controls Bar */}
+                                    <div className="flex sm:hidden items-center justify-between gap-2 px-3 py-1.5 bg-black/[0.03] dark:bg-white/[0.03] border-t border-black/5 dark:border-white/5">
+                                      <div className="flex items-center gap-1.5 shrink-0">
+                                        <button
+                                          type="button"
+                                          onClick={() => scrollToAtm(true)}
+                                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/25 active:scale-95 transition-all whitespace-nowrap shadow-2xs"
+                                          title="一键定位平值"
+                                        >
+                                          <Crosshair className="w-3.5 h-3.5 shrink-0" />
+                                          <span>定位平值</span>
+                                        </button>
+
+                                        <button
+                                          type="button"
+                                          onClick={() => setShowOpenInterestOverlay(prev => !prev)}
+                                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all whitespace-nowrap shadow-2xs ${
+                                            showOpenInterestOverlay
+                                              ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30'
+                                              : 'bg-black/5 dark:bg-white/5 opacity-70 hover:opacity-100 border border-transparent'
+                                          }`}
+                                          title="开启或关闭未平仓量 (OI) 图层"
+                                        >
+                                          <span className={`w-1.5 h-1.5 rounded-full ${showOpenInterestOverlay ? 'bg-blue-500 animate-pulse' : 'bg-gray-400'}`} />
+                                          <span>OI:</span>
+                                          <span className="font-mono text-[10px] font-semibold">{showOpenInterestOverlay ? 'ON' : 'OFF'}</span>
+                                        </button>
+                                      </div>
+
+                                      <div className="flex items-center gap-1.5 bg-black/5 dark:bg-white/5 px-2 py-0.5 rounded-md border border-black/5 dark:border-white/5 shrink-0">
+                                        <span className="text-[10px] opacity-70 font-mono">表格大小</span>
+                                        <input
+                                          type="range"
+                                          min={70}
+                                          max={110}
+                                          step={5}
+                                          value={Math.round(mobileTBoardScale * 100)}
+                                          onChange={(event) => setMobileTBoardScale(Number(event.target.value) / 100)}
+                                          className="w-16 accent-blue-600 h-1 cursor-pointer"
+                                          aria-label="调整全屏T型报价表格大小"
+                                        />
+                                        <span className="text-[10px] font-mono opacity-80 min-w-[28px] text-right font-medium">
+                                          {Math.round(mobileTBoardScale * 100)}%
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    {/* Mobile Optional Third Row: OI Summary (if enabled and available) */}
+                                    {showOpenInterestOverlay && oiSummary && (
+                                      <div className="flex sm:hidden items-center justify-between px-3 py-1 bg-blue-500/5 dark:bg-blue-500/10 border-t border-blue-500/10 text-[10px] font-mono text-muted-foreground overflow-x-auto whitespace-nowrap">
+                                        <div className="flex items-center gap-2">
+                                          {oiSummary.maxCall > 0 && (
+                                            <span className="text-emerald-500 font-medium">
+                                              Call主力 {oiSummary.maxCallStrike} ({formatOINumber(oiSummary.maxCall)})
+                                            </span>
+                                          )}
+                                          {oiSummary.maxCall > 0 && oiSummary.maxPut > 0 && <span className="opacity-30">|</span>}
+                                          {oiSummary.maxPut > 0 && (
+                                            <span className="text-rose-500 font-medium">
+                                              Put主力 {oiSummary.maxPutStrike} ({formatOINumber(oiSummary.maxPut)})
+                                            </span>
+                                          )}
+                                        </div>
+                                        <span className="font-medium text-slate-700 dark:text-zinc-300">PCR: {oiSummary.pcr}</span>
+                                      </div>
+                                    )}
+                                  </header>
+
+                                  {/* Fullscreen Body */}
+                                  <div className="flex-1 min-h-0 relative flex flex-col overflow-hidden">
+                                    {isRefreshing && (
+                                      <div className="absolute inset-0 z-30 bg-black/20 dark:bg-black/40 flex items-center justify-center backdrop-blur-xs pointer-events-none">
+                                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                                      </div>
+                                    )}
+                                    {renderTBoardTableContent(true)}
+                                  </div>
+                                </div>,
+                                document.body
+                              )}
+                            </>
+                          );
+                        })()}
+                      </>
                     )}
                   </div>
                 {advisedCombinations.length > 0 && (
