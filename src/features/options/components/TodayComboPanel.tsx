@@ -570,8 +570,10 @@ export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, r
   }, []);
 
   const getDims = useCallback(() => {
+    const isMobile = getViewportSize().width < 768;
     const headerHeight = 52;
-    const collapsedWidth = 56;
+    const collapsedWidth = isMobile ? 32 : 36;
+    const collapsedHeight = isMobile ? 80 : 88;
     const viewport = getViewportSize();
     const maxWidth = Math.max(320, viewport.width - 16);
     const minWidth = Math.min(640, maxWidth);
@@ -579,7 +581,7 @@ export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, r
 
     const maxHeight = Math.max(160, viewport.height - 16);
     const minHeight = Math.min(180, maxHeight);
-    const height = isOpen ? Math.max(minHeight, Math.min(panelSize.height, maxHeight)) : headerHeight;
+    const height = isOpen ? Math.max(minHeight, Math.min(panelSize.height, maxHeight)) : collapsedHeight;
     return { width, height, headerHeight };
   }, [getViewportSize, isOpen, panelSize.height, panelSize.width]);
 
@@ -751,22 +753,33 @@ export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, r
 
   const dims = getDims();
   const viewport = getViewportSize();
-  const basePos = isOpen ? panelPos : { top: panelPos.top, left: viewport.width - dims.width - 8 };
-  const clamped = clampPos(basePos, { width: dims.width, height: dims.height });
+  const isMobile = viewport.width < 768;
+  const collapsedTop = isMobile ? 90 : 100;
 
-  const style: React.CSSProperties = {
-    position: 'fixed',
-    zIndex: 49,
-    top: clamped.top,
-    left: clamped.left,
-    width: dims.width,
-    height: dims.height,
-    willChange: dragging || resizing ? 'top, left, width, height' : 'left, width, height',
-    transition:
-      dragging || resizing
-        ? 'none'
-        : `left ${panelMotionMs}ms cubic-bezier(0.22, 1, 0.36, 1), width ${panelMotionMs}ms cubic-bezier(0.22, 1, 0.36, 1), height ${panelMotionMs}ms ease`
-  };
+  const style: React.CSSProperties = isOpen
+    ? {
+        position: 'fixed',
+        zIndex: 49,
+        top: clampPos(panelPos, { width: dims.width, height: dims.height }).top,
+        left: clampPos(panelPos, { width: dims.width, height: dims.height }).left,
+        width: dims.width,
+        height: dims.height,
+        willChange: dragging || resizing ? 'top, left, width, height' : 'left, width, height',
+        transition:
+          dragging || resizing
+            ? 'none'
+            : `left ${panelMotionMs}ms cubic-bezier(0.22, 1, 0.36, 1), width ${panelMotionMs}ms cubic-bezier(0.22, 1, 0.36, 1), height ${panelMotionMs}ms ease`
+      }
+    : {
+        position: 'fixed',
+        zIndex: 49,
+        top: isMobile ? 'calc(90px + env(safe-area-inset-top, 0px))' : collapsedTop,
+        right: 0,
+        left: 'auto',
+        width: dims.width,
+        height: dims.height,
+        transition: `top 240ms ease, width 240ms ease, opacity 240ms ease`
+      };
 
   const selectedDetail = selectedTaskId != null ? (detailById[selectedTaskId] || tasks.find(t => t.id === selectedTaskId) || null) : null;
   const selectedSteps = selectedDetail?.steps || [];
@@ -1040,14 +1053,18 @@ export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, r
     <>
       <div
         ref={panelRef}
-        className={`${themes[theme].card} shadow-lg rounded-lg border ${themes[theme].border} overflow-hidden opacity-95 hover:opacity-100 transition-opacity relative ${resizing ? 'ring-2 ring-blue-500' : ''}`}
+        className={
+          isOpen
+            ? `${themes[theme].card} shadow-lg rounded-lg border ${themes[theme].border} overflow-hidden opacity-95 hover:opacity-100 transition-opacity relative ${resizing ? 'ring-2 ring-blue-500' : ''}`
+            : `${themes[theme].card} ${themes[theme].border} border border-r-0 rounded-l-xl shadow-[-4px_0_16px_rgba(0,0,0,0.08)] dark:shadow-[-4px_0_20px_rgba(0,0,0,0.4)] backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/5 overflow-hidden opacity-85 hover:opacity-100 transition-all cursor-pointer relative`
+        }
         style={style}
       >
         <div
-          className={`${isOpen ? 'px-3 py-2' : 'p-0'} border-b ${themes[theme].border} flex items-center ${isOpen ? 'justify-between' : 'justify-center'} select-none ${dragging ? 'cursor-grabbing' : resizing ? 'cursor-se-resize' : 'cursor-grab'}`}
-          onPointerDown={startDrag}
+          className={`${isOpen ? 'px-3 py-2 border-b ' + themes[theme].border : 'p-0 h-full'} flex items-center ${isOpen ? 'justify-between' : 'justify-center'} select-none ${isOpen ? (dragging ? 'cursor-grabbing' : resizing ? 'cursor-se-resize' : 'cursor-grab') : ''}`}
+          onPointerDown={isOpen ? startDrag : undefined}
           style={{ touchAction: 'none' }}
-          title={isOpen ? '拖动移动位置' : '展开后可拖动移动位置'}
+          title={isOpen ? '拖动移动位置' : '点击展开：今日组合交易任务'}
         >
           {isOpen ? (
             <>
@@ -1086,7 +1103,7 @@ export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, r
           ) : (
             <button
               type="button"
-              className={`w-full h-full px-1.5 py-1 flex items-center justify-center gap-1.5 rounded ${themes[theme].secondary}`}
+              className="w-full h-full py-2.5 flex flex-col items-center justify-center gap-1 select-none btn-tactile relative z-10"
               onClick={(e) => {
                 e.stopPropagation();
                 toggleOpen();
@@ -1094,9 +1111,10 @@ export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, r
               title="点击展开：今日组合交易任务"
               aria-label="展开：今日组合交易任务"
             >
-              <ChevronLeft className={`w-5 h-5 ${themes[theme].text}`} />
+              <div className="absolute inset-y-0 left-0 w-px bg-gradient-to-b from-white/40 via-white/10 to-transparent dark:from-white/10 pointer-events-none" />
+              <ChevronLeft className={`w-3.5 h-3.5 ${themes[theme].text} opacity-60`} strokeWidth={2} />
               <div
-                className={`text-[12px] font-semibold ${themes[theme].text} opacity-80 leading-none select-none`}
+                className={`text-[10px] sm:text-[11px] font-semibold ${themes[theme].text} opacity-90 leading-tight tracking-wider`}
                 style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
               >
                 今日组合

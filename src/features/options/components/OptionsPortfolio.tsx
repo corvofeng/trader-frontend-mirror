@@ -970,22 +970,33 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
               {months.length > 0 && (
                 isMonthTocCollapsed ? (
                   <div
-                    className="fixed right-0 top-[220px]"
-                    style={{ zIndex: 60 }}
+                    className="fixed right-0"
+                    style={{
+                      zIndex: 60,
+                      top: isMobile ? 'calc(280px + env(safe-area-inset-top, 0px))' : '290px',
+                      width: isMobile ? 32 : 36,
+                      height: isMobile ? 64 : 70,
+                    }}
                   >
                     <button
                       type="button"
                       onClick={() => setIsMonthTocCollapsed(false)}
-                      className={`px-1 py-3 rounded-l-xl shadow-lg border border-r-0 ${themes[theme].card} ${themes[theme].border} opacity-50 hover:opacity-100 transition-opacity flex flex-col items-center gap-1 btn-tactile`}
+                      className={`w-full h-full py-2.5 flex flex-col items-center justify-center gap-1 select-none btn-tactile rounded-l-xl border border-r-0 ${themes[theme].card} ${themes[theme].border} shadow-[-4px_0_16px_rgba(0,0,0,0.08)] dark:shadow-[-4px_0_20px_rgba(0,0,0,0.4)] backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/5 opacity-85 hover:opacity-100 transition-all relative overflow-hidden`}
                       title="展开月份选择"
                     >
-                      <ChevronLeft className="w-3.5 h-3.5" />
-                      <span className="text-[9px] font-medium opacity-70" style={{ writingMode: 'vertical-rl' }}>月份</span>
+                      <div className="absolute inset-y-0 left-0 w-px bg-gradient-to-b from-white/40 via-white/10 to-transparent dark:from-white/10 pointer-events-none" />
+                      <ChevronLeft className={`w-3.5 h-3.5 ${themes[theme].text} opacity-60`} strokeWidth={2} />
+                      <span
+                        className={`text-[10px] sm:text-[11px] font-semibold ${themes[theme].text} opacity-90 leading-tight tracking-wider`}
+                        style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
+                      >
+                        月份
+                      </span>
                     </button>
                   </div>
                 ) : (
                   <div
-                    className={`fixed right-2 sm:right-4 top-[220px] sm:top-[240px] flex flex-col items-center gap-1 p-1.5 sm:p-2 rounded-2xl border ${floatingGlassBg} backdrop-blur-xl transition-all duration-200 select-none ring-1 ring-black/5 dark:ring-white/5`}
+                    className={`fixed right-2 sm:right-4 top-[260px] sm:top-[280px] flex flex-col items-center gap-1 p-1.5 sm:p-2 rounded-2xl border ${floatingGlassBg} backdrop-blur-xl transition-all duration-200 select-none ring-1 ring-black/5 dark:ring-white/5`}
                     style={{
                       zIndex: 60,
                       boxShadow: theme === 'dark' ? '0 16px 48px -16px rgba(0,0,0,0.6)' : '0 12px 36px -12px rgba(15,23,42,0.2)',

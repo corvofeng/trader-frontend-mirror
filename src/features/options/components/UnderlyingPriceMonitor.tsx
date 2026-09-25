@@ -343,50 +343,42 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
       position: 'fixed',
       zIndex: 48,
       right: 0,
-      width: isMobile ? 32 : 48,
-      height: isMobile ? 96 : 156,
+      width: isMobile ? 32 : 36,
+      height: isMobile ? 88 : 96,
       borderTopRightRadius: 0,
       borderBottomRightRadius: 0,
-      transition: `top 240ms ease, bottom 240ms ease, width 240ms ease, opacity 240ms ease, transform 240ms ease`
+      transition: `top 240ms ease, bottom 240ms ease, width 240ms ease, opacity 240ms ease, transform 240ms ease`,
+      top: isMobile ? 'calc(180px + env(safe-area-inset-top, 0px))' : 190,
     };
-    collapsedStyle.top = isMobile
-      ? 'calc(130px + env(safe-area-inset-top, 0px))'
-      : clampPanelPos(panelPos).top;
 
     return (
       <div
         ref={containerRef}
-        className={`${themes[theme].card} overflow-hidden opacity-90 hover:opacity-100 transition-opacity rounded-l-xl relative isolate
-          ${theme === 'dark'
-            ? 'shadow-[-8px_0_24px_-6px_rgba(0,0,0,0.45)] border border-r-0 border-zinc-800/70'
-            : theme === 'blue'
-              ? 'shadow-[-8px_0_24px_-6px_rgba(37,99,235,0.14)] border border-r-0 border-blue-100/80'
-              : 'shadow-[-8px_0_24px_-6px_rgba(15,23,42,0.12)] border border-r-0 border-slate-200/70'
-          } backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/5`}
+        className={`${themes[theme].card} overflow-hidden opacity-85 hover:opacity-100 transition-all rounded-l-xl relative isolate
+          border border-r-0 ${themes[theme].border} shadow-[-4px_0_16px_rgba(0,0,0,0.08)] dark:shadow-[-4px_0_20px_rgba(0,0,0,0.4)]
+          backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/5 cursor-pointer`}
         style={collapsedStyle}
       >
-        <div className="absolute inset-y-0 left-0 w-px bg-gradient-to-b from-white/40 via-white/10 to-transparent dark:from-white/8 pointer-events-none" aria-hidden="true" />
+        <div className="absolute inset-y-0 left-0 w-px bg-gradient-to-b from-white/40 via-white/10 to-transparent dark:from-white/10 pointer-events-none" aria-hidden="true" />
         <button
           type="button"
           onClick={toggleCollapsed}
-          className={`w-full h-full flex items-center justify-center ${themes[theme].secondary} relative z-10`}
+          className="w-full h-full py-2.5 flex flex-col items-center justify-center gap-1 select-none btn-tactile relative z-10"
           aria-label="展开价格窗口"
-          title="展开"
+          title="展开标的监控"
         >
-          <div className="flex flex-col items-center gap-1">
-            <ChevronLeft className={`${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'}`} strokeWidth={1.75} />
-            <div
-              className={`${isMobile ? 'text-[9px]' : 'text-[10px]'} font-semibold tracking-wide ${themes[theme].text} opacity-80`}
-              style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
-            >
-              标的
-            </div>
-            <div
-              className={`${isMobile ? 'text-[9px]' : 'text-[10px]'} font-mono font-semibold tabular-nums ${themes[theme].text}`}
-              style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
-            >
-              {typeof currentPrice === 'number' ? currentPrice.toFixed(2) : '--'}
-            </div>
+          <ChevronLeft className={`w-3.5 h-3.5 ${themes[theme].text} opacity-60`} strokeWidth={2} />
+          <div
+            className={`text-[10px] sm:text-[11px] font-semibold ${themes[theme].text} opacity-90 leading-tight tracking-wider`}
+            style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
+          >
+            标的
+          </div>
+          <div
+            className={`text-[9px] sm:text-[10px] font-mono font-medium tabular-nums ${themes[theme].text} opacity-75 leading-none`}
+            style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
+          >
+            {typeof currentPrice === 'number' ? currentPrice.toFixed(2) : '--'}
           </div>
         </button>
       </div>
