@@ -313,42 +313,6 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
     window.addEventListener('pointercancel', endDrag);
   }, [clampPanelPos, collapsed, persistPanelPos]);
 
-  const startCollapsedDrag = useCallback((e: React.PointerEvent) => {
-    if (!collapsed) return;
-    if ((e.target as HTMLElement | null)?.closest('button')) return;
-    if (e.pointerType === 'mouse' && e.button !== 0) return;
-    e.preventDefault();
-    setDragging(true);
-    activeDragPointerIdRef.current = e.pointerId;
-    try {
-      (e.currentTarget as HTMLElement | null)?.setPointerCapture?.(e.pointerId);
-    } catch {
-      void 0;
-    }
-    dragOffsetRef.current = { x: e.clientX, y: e.clientY };
-    const onDrag = (ev: PointerEvent) => {
-      if (activeDragPointerIdRef.current != null && ev.pointerId !== activeDragPointerIdRef.current) return;
-      ev.preventDefault();
-      const dx = ev.clientX - dragOffsetRef.current.x;
-      const dy = ev.clientY - dragOffsetRef.current.y;
-      dragOffsetRef.current = { x: ev.clientX, y: ev.clientY };
-      setPanelPos((prev) => {
-        const next = clampPanelPos({ top: prev.top + dy, left: prev.left + dx });
-        persistPanelPos(next);
-        return next;
-      });
-    };
-    const endDrag = () => {
-      setDragging(false);
-      activeDragPointerIdRef.current = null;
-      window.removeEventListener('pointermove', onDrag);
-      window.removeEventListener('pointerup', endDrag);
-      window.removeEventListener('pointercancel', endDrag);
-    };
-    window.addEventListener('pointermove', onDrag, { passive: false });
-    window.addEventListener('pointerup', endDrag);
-    window.addEventListener('pointercancel', endDrag);
-  }, [clampPanelPos, collapsed, persistPanelPos]);
 
   const dockToRight = useCallback(() => {
     const next = getDefaultPanelPos();
@@ -370,69 +334,27 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
 
   if (!symbol) return null;
 
-  // ==================== COLLAPSED STATE (unified for mobile & desktop) ====================
+  // ==================== COLLAPSED STATE (unified edge strip for mobile & desktop) ====================
   if (collapsed) {
-    if (isMobileMode) {
-      // Mobile collapsed: bottom-right floating widget ~80px wide
-      return (
-        <div
-          ref={containerRef}
-          className={`${themes[theme].card} rounded-xl overflow-hidden relative isolate
-            ${theme === 'dark'
-              ? 'shadow-[0_10px_28px_-8px_rgba(0,0,0,0.55)] border border-zinc-800/70'
-              : theme === 'blue'
-                ? 'shadow-[0_10px_28px_-8px_rgba(37,99,235,0.18)] border border-blue-100/80'
-                : 'shadow-[0_10px_28px_-8px_rgba(15,23,42,0.16)] border border-slate-200/70'
-            } backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/5`}
-          style={{
-            position: 'fixed',
-            zIndex: 48,
-            bottom: 8,
-            right: 8,
-            width: 80,
-            transition: dragging
-              ? 'none'
-              : 'top 240ms ease, left 240ms ease, opacity 240ms ease',
-            ...(dragging ? { top: panelPos.top, left: panelPos.left, bottom: 'auto', right: 'auto' } : {}),
-          }}
-          onPointerDown={startCollapsedDrag}
-        >
-          <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent dark:from-white/5 pointer-events-none" aria-hidden="true" />
-          <button
-            type="button"
-            onClick={toggleCollapsed}
-            className={`w-full flex flex-col items-center p-1.5 ${themes[theme].secondary} relative z-10`}
-            aria-label="展开价格窗口"
-            title="展开"
-          >
-            <div className={`text-[10px] font-mono opacity-65 ${themes[theme].text} truncate w-full text-center`}>
-              {symbol}
-            </div>
-            <div className={`text-sm font-semibold font-mono tabular-nums ${themes[theme].text} leading-tight mt-0.5`}>
-              <AnimatedFlash value={typeof currentPrice === 'number' ? currentPrice.toFixed(4) : '-'} type="price" />
-            </div>
-          </button>
-        </div>
-      );
-    }
-
-    // Desktop collapsed: right-side thin strip with price
+    const isMobile = isMobileMode;
     const collapsedStyle: React.CSSProperties = {
       position: 'fixed',
       zIndex: 48,
       right: 0,
-      width: 48,
-      height: 156,
+      width: isMobile ? 32 : 48,
+      height: isMobile ? 96 : 156,
       borderTopRightRadius: 0,
       borderBottomRightRadius: 0,
       transition: `top 240ms ease, bottom 240ms ease, width 240ms ease, opacity 240ms ease, transform 240ms ease`
     };
-    collapsedStyle.top = clampPanelPos(panelPos).top;
+    collapsedStyle.top = isMobile
+      ? 'calc(210px + env(safe-area-inset-top, 0px))'
+      : clampPanelPos(panelPos).top;
 
     return (
       <div
         ref={containerRef}
-        className={`${themes[theme].card} overflow-hidden opacity-95 hover:opacity-100 transition-opacity rounded-l-2xl relative isolate
+        className={`${themes[theme].card} overflow-hidden opacity-90 hover:opacity-100 transition-opacity rounded-l-xl relative isolate
           ${theme === 'dark'
             ? 'shadow-[-8px_0_24px_-6px_rgba(0,0,0,0.45)] border border-r-0 border-zinc-800/70'
             : theme === 'blue'
@@ -449,16 +371,16 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
           aria-label="展开价格窗口"
           title="展开"
         >
-          <div className="flex flex-col items-center gap-1.5">
-            <ChevronLeft className="w-4 h-4" strokeWidth={1.75} />
+          <div className="flex flex-col items-center gap-1">
+            <ChevronLeft className={`${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'}`} strokeWidth={1.75} />
             <div
-              className={`text-[10px] font-semibold tracking-wide ${themes[theme].text} opacity-80`}
+              className={`${isMobile ? 'text-[9px]' : 'text-[10px]'} font-semibold tracking-wide ${themes[theme].text} opacity-80`}
               style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
             >
-              价格
+              标的
             </div>
             <div
-              className={`text-[10px] font-mono font-semibold tabular-nums ${themes[theme].text}`}
+              className={`${isMobile ? 'text-[9px]' : 'text-[10px]'} font-mono font-semibold tabular-nums ${themes[theme].text}`}
               style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
             >
               {typeof currentPrice === 'number' ? currentPrice.toFixed(2) : '--'}
