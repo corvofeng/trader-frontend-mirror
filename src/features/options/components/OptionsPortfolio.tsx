@@ -103,6 +103,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   // State for mobile month navigation popover
   const [mobileMonthMenuOpen, setMobileMonthMenuOpen] = useState(false);
   const [isFabCollapsed, setIsFabCollapsed] = useState(false);
+  const [isMonthTocCollapsed, setIsMonthTocCollapsed] = useState(false);
 
   const groups = useMemo(() => {
     if (!portfolioData) return [];
@@ -1044,13 +1045,13 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         {(() => {
           return (
             <>
-              {/* In-Flow Month Navigation Bar */}
+              {/* Sticky In-Flow Month Navigation Bar */}
               {months.length > 0 && (
-                <div className={`${themes[theme].card} rounded-xl p-2.5 sm:p-3 border ${themes[theme].border} card-subtle-ring`}>
-                  <div className="flex items-center gap-2 overflow-x-auto overscroll-x-contain touch-pan-x scrollbar-none py-0.5">
+                <div className={`sticky top-2 z-30 ${themes[theme].card} rounded-xl p-2 sm:p-2.5 border ${themes[theme].border} card-subtle-ring backdrop-blur-md shadow-xs mb-2`}>
+                  <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto overscroll-x-contain touch-pan-x scrollbar-none py-0.5">
                     <span className={`text-xs font-semibold shrink-0 px-1 ${themes[theme].text} opacity-60 flex items-center gap-1`}>
                       <Layers className="w-3.5 h-3.5" />
-                      到期月份:
+                      月份:
                     </span>
                     {months.map((m) => {
                       const isActive = activeMonthKey === m.key;
@@ -1066,7 +1067,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                             const el = document.getElementById(`expiry-group-${m.firstExpiry}`);
                             if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                           }}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap btn-tactile transition-all shrink-0 ${
+                          className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs font-medium whitespace-nowrap btn-tactile transition-all shrink-0 ${
                             isActive
                               ? 'bg-blue-600 text-white shadow-xs font-semibold'
                               : `${themes[theme].secondary} ${themes[theme].text} opacity-85 hover:opacity-100`
@@ -1097,6 +1098,102 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                     })}
                   </div>
                 </div>
+              )}
+
+              {/* Floating Right-Side Month TOC (High z-index to never be blocked by cards) */}
+              {months.length > 0 && (
+                isMonthTocCollapsed ? (
+                  <div
+                    className="fixed right-0 top-[220px]"
+                    style={{ zIndex: 60 }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setIsMonthTocCollapsed(false)}
+                      className={`px-1 py-3 rounded-l-xl shadow-lg border border-r-0 ${themes[theme].card} ${themes[theme].border} opacity-50 hover:opacity-100 transition-opacity flex flex-col items-center gap-1 btn-tactile`}
+                      title="展开月份选择"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                      <span className="text-[9px] font-medium opacity-70" style={{ writingMode: 'vertical-rl' }}>月份</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    className={`fixed right-2 sm:right-4 top-[220px] sm:top-[240px] flex flex-col items-center gap-1 p-1.5 sm:p-2 rounded-2xl border ${floatingGlassBg} backdrop-blur-xl transition-all duration-200 select-none ring-1 ring-black/5 dark:ring-white/5`}
+                    style={{
+                      zIndex: 60,
+                      boxShadow: theme === 'dark' ? '0 16px 48px -16px rgba(0,0,0,0.6)' : '0 12px 36px -12px rgba(15,23,42,0.2)',
+                    }}
+                  >
+                    <div className="w-full flex items-center justify-between gap-1 px-1 border-b border-current/10 pb-1 mb-0.5">
+                      <span className="text-[9px] uppercase tracking-wider font-bold opacity-40">
+                        月份
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIsMonthTocCollapsed(true)}
+                        className="opacity-40 hover:opacity-100 transition-opacity p-0.5 rounded text-muted-foreground"
+                        title="收起月份栏"
+                      >
+                        <ChevronRight className="w-3 h-3" />
+                      </button>
+                    </div>
+                    <div className="flex flex-col gap-1 max-h-[calc(100vh-320px)] overflow-y-auto pr-0.5 scrollbar-thin">
+                      {months.map((m) => {
+                        const isActive = activeMonthKey === m.key;
+                        const monthNum = parseInt(m.key.split('-')[1], 10);
+                        const counts = monthlyStatusCounts[m.key] || { watch: 0, profit: 0, auto: 0, total: 0 };
+                        const hasAlerts = counts.watch > 0 || counts.profit > 0 || counts.auto > 0;
+
+                        return (
+                          <div key={m.key} className="flex items-center gap-1.5 px-0.5 py-0.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const el = document.getElementById(`expiry-group-${m.firstExpiry}`);
+                                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                              }}
+                              title={m.label}
+                              className={`text-center text-[10px] w-8 h-8 sm:w-9 sm:h-9 rounded-full transition-all duration-150 flex items-center justify-center font-semibold cursor-pointer active:scale-95 ${
+                                isActive
+                                  ? theme === 'dark'
+                                    ? 'bg-blue-500/25 text-blue-400 font-bold shadow-[0_0_0_1px_rgba(59,130,246,0.3)]'
+                                  : 'bg-blue-600 text-white font-bold shadow-md'
+                                  : theme === 'dark'
+                                    ? 'text-zinc-400 hover:bg-zinc-800/80 hover:text-zinc-200'
+                                    : theme === 'blue'
+                                      ? 'text-slate-600 hover:bg-blue-50 hover:text-blue-900'
+                                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                              }`}
+                            >
+                              {monthNum}月
+                            </button>
+
+                            {hasAlerts && (
+                              <div className="flex flex-col gap-0.5 shrink-0">
+                                {counts.auto > 0 && (
+                                  <span className="w-4 h-3 flex items-center justify-center text-[7px] font-bold rounded bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-400" title={`AUTO: ${counts.auto}`}>
+                                    {counts.auto}
+                                  </span>
+                                )}
+                                {counts.profit > 0 && (
+                                  <span className="w-4 h-3 flex items-center justify-center text-[7px] font-bold rounded bg-green-100 text-green-800 dark:bg-green-950/60 dark:text-green-400" title={`PROFIT: ${counts.profit}`}>
+                                    {counts.profit}
+                                  </span>
+                                )}
+                                {counts.watch > 0 && (
+                                  <span className="w-4 h-3 flex items-center justify-center text-[7px] font-bold rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-950/60 dark:text-yellow-400" title={`WATCH: ${counts.watch}`}>
+                                    {counts.watch}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )
               )}
 
 
