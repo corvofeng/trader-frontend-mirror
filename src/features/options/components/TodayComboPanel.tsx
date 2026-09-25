@@ -570,10 +570,9 @@ export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, r
   }, []);
 
   const getDims = useCallback(() => {
-    const isMobile = getViewportSize().width < 768;
     const headerHeight = 52;
-    const collapsedWidth = isMobile ? 32 : 36;
-    const collapsedHeight = isMobile ? 80 : 88;
+    const collapsedWidth = 36;
+    const collapsedHeight = 82;
     const viewport = getViewportSize();
     const maxWidth = Math.max(320, viewport.width - 16);
     const minWidth = Math.min(640, maxWidth);
@@ -752,9 +751,6 @@ export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, r
   }, [selectedAccountId]);
 
   const dims = getDims();
-  const viewport = getViewportSize();
-  const isMobile = viewport.width < 768;
-  const collapsedTop = isMobile ? 90 : 100;
 
   const style: React.CSSProperties = isOpen
     ? {
@@ -773,7 +769,7 @@ export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, r
     : {
         position: 'fixed',
         zIndex: 49,
-        top: isMobile ? 'calc(90px + env(safe-area-inset-top, 0px))' : collapsedTop,
+        top: 'calc(75px + env(safe-area-inset-top, 0px))',
         right: 0,
         left: 'auto',
         width: dims.width,

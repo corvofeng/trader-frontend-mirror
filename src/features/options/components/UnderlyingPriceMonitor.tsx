@@ -12,7 +12,7 @@ interface UnderlyingPriceMonitorProps {
   isMobile?: boolean;
 }
 
-export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobile: isMobileProp }: UnderlyingPriceMonitorProps) {
+export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobile: _isMobile }: UnderlyingPriceMonitorProps) {
   const {
     prices,
     isConnected,
@@ -25,17 +25,6 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
   const [recentPrices, setRecentPrices] = useState<number[]>([]);
   const [isFreshTick, setIsFreshTick] = useState(false);
 
-  // Screen width detection for responsive fallback
-  const [isMobileWidth, setIsMobileWidth] = useState(false);
-  useEffect(() => {
-    const media = window.matchMedia('(max-width: 768px)');
-    setIsMobileWidth(media.matches);
-    const listener = (e: MediaQueryListEvent) => setIsMobileWidth(e.matches);
-    media.addEventListener('change', listener);
-    return () => media.removeEventListener('change', listener);
-  }, []);
-
-  const isMobileMode = isMobileProp ?? isMobileWidth;
 
   const getViewportSize = useCallback(() => {
     const vv = window.visualViewport;
@@ -338,17 +327,16 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
 
   // ==================== COLLAPSED STATE (unified edge strip for mobile & desktop) ====================
   if (collapsed) {
-    const isMobile = isMobileMode;
     const collapsedStyle: React.CSSProperties = {
       position: 'fixed',
       zIndex: 48,
       right: 0,
-      width: isMobile ? 32 : 36,
-      height: isMobile ? 88 : 96,
+      width: 36,
+      height: 112,
       borderTopRightRadius: 0,
       borderBottomRightRadius: 0,
       transition: `top 240ms ease, bottom 240ms ease, width 240ms ease, opacity 240ms ease, transform 240ms ease`,
-      top: isMobile ? 'calc(180px + env(safe-area-inset-top, 0px))' : 190,
+      top: 'calc(168px + env(safe-area-inset-top, 0px))',
     };
 
     return (

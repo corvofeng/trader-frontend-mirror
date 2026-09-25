@@ -973,9 +973,9 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                     className="fixed right-0"
                     style={{
                       zIndex: 60,
-                      top: isMobile ? 'calc(280px + env(safe-area-inset-top, 0px))' : '290px',
-                      width: isMobile ? 32 : 36,
-                      height: isMobile ? 64 : 70,
+                      top: 'calc(296px + env(safe-area-inset-top, 0px))',
+                      width: 36,
+                      height: 64,
                     }}
                   >
                     <button
@@ -996,9 +996,10 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                   </div>
                 ) : (
                   <div
-                    className={`fixed right-2 sm:right-4 top-[260px] sm:top-[280px] flex flex-col items-center gap-1 p-1.5 sm:p-2 rounded-2xl border ${floatingGlassBg} backdrop-blur-xl transition-all duration-200 select-none ring-1 ring-black/5 dark:ring-white/5`}
+                    className={`fixed right-2 sm:right-4 flex flex-col items-center gap-1 p-1.5 sm:p-2 rounded-2xl border ${floatingGlassBg} backdrop-blur-xl transition-all duration-200 select-none ring-1 ring-black/5 dark:ring-white/5`}
                     style={{
                       zIndex: 60,
+                      top: 'calc(296px + env(safe-area-inset-top, 0px))',
                       boxShadow: theme === 'dark' ? '0 16px 48px -16px rgba(0,0,0,0.6)' : '0 12px 36px -12px rgba(15,23,42,0.2)',
                     }}
                   >
