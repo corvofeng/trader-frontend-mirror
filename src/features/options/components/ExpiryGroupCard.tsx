@@ -1926,82 +1926,88 @@ export function ExpiryGroupCard({
     const spread = (ask1Price != null && bid1Price != null) ? (ask1Price - bid1Price) : null;
 
     return (
-      <details className="group border-t border-current/5">
-        <summary className={`flex items-center justify-between px-3 py-2 text-[11px] cursor-pointer hover:bg-current/5 transition-colors select-none ${themes[theme].text}`}>
-          {/* 左侧：买1 */}
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-500/10 text-red-500 font-bold shrink-0">
-              买1
-            </span>
-            <div className="flex flex-col">
-              <div className="flex items-baseline gap-1.5">
-                <span className="font-mono font-bold text-red-500 text-[12px] leading-tight">
-                  {bid1Price != null ? bid1Price.toFixed(4) : '-'}
+      <details className="group border-t border-current/10">
+        <summary className={`list-none [&::-webkit-details-marker]:hidden cursor-pointer p-2.5 sm:p-3 hover:bg-current/[0.02] active:bg-current/[0.04] transition-colors select-none ${themes[theme].text}`}>
+          {/* 买1 与 卖1 双栏卡片 */}
+          <div className="grid grid-cols-2 gap-2">
+            {/* 买1 (买盘) */}
+            <div className="flex flex-col justify-between p-2 rounded-lg bg-red-500/[0.04] dark:bg-red-500/[0.08] border border-red-500/15">
+              <div className="flex items-center justify-between">
+                <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-500/15 text-red-600 dark:text-red-400 font-bold shrink-0">
+                  买1
                 </span>
-                <span className="font-mono text-[10px] opacity-75 leading-tight">
-                  量 <span className="font-semibold">{bid1Vol ?? '-'}</span>
+                <span className="font-mono text-[11px] opacity-75">
+                  量 <b className="font-semibold opacity-100">{bid1Vol ?? '-'}</b>
+                </span>
+              </div>
+              <div className="mt-1 flex items-baseline">
+                <span className="font-mono font-bold text-red-500 text-sm sm:text-base leading-tight">
+                  {bid1Price != null ? bid1Price.toFixed(4) : '-'}
                 </span>
               </div>
               {legType === 'sell' && targetQty != null && bid1Vol != null && (
-                <span className={`text-[9px] font-mono leading-tight ${bid1Vol >= targetQty ? 'text-emerald-500' : 'text-amber-500'}`}>
-                  承接: {bid1Vol >= targetQty ? `充足 (需${targetQty})` : `仅${bid1Vol}/需${targetQty}`}
+                <div className="mt-1 pt-1 border-t border-red-500/10">
+                  <span className={`text-[10px] font-mono leading-tight font-medium ${bid1Vol >= targetQty ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                    承接: {bid1Vol >= targetQty ? `充足 (需${targetQty})` : `仅${bid1Vol}/需${targetQty}`}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* 卖1 (卖盘) */}
+            <div className="flex flex-col justify-between p-2 rounded-lg bg-green-500/[0.04] dark:bg-green-500/[0.08] border border-green-500/15">
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-[11px] opacity-75">
+                  量 <b className="font-semibold opacity-100">{ask1Vol ?? '-'}</b>
                 </span>
+                <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-500/15 text-green-600 dark:text-green-400 font-bold shrink-0">
+                  卖1
+                </span>
+              </div>
+              <div className="mt-1 flex items-baseline justify-end">
+                <span className="font-mono font-bold text-green-500 text-sm sm:text-base leading-tight">
+                  {ask1Price != null ? ask1Price.toFixed(4) : '-'}
+                </span>
+              </div>
+              {legType === 'buy' && targetQty != null && ask1Vol != null && (
+                <div className="mt-1 pt-1 border-t border-green-500/10 text-right">
+                  <span className={`text-[10px] font-mono leading-tight font-medium ${ask1Vol >= targetQty ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                    承接: {ask1Vol >= targetQty ? `充足 (需${targetQty})` : `仅${ask1Vol}/需${targetQty}`}
+                  </span>
+                </div>
               )}
             </div>
           </div>
 
-          {/* 中间：最新价 + 点差 + 点击下拉 + 纯净力量对比条 */}
-          <div className="flex flex-col items-center justify-center px-2 py-0.5 rounded hover:bg-current/5 transition-colors">
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <span className="text-[10px] opacity-50">最新</span>
-              <span className="font-mono font-bold text-foreground text-[11px]">
-                {lastPrice != null ? lastPrice.toFixed(4) : '-'}
+          {/* 辅助行情栏：最新价、点差、盘口量比、五档深度展开 */}
+          <div className="mt-2 pt-1.5 border-t border-current/5 flex items-center justify-between text-[11px]">
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+              <span className="opacity-75">
+                最新 <b className="font-mono font-semibold opacity-100">{lastPrice != null ? lastPrice.toFixed(4) : '-'}</b>
               </span>
               {spread != null && (
-                <span className="font-mono text-[9.5px] opacity-60 pl-1 border-l border-current/10">
+                <span className="opacity-60 font-mono pl-2 border-l border-current/10">
                   点差 {spread.toFixed(4)}
                 </span>
               )}
-              <span className="flex items-center gap-0.5 text-[10px] font-medium text-purple-600 dark:text-purple-400 ml-0.5">
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              {totalVol != null && totalVol > 0 ? (
+                <div
+                  className="w-14 sm:w-20 h-1.5 bg-black/10 dark:bg-white/10 rounded-full overflow-hidden flex"
+                  title={`买卖挂单量比：买1 ${bid1Vol}张 (${bidPct}%) / 卖1 ${ask1Vol}张 (${askPct}%)`}
+                >
+                  <div className="bg-red-500 h-full transition-all" style={{ width: `${bidPct}%` }} />
+                  <div className="bg-green-500 h-full transition-all" style={{ width: `${askPct}%` }} />
+                </div>
+              ) : null}
+              <span className="inline-flex items-center gap-0.5 text-[11px] font-medium text-purple-600 dark:text-purple-400 hover:underline">
                 <span className="group-open:hidden">五档</span>
                 <span className="hidden group-open:inline">收起</span>
                 <ChevronDown className="w-3.5 h-3.5 transition-transform group-open:rotate-180" />
               </span>
             </div>
-
-            {totalVol != null && totalVol > 0 ? (
-              <div
-                className="w-24 sm:w-28 h-1 bg-black/10 dark:bg-white/10 rounded-full overflow-hidden flex mt-1"
-                title={`买卖挂单量比：买1 ${bid1Vol}张 (${bidPct}%) / 卖1 ${ask1Vol}张 (${askPct}%)`}
-              >
-                <div className="bg-red-500 h-full transition-all" style={{ width: `${bidPct}%` }} />
-                <div className="bg-green-500 h-full transition-all" style={{ width: `${askPct}%` }} />
-              </div>
-            ) : (
-              <span className="text-[9px] opacity-40 font-mono mt-0.5">五档深度行情</span>
-            )}
-          </div>
-
-          {/* 右侧：卖1 */}
-          <div className="flex items-center justify-end gap-2 min-w-0 text-right">
-            <div className="flex flex-col items-end">
-              <div className="flex items-baseline gap-1.5">
-                <span className="font-mono text-[10px] opacity-75 leading-tight">
-                  量 <span className="font-semibold">{ask1Vol ?? '-'}</span>
-                </span>
-                <span className="font-mono font-bold text-green-500 text-[12px] leading-tight">
-                  {ask1Price != null ? ask1Price.toFixed(4) : '-'}
-                </span>
-              </div>
-              {legType === 'buy' && targetQty != null && ask1Vol != null && (
-                <span className={`text-[9px] font-mono leading-tight ${ask1Vol >= targetQty ? 'text-emerald-500' : 'text-amber-500'}`}>
-                  承接: {ask1Vol >= targetQty ? `充足 (需${targetQty})` : `仅${ask1Vol}/需${targetQty}`}
-                </span>
-              )}
-            </div>
-            <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-500/10 text-green-500 font-bold shrink-0">
-              卖1
-            </span>
           </div>
         </summary>
         {renderL5MarketData(contractCode)}
@@ -2011,8 +2017,10 @@ export function ExpiryGroupCard({
 
   const renderComboDraftPanel = useCallback((draft: ComboDraftState, embedded = false) => (
     <>
-      <div className={`text-lg font-semibold ${themes[theme].text}`}>{draft.combo.description}</div>
-      <div className={`mt-1 text-xs ${themes[theme].text} opacity-75`}>到期 {format(new Date(draft.combo.expiry), 'yyyy-MM-dd')}</div>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <div className={`text-base sm:text-lg font-semibold ${themes[theme].text}`}>{draft.combo.description}</div>
+        <div className={`text-xs ${themes[theme].text} opacity-60 font-mono`}>到期 {format(new Date(draft.combo.expiry), 'yyyy-MM-dd')}</div>
+      </div>
       {(() => {
         const p = advisedPricePreview;
         if (!p) return null;
@@ -2037,36 +2045,49 @@ export function ExpiryGroupCard({
           p.perHedge == null ? '--' : `${p.perHedge >= 0 ? '+' : '-'}${formatCurrency(Math.abs(displayPerHedge), currencyConfig, 4)}`;
         const tsText = p.ts ? format(new Date(p.ts), 'HH:mm:ss') : '--';
         return (
-          <div className={`mt-3 rounded border p-3 ${themes[theme].border} ${themes[theme].background}`}>
-            <div className={`text-sm ${themes[theme].text} flex items-center justify-between gap-3`}>
-              <div className="flex items-center gap-2">
-                <span className="font-semibold whitespace-nowrap">{label}</span>
+          <div className={`mt-3 rounded-xl border p-3 ${themes[theme].border} ${themes[theme].background} space-y-2`}>
+            {/* 第一行：预计支付/收到 + 成本价差比居左，总额居右 */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 flex-wrap min-w-0">
+                <span className={`text-sm font-semibold whitespace-nowrap ${themes[theme].text}`}>{label}</span>
                 {costRatio != null && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border border-purple-500/20 bg-purple-500/10 text-purple-600 dark:text-purple-300" title="开仓价格与最大价值的比例">
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border border-purple-500/20 bg-purple-500/10 text-purple-600 dark:text-purple-300 whitespace-nowrap shrink-0" title="开仓价格与最大价值的比例">
                     成本/价差比 {costRatio.toFixed(1)}%
                   </span>
                 )}
               </div>
-              <div className="flex items-baseline gap-2 min-w-0">
-                <AnimatedFlash value={amountText} className="font-mono whitespace-nowrap" type="price" />
-                <span className="text-[11px] opacity-60 truncate flex items-baseline gap-1">
-                  {p.perHedge == null || qty <= 0 ? null : (
-                    <>
-                      <span>（</span>
-                      <AnimatedFlash
-                        value={hedgeText}
-                        className={`font-mono font-bold whitespace-nowrap ${p.perHedge != null && p.perHedge >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}
-                        type="price"
-                      />
-                      <span className="whitespace-nowrap">× {qty}）</span>
-                    </>
-                  )}
-                  <span className="whitespace-nowrap">{`WS ${tsText}`}</span>
-                </span>
+              <div className="text-right shrink-0">
+                <AnimatedFlash
+                  value={amountText}
+                  className={`font-mono font-bold text-base sm:text-lg ${net != null && net >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-foreground'}`}
+                  type="price"
+                />
               </div>
             </div>
+
+            {/* 第二行：单套金额明细与行情采样时间 */}
+            {((p.perHedge != null && qty > 0) || tsText !== '--') && (
+              <div className="flex items-center justify-between text-[11px] opacity-65 font-mono pt-1.5 border-t border-current/5">
+                <div>
+                  {p.perHedge != null && qty > 0 ? (
+                    <span className="flex items-center gap-1">
+                      <span>单套</span>
+                      <AnimatedFlash
+                        value={hedgeText}
+                        className={`font-semibold ${p.perHedge >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}
+                        type="price"
+                      />
+                      <span>× {qty}张</span>
+                    </span>
+                  ) : null}
+                </div>
+                <div>
+                  {tsText !== '--' ? <span>WS {tsText}</span> : null}
+                </div>
+              </div>
+            )}
             {spreadHistory.length > 0 && (
-              <div className="mt-2">
+              <div className="mt-2 pt-2 border-t border-current/5">
                 <div className={`mb-1 text-[11px] ${themes[theme].text} opacity-70 flex items-center justify-between`}>
                   <span>点数 {spreadHistory.length}</span>
                   <span>
@@ -2097,9 +2118,14 @@ export function ExpiryGroupCard({
               </div>
             )}
             <div className="mt-2 grid grid-cols-1 gap-1 text-xs">
-              <div className="grid grid-cols-[minmax(0,1fr)_84px_minmax(0,140px)] items-center gap-3">
-                <div className={`${themes[theme].text} opacity-80`}>买入腿（ASK1）x{p.buy.qty * qty}</div>
-                <div className={`text-right font-mono ${themes[theme].text}`}>
+              <div className="flex flex-col sm:grid sm:grid-cols-[minmax(0,1fr)_84px_minmax(0,140px)] sm:items-center gap-1 sm:gap-3">
+                <div className={`${themes[theme].text} opacity-80 flex items-center justify-between sm:block`}>
+                  <span>买入腿（ASK1）x{p.buy.qty * qty}</span>
+                  <span className="sm:hidden font-mono">
+                    <AnimatedFlash value={p.buy.px == null ? '--' : p.buy.px.toFixed(4)} type="price" />
+                  </span>
+                </div>
+                <div className={`hidden sm:block text-right font-mono ${themes[theme].text}`}>
                   <AnimatedFlash value={p.buy.px == null ? '--' : p.buy.px.toFixed(4)} type="price" />
                 </div>
                 <div className={`flex items-center justify-end gap-1 font-mono ${themes[theme].text}`}>
@@ -2114,9 +2140,14 @@ export function ExpiryGroupCard({
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-[minmax(0,1fr)_84px_minmax(0,140px)] items-center gap-3">
-                <div className={`${themes[theme].text} opacity-80`}>卖出腿（BID1）x{p.sell.qty * qty}</div>
-                <div className={`text-right font-mono ${themes[theme].text}`}>
+              <div className="flex flex-col sm:grid sm:grid-cols-[minmax(0,1fr)_84px_minmax(0,140px)] sm:items-center gap-1 sm:gap-3">
+                <div className={`${themes[theme].text} opacity-80 flex items-center justify-between sm:block`}>
+                  <span>卖出腿（BID1）x{p.sell.qty * qty}</span>
+                  <span className="sm:hidden font-mono">
+                    <AnimatedFlash value={p.sell.px == null ? '--' : p.sell.px.toFixed(4)} type="price" />
+                  </span>
+                </div>
+                <div className={`hidden sm:block text-right font-mono ${themes[theme].text}`}>
                   <AnimatedFlash value={p.sell.px == null ? '--' : p.sell.px.toFixed(4)} type="price" />
                 </div>
                 <div className={`flex items-center justify-end gap-1 font-mono ${themes[theme].text}`}>
@@ -2138,7 +2169,19 @@ export function ExpiryGroupCard({
       <div className="mt-3 space-y-2">
         <div className="flex items-center justify-between">
           <div className={`text-sm ${themes[theme].text}`}>数量</div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                const next = Math.max(1, draft.quantity - 1);
+                if (embedded) setComboManageQuantity(next);
+                else setAdvisedModal(prev => prev ? { ...prev, quantity: next } : prev);
+              }}
+              disabled={draft.quantity <= 1}
+              className={`w-7 h-7 rounded flex items-center justify-center text-sm font-bold border ${themes[theme].border} ${themes[theme].secondary} disabled:opacity-30 active:scale-95 transition-all select-none cursor-pointer disabled:cursor-not-allowed`}
+            >
+              -
+            </button>
             <input
               type="number"
               min={1}
@@ -2152,28 +2195,41 @@ export function ExpiryGroupCard({
                   setAdvisedModal(prev => prev ? { ...prev, quantity: next } : prev);
                 }
               }}
-              className={`w-24 px-2 py-1 rounded text-sm ${themes[theme].input} ${themes[theme].text}`}
+              className={`w-14 text-center px-1.5 py-1 rounded text-sm font-mono border ${themes[theme].border} ${themes[theme].input} ${themes[theme].text}`}
             />
+            <button
+              type="button"
+              onClick={() => {
+                const next = draft.quantity + 1;
+                if (embedded) setComboManageQuantity(next);
+                else setAdvisedModal(prev => prev ? { ...prev, quantity: next } : prev);
+              }}
+              className={`w-7 h-7 rounded flex items-center justify-center text-sm font-bold border ${themes[theme].border} ${themes[theme].secondary} active:scale-95 transition-all select-none cursor-pointer`}
+            >
+              +
+            </button>
           </div>
         </div>
 
-        <div className={`rounded p-3 border ${themes[theme].border} ${themes[theme].background} space-y-3`}>
+        <div className={`rounded-lg p-2.5 sm:p-3 border ${themes[theme].border} ${themes[theme].background} space-y-2.5`}>
           <div className={`text-sm font-semibold ${themes[theme].text}`}>组合腿配置</div>
           
           {/* Buy Leg (权利仓) */}
-          <div className="flex flex-col border border-current/10 rounded overflow-hidden">
-            <div className="flex flex-col gap-1 text-xs p-2 bg-blue-500/5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded text-[10px]">买入 (权利)</span>
-                  <span className={`font-semibold ${themes[theme].text}`}>
+          <div className="flex flex-col border border-current/10 rounded-lg overflow-hidden">
+            <div className="flex flex-col gap-1.5 text-xs p-2.5 bg-blue-500/5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-semibold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded text-[10px] shrink-0">
+                    买入 (权利)
+                  </span>
+                  <span className={`font-semibold truncate ${themes[theme].text}`}>
                     {(() => {
                       const p = draft.combo.buy_position.position;
                       return getContractNameForPosition(p) || p.symbol;
                     })()}
                   </span>
                 </div>
-                <div className={`${themes[theme].text} opacity-80 font-mono`}>
+                <div className={`${themes[theme].text} opacity-80 font-mono text-[11px] shrink-0`}>
                   {(() => {
                     const p = draft.combo.buy_position.position;
                     const avail = Number(p.available ?? p.quantity);
@@ -2182,7 +2238,7 @@ export function ExpiryGroupCard({
                   })()}
                 </div>
               </div>
-              <div className={`text-[11px] ${themes[theme].text} opacity-50 font-mono ml-[64px]`}>
+              <div className={`text-[11px] ${themes[theme].text} opacity-50 font-mono pt-0.5`}>
                 {draft.combo.buy_position.position.symbol} • Strike: {draft.combo.buy_strike}
               </div>
             </div>
@@ -2195,40 +2251,21 @@ export function ExpiryGroupCard({
           </div>
 
           {/* Sell Leg (义务仓) */}
-          <div className="flex flex-col border border-current/10 rounded overflow-hidden">
-            <div className="flex flex-col gap-1 text-xs p-2 bg-rose-500/5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-semibold text-rose-600 dark:text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded text-[10px]">卖出 (义务)</span>
-                  <span className={`font-semibold ${themes[theme].text}`}>
+          <div className="flex flex-col border border-current/10 rounded-lg overflow-hidden">
+            <div className="flex flex-col gap-1.5 text-xs p-2.5 bg-rose-500/5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-semibold text-rose-600 dark:text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded text-[10px] shrink-0">
+                    卖出 (义务)
+                  </span>
+                  <span className={`font-semibold truncate ${themes[theme].text}`}>
                     {(() => {
                       const p = draft.combo.sell_position.position;
                       return getContractNameForPosition(p) || p.symbol;
                     })()}
                   </span>
-                  
-                  {/* Strike Selector for Sell Leg */}
-                  <div className="flex items-center gap-1.5 ml-2">
-                    <span className="opacity-50 text-[10px]">切换行权价:</span>
-                    <select
-                      value={draft.combo.sell_strike}
-                      onChange={(e) => {
-                        const nextStrike = Number(e.target.value);
-                        updateComboSellStrike(nextStrike, embedded);
-                      }}
-                      className={`px-1.5 py-0.5 rounded text-[11px] font-mono border ${themes[theme].border} ${themes[theme].input} ${themes[theme].text} focus:outline-none`}
-                    >
-                      {expiryStrikeLadder
-                        .filter(s => s !== draft.combo.buy_strike)
-                        .map(s => (
-                          <option key={s} value={s}>
-                            {formatStrikeNumber(s)}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
                 </div>
-                <div className={`${themes[theme].text} opacity-80 font-mono`}>
+                <div className={`${themes[theme].text} opacity-80 font-mono text-[11px] shrink-0`}>
                   {(() => {
                     const p = draft.combo.sell_position.position;
                     const avail = Number(p.available ?? p.quantity);
@@ -2237,8 +2274,30 @@ export function ExpiryGroupCard({
                   })()}
                 </div>
               </div>
-              <div className={`text-[11px] ${themes[theme].text} opacity-50 font-mono ml-[64px]`}>
-                {draft.combo.sell_position.position.symbol} • Strike: {draft.combo.sell_strike}
+              <div className="flex items-center justify-between gap-2 text-[11px] pt-0.5">
+                <div className={`${themes[theme].text} opacity-50 font-mono`}>
+                  {draft.combo.sell_position.position.symbol} • Strike: {draft.combo.sell_strike}
+                </div>
+                {/* Strike Selector for Sell Leg */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="opacity-60 text-[11px]">切换行权价:</span>
+                  <select
+                    value={draft.combo.sell_strike}
+                    onChange={(e) => {
+                      const nextStrike = Number(e.target.value);
+                      updateComboSellStrike(nextStrike, embedded);
+                    }}
+                    className={`px-2 py-0.5 rounded text-[11px] font-mono border ${themes[theme].border} ${themes[theme].input} ${themes[theme].text} focus:outline-none`}
+                  >
+                    {expiryStrikeLadder
+                      .filter(s => s !== draft.combo.buy_strike)
+                      .map(s => (
+                        <option key={s} value={s}>
+                          {formatStrikeNumber(s)}
+                        </option>
+                      ))}
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -2250,9 +2309,9 @@ export function ExpiryGroupCard({
           </div>
         </div>
       </div>
-      <div className="mt-4 flex items-center justify-end gap-2">
+      <div className="mt-4 flex items-center justify-end">
         <button
-          className={`px-3 py-1 rounded text-sm bg-purple-600 text-white`}
+          className="w-full sm:w-auto px-5 py-2.5 rounded-lg text-sm font-semibold bg-purple-600 hover:bg-purple-700 active:scale-[0.98] text-white shadow-sm transition-all text-center flex items-center justify-center cursor-pointer"
           onClick={async () => {
             // Debug logging for combination adjustment
             const isDebug = import.meta.env.DEV ||
@@ -3620,7 +3679,7 @@ export function ExpiryGroupCard({
               {confirmData.meta?.action === 'combo_manage' && embeddedComboDraft ? (
                 <div className="space-y-2">
                   <div className={`text-sm font-semibold ${themes[theme].text}`}>调整组合</div>
-                  <div className={`rounded-lg border p-4 ${themes[theme].border} ${themes[theme].background}`}>
+                  <div className={`rounded-lg border p-3 sm:p-4 ${themes[theme].border} ${themes[theme].background}`}>
                     {renderComboDraftPanel(embeddedComboDraft, true)}
                   </div>
                 </div>
@@ -3825,48 +3884,78 @@ export function ExpiryGroupCard({
                                     }));
                                   };
 
+                                  const strategyDisplayName = item.strategy.name?.trim()
+                                    || strikeGapSummary?.[0]?.optionTypeLabel
+                                    || (item.strategy.positions?.[0]?.opt_undl_code_full ? `${item.strategy.positions[0].opt_undl_code_full} 组合` : '期权组合');
+
                                   return (
                                     <div
                                       key={strategyId}
-                                      className={`p-3 rounded border ${themes[theme].border} transition-all duration-200 bg-current/[0.01]`}
+                                      className={`p-3 rounded-xl border ${themes[theme].border} transition-all duration-200 bg-current/[0.015] hover:bg-current/[0.03] shadow-sm`}
                                     >
                                       <div className="min-w-0">
                                         <div className="space-y-3">
-                                          {/* Minimal Header */}
+                                          {/* Card Header & Summary */}
                                           <div
-                                            className="flex items-center justify-between gap-4 w-full cursor-pointer select-none"
+                                            className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-4 w-full cursor-pointer select-none"
                                             onClick={toggleExpanded}
                                           >
-                                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                              <span className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
-                                                <ChevronDown className="w-4 h-4 opacity-70" />
-                                              </span>
-                                              <div className="flex items-center gap-2 flex-wrap min-w-0">
-                                                <span className={`font-semibold ${themes[theme].text} truncate`}>{item.strategy.name}</span>
+                                            {/* Top row on mobile / Left column on desktop */}
+                                            <div className="flex items-center justify-between sm:justify-start gap-2 min-w-0 flex-1">
+                                              <div className="flex items-center gap-2 min-w-0">
+                                                <span className={`shrink-0 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
+                                                  <ChevronDown className="w-4 h-4 opacity-70" />
+                                                </span>
+                                                <span className={`font-semibold text-sm ${themes[theme].text} truncate`}>
+                                                  {strategyDisplayName}
+                                                </span>
                                                 {rangeText && (
-                                                  <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${themes[theme].border} border ${themes[theme].text} opacity-85`}>
+                                                  <span className={`text-[11px] font-mono px-1.5 py-0.5 rounded border border-current/15 bg-current/[0.04] opacity-90 shrink-0`}>
                                                     {rangeText}
                                                   </span>
                                                 )}
+                                                <span className="text-[11px] opacity-60 font-mono shrink-0 hidden sm:inline">
+                                                  {item.qty}张
+                                                </span>
                                               </div>
-                                            </div>
 
-                                            <div className="flex items-center gap-4 shrink-0">
-                                              <div className="flex items-center gap-2">
-                                                <span className={`text-xs ${themes[theme].text} opacity-50`}>实现率</span>
-                                                <span className={`text-xs md:text-sm font-bold font-mono ${themes[theme].text}`}>{profitRealizationText}</span>
+                                              {/* Mobile only: PnL badge in header row right */}
+                                              <div className="sm:hidden shrink-0">
                                                 {perf.currentProfit != null && (
-                                                  <span className={`font-mono text-xs md:text-sm font-bold px-2 py-0.5 rounded ${perf.currentProfit >= 0 ? 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/12 text-rose-600 dark:text-rose-400 border border-rose-500/20'}`}>
+                                                  <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded ${perf.currentProfit >= 0 ? 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/12 text-rose-600 dark:text-rose-400 border border-rose-500/20'}`}>
                                                     {currentProfitText}
                                                   </span>
                                                 )}
                                               </div>
                                             </div>
 
-                                            <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                            {/* Middle row on mobile / Middle column on desktop */}
+                                            <div className="flex items-center justify-between sm:justify-end gap-3 text-xs">
+                                              {/* Mobile only: quantity */}
+                                              <span className="sm:hidden text-[11px] opacity-65 font-mono">
+                                                数量: <b className="font-semibold opacity-100">{item.qty}</b> 张
+                                              </span>
+
+                                              <div className="flex items-center gap-2">
+                                                <span className={`opacity-60 ${themes[theme].text}`}>实现率</span>
+                                                <span className={`font-bold font-mono ${themes[theme].text}`}>{profitRealizationText}</span>
+                                                {/* Desktop only: PnL badge */}
+                                                {perf.currentProfit != null && (
+                                                  <span className={`hidden sm:inline-block font-mono text-xs md:text-sm font-bold px-2 py-0.5 rounded ${perf.currentProfit >= 0 ? 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/12 text-rose-600 dark:text-rose-400 border border-rose-500/20'}`}>
+                                                    {currentProfitText}
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </div>
+
+                                            {/* Action Buttons: on desktop inline right, on mobile full-width bottom row */}
+                                            <div
+                                              className="flex items-center gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-current/10 shrink-0"
+                                              onClick={(e) => e.stopPropagation()}
+                                            >
                                               <button
                                                 disabled={isPageLocked}
-                                                className="px-3 py-1.5 bg-red-600 text-white rounded text-xs hover:bg-red-700 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed min-w-[92px]"
+                                                className="flex-1 sm:flex-none px-3.5 py-1.5 bg-red-600 hover:bg-red-700 active:scale-[0.98] text-white rounded-lg text-xs font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed sm:min-w-[80px] text-center cursor-pointer shadow-sm"
                                                 onClick={async () => {
                                                   if (!selectedAccountId) {
                                                     toast.error('未选择账户');
@@ -3881,10 +3970,12 @@ export function ExpiryGroupCard({
                                                     onRefresh?.();
                                                   }
                                                 }}
-                                              >清仓</button>
+                                              >
+                                                清仓
+                                              </button>
                                               <button
                                                 disabled={isPageLocked}
-                                                className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed min-w-[92px]"
+                                                className="flex-1 sm:flex-none px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white rounded-lg text-xs font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed sm:min-w-[88px] text-center cursor-pointer shadow-sm"
                                                 onClick={async () => {
                                                   if (pageLockRef.current) return;
                                                   if (!selectedAccountId) {
@@ -3920,7 +4011,9 @@ export function ExpiryGroupCard({
                                                     setIsPageLocked(false);
                                                   }
                                                 }}
-                                              >解除组合</button>
+                                              >
+                                                解除组合
+                                              </button>
                                             </div>
                                           </div>
 
@@ -4110,11 +4203,14 @@ export function ExpiryGroupCard({
                                                       l.amt == null ? '--' : `${l.amt >= 0 ? '+' : '-'}${formatCurrency(Math.abs(l.amt), currencyConfig, 4)}`;
                                                     const legAmtLabel = l.amt == null ? '' : (l.amt >= 0 ? '收到' : '支付');
                                                     return (
-                                                      <div key={`leg-est-${strategyId}-${i}`} className="grid grid-cols-[minmax(0,1fr)_84px_minmax(0,140px)] items-center gap-3">
-                                                        <div className="truncate opacity-80">
-                                                          {getPositionContractLabel(l.pos)} • {l.closeSide === 'buy' ? '买入' : '卖出'} • x{l.qty}
+                                                      <div key={`leg-est-${strategyId}-${i}`} className="flex flex-col sm:grid sm:grid-cols-[minmax(0,1fr)_84px_minmax(0,140px)] sm:items-center gap-1 sm:gap-3">
+                                                        <div className="truncate opacity-80 flex items-center justify-between sm:block">
+                                                          <span>{getPositionContractLabel(l.pos)} • {l.closeSide === 'buy' ? '买入' : '卖出'} • x{l.qty}</span>
+                                                          <span className="sm:hidden font-mono">
+                                                            <AnimatedFlash value={l.px == null ? '--' : l.px.toFixed(4)} type="price" />
+                                                          </span>
                                                         </div>
-                                                        <div className="text-right font-mono">
+                                                        <div className="hidden sm:block text-right font-mono">
                                                           <AnimatedFlash value={l.px == null ? '--' : l.px.toFixed(4)} type="price" />
                                                         </div>
                                                         <div className="flex items-center justify-end gap-1 font-mono">
