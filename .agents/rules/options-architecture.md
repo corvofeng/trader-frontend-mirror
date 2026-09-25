@@ -45,3 +45,24 @@ When viewing T-quote (T型报价) in fullscreen or mobile viewports (< 640px):
 - Compress multi-leg combination configurators from ~170px vertical space per leg into compact ~50-60px horizontal strips.
 - Emphasize immediate execution price, market depth / liquidity sufficiency, and an inline strike switcher instead of deep nested cards.
 
+## 9. Unified Right-Edge Tab Docking System
+When secondary floating tools/panels (`TodayComboPanel`, `UnderlyingPriceMonitor`, `MonthTOC`) collapse to the right screen edge:
+1. **Strict Geometry Consistency**:
+   - **Width**: Lock to `36px` (`w-9`) universally across mobile, tablet, and desktop.
+   - **Docking**: Always flush right (`right: 0`, `left: auto`), left-only rounded corner (`rounded-l-xl`), border omitting right side (`border-r-0`).
+   - **Materials**: Theme card glassmorphism (`backdrop-blur-xl`, `border`, `shadow-[-4px_0_16px_rgba(...)]`).
+   - **Visual Accents**: Inner left shine line (`absolute inset-y-0 left-0 w-px bg-gradient-to-b from-white/40 via-white/10 to-transparent dark:from-white/10`).
+   - **Typography & Icons**: Top `ChevronLeft (w-3.5 h-3.5 strokeWidth={2})`, followed by vertical text (`text-[10px] sm:text-[11px] font-semibold tracking-wider`, `writingMode: 'vertical-rl', textOrientation: 'mixed'`).
+2. **Coordinated Vertical Budgets & Non-Overlapping Stacking**:
+   - Never use arbitrary uncoordinated offsets. Always budget for maximum content heights (e.g. multi-digit price tickers):
+     - **Tab 1 (今日组合)**: `top: calc(75px + env(safe-area-inset-top, 0px))`, height `82px` (budget: 75px – 157px).
+     - **Tab 2 (标的行情)**: `top: calc(168px + env(safe-area-inset-top, 0px))`, height `112px` (budget: 168px – 280px).
+     - **Tab 3 (到期月份)**: `top: calc(296px + env(safe-area-inset-top, 0px))`, height `64px` (budget: 296px – 360px).
+   - This guarantees a 11–16px clean gap on all devices (iOS notch, Android, Desktop) with 0% risk of vertical collision.
+
+## 10. Floating Portal & Tailwind Z-Index Invariants
+1. **Tailwind Arbitrary Syntax**:
+   - Never use unbracketed arbitrary numbers for z-index (e.g., `z-45`, `z-60`). Tailwind only recognizes standard classes up to `z-50`. Always use `z-[60]` or inline `style={{ zIndex: 60 }}` to prevent falling back to `z-index: auto` and being occluded by position cards.
+2. **Portal Return in useMemo**:
+   - When wrapping floating FABs or portals in `useMemo`, ensure the browser path explicitly returns `createPortal(content, document.body)` rather than hitting an implicit `undefined` return.
+
