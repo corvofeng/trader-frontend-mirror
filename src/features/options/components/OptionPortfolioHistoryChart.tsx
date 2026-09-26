@@ -31,14 +31,17 @@ export const GOOGLE_SHEET_URL =
   'https://docs.google.com/spreadsheets/d/1GIEYV35WYDs7yqjiCBycGmuD8FG-ZXKyhI2sd8B9TFA/edit?gid=690486552#gid=690486552';
 export const MAIN_ACCOUNT_ALIAS = 'gjzq_option';
 
-interface OptionPortfolioHistoryChartProps {
+export type TimeRangeOption = 'all' | '1y' | '6m' | '3m' | 'ytd';
+
+export interface OptionPortfolioHistoryChartProps {
   theme: Theme;
   accountAlias?: string;
   className?: string;
   defaultExpanded?: boolean;
+  showHeader?: boolean;
+  defaultRange?: TimeRangeOption;
+  onLatestPointChange?: (point: PortfolioHistoryItem | null) => void;
 }
-
-type TimeRangeOption = 'all' | '1y' | '6m' | '3m' | 'ytd';
 
 const TIME_RANGES: { label: string; value: TimeRangeOption }[] = [
   { label: '全部', value: 'all' },
@@ -113,6 +116,9 @@ export function OptionPortfolioHistoryChart({
   accountAlias: propAccountAlias,
   className = '',
   defaultExpanded = false,
+  showHeader = true,
+  defaultRange = '6m',
+  onLatestPointChange,
 }: OptionPortfolioHistoryChartProps) {
   const location = useLocation();
   const { currencyConfig } = useCurrency();
@@ -136,8 +142,8 @@ export function OptionPortfolioHistoryChart({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 过滤控制
-  const [timeRange, setTimeRange] = useState<TimeRangeOption>('all');
+  // 过滤控制（默认显示最近 6 个月）
+  const [timeRange, setTimeRange] = useState<TimeRangeOption>(defaultRange);
   const [hoveredPoint, setHoveredPoint] = useState<PortfolioHistoryItem | null>(null);
 
   // 图表 DOM 与实例引用
@@ -183,6 +189,12 @@ export function OptionPortfolioHistoryChart({
     return cleanedPoints.length > 0 ? cleanedPoints[cleanedPoints.length - 1] : null;
   }, [cleanedPoints]);
 
+  useEffect(() => {
+    onLatestPointChange?.(latestPoint);
+  }, [latestPoint, onLatestPointChange]);
+
+  const effectiveExpanded = showHeader ? isExpanded : true;
+
   const stats = useMemo(() => {
     if (!displayPoints.length) {
       return { min: 0, max: 0, start: 0, end: 0, diff: 0, positiveCount: 0 };
@@ -224,9 +236,9 @@ export function OptionPortfolioHistoryChart({
     };
   }, [isDark, isBlue, latestPoint]);
 
-  // 初始化与更新 TradingView lightweight-charts 图表
+  // 初始化 TradingView lightweight-charts 图表实例
   useEffect(() => {
-    if (!isExpanded || !containerRef.current) {
+    if (!effectiveExpanded || !containerRef.current) {
       if (chartRef.current) {
         chartRef.current.remove();
         chartRef.current = null;
@@ -236,8 +248,9 @@ export function OptionPortfolioHistoryChart({
     }
 
     const container = containerRef.current;
-    const initialWidth = container.clientWidth || 600;
-    const initialHeight = 320;
+    const initialWidth = container.clientWidth > 0 ? container.clientWidth : 600;
+    const isMobileViewport = typeof window !== 'undefined' && window.innerWidth < 640;
+    const initialHeight = isMobileViewport ? 240 : 320;
 
     // 创建图表
     const chart = createChart(container, {
@@ -284,7 +297,7 @@ export function OptionPortfolioHistoryChart({
 
     // 添加 AreaSeries 并启用平滑曲线（LineType.Curved）
     const series = chart.addAreaSeries({
-      lineType: LineType.Curved, // 平滑曲线连接！
+      lineType: LineType.Curved,
       lineWidth: 2,
       lineColor: chartTheme.lineColor,
       topColor: chartTheme.topColor,
@@ -307,7 +320,7 @@ export function OptionPortfolioHistoryChart({
       title: '0.00',
     });
 
-    // 填充数据
+    // 若已有数据点，直接注入
     if (displayPoints.length > 0) {
       const chartData = displayPoints.map((p) => ({
         time: p.date,
@@ -343,15 +356,19 @@ export function OptionPortfolioHistoryChart({
     const handleResize = () => {
       if (!containerRef.current || !chartRef.current) return;
       const w = containerRef.current.clientWidth;
+      const isMobile = window.innerWidth < 640;
+      const h = isMobile ? 220 : 250;
       if (w > 0) {
-        chartRef.current.applyOptions({ width: w });
+        chartRef.current.applyOptions({ width: w, height: h });
       }
     };
 
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
         if (entry.contentRect.width > 0 && chartRef.current) {
-          chartRef.current.applyOptions({ width: entry.contentRect.width });
+          const isMobile = window.innerWidth < 640;
+          const h = isMobile ? 220 : 250;
+          chartRef.current.applyOptions({ width: entry.contentRect.width, height: h });
         }
       }
     });
@@ -360,11 +377,13 @@ export function OptionPortfolioHistoryChart({
     resizeObserverRef.current = resizeObserver;
     window.addEventListener('resize', handleResize);
 
-    // 展开动画结束后微调图表宽度
+    // 布局落定后做二次校验 fitContent
     const timer = setTimeout(() => {
       handleResize();
-      chart.timeScale().fitContent();
-    }, 120);
+      if (chartRef.current && displayPoints.length > 0) {
+        chartRef.current.timeScale().fitContent();
+      }
+    }, 150);
 
     return () => {
       clearTimeout(timer);
@@ -379,19 +398,45 @@ export function OptionPortfolioHistoryChart({
         seriesRef.current = null;
       }
     };
-  }, [isExpanded, chartTheme, displayPoints, isDark]);
+  }, [effectiveExpanded, isDark, isBlue]);
 
-  // 当筛选时间范围变化时更新数据
+  // 当筛选时间范围或点数据更新时平滑注入数据，无需销毁重建图表
   useEffect(() => {
-    if (seriesRef.current && chartRef.current && displayPoints.length > 0) {
-      const chartData = displayPoints.map((p) => ({
-        time: p.date,
-        value: Number(p.calculated_profit ?? 0),
-      }));
-      seriesRef.current.setData(chartData);
-      chartRef.current.timeScale().fitContent();
+    if (seriesRef.current && chartRef.current) {
+      if (displayPoints.length > 0) {
+        const chartData = displayPoints.map((p) => ({
+          time: p.date,
+          value: Number(p.calculated_profit ?? 0),
+        }));
+        seriesRef.current.setData(chartData);
+        chartRef.current.timeScale().fitContent();
+      } else {
+        seriesRef.current.setData([]);
+      }
     }
   }, [displayPoints]);
+
+  // 当主题或颜色变化时平滑更新 series 与布局选项
+  useEffect(() => {
+    if (seriesRef.current) {
+      seriesRef.current.applyOptions({
+        lineColor: chartTheme.lineColor,
+        topColor: chartTheme.topColor,
+        bottomColor: chartTheme.bottomColor,
+      });
+    }
+    if (chartRef.current) {
+      chartRef.current.applyOptions({
+        layout: {
+          textColor: chartTheme.textColor,
+        },
+        grid: {
+          vertLines: { color: chartTheme.gridColor },
+          horzLines: { color: chartTheme.gridColor },
+        },
+      });
+    }
+  }, [chartTheme]);
 
   const cardShadow = useMemo(() => {
     if (theme === 'dark') return 'shadow-[0_1px_2px_rgba(0,0,0,0.25),0_12px_28px_-16px_rgba(0,0,0,0.45)]';
@@ -400,6 +445,180 @@ export function OptionPortfolioHistoryChart({
   }, [theme]);
 
   const isProfitPositive = (latestPoint?.calculated_profit ?? 0) >= 0;
+
+  const renderContent = () => (
+
+        <div className={`px-4 sm:px-6 pb-6 pt-2 ${showHeader ? `border-t ${themes[theme].border}` : ''} space-y-4`}>
+          {/* 工具栏与时间范围选择 */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+            <div className="flex items-center gap-1 p-1 rounded-xl bg-gray-100/80 dark:bg-zinc-800/80 backdrop-blur-sm">
+              {TIME_RANGES.map((tab) => (
+                <button
+                  key={tab.value}
+                  type="button"
+                  onClick={() => setTimeRange(tab.value)}
+                  className={`px-3 py-1 text-xs font-medium rounded-lg transition-all ${
+                    timeRange === tab.value
+                      ? 'bg-white dark:bg-zinc-700 text-gray-900 dark:text-white shadow-sm font-semibold'
+                      : 'text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-3">
+              {isMainAccount && (
+                <a
+                  href={GOOGLE_SHEET_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hidden md:inline-flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
+                  title="查看 Google Sheet 资金与快照底表"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <span>Google Sheet 底表</span>
+                  <ExternalLink className="w-3 h-3 opacity-70" />
+                </a>
+              )}
+              <span className={`text-xs ${themes[theme].text} opacity-60 hidden sm:inline-flex items-center gap-1`}>
+                <Layers className="w-3.5 h-3.5" />
+                共 {cleanedPoints.length} 个快照点
+              </span>
+              <button
+                type="button"
+                onClick={fetchData}
+                disabled={isLoading}
+                className={`p-1.5 rounded-lg border ${themes[theme].border} hover:bg-black/5 dark:hover:bg-white/5 transition-colors ${
+                  isLoading ? 'opacity-60 cursor-wait' : ''
+                }`}
+                title="重新加载数据"
+              >
+                <RefreshCw
+                  className={`w-4 h-4 ${themes[theme].text} ${isLoading ? 'animate-spin' : ''}`}
+                />
+              </button>
+            </div>
+          </div>
+
+          {/* 交互悬停数据详情栏 (Crosshair Info) */}
+          {activePoint && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/5 dark:border-white/5">
+              <div>
+                <div className="text-[10px] uppercase font-bold tracking-wider opacity-40">日期</div>
+                <div className={`text-xs sm:text-sm font-medium ${themes[theme].text}`}>
+                  {activePoint.date}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase font-bold tracking-wider opacity-40">
+                  计算利润 (calculated_profit)
+                </div>
+                <div
+                  className={`text-xs sm:text-sm font-bold font-mono ${
+                    (activePoint.calculated_profit ?? 0) >= 0
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-rose-600 dark:text-rose-400'
+                  }`}
+                >
+                  {(activePoint.calculated_profit ?? 0) >= 0 ? '+' : ''}
+                  {formatMoney(activePoint.calculated_profit ?? 0)}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase font-bold tracking-wider opacity-40">期权总资产</div>
+                <div className={`text-xs sm:text-sm font-mono ${themes[theme].text}`}>
+                  {activePoint.option_account_assets !== null
+                    ? formatMoney(activePoint.option_account_assets)
+                    : '-'}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase font-bold tracking-wider opacity-40">纯现金投入</div>
+                <div className={`text-xs sm:text-sm font-mono ${themes[theme].text}`}>
+                  {formatMoney(activePoint.pure_cash_investment)}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 图表主容器与状态反馈 */}
+          <div className="relative min-h-[220px] sm:min-h-[250px]">
+            {isLoading && !cleanedPoints.length && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-inherit/80 backdrop-blur-sm z-10">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2" />
+                <span className={`text-xs ${themes[theme].text} opacity-70`}>
+                  正在加载历史利润数据...
+                </span>
+              </div>
+            )}
+
+            {error && (
+              <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            {!isLoading && !error && cleanedPoints.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-16 text-center opacity-60">
+                <Calendar className="w-10 h-10 mb-2 stroke-[1.5]" />
+                <p className="text-sm font-medium">暂无历史利润数据</p>
+                <p className="text-xs mt-1">当前账户尚未同步或生成计算利润快照</p>
+              </div>
+            )}
+
+            <div
+              ref={containerRef}
+              className="w-full h-[220px] sm:h-[250px] relative transition-opacity duration-300"
+              style={{ opacity: isLoading && !cleanedPoints.length ? 0.3 : 1 }}
+            />
+          </div>
+
+          {/* 底部汇总指标统计 */}
+          {displayPoints.length > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 text-xs">
+              <div className="p-2.5 rounded-xl bg-black/[0.015] dark:bg-white/[0.015] border border-black/5 dark:border-white/5">
+                <div className="text-[10px] text-gray-500 dark:text-zinc-400">区间峰值收益</div>
+                <div className="font-semibold font-mono text-emerald-600 dark:text-emerald-400 mt-0.5">
+                  +{formatMoney(stats.max)}
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-black/[0.015] dark:bg-white/[0.015] border border-black/5 dark:border-white/5">
+                <div className="text-[10px] text-gray-500 dark:text-zinc-400">区间最低收益</div>
+                <div className="font-semibold font-mono text-rose-600 dark:text-rose-400 mt-0.5">
+                  {formatMoney(stats.min)}
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-black/[0.015] dark:bg-white/[0.015] border border-black/5 dark:border-white/5">
+                <div className="text-[10px] text-gray-500 dark:text-zinc-400">区间收益变动</div>
+                <div
+                  className={`font-semibold font-mono mt-0.5 ${
+                    stats.diff >= 0
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-rose-600 dark:text-rose-400'
+                  }`}
+                >
+                  {stats.diff >= 0 ? '+' : ''}
+                  {formatMoney(stats.diff)}
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-black/[0.015] dark:bg-white/[0.015] border border-black/5 dark:border-white/5">
+                <div className="text-[10px] text-gray-500 dark:text-zinc-400">正收益占比</div>
+                <div className={`font-semibold font-mono mt-0.5 ${themes[theme].text}`}>
+                  {((stats.positiveCount / displayPoints.length) * 100).toFixed(1)}% (
+                  {stats.positiveCount}/{displayPoints.length})
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+  );
+
+  if (!showHeader) {
+    return <div className={className}>{renderContent()}</div>;
+  }
 
   return (
     <div
@@ -498,174 +717,7 @@ export function OptionPortfolioHistoryChart({
       </div>
 
       {/* 展开后的主体内容 */}
-      {isExpanded && (
-        <div className={`px-4 sm:px-6 pb-6 pt-2 border-t ${themes[theme].border} space-y-4`}>
-          {/* 工具栏与时间范围选择 */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-            <div className="flex items-center gap-1 p-1 rounded-xl bg-gray-100/80 dark:bg-zinc-800/80 backdrop-blur-sm">
-              {TIME_RANGES.map((tab) => (
-                <button
-                  key={tab.value}
-                  type="button"
-                  onClick={() => setTimeRange(tab.value)}
-                  className={`px-3 py-1 text-xs font-medium rounded-lg transition-all ${
-                    timeRange === tab.value
-                      ? 'bg-white dark:bg-zinc-700 text-gray-900 dark:text-white shadow-sm font-semibold'
-                      : 'text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex items-center gap-3">
-              {isMainAccount && (
-                <a
-                  href={GOOGLE_SHEET_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hidden md:inline-flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
-                  title="查看 Google Sheet 资金与快照底表"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5" />
-                  <span>Google Sheet 底表</span>
-                  <ExternalLink className="w-3 h-3 opacity-70" />
-                </a>
-              )}
-              <span className={`text-xs ${themes[theme].text} opacity-60 hidden sm:inline-flex items-center gap-1`}>
-                <Layers className="w-3.5 h-3.5" />
-                共 {cleanedPoints.length} 个快照点
-              </span>
-              <button
-                type="button"
-                onClick={fetchData}
-                disabled={isLoading}
-                className={`p-1.5 rounded-lg border ${themes[theme].border} hover:bg-black/5 dark:hover:bg-white/5 transition-colors ${
-                  isLoading ? 'opacity-60 cursor-wait' : ''
-                }`}
-                title="重新加载数据"
-              >
-                <RefreshCw
-                  className={`w-4 h-4 ${themes[theme].text} ${isLoading ? 'animate-spin' : ''}`}
-                />
-              </button>
-            </div>
-          </div>
-
-          {/* 交互悬停数据详情栏 (Crosshair Info) */}
-          {activePoint && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-xl bg-black/[0.02] dark:bg-white/[0.02] border border-black/5 dark:border-white/5">
-              <div>
-                <div className="text-[10px] uppercase font-bold tracking-wider opacity-40">日期</div>
-                <div className={`text-xs sm:text-sm font-medium ${themes[theme].text}`}>
-                  {activePoint.date}
-                </div>
-              </div>
-              <div>
-                <div className="text-[10px] uppercase font-bold tracking-wider opacity-40">
-                  计算利润 (calculated_profit)
-                </div>
-                <div
-                  className={`text-xs sm:text-sm font-bold font-mono ${
-                    (activePoint.calculated_profit ?? 0) >= 0
-                      ? 'text-emerald-600 dark:text-emerald-400'
-                      : 'text-rose-600 dark:text-rose-400'
-                  }`}
-                >
-                  {(activePoint.calculated_profit ?? 0) >= 0 ? '+' : ''}
-                  {formatMoney(activePoint.calculated_profit ?? 0)}
-                </div>
-              </div>
-              <div>
-                <div className="text-[10px] uppercase font-bold tracking-wider opacity-40">期权总资产</div>
-                <div className={`text-xs sm:text-sm font-mono ${themes[theme].text}`}>
-                  {activePoint.option_account_assets !== null
-                    ? formatMoney(activePoint.option_account_assets)
-                    : '-'}
-                </div>
-              </div>
-              <div>
-                <div className="text-[10px] uppercase font-bold tracking-wider opacity-40">纯现金投入</div>
-                <div className={`text-xs sm:text-sm font-mono ${themes[theme].text}`}>
-                  {formatMoney(activePoint.pure_cash_investment)}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 图表主容器与状态反馈 */}
-          <div className="relative min-h-[320px]">
-            {isLoading && !cleanedPoints.length && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-inherit/80 backdrop-blur-sm z-10">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2" />
-                <span className={`text-xs ${themes[theme].text} opacity-70`}>
-                  正在加载历史利润数据...
-                </span>
-              </div>
-            )}
-
-            {error && (
-              <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
-
-            {!isLoading && !error && cleanedPoints.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-16 text-center opacity-60">
-                <Calendar className="w-10 h-10 mb-2 stroke-[1.5]" />
-                <p className="text-sm font-medium">暂无历史利润数据</p>
-                <p className="text-xs mt-1">当前账户尚未同步或生成计算利润快照</p>
-              </div>
-            )}
-
-            <div
-              ref={containerRef}
-              className="w-full h-[320px] relative transition-opacity duration-300"
-              style={{ opacity: isLoading && !cleanedPoints.length ? 0.3 : 1 }}
-            />
-          </div>
-
-          {/* 底部汇总指标统计 */}
-          {displayPoints.length > 0 && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 text-xs">
-              <div className="p-2.5 rounded-xl bg-black/[0.015] dark:bg-white/[0.015] border border-black/5 dark:border-white/5">
-                <div className="text-[10px] text-gray-500 dark:text-zinc-400">区间峰值收益</div>
-                <div className="font-semibold font-mono text-emerald-600 dark:text-emerald-400 mt-0.5">
-                  +{formatMoney(stats.max)}
-                </div>
-              </div>
-              <div className="p-2.5 rounded-xl bg-black/[0.015] dark:bg-white/[0.015] border border-black/5 dark:border-white/5">
-                <div className="text-[10px] text-gray-500 dark:text-zinc-400">区间最低收益</div>
-                <div className="font-semibold font-mono text-rose-600 dark:text-rose-400 mt-0.5">
-                  {formatMoney(stats.min)}
-                </div>
-              </div>
-              <div className="p-2.5 rounded-xl bg-black/[0.015] dark:bg-white/[0.015] border border-black/5 dark:border-white/5">
-                <div className="text-[10px] text-gray-500 dark:text-zinc-400">区间收益变动</div>
-                <div
-                  className={`font-semibold font-mono mt-0.5 ${
-                    stats.diff >= 0
-                      ? 'text-emerald-600 dark:text-emerald-400'
-                      : 'text-rose-600 dark:text-rose-400'
-                  }`}
-                >
-                  {stats.diff >= 0 ? '+' : ''}
-                  {formatMoney(stats.diff)}
-                </div>
-              </div>
-              <div className="p-2.5 rounded-xl bg-black/[0.015] dark:bg-white/[0.015] border border-black/5 dark:border-white/5">
-                <div className="text-[10px] text-gray-500 dark:text-zinc-400">正收益占比</div>
-                <div className={`font-semibold font-mono mt-0.5 ${themes[theme].text}`}>
-                  {((stats.positiveCount / displayPoints.length) * 100).toFixed(1)}% (
-                  {stats.positiveCount}/{displayPoints.length})
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+      {isExpanded && renderContent()}
     </div>
   );
 }

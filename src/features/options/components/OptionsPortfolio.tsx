@@ -14,9 +14,7 @@ import { OptionQuoteSubscription } from './OptionQuoteSubscription';
 import { useOptionPriceWebSocket } from '../hooks/useOptionPriceWebSocket';
 import { useClosePositions } from '../hooks/useClosePositions';
 import { UnderlyingPriceMonitor } from './UnderlyingPriceMonitor';
-import { PortfolioOverview } from './PortfolioOverview';
-import { OptionPortfolioHistoryChart } from './OptionPortfolioHistoryChart';
-import { SubjectPositionsPanel } from './SubjectPositionsPanel';
+import { PortfolioAnalyticsTabs } from './PortfolioAnalyticsTabs';
 import { StockKlineChart } from './StockKlineChart';
 import { TodayOrderFlowPanel } from './TodayComboPanel';
 import { getDaysToExpiryColor, getPositionTypeInfo2, getStatusColorClass, getTypeIcon, getComboStatus } from '../utils/portfolioUi';
@@ -879,9 +877,15 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
             </p>
           </div>
         </div>
-        <OptionPortfolioHistoryChart
+        <PortfolioAnalyticsTabs
           theme={theme}
           accountAlias={selectedAccountIdProp || ''}
+          portfolioData={portfolioData}
+          activityLogsCount={activityLogs.length}
+          onOpenLog={() => setIsLogOpen(true)}
+          currentUnderlyingPrice={activeSymbol ? getCurrentUnderlyingPrice(activeSymbol) : null}
+          subjectPositions={[]}
+          currencyConfig={currencyConfig}
         />
         {refreshButton}
       </>
@@ -930,26 +934,19 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
           </div>
         </div>
       )}
-      <PortfolioOverview
+      <PortfolioAnalyticsTabs
         theme={theme}
+        accountAlias={selectedAccountIdProp || ''}
         portfolioData={portfolioData}
-        currencyConfig={currencyConfig}
         activityLogsCount={activityLogs.length}
         onOpenLog={() => setIsLogOpen(true)}
         currentUnderlyingPrice={activeSymbol ? getCurrentUnderlyingPrice(activeSymbol) : null}
-      />
-
-      <OptionPortfolioHistoryChart
-        theme={theme}
-        accountAlias={selectedAccountIdProp || ''}
+        subjectPositions={portfolioData.subject_positions}
+        currencyConfig={currencyConfig}
       />
 
       {isMobile && activeSymbol && (
         <UnderlyingPriceMonitor symbol={activeSymbol} theme={theme} refreshNonce={wsRefreshNonce} isMobile={true} />
-      )}
-
-      {portfolioData.subject_positions && portfolioData.subject_positions.length > 0 && (
-        <SubjectPositionsPanel theme={theme} positions={portfolioData.subject_positions} currencyConfig={currencyConfig} />
       )}
 
       {!isMobile && activeSymbol && (

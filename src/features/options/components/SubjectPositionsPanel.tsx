@@ -6,7 +6,7 @@ import type { CurrencyConfig } from '../../../shared/types/ui';
 
 const SUBJECT_POSITIONS_COLLAPSED_KEY = 'options_portfolio_subject_positions_collapsed';
 
-interface SubjectPosition {
+export interface SubjectPosition {
   stock_code: string;
   stock_price?: number | null;
   total_stock_price?: number | null;
@@ -15,12 +15,32 @@ interface SubjectPosition {
   lock_volume: number;
 }
 
-interface SubjectPositionsPanelProps {
+export function calculateSubjectPositionsSummary(positions: SubjectPosition[]) {
+  const totalVolume = positions.reduce((sum, pos) => sum + (pos.total_volume || 0), 0);
+  const totalCovered = positions.reduce((sum, pos) => sum + (pos.covered_volume || 0), 0);
+  const totalLocked = positions.reduce((sum, pos) => sum + (pos.lock_volume || 0), 0);
+  const totalMarketValue = positions.reduce((sum, pos) => sum + (pos.total_stock_price ?? 0), 0);
+  const totalAvailable = positions.reduce(
+    (sum, pos) => sum + Math.max(0, pos.total_volume - pos.covered_volume - pos.lock_volume),
+    0
+  );
+
+  return {
+    totalVolume,
+    totalCovered,
+    totalLocked,
+    totalMarketValue,
+    totalAvailable,
+  };
+}
+
+export interface SubjectPositionsPanelProps {
   theme: Theme;
   positions: SubjectPosition[];
   currencyConfig: CurrencyConfig;
   className?: string;
   defaultExpanded?: boolean;
+  showHeader?: boolean;
 }
 
 export function SubjectPositionsPanel({
@@ -29,6 +49,7 @@ export function SubjectPositionsPanel({
   currencyConfig,
   className = '',
   defaultExpanded,
+  showHeader = true,
 }: SubjectPositionsPanelProps) {
   const [isExpanded, setIsExpanded] = useState(() => {
     if (defaultExpanded !== undefined) return defaultExpanded;
@@ -84,6 +105,168 @@ export function SubjectPositionsPanel({
   }, [isExpanded]);
 
   if (!positions || positions.length === 0) return null;
+
+  const renderContent = () => (
+    <div className={!showHeader ? '' : `border-t ${themes[theme].border}`}>
+      {/* 4 格核心统计磁贴 */}
+      <div className="p-3 sm:p-5 pb-3">
+        <div className={`grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 ${tileDivider} rounded-xl overflow-hidden border ${tileDivider}`}>
+          <div className={`px-3 py-2.5 sm:px-4 sm:py-3 ${
+            theme === 'dark'
+              ? 'bg-zinc-900/30'
+              : theme === 'blue'
+                ? 'bg-white/60'
+                : 'bg-white/60'
+          } transition-colors`}>
+            <div className="flex items-center justify-between gap-1">
+              <span className={`text-[11px] sm:text-xs font-medium ${themes[theme].text} opacity-70`}>标的总市值</span>
+              <span className="text-[10px] font-mono opacity-35 hidden sm:inline">market_value</span>
+            </div>
+            <p className={`text-[15px] sm:text-[20px] font-semibold mt-1 font-mono tabular-nums text-indigo-600 dark:text-indigo-400`}>
+              {formatCurrency(summary.totalMarketValue, currencyConfig, 2)}
+            </p>
+          </div>
+
+          <div className={`px-3 py-2.5 sm:px-4 sm:py-3 ${
+            theme === 'dark'
+              ? 'bg-zinc-900/30'
+              : theme === 'blue'
+                ? 'bg-white/60'
+                : 'bg-white/60'
+          } transition-colors`}>
+            <div className="flex items-center justify-between gap-1">
+              <span className={`text-[11px] sm:text-xs font-medium ${themes[theme].text} opacity-70`}>总持仓股数</span>
+              <span className="text-[10px] font-mono opacity-35 hidden sm:inline">total_volume</span>
+            </div>
+            <p className={`text-[15px] sm:text-[20px] font-semibold mt-1 font-mono tabular-nums ${themes[theme].text}`}>
+              {summary.totalVolume.toLocaleString()}
+            </p>
+          </div>
+
+          <div className={`px-3 py-2.5 sm:px-4 sm:py-3 ${
+            theme === 'dark'
+              ? 'bg-zinc-900/30'
+              : theme === 'blue'
+                ? 'bg-white/60'
+                : 'bg-white/60'
+          } transition-colors`}>
+            <div className="flex items-center justify-between gap-1">
+              <span className={`text-[11px] sm:text-xs font-medium ${themes[theme].text} opacity-70`}>备兑覆盖率</span>
+              <span className="text-[10px] font-mono opacity-35 hidden sm:inline">covered_ratio</span>
+            </div>
+            <p className={`text-[15px] sm:text-[20px] font-semibold mt-1 font-mono tabular-nums text-emerald-600 dark:text-emerald-400`}>
+              {((summary.totalCovered / (summary.totalVolume || 1)) * 100).toFixed(1)}%
+            </p>
+          </div>
+
+          <div className={`px-3 py-2.5 sm:px-4 sm:py-3 ${
+            theme === 'dark'
+              ? 'bg-zinc-900/30'
+              : theme === 'blue'
+                ? 'bg-white/60'
+                : 'bg-white/60'
+          } transition-colors`}>
+            <div className="flex items-center justify-between gap-1">
+              <span className={`text-[11px] sm:text-xs font-medium ${themes[theme].text} opacity-70`}>自由可用股数</span>
+              <span className="text-[10px] font-mono opacity-35 hidden sm:inline">available</span>
+            </div>
+            <p className={`text-[15px] sm:text-[20px] font-semibold mt-1 font-mono tabular-nums ${themes[theme].text}`}>
+              {summary.totalAvailable.toLocaleString()}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* 移动端卡片视图 */}
+      <div className={`sm:hidden divide-y ${tileDivider} border-t ${tileDivider}`}>
+        {positions.map((pos, idx) => {
+          const availableVolume = Math.max(0, pos.total_volume - pos.covered_volume - pos.lock_volume);
+
+          return (
+            <div key={idx} className="px-4 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className={`text-sm font-semibold ${themes[theme].text} truncate font-mono`}>{pos.stock_code}</div>
+                  <div className={`mt-0.5 text-[11px] ${themes[theme].text} opacity-65`}>
+                    现价 {pos.stock_price != null ? <span className="font-mono tabular-nums">{formatCurrency(pos.stock_price, currencyConfig, 4)}</span> : '-'} · 市值 {pos.total_stock_price != null ? <span className="font-mono tabular-nums">{formatCurrency(pos.total_stock_price, currencyConfig, 4)}</span> : '-'}
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className={`text-sm font-bold ${themes[theme].text} font-mono tabular-nums`}>{pos.total_volume.toLocaleString()}</div>
+                  <div className={`text-[11px] ${themes[theme].text} opacity-65`}>总持仓</div>
+                </div>
+              </div>
+              <div className="mt-2.5 flex flex-wrap gap-1.5">
+                <span className={`${chipBg} rounded-md px-2 py-0.5 text-[11px] font-mono tabular-nums`}>
+                  可用 {availableVolume.toLocaleString()}
+                </span>
+                <span className={`${chipBg} rounded-md px-2 py-0.5 text-[11px] font-mono tabular-nums`}>
+                  备兑 {pos.covered_volume.toLocaleString()}
+                </span>
+                <span className={`${chipBg} rounded-md px-2 py-0.5 text-[11px] font-mono tabular-nums`}>
+                  锁定 {pos.lock_volume.toLocaleString()}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 桌面端表格 */}
+      <div className={`hidden sm:block overflow-x-auto border-t ${tileDivider}`}>
+        <table className="min-w-full text-sm">
+          <thead className={`${
+            theme === 'dark'
+              ? 'bg-zinc-900/40'
+              : theme === 'blue'
+                ? 'bg-blue-50/70'
+                : 'bg-slate-50'
+          } border-b ${tileDivider}`}>
+            <tr className={`text-left text-[11px] font-medium tracking-wide ${themes[theme].text} opacity-65`}>
+              <th className="px-5 py-3 font-semibold">标的</th>
+              <th className="px-5 py-3 font-semibold text-right">现价</th>
+              <th className="px-5 py-3 font-semibold text-right">总持仓</th>
+              <th className="px-5 py-3 font-semibold text-right">可用</th>
+              <th className="px-5 py-3 font-semibold text-right">备兑</th>
+              <th className="px-5 py-3 font-semibold text-right">锁定</th>
+              <th className="px-5 py-3 font-semibold text-right">持仓市值</th>
+            </tr>
+          </thead>
+          <tbody className={`divide-y ${tileDivider}`}>
+            {positions.map((pos, idx) => {
+              const availableVolume = Math.max(0, pos.total_volume - pos.covered_volume - pos.lock_volume);
+
+              return (
+                <tr key={idx} className={`${themes[theme].text} ${
+                  theme === 'dark'
+                    ? 'hover:bg-zinc-800/30'
+                    : theme === 'blue'
+                      ? 'hover:bg-blue-50/40'
+                      : 'hover:bg-slate-50/60'
+                } transition-colors duration-100`}>
+                  <td className="px-5 py-3 font-semibold whitespace-nowrap font-mono">{pos.stock_code}</td>
+                  <td className="px-5 py-3 text-right whitespace-nowrap font-mono tabular-nums">
+                    {pos.stock_price != null ? formatCurrency(pos.stock_price, currencyConfig, 4) : '-'}
+                  </td>
+                  <td className="px-5 py-3 text-right font-semibold whitespace-nowrap font-mono tabular-nums">{pos.total_volume.toLocaleString()}</td>
+                  <td className="px-5 py-3 text-right whitespace-nowrap font-mono tabular-nums">{availableVolume.toLocaleString()}</td>
+                  <td className="px-5 py-3 text-right whitespace-nowrap font-mono tabular-nums">{pos.covered_volume.toLocaleString()}</td>
+                  <td className="px-5 py-3 text-right whitespace-nowrap font-mono tabular-nums">{pos.lock_volume.toLocaleString()}</td>
+                  <td className="px-5 py-3 text-right whitespace-nowrap font-mono tabular-nums">
+                    {pos.total_stock_price != null ? formatCurrency(pos.total_stock_price, currencyConfig, 4) : '-'}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  if (!showHeader) {
+    return <div className={className}>{renderContent()}</div>;
+  }
 
   return (
     <div
@@ -146,114 +329,7 @@ export function SubjectPositionsPanel({
       </div>
 
       {/* 展开后的主体内容 */}
-      {isExpanded && (
-        <div className={`border-t ${themes[theme].border}`}>
-          {/* 汇总统计指标栏 */}
-          <div className="px-4 sm:px-6 pt-3 pb-3 flex flex-wrap gap-2 sm:gap-3 bg-black/[0.01] dark:bg-white/[0.01]">
-            <span className={`${chipBg} rounded-lg px-2.5 py-1 text-xs font-medium inline-flex items-center gap-1.5`}>
-              <span className="opacity-65">可用</span>
-              <span className="font-mono tabular-nums font-semibold">{summary.totalAvailable.toLocaleString()}</span>
-            </span>
-            <span className={`${chipBg} rounded-lg px-2.5 py-1 text-xs font-medium inline-flex items-center gap-1.5`}>
-              <span className="opacity-65">备兑</span>
-              <span className="font-mono tabular-nums font-semibold">{summary.totalCovered.toLocaleString()}</span>
-            </span>
-            <span className={`${chipBg} rounded-lg px-2.5 py-1 text-xs font-medium inline-flex items-center gap-1.5`}>
-              <span className="opacity-65">锁定</span>
-              <span className="font-mono tabular-nums font-semibold">{summary.totalLocked.toLocaleString()}</span>
-            </span>
-            <span className={`${chipBg} rounded-lg px-2.5 py-1 text-xs font-medium inline-flex items-center gap-1.5`}>
-              <span className="opacity-65">市值</span>
-              <span className="font-mono tabular-nums font-semibold">{formatCurrency(summary.totalMarketValue, currencyConfig, 4)}</span>
-            </span>
-          </div>
-
-          {/* 移动端卡片视图 */}
-          <div className={`sm:hidden divide-y ${tileDivider} border-t ${tileDivider}`}>
-            {positions.map((pos, idx) => {
-              const availableVolume = Math.max(0, pos.total_volume - pos.covered_volume - pos.lock_volume);
-
-              return (
-                <div key={idx} className="px-4 py-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className={`text-sm font-semibold ${themes[theme].text} truncate font-mono`}>{pos.stock_code}</div>
-                      <div className={`mt-0.5 text-[11px] ${themes[theme].text} opacity-65`}>
-                        现价 {pos.stock_price != null ? <span className="font-mono tabular-nums">{formatCurrency(pos.stock_price, currencyConfig, 4)}</span> : '-'} · 市值 {pos.total_stock_price != null ? <span className="font-mono tabular-nums">{formatCurrency(pos.total_stock_price, currencyConfig, 4)}</span> : '-'}
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <div className={`text-sm font-bold ${themes[theme].text} font-mono tabular-nums`}>{pos.total_volume.toLocaleString()}</div>
-                      <div className={`text-[11px] ${themes[theme].text} opacity-65`}>总持仓</div>
-                    </div>
-                  </div>
-                  <div className="mt-2.5 flex flex-wrap gap-1.5">
-                    <span className={`${chipBg} rounded-md px-2 py-0.5 text-[11px] font-mono tabular-nums`}>
-                      可用 {availableVolume.toLocaleString()}
-                    </span>
-                    <span className={`${chipBg} rounded-md px-2 py-0.5 text-[11px] font-mono tabular-nums`}>
-                      备兑 {pos.covered_volume.toLocaleString()}
-                    </span>
-                    <span className={`${chipBg} rounded-md px-2 py-0.5 text-[11px] font-mono tabular-nums`}>
-                      锁定 {pos.lock_volume.toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* 桌面端表格 */}
-          <div className={`hidden sm:block overflow-x-auto border-t ${tileDivider}`}>
-            <table className="min-w-full text-sm">
-              <thead className={`${
-                theme === 'dark'
-                  ? 'bg-zinc-900/40'
-                  : theme === 'blue'
-                    ? 'bg-blue-50/70'
-                    : 'bg-slate-50'
-              } border-b ${tileDivider}`}>
-                <tr className={`text-left text-[11px] font-medium tracking-wide ${themes[theme].text} opacity-65`}>
-                  <th className="px-5 py-3 font-semibold">标的</th>
-                  <th className="px-5 py-3 font-semibold text-right">现价</th>
-                  <th className="px-5 py-3 font-semibold text-right">总持仓</th>
-                  <th className="px-5 py-3 font-semibold text-right">可用</th>
-                  <th className="px-5 py-3 font-semibold text-right">备兑</th>
-                  <th className="px-5 py-3 font-semibold text-right">锁定</th>
-                  <th className="px-5 py-3 font-semibold text-right">持仓市值</th>
-                </tr>
-              </thead>
-              <tbody className={`divide-y ${tileDivider}`}>
-                {positions.map((pos, idx) => {
-                  const availableVolume = Math.max(0, pos.total_volume - pos.covered_volume - pos.lock_volume);
-
-                  return (
-                    <tr key={idx} className={`${themes[theme].text} ${
-                      theme === 'dark'
-                        ? 'hover:bg-zinc-800/30'
-                        : theme === 'blue'
-                          ? 'hover:bg-blue-50/40'
-                          : 'hover:bg-slate-50/60'
-                    } transition-colors duration-100`}>
-                      <td className="px-5 py-3 font-semibold whitespace-nowrap font-mono">{pos.stock_code}</td>
-                      <td className="px-5 py-3 text-right whitespace-nowrap font-mono tabular-nums">
-                        {pos.stock_price != null ? formatCurrency(pos.stock_price, currencyConfig, 4) : '-'}
-                      </td>
-                      <td className="px-5 py-3 text-right font-semibold whitespace-nowrap font-mono tabular-nums">{pos.total_volume.toLocaleString()}</td>
-                      <td className="px-5 py-3 text-right whitespace-nowrap font-mono tabular-nums">{availableVolume.toLocaleString()}</td>
-                      <td className="px-5 py-3 text-right whitespace-nowrap font-mono tabular-nums">{pos.covered_volume.toLocaleString()}</td>
-                      <td className="px-5 py-3 text-right whitespace-nowrap font-mono tabular-nums">{pos.lock_volume.toLocaleString()}</td>
-                      <td className="px-5 py-3 text-right whitespace-nowrap font-mono tabular-nums">
-                        {pos.total_stock_price != null ? formatCurrency(pos.total_stock_price, currencyConfig, 4) : '-'}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {isExpanded && renderContent()}
     </div>
   );
 }
