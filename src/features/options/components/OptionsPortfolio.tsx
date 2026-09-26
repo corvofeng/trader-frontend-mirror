@@ -99,7 +99,12 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   const [wsRefreshNonce, setWsRefreshNonce] = useState(0);
 
   const [isFabCollapsed, setIsFabCollapsed] = useState(false);
-  const [isMonthTocCollapsed, setIsMonthTocCollapsed] = useState(false);
+  const [isMonthTocCollapsed, setIsMonthTocCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth < 768;
+    }
+    return false;
+  });
 
   const groups = useMemo(() => {
     if (!portfolioData) return [];
@@ -926,8 +931,8 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
             <div className="flex-shrink-0 pt-0.5">
               <Activity className={`h-5 w-5 ${themes[theme].semantic.snapshotIcon}`} strokeWidth={1.75} aria-hidden="true" />
             </div>
-            <div className="flex-1 min-w-0">
-              <p className={`text-[13px] sm:text-sm font-medium whitespace-nowrap ${themes[theme].semantic.snapshotText}`}>
+            <div className="flex-1 min-w-0 pr-8 sm:pr-0">
+              <p className={`text-xs sm:text-sm font-medium leading-relaxed ${themes[theme].semantic.snapshotText}`}>
                 当前显示的数据为快照数据，可能与实时市场状态存在延迟。
               </p>
             </div>
@@ -949,7 +954,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         <UnderlyingPriceMonitor symbol={activeSymbol} theme={theme} refreshNonce={wsRefreshNonce} isMobile={true} />
       )}
 
-      {!isMobile && activeSymbol && (
+      {activeSymbol && (
         <StockKlineChart
           symbol={activeSymbol}
           theme={theme}
@@ -1027,6 +1032,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                               onClick={() => {
                                 const el = document.getElementById(`expiry-group-${m.firstExpiry}`);
                                 if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                if (isMobile) setIsMonthTocCollapsed(true);
                               }}
                               title={m.label}
                               className={`text-center text-[10px] w-8 h-8 sm:w-9 sm:h-9 rounded-full transition-all duration-150 flex items-center justify-center font-semibold cursor-pointer active:scale-95 ${

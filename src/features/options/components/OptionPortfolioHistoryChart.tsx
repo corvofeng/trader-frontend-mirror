@@ -513,10 +513,10 @@ export function OptionPortfolioHistoryChart({
               </div>
               <div>
                 <div className="text-[10px] uppercase font-bold tracking-wider opacity-40">
-                  计算利润 (calculated_profit)
+                  计算利润<span className="hidden sm:inline opacity-60 font-mono text-[9px]"> (calculated_profit)</span>
                 </div>
                 <div
-                  className={`text-xs sm:text-sm font-bold font-mono ${
+                  className={`text-xs sm:text-sm font-bold font-mono tabular-nums ${
                     (activePoint.calculated_profit ?? 0) >= 0
                       ? 'text-emerald-600 dark:text-emerald-400'
                       : 'text-rose-600 dark:text-rose-400'
@@ -528,7 +528,7 @@ export function OptionPortfolioHistoryChart({
               </div>
               <div>
                 <div className="text-[10px] uppercase font-bold tracking-wider opacity-40">期权总资产</div>
-                <div className={`text-xs sm:text-sm font-mono ${themes[theme].text}`}>
+                <div className={`text-xs sm:text-sm font-mono tabular-nums ${themes[theme].text}`}>
                   {activePoint.option_account_assets !== null
                     ? formatMoney(activePoint.option_account_assets)
                     : '-'}
@@ -536,7 +536,7 @@ export function OptionPortfolioHistoryChart({
               </div>
               <div>
                 <div className="text-[10px] uppercase font-bold tracking-wider opacity-40">纯现金投入</div>
-                <div className={`text-xs sm:text-sm font-mono ${themes[theme].text}`}>
+                <div className={`text-xs sm:text-sm font-mono tabular-nums ${themes[theme].text}`}>
                   {formatMoney(activePoint.pure_cash_investment)}
                 </div>
               </div>

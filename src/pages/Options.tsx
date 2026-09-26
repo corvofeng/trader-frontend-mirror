@@ -2,7 +2,7 @@ import React, { useCallback, useRef, useState } from 'react';
 import { logger } from '../shared/utils/logger';
 import { useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { BarChart2, TrendingUp, Briefcase, Calculator, RefreshCw, Shield, Activity, BookOpen, Hourglass, BellRing, Compass } from 'lucide-react';
+import { BarChart2, TrendingUp, Briefcase, Calculator, RefreshCw, Shield, Activity, BookOpen, Hourglass, BellRing, Compass, ChevronDown, SlidersHorizontal } from 'lucide-react';
 import { Theme, themes } from '../lib/theme';
 import { OptionsChain } from '../features/options/components/OptionsChain';
 import { TimeValueChart } from '../features/options/components/TimeValueChart';
@@ -94,6 +94,15 @@ function OptionsContent({ theme }: OptionsProps) {
   const [userId, setUserId] = useState<string | null>(null);
   const effectiveUserId = userId ?? 'demo';
   const isAuthenticated = Boolean(userId);
+  const [isMobileHeaderCollapsed, setIsMobileHeaderCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('options_header_mobile_collapsed') === '1';
+  });
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem('options_header_mobile_collapsed', isMobileHeaderCollapsed ? '1' : '0');
+  }, [isMobileHeaderCollapsed]);
   const [accountAccessError, setAccountAccessError] = useState<string | null>(null);
   const [accessibleAccountKeys, setAccessibleAccountKeys] = useState<string[] | null>(null);
   const [defaultAccountKey, setDefaultAccountKey] = useState<string | null>(null);
@@ -391,19 +400,90 @@ function OptionsContent({ theme }: OptionsProps) {
   ];
 
   return (
-    <main className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 py-2.5 sm:py-8">
+    <main className="max-w-7xl mx-auto pl-2.5 pr-11 sm:px-6 lg:px-8 py-2.5 sm:py-8">
       <div className="space-y-3 sm:space-y-6">
         <div className={`${themes[theme].card} rounded-xl p-3 sm:p-5 border ${themes[theme].border} card-subtle-ring transition-colors duration-150`}>
           <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <h1 className={`text-base sm:text-2xl font-bold tracking-tight ${themes[theme].text}`}>
-                Options Trading Analysis
-              </h1>
-              <p className={`hidden sm:block text-xs sm:text-sm ${themes[theme].text} opacity-75 mt-0.5`}>
-                Advanced options analysis and trading tools
-              </p>
+            {/* 标题栏与移动端折叠动作区 */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex items-center gap-2.5 sm:gap-3">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                  <BarChart2 className="w-4 h-4 sm:w-5 sm:h-5" strokeWidth={2.2} />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h1 className={`text-base sm:text-2xl font-bold tracking-tight ${themes[theme].text} font-sans`}>
+                      期权交易分析
+                    </h1>
+                    <span className="text-[10px] sm:text-xs font-mono font-medium px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 border border-blue-200/50 dark:border-blue-800/40">
+                      Options
+                    </span>
+                  </div>
+                  {/* 移动端紧凑模式摘要提示 */}
+                  <div className="sm:hidden flex items-center gap-1.5 mt-0.5 text-[11px] font-mono tabular-nums text-gray-500 dark:text-zinc-400">
+                    <span className="font-semibold text-blue-600 dark:text-blue-400 truncate max-w-[120px]">
+                      {selectedAccountId || '未选账户'}
+                    </span>
+                    <span className="opacity-40">/</span>
+                    <span className="font-medium text-gray-700 dark:text-zinc-300">
+                      {selectedSymbol || '--'}
+                    </span>
+                  </div>
+                  <p className={`hidden sm:block text-xs sm:text-sm ${themes[theme].text} opacity-75 mt-0.5`}>
+                    Advanced options analysis and trading tools
+                  </p>
+                </div>
+              </div>
+
+              {/* 移动端专属操作栏：折叠状态下的1键刷新与折叠开关 */}
+              <div className="flex sm:hidden items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (activeTab === 'data' && selectedSymbol) {
+                      if (wsCountdownEnabled) {
+                        triggerWsNow();
+                      } else if (isConnected) {
+                        queryOptionsData(selectedSymbol);
+                      }
+                    }
+                    setRefreshKey((k) => k + 1);
+                    toast.success('已触发行情数据刷新！', { id: 'options-refresh-toast' });
+                  }}
+                  className={`p-1.5 rounded-lg border ${themes[theme].border} btn-tactile ${themes[theme].secondary}`}
+                  title="刷新数据"
+                  aria-label="刷新数据"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsMobileHeaderCollapsed((prev) => !prev)}
+                  className={`inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs btn-tactile border ${themes[theme].border} ${
+                    isMobileHeaderCollapsed
+                      ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 font-medium'
+                      : `${themes[theme].secondary} opacity-85`
+                  }`}
+                  title={isMobileHeaderCollapsed ? '展开账户与标的设置' : '收起设置'}
+                  aria-label={isMobileHeaderCollapsed ? '展开设置' : '收起设置'}
+                >
+                  <SlidersHorizontal className="w-3 h-3" />
+                  <span className="text-[11px]">{isMobileHeaderCollapsed ? '设置' : '收起'}</span>
+                  <ChevronDown
+                    className={`w-3 h-3 transition-transform duration-200 ${
+                      !isMobileHeaderCollapsed ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+              </div>
             </div>
-            <div className="w-full min-w-0 flex flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-4">
+
+            {/* 控制器区：桌面端始终水平展开，移动端支持折叠 */}
+            <div
+              className={`w-full min-w-0 ${
+                isMobileHeaderCollapsed ? 'hidden sm:flex' : 'flex'
+              } flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-3.5 pt-2 sm:pt-0 border-t sm:border-0 ${themes[theme].border} transition-all duration-200`}
+            >
               <div className="flex flex-wrap items-center gap-2 min-w-0">
                 <label className={`text-xs sm:text-sm font-medium ${themes[theme].text}`}>
                   账户:
@@ -427,12 +507,13 @@ function OptionsContent({ theme }: OptionsProps) {
                     setRefreshKey((k) => k + 1);
                     toast.success('已触发行情数据刷新！', { id: 'options-refresh-toast' });
                   }}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-md text-xs sm:text-sm whitespace-nowrap btn-tactile ${themes[theme].secondary}`}
+                  className={`hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg text-xs sm:text-sm whitespace-nowrap btn-tactile ${themes[theme].secondary}`}
                 >
                   <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   刷新
                 </button>
               </div>
+
               <div className="flex flex-wrap items-center gap-2 min-w-0">
                 <label className={`text-xs sm:text-sm font-medium ${themes[theme].text}`}>
                   Symbol:
@@ -442,7 +523,7 @@ function OptionsContent({ theme }: OptionsProps) {
                     value={selectedSymbol}
                     onChange={(e) => setSelectedSymbol(e.target.value)}
                     disabled={isLoading || isLoadingSymbols}
-                    className={`max-w-full px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-md text-xs sm:text-sm ${themes[theme].input} ${themes[theme].text} ${
+                    className={`max-w-full px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg text-xs sm:text-sm font-mono tabular-nums ${themes[theme].input} ${themes[theme].text} ${
                       isLoading || isLoadingSymbols ? 'opacity-50 cursor-not-allowed' : ''
                     }`}
                   >
@@ -458,12 +539,12 @@ function OptionsContent({ theme }: OptionsProps) {
                   </span>
                 )}
                 {activeTab === 'data' && (
-                  <div className={`flex items-center gap-1 px-1.5 py-1 sm:px-2 rounded border ${themes[theme].border} shrink-0`}>
+                  <div className={`flex items-center gap-1 px-1.5 py-1 sm:px-2 rounded-lg border ${themes[theme].border} shrink-0`}>
                     <Hourglass className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${themes[theme].text} opacity-60`} />
                     <div className="w-14 sm:w-16 h-1 rounded bg-gray-200 dark:bg-gray-700 overflow-hidden">
                       <div className="h-1 bg-blue-500" style={{ width: `${Math.round(wsProgress * 100)}%` }} />
                     </div>
-                    <div className={`text-[10px] ${themes[theme].text} opacity-60 w-7 sm:w-8 text-right`}>
+                    <div className={`text-[10px] font-mono tabular-nums ${themes[theme].text} opacity-60 w-7 sm:w-8 text-right`}>
                       {wsCountdownEnabled ? `${Math.ceil(wsRemainingMs / 1000)}s` : '--'}
                     </div>
                     <button

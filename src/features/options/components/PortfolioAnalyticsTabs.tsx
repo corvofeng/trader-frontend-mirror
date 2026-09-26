@@ -169,6 +169,84 @@ export function PortfolioAnalyticsTabs({
   const positionProfit = portfolioData?.position_profit ?? 0;
   const isPosProfitPositive = positionProfit >= 0;
 
+  const renderKeyMetric = (isMobileView = false) => {
+    if (activeTab === 'overview' && portfolioData) {
+      return (
+        <div className="text-right">
+          {!isMobileView && (
+            <div className="text-[9px] uppercase font-bold tracking-wider opacity-40 hidden sm:block">
+              当前仓位盈亏
+            </div>
+          )}
+          <div
+            className={`text-xs sm:text-sm font-bold font-mono tabular-nums whitespace-nowrap ${
+              isPosProfitPositive
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : 'text-rose-600 dark:text-rose-400'
+            }`}
+          >
+            {isMobileView && (
+              <span className="font-normal text-[10px] opacity-65 mr-1 text-gray-500 dark:text-zinc-400">
+                盈亏:
+              </span>
+            )}
+            {isPosProfitPositive ? '+' : ''}
+            {formatCurrency(positionProfit, currencyConfig, 2)}
+          </div>
+        </div>
+      );
+    }
+
+    if (activeTab === 'history' && latestHistoryPoint) {
+      return (
+        <div className="text-right">
+          {!isMobileView && (
+            <div className="text-[9px] uppercase font-bold tracking-wider opacity-40 hidden sm:block">
+              最新累计利润
+            </div>
+          )}
+          <div
+            className={`text-xs sm:text-sm font-bold font-mono tabular-nums whitespace-nowrap ${
+              isProfitPositive
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : 'text-rose-600 dark:text-rose-400'
+            }`}
+          >
+            {isMobileView && (
+              <span className="font-normal text-[10px] opacity-65 mr-1 text-gray-500 dark:text-zinc-400">
+                利润:
+              </span>
+            )}
+            {isProfitPositive ? '+' : ''}
+            {formatCurrency(latestHistoryPoint.calculated_profit ?? 0, currencyConfig, 2)}
+          </div>
+        </div>
+      );
+    }
+
+    if (activeTab === 'subject' && hasSubjectPositions) {
+      return (
+        <div className="text-right">
+          {!isMobileView && (
+            <div className="text-[9px] uppercase font-bold tracking-wider opacity-40 hidden sm:block">
+              标的总市值
+            </div>
+          )}
+          <div className="text-xs sm:text-sm font-bold font-mono tabular-nums whitespace-nowrap text-indigo-600 dark:text-indigo-400">
+            {isMobileView && (
+              <span className="font-normal text-[10px] opacity-65 mr-1 text-gray-500 dark:text-zinc-400">
+                市值:
+              </span>
+            )}
+            {formatCurrency(subjectSummary.totalMarketValue, currencyConfig, 2)}
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <div
       className={`${themes[theme].card} ${themes[theme].border} border rounded-xl sm:rounded-2xl ${cardShadow} transition-all duration-300 overflow-hidden ${className}`}
@@ -176,7 +254,7 @@ export function PortfolioAnalyticsTabs({
       {/* 聚合头部：完整保留标题、账户徽章、描述与 Tab 切换器 */}
       <div
         onClick={() => setIsExpanded((prev) => !prev)}
-        className="px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between cursor-pointer select-none hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors"
+        className="px-3 sm:px-6 py-2.5 sm:py-3.5 cursor-pointer select-none hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors"
         role="button"
         tabIndex={0}
         aria-expanded={isExpanded}
@@ -187,102 +265,104 @@ export function PortfolioAnalyticsTabs({
           }
         }}
       >
-        {/* 左侧：图标 + 标题/描述/徽章 + Tab分段切换 */}
-        <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
-          {/* 主题动态图标 */}
-          <div
-            className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
-              activeTab === 'overview'
-                ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
-                : activeTab === 'history'
-                  ? isProfitPositive
-                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                    : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
-                  : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
-            }`}
-          >
-            {activeTab === 'overview' ? (
-              <Wallet className="w-4 h-4 sm:w-5 sm:h-5" strokeWidth={2} />
-            ) : activeTab === 'history' ? (
-              isProfitPositive ? (
-                <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" strokeWidth={2} />
+        {/* 顶部主行：Tab 切换器 (左) + 折叠箭头 (右) + 桌面端关键指标 */}
+        <div className="flex items-center justify-between gap-2">
+          {/* 左侧：图标 + Tab分段切换 + 桌面端元数据徽章 */}
+          <div className="flex items-center gap-2 sm:gap-3.5 min-w-0">
+            {/* 主题动态图标 */}
+            <div
+              className={`w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                activeTab === 'overview'
+                  ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                  : activeTab === 'history'
+                    ? isProfitPositive
+                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                      : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                    : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
+              }`}
+            >
+              {activeTab === 'overview' ? (
+                <Wallet className="w-3.5 h-3.5 sm:w-5 sm:h-5" strokeWidth={2} />
+              ) : activeTab === 'history' ? (
+                isProfitPositive ? (
+                  <TrendingUp className="w-3.5 h-3.5 sm:w-5 sm:h-5" strokeWidth={2} />
+                ) : (
+                  <TrendingDown className="w-3.5 h-3.5 sm:w-5 sm:h-5" strokeWidth={2} />
+                )
               ) : (
-                <TrendingDown className="w-4 h-4 sm:w-5 sm:h-5" strokeWidth={2} />
-              )
-            ) : (
-              <Layers className="w-4 h-4 sm:w-5 sm:h-5" strokeWidth={2} />
-            )}
-          </div>
+                <Layers className="w-3.5 h-3.5 sm:w-5 sm:h-5" strokeWidth={2} />
+              )}
+            </div>
 
-          <div className="min-w-0">
-            {/* 顶部标题行与 Tab 药丸切换器 */}
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-              <div
-                className="inline-flex items-center p-0.5 sm:p-1 rounded-lg sm:rounded-xl bg-black/[0.05] dark:bg-white/[0.08] backdrop-blur-sm"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {/* 组合概览 Tab */}
-                {hasOverview && (
-                  <button
-                    type="button"
-                    onClick={(e) => handleTabClick('overview', e)}
-                    className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-md sm:rounded-lg text-xs font-medium transition-all ${
-                      activeTab === 'overview'
-                        ? 'bg-white dark:bg-zinc-800 text-gray-900 dark:text-white shadow-xs font-semibold'
-                        : 'text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white'
-                    }`}
-                  >
-                    <Wallet className="w-3.5 h-3.5 text-blue-500 shrink-0" strokeWidth={2.2} />
-                    <span>组合概览</span>
-                  </button>
-                )}
-
-                {/* 历史走势 Tab */}
+            {/* Tab 药丸切换器 - 严格限制为单行、永不折行 */}
+            <div
+              className="inline-flex items-center p-0.5 sm:p-1 rounded-lg sm:rounded-xl bg-black/[0.05] dark:bg-white/[0.08] backdrop-blur-sm shrink-0"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* 组合概览 Tab */}
+              {hasOverview && (
                 <button
                   type="button"
-                  onClick={(e) => handleTabClick('history', e)}
-                  className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-md sm:rounded-lg text-xs font-medium transition-all ${
-                    activeTab === 'history'
+                  onClick={(e) => handleTabClick('overview', e)}
+                  className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 rounded-md sm:rounded-lg text-xs font-medium whitespace-nowrap shrink-0 transition-all ${
+                    activeTab === 'overview'
                       ? 'bg-white dark:bg-zinc-800 text-gray-900 dark:text-white shadow-xs font-semibold'
                       : 'text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white'
                   }`}
                 >
-                  <TrendingUp className="w-3.5 h-3.5 text-emerald-500 shrink-0" strokeWidth={2.2} />
-                  <span>
-                    <span className="sm:hidden">历史走势</span>
-                    <span className="hidden sm:inline">历史盈亏走势</span>
+                  <Wallet className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-500 shrink-0" strokeWidth={2.2} />
+                  <span className="whitespace-nowrap">组合概览</span>
+                </button>
+              )}
+
+              {/* 历史走势 Tab */}
+              <button
+                type="button"
+                onClick={(e) => handleTabClick('history', e)}
+                className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 rounded-md sm:rounded-lg text-xs font-medium whitespace-nowrap shrink-0 transition-all ${
+                  activeTab === 'history'
+                    ? 'bg-white dark:bg-zinc-800 text-gray-900 dark:text-white shadow-xs font-semibold'
+                    : 'text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white'
+                }`}
+              >
+                <TrendingUp className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-500 shrink-0" strokeWidth={2.2} />
+                <span className="whitespace-nowrap">
+                  <span className="sm:hidden">历史走势</span>
+                  <span className="hidden sm:inline">历史盈亏走势</span>
+                </span>
+                <span className="hidden sm:inline-block text-[10px] px-1.5 py-0.2 rounded-full font-mono bg-black/5 dark:bg-white/10 opacity-75">
+                  TV
+                </span>
+              </button>
+
+              {/* 标的物持仓 Tab */}
+              {hasSubjectPositions && (
+                <button
+                  type="button"
+                  onClick={(e) => handleTabClick('subject', e)}
+                  className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 rounded-md sm:rounded-lg text-xs font-medium whitespace-nowrap shrink-0 transition-all ${
+                    activeTab === 'subject'
+                      ? 'bg-white dark:bg-zinc-800 text-gray-900 dark:text-white shadow-xs font-semibold'
+                      : 'text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Layers className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-indigo-500 shrink-0" strokeWidth={2.2} />
+                  <span className="whitespace-nowrap">
+                    <span className="sm:hidden">标的持仓</span>
+                    <span className="hidden sm:inline">标的物持仓</span>
                   </span>
-                  <span className="hidden sm:inline-block text-[10px] px-1.5 py-0.2 rounded-full font-mono bg-black/5 dark:bg-white/10 opacity-75">
-                    TV
+                  <span className="text-[10px] px-1 sm:px-1.5 py-0.2 rounded-full font-mono bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-300 font-semibold">
+                    {effectiveSubjectPositions.length}
                   </span>
                 </button>
+              )}
+            </div>
 
-                {/* 标的物持仓 Tab */}
-                {hasSubjectPositions && (
-                  <button
-                    type="button"
-                    onClick={(e) => handleTabClick('subject', e)}
-                    className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-md sm:rounded-lg text-xs font-medium transition-all ${
-                      activeTab === 'subject'
-                        ? 'bg-white dark:bg-zinc-800 text-gray-900 dark:text-white shadow-xs font-semibold'
-                        : 'text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white'
-                    }`}
-                  >
-                    <Layers className="w-3.5 h-3.5 text-indigo-500 shrink-0" strokeWidth={2.2} />
-                    <span>
-                      <span className="sm:hidden">标的持仓</span>
-                      <span className="hidden sm:inline">标的物持仓</span>
-                    </span>
-                    <span className="text-[10px] px-1.5 py-0.2 rounded-full font-mono bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-300 font-semibold">
-                      {effectiveSubjectPositions.length}
-                    </span>
-                  </button>
-                )}
-              </div>
-
+            {/* 在桌面端，把账户徽章、现价与日志图标直接紧随其后呈现 */}
+            <div className="hidden sm:flex items-center gap-2 min-w-0">
               {/* 账户别名徽章 */}
               {effectiveAccountAlias && (
-                <span className="text-[11px] px-2 py-0.5 rounded-full font-mono bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 border border-blue-200/50 dark:border-blue-800/40">
+                <span className="text-[11px] px-2 py-0.5 rounded-full font-mono bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 border border-blue-200/50 dark:border-blue-800/40 whitespace-nowrap">
                   {effectiveAccountAlias}
                 </span>
               )}
@@ -290,7 +370,7 @@ export function PortfolioAnalyticsTabs({
               {/* 标的现价实时徽章 */}
               {currentUnderlyingPrice != null && (
                 <span
-                  className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium transition-all ${
+                  className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium transition-all whitespace-nowrap ${
                     theme === 'dark'
                       ? 'bg-zinc-800/60 text-zinc-200'
                       : theme === 'blue'
@@ -338,14 +418,14 @@ export function PortfolioAnalyticsTabs({
                 </button>
               )}
 
-              {/* Google Sheet 数据源外链 (仅在历史走势为主账户时呈现) */}
+              {/* Google Sheet 数据源外链 */}
               {activeTab === 'history' && isMainAccount && (
                 <a
                   href={GOOGLE_SHEET_URL}
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
-                  className="hidden md:inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-300/60 dark:border-emerald-700/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors shadow-xs"
+                  className="hidden md:inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-300/60 dark:border-emerald-700/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors shadow-xs whitespace-nowrap"
                   title="数据同步来源: Google Sheet (点击打开原表格)"
                 >
                   <FileSpreadsheet className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
@@ -354,90 +434,107 @@ export function PortfolioAnalyticsTabs({
                 </a>
               )}
             </div>
+          </div>
 
-            {/* 描述信息（小字） */}
-            <p className={`text-xs ${themes[theme].text} opacity-60 mt-0.5 truncate hidden sm:block`}>
-              {activeTab === 'overview'
-                ? portfolioData
-                  ? `总金额 ${formatCurrency(portfolioData.balance ?? 0, currencyConfig, 2)} · 可用资金 ${formatCurrency(portfolioData.available ?? 0, currencyConfig, 2)} · 保证金占用 ${formatCurrency(portfolioData.real_used_margin ?? 0, currencyConfig, 2)}`
-                  : '期权投资组合核心资产与风险概览'
-                : activeTab === 'history'
-                  ? '平滑连接资金占用与期权收益快照流水 (calculated_profit)'
-                  : `总持仓 ${subjectSummary.totalVolume.toLocaleString()} · 备兑 ${subjectSummary.totalCovered.toLocaleString()} · 锁定 ${subjectSummary.totalLocked.toLocaleString()}`}
-            </p>
+          {/* 右侧：关键指标 (桌面端显示) 与折叠箭头 */}
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 ml-1">
+            {/* 桌面端呈现关键指标 */}
+            <div className="hidden sm:block">
+              {renderKeyMetric(false)}
+            </div>
+
+            {/* 折叠/展开箭头图标 */}
+            <div
+              className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-transform duration-200 ${
+                isExpanded ? 'rotate-180 bg-black/5 dark:bg-white/10' : 'bg-transparent'
+              } ${themes[theme].text}`}
+            >
+              <ChevronDown className="w-3.5 h-3.5 sm:w-4 sm:h-4 opacity-70" />
+            </div>
           </div>
         </div>
 
-        {/* 右侧：关键指标与折叠箭头 */}
-        <div className="flex items-center gap-2 sm:gap-4 shrink-0 ml-2">
-          {/* 组合概览状态下的当前仓位盈亏 */}
-          {activeTab === 'overview' && portfolioData && (
-            <div className="text-right">
-              <div className="text-[9px] uppercase font-bold tracking-wider opacity-40 hidden sm:block">
-                当前仓位盈亏
-              </div>
-              <div
-                className={`text-xs sm:text-sm font-bold font-mono ${
-                  isPosProfitPositive
-                    ? 'text-emerald-600 dark:text-emerald-400'
-                    : 'text-rose-600 dark:text-rose-400'
-                }`}
+        {/* 移动端次行信息条 (sm:hidden)：左侧为账户与现价标签，右侧为专属关键指标 (绝不与 Tab 冲突遮挡) */}
+        <div className="sm:hidden flex items-center justify-between gap-1.5 mt-2 pt-1.5 border-t border-black/[0.04] dark:border-white/[0.05]">
+          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+            {effectiveAccountAlias && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded font-mono bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 border border-blue-200/50 dark:border-blue-800/40 whitespace-nowrap">
+                {effectiveAccountAlias}
+              </span>
+            )}
+            {currentUnderlyingPrice != null && (
+              <span
+                className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-mono tabular-nums font-medium whitespace-nowrap transition-all ${
+                  theme === 'dark'
+                    ? 'bg-zinc-800/60 text-zinc-200'
+                    : theme === 'blue'
+                      ? 'bg-blue-50/90 text-blue-900'
+                      : 'bg-slate-50 text-slate-800'
+                } ${pricePulse ? 'ring-1 ring-blue-400/40 scale-[1.02]' : ''}`}
               >
-                <span className="sm:hidden font-normal text-[10px] opacity-65 mr-1 text-gray-500 dark:text-zinc-400">
-                  盈亏:
-                </span>
-                {isPosProfitPositive ? '+' : ''}
-                {formatCurrency(positionProfit, currencyConfig, 2)}
-              </div>
-            </div>
-          )}
-
-          {/* 历史走势状态下的最新累计利润 */}
-          {activeTab === 'history' && latestHistoryPoint && (
-            <div className="text-right">
-              <div className="text-[9px] uppercase font-bold tracking-wider opacity-40 hidden sm:block">
-                最新累计利润
-              </div>
-              <div
-                className={`text-xs sm:text-sm font-bold font-mono ${
-                  isProfitPositive
-                    ? 'text-emerald-600 dark:text-emerald-400'
-                    : 'text-rose-600 dark:text-rose-400'
-                }`}
+                <Dot
+                  className={`w-2.5 h-2.5 -ml-0.5 ${
+                    theme === 'dark' ? 'text-emerald-400' : 'text-emerald-500'
+                  } ${pricePulse ? 'animate-pulse' : ''}`}
+                  fill="currentColor"
+                  strokeWidth={0}
+                />
+                <span>现价 {currentUnderlyingPrice.toFixed(4)}</span>
+              </span>
+            )}
+            {onOpenLog && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenLog();
+                }}
+                className={`p-1 rounded transition-colors ${
+                  theme === 'dark'
+                    ? 'hover:bg-zinc-800 text-zinc-300'
+                    : 'hover:bg-slate-100 text-slate-700'
+                } relative shrink-0`}
+                title="查看持仓变动日志"
               >
-                <span className="sm:hidden font-normal text-[10px] opacity-65 mr-1 text-gray-500 dark:text-zinc-400">
-                  利润:
-                </span>
-                {isProfitPositive ? '+' : ''}
-                {formatCurrency(latestHistoryPoint.calculated_profit ?? 0, currencyConfig, 2)}
-              </div>
-            </div>
-          )}
+                <Activity className="w-3 h-3" strokeWidth={1.75} />
+                {activityLogsCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400/80 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500 ring-1 ring-white/40 dark:ring-zinc-900/40"></span>
+                  </span>
+                )}
+              </button>
+            )}
+          </div>
 
-          {/* 标的物状态下的标的总市值 */}
-          {activeTab === 'subject' && hasSubjectPositions && (
-            <div className="text-right">
-              <div className="text-[9px] uppercase font-bold tracking-wider opacity-40 hidden sm:block">
-                标的总市值
-              </div>
-              <div className="text-xs sm:text-sm font-bold font-mono text-indigo-600 dark:text-indigo-400">
-                <span className="sm:hidden font-normal text-[10px] opacity-65 mr-1 text-gray-500 dark:text-zinc-400">
-                  市值:
-                </span>
-                {formatCurrency(subjectSummary.totalMarketValue, currencyConfig, 2)}
-              </div>
-            </div>
-          )}
-
-          {/* 折叠/展开箭头图标 */}
-          <div
-            className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-transform duration-300 ${
-              isExpanded ? 'rotate-180 bg-black/5 dark:bg-white/10' : 'bg-transparent'
-            } ${themes[theme].text}`}
-          >
-            <ChevronDown className="w-4 h-4 sm:w-4.5 sm:h-4.5 opacity-70" />
+          {/* 右侧：移动端专属关键指标与底表 */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {renderKeyMetric(true)}
+            {activeTab === 'history' && isMainAccount && (
+              <a
+                href={GOOGLE_SHEET_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-medium bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-300/50 whitespace-nowrap"
+              >
+                <FileSpreadsheet className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
+                <span>底表</span>
+              </a>
+            )}
           </div>
         </div>
+
+        {/* 桌面端描述信息（小字） */}
+        <p className={`text-xs ${themes[theme].text} opacity-60 mt-1.5 truncate hidden sm:block`}>
+          {activeTab === 'overview'
+            ? portfolioData
+              ? `总金额 ${formatCurrency(portfolioData.balance ?? 0, currencyConfig, 2)} · 可用资金 ${formatCurrency(portfolioData.available ?? 0, currencyConfig, 2)} · 保证金占用 ${formatCurrency(portfolioData.real_used_margin ?? 0, currencyConfig, 2)}`
+              : '期权投资组合核心资产与风险概览'
+            : activeTab === 'history'
+              ? '平滑连接资金占用与期权收益快照流水 (calculated_profit)'
+              : `总持仓 ${subjectSummary.totalVolume.toLocaleString()} · 备兑 ${subjectSummary.totalCovered.toLocaleString()} · 锁定 ${subjectSummary.totalLocked.toLocaleString()}`}
+        </p>
       </div>
 
       {/* 展开内容区：子面板常驻 DOM 保持 TradingView 图表与状态不被销毁，统一基准高度消除跳变 */}
