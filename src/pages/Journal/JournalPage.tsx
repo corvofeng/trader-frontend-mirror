@@ -357,6 +357,7 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
                   theme={theme}
                   toolCount={webMcp.registeredToolCount}
                   isSupported={webMcp.isSupported}
+                  isReady={webMcp.isReady}
                   pageTitle="Journal 交易日志"
                   customTools={webMcp.tools}
                 />

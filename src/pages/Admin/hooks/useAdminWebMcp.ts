@@ -18,6 +18,7 @@ export function useAdminWebMcp(options: UseAdminWebMcpOptions) {
 
   const [isSupported, setIsSupported] = useState(false);
   const [registeredToolCount, setRegisteredToolCount] = useState(0);
+  const [isReady, setIsReady] = useState(false);
   const [tools, setTools] = useState<import('../../../lib/webmcp/landingWebMcp').WebMcpToolDescriptor[]>([]);
 
   const contextRef = useRef<AdminWebMcpContext>({
@@ -69,12 +70,12 @@ export function useAdminWebMcp(options: UseAdminWebMcpOptions) {
     };
 
     const registration = registerAdminWebMcpTools(proxyContext, controller.signal);
-    setRegisteredToolCount(registration.toolNames.length);
     setTools(registration.tools);
 
     void registration.registrationPromise.then((count) => {
       if (!controller.signal.aborted) {
         setRegisteredToolCount(count);
+        setIsReady(count > 0);
       }
     });
 
@@ -86,6 +87,7 @@ export function useAdminWebMcp(options: UseAdminWebMcpOptions) {
   return {
     isSupported,
     registeredToolCount,
+    isReady,
     tools,
   };
 }

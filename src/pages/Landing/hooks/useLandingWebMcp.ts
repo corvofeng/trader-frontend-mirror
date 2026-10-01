@@ -19,6 +19,7 @@ export function useLandingWebMcp(options: UseLandingWebMcpOptions) {
 
   const [isSupported, setIsSupported] = useState(false);
   const [registeredToolCount, setRegisteredToolCount] = useState(0);
+  const [isReady, setIsReady] = useState(false);
   const [tools, setTools] = useState<import('../../../lib/webmcp/landingWebMcp').WebMcpToolDescriptor[]>([]);
 
   const contextRef = useRef<LandingWebMcpContext>({
@@ -73,12 +74,12 @@ export function useLandingWebMcp(options: UseLandingWebMcpOptions) {
     };
 
     const registration = registerLandingWebMcpTools(proxyContext, controller.signal);
-    setRegisteredToolCount(registration.toolNames.length);
     setTools(registration.tools);
 
     void registration.registrationPromise.then((count) => {
       if (!controller.signal.aborted) {
         setRegisteredToolCount(count);
+        setIsReady(count > 0);
       }
     });
 
@@ -90,6 +91,7 @@ export function useLandingWebMcp(options: UseLandingWebMcpOptions) {
   return {
     isSupported,
     registeredToolCount,
+    isReady,
     tools,
   };
 }

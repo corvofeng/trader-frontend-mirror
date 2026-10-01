@@ -798,6 +798,7 @@ export function Admin({ theme }: AdminProps) {
                   theme={theme}
                   toolCount={webMcp.registeredToolCount}
                   isSupported={webMcp.isSupported}
+                  isReady={webMcp.isReady}
                   pageTitle="Admin 管理中心"
                   customTools={webMcp.tools}
                 />

@@ -117,4 +117,57 @@ describe('Options WebMCP tools', () => {
     });
     expect(onSelectSymbol).toHaveBeenCalledWith('510050.SH');
   });
+
+  it('returns ACCOUNT_NOT_FOUND with string message when queried account does not exist', async () => {
+    const context: OptionsWebMcpContext = {
+      userId: 'test-user',
+      selectedAccountId: 'acc-opt',
+      selectedSymbol: '588000.SH',
+      activeTab: 'data',
+      getAccounts: () => [
+        { id: 'acc-opt', alias: 'main' },
+        { id: 'acc-sub', alias: 'sub' },
+      ],
+    };
+
+    registerOptionsWebMcpTools(context);
+    const portfolioTool = registeredTools.find((t) => t.name === 'options_get_portfolio');
+    const res = await portfolioTool!.execute({ account_alias: 'not-exist-acc' });
+    const data = JSON.parse(res.content[0].text);
+
+    expect(data.success).toBe(false);
+    expect(data.error).toBe('ACCOUNT_NOT_FOUND');
+    expect(typeof data.message).toBe('string');
+    expect(data.message).toContain('not-exist-acc');
+    expect(data.message).toContain('不存在');
+  });
+
+  it('returns string message instead of empty object when service fails with an Error instance', async () => {
+    const spy = vi.spyOn(optionsService, 'getOptionsPortfolio').mockResolvedValueOnce({
+      data: null,
+      error: new Error('Network connection timed out') as unknown as Error,
+    });
+
+    const context: OptionsWebMcpContext = {
+      userId: 'test-user',
+      selectedAccountId: 'acc-opt',
+      selectedSymbol: '588000.SH',
+      activeTab: 'data',
+      getAccounts: () => [{ id: 'acc-opt', alias: 'main' }],
+    };
+
+    registerOptionsWebMcpTools(context);
+    const portfolioTool = registeredTools.find((t) => t.name === 'options_get_portfolio');
+    const res = await portfolioTool!.execute({ account_alias: 'acc-opt' });
+    const data = JSON.parse(res.content[0].text);
+
+    expect(data.success).toBe(false);
+    expect(data.error).toBe('FETCH_FAILED');
+    expect(typeof data.message).toBe('string');
+    expect(data.message).toBe('Network connection timed out');
+    expect(data.message).not.toEqual({});
+
+    spy.mockRestore();
+  });
 });
+

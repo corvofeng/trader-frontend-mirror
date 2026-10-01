@@ -49,6 +49,7 @@ export function Landing({ theme, onThemeChange, user }: LandingProps) {
               theme={theme}
               toolCount={webMcp.registeredToolCount}
               isSupported={webMcp.isSupported}
+              isReady={webMcp.isReady}
               pageTitle="主页 / 概览"
               customTools={webMcp.tools}
             />

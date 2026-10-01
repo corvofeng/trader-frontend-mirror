@@ -107,6 +107,7 @@ function OptionsContent({ theme }: OptionsProps) {
   }, [isMobileHeaderCollapsed]);
   const [accountAccessError, setAccountAccessError] = useState<string | null>(null);
   const [accessibleAccountKeys, setAccessibleAccountKeys] = useState<string[] | null>(null);
+  const [optionsAccounts, setOptionsAccounts] = useState<Account[]>([]);
   const [defaultAccountKey, setDefaultAccountKey] = useState<string | null>(null);
   const { isConnected, queryOptionsData, optionsDataSnapshots } = useOptionPriceWebSocket();
   const pendingFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -256,10 +257,12 @@ function OptionsContent({ theme }: OptionsProps) {
           .filter((v): v is string => typeof v === 'string' && v.trim().length > 0);
         const def = accounts.find((acc) => acc.is_default) || accounts[0];
         setAccessibleAccountKeys(keys);
+        setOptionsAccounts(accounts);
         setDefaultAccountKey((def?.alias || def?.id || null) ?? null);
       } catch (err) {
         if (cancelled) return;
         setAccessibleAccountKeys(null);
+        setOptionsAccounts([]);
         setDefaultAccountKey(null);
         setAccountAccessError(err instanceof Error ? err.message : '账户列表加载失败，无法校验 account_alias');
       }
@@ -415,6 +418,7 @@ function OptionsContent({ theme }: OptionsProps) {
     },
     onSwitchTab: (tab: OptionsTab) => handleTabChange(tab),
     onSelectAccount: handleAccountChange,
+    getAccounts: () => optionsAccounts,
   });
 
   return (
@@ -440,6 +444,7 @@ function OptionsContent({ theme }: OptionsProps) {
                       theme={theme}
                       toolCount={webMcp.registeredToolCount}
                       isSupported={webMcp.isSupported}
+                      isReady={webMcp.isReady}
                       pageTitle="Options 期权分析"
                       customTools={webMcp.tools}
                     />

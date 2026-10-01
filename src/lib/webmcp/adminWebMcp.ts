@@ -34,6 +34,21 @@ function isValidDateString(dateStr: unknown): boolean {
   );
 }
 
+function extractErrorMessage(err: unknown, fallback: string): string {
+  if (!err) return fallback;
+  if (typeof err === 'string') return err;
+  if (err instanceof Error) return err.message || fallback;
+  if (
+    typeof err === 'object' &&
+    err !== null &&
+    'message' in err &&
+    typeof (err as { message: unknown }).message === 'string'
+  ) {
+    return (err as { message: string }).message;
+  }
+  return String(err);
+}
+
 /**
  * Register WebMCP tools for Admin management page.
  */
@@ -142,7 +157,7 @@ export function registerAdminWebMcpTools(
                   text: JSON.stringify({
                     success: false,
                     error: 'FETCH_FAILED',
-                    message: resp.error || '获取现金流数据为空',
+                    message: extractErrorMessage(resp.error, '获取现金流数据为空'),
                   }),
                 },
               ],

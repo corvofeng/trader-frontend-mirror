@@ -1,8 +1,11 @@
 import '@mcp-b/global';
-import { optionsService } from '../services';
+import { accountService, optionsService } from '../services';
 import type { OptionsTab } from '../../shared/utils/tabRouting';
 import { OPTIONS_TABS } from '../../shared/utils/tabRouting';
 import type { WebMcpToolDescriptor } from './landingWebMcp';
+import type { Account } from '../services/types';
+
+export type OptionsAccountItem = Account | { id?: string; alias?: string; name?: string } | string;
 
 export interface OptionsWebMcpContext {
   userId?: string | null;
@@ -13,6 +16,7 @@ export interface OptionsWebMcpContext {
   onSelectSymbol?: (symbol: string) => void;
   onSwitchTab?: (tab: OptionsTab) => void;
   onSelectAccount?: (accountId: string) => void;
+  getAccounts?: () => OptionsAccountItem[];
 }
 
 export interface OptionsWebMcpRegistrationResult {
@@ -23,6 +27,38 @@ export interface OptionsWebMcpRegistrationResult {
 }
 
 const DEFAULT_SYMBOLS = ['588000.SH', '510050.SH', '510300.SH', '510500.SH', '159915.SZ'];
+
+function extractErrorMessage(err: unknown, fallback: string): string {
+  if (!err) return fallback;
+  if (typeof err === 'string') return err;
+  if (err instanceof Error) return err.message || fallback;
+  if (
+    typeof err === 'object' &&
+    err !== null &&
+    'message' in err &&
+    typeof (err as { message: unknown }).message === 'string'
+  ) {
+    return (err as { message: string }).message;
+  }
+  return String(err);
+}
+
+function validateAccountExistence(
+  targetAccount: string,
+  accounts: OptionsAccountItem[]
+): boolean {
+  if (!accounts || accounts.length === 0) return true;
+  const norm = targetAccount.trim().toLowerCase();
+  return accounts.some((acc) => {
+    if (typeof acc === 'string') {
+      return acc.trim().toLowerCase() === norm;
+    }
+    return (
+      (acc.alias && acc.alias.trim().toLowerCase() === norm) ||
+      (acc.id && acc.id.trim().toLowerCase() === norm)
+    );
+  });
+}
 
 /**
  * Register WebMCP tools for Options analysis page.
@@ -148,18 +184,65 @@ export function registerOptionsWebMcpTools(
           };
         }
 
+        // 1. 校验账户是否存在（优先使用上下文账户列表，必要时回退查询账户服务）
+        let accounts = context.getAccounts?.() || [];
+        if (accounts.length === 0 && context.userId) {
+          try {
+            const accResp = await accountService.getOptionsAccounts(context.userId);
+            if (accResp.data && accResp.data.length > 0) {
+              accounts = accResp.data;
+            } else {
+              const fallbackResp = await accountService.getAccounts(context.userId);
+              if (fallbackResp.data && fallbackResp.data.length > 0) {
+                accounts = fallbackResp.data;
+              }
+            }
+          } catch {
+            // 忽略预校验中的网络异常
+          }
+        }
+
+        if (accounts.length > 0 && !validateAccountExistence(targetAccount, accounts)) {
+          const accountNames = accounts
+            .map((a) => (typeof a === 'string' ? a : a.alias || a.id || ''))
+            .filter(Boolean);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  success: false,
+                  error: 'ACCOUNT_NOT_FOUND',
+                  message: `账户 '${targetAccount}' 不存在。当前可用账户: ${accountNames.join(', ')}`,
+                  account_alias: targetAccount,
+                }),
+              },
+            ],
+          };
+        }
+
         try {
           const resp = await optionsService.getOptionsPortfolio(context.userId || 'anonymous', targetAccount);
           const data = resp.data;
           if (!data) {
+            const errMsg = extractErrorMessage(resp.error, '获取期权持仓数据为空');
+            const isAccountNotFound =
+              errMsg.toLowerCase().includes('not found') ||
+              errMsg.includes('不存在') ||
+              errMsg.includes('404') ||
+              errMsg.toLowerCase().includes('account');
+
             return {
               content: [
                 {
                   type: 'text',
                   text: JSON.stringify({
                     success: false,
-                    error: 'FETCH_FAILED',
-                    message: resp.error || '获取期权持仓数据为空',
+                    error: isAccountNotFound ? 'ACCOUNT_NOT_FOUND' : 'FETCH_FAILED',
+                    message: isAccountNotFound
+                      ? `账户 '${targetAccount}' 不存在或无法获取期权持仓: ${errMsg}`
+                      : errMsg,
+                    account_alias: targetAccount,
                   }),
                 },
               ],
@@ -189,14 +272,23 @@ export function registerOptionsWebMcpTools(
             ],
           };
         } catch (err) {
+          const errMsg = extractErrorMessage(err, '获取期权持仓失败');
+          const isAccountNotFound =
+            errMsg.toLowerCase().includes('not found') ||
+            errMsg.includes('不存在') ||
+            errMsg.includes('404') ||
+            errMsg.toLowerCase().includes('account');
+
           return {
             content: [
               {
                 type: 'text',
                 text: JSON.stringify({
                   success: false,
-                  error: 'FETCH_FAILED',
-                  message: err instanceof Error ? err.message : '获取期权持仓失败',
+                  error: isAccountNotFound ? 'ACCOUNT_NOT_FOUND' : 'FETCH_FAILED',
+                  message: isAccountNotFound
+                    ? `账户 '${targetAccount}' 不存在或无法获取期权持仓: ${errMsg}`
+                    : errMsg,
                   account_alias: targetAccount,
                 }),
               },
@@ -234,7 +326,7 @@ export function registerOptionsWebMcpTools(
                   text: JSON.stringify({
                     success: false,
                     error: 'FETCH_FAILED',
-                    message: resp.error || `未能获取标的 ${symbol} 的期权市场状态`,
+                    message: extractErrorMessage(resp.error, `未能获取标的 ${symbol} 的期权市场状态`),
                   }),
                 },
               ],
@@ -254,6 +346,7 @@ export function registerOptionsWebMcpTools(
             ],
           };
         } catch (err) {
+          const errMsg = extractErrorMessage(err, `获取标的 ${symbol} 市场状态失败`);
           return {
             content: [
               {
@@ -261,7 +354,7 @@ export function registerOptionsWebMcpTools(
                 text: JSON.stringify({
                   success: false,
                   error: 'FETCH_FAILED',
-                  message: err instanceof Error ? err.message : `获取标的 ${symbol} 市场状态失败`,
+                  message: errMsg,
                 }),
               },
             ],

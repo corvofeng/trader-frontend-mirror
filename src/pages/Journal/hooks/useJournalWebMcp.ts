@@ -20,6 +20,7 @@ export function useJournalWebMcp(options: UseJournalWebMcpOptions) {
 
   const [isSupported, setIsSupported] = useState(false);
   const [registeredToolCount, setRegisteredToolCount] = useState(0);
+  const [isReady, setIsReady] = useState(false);
   const [tools, setTools] = useState<import('../../../lib/webmcp/landingWebMcp').WebMcpToolDescriptor[]>([]);
 
   // Keep latest context in ref so tool callbacks always invoke up-to-date props
@@ -80,12 +81,12 @@ export function useJournalWebMcp(options: UseJournalWebMcpOptions) {
     };
 
     const registration = registerJournalWebMcpTools(proxyContext, controller.signal);
-    setRegisteredToolCount(registration.toolNames.length);
     setTools(registration.tools);
 
     void registration.registrationPromise.then((count) => {
       if (!controller.signal.aborted) {
         setRegisteredToolCount(count);
+        setIsReady(count > 0);
       }
     });
 
@@ -97,6 +98,7 @@ export function useJournalWebMcp(options: UseJournalWebMcpOptions) {
   return {
     isSupported,
     registeredToolCount,
+    isReady,
     tools,
   };
 }

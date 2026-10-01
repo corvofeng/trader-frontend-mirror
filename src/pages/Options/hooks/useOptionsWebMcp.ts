@@ -15,11 +15,13 @@ export function useOptionsWebMcp(options: UseOptionsWebMcpOptions) {
     onSelectSymbol,
     onSwitchTab,
     onSelectAccount,
+    getAccounts,
     enabled = true,
   } = options;
 
   const [isSupported, setIsSupported] = useState(false);
   const [registeredToolCount, setRegisteredToolCount] = useState(0);
+  const [isReady, setIsReady] = useState(false);
   const [tools, setTools] = useState<import('../../../lib/webmcp/landingWebMcp').WebMcpToolDescriptor[]>([]);
 
   const contextRef = useRef<OptionsWebMcpContext>({
@@ -31,6 +33,7 @@ export function useOptionsWebMcp(options: UseOptionsWebMcpOptions) {
     onSelectSymbol,
     onSwitchTab,
     onSelectAccount,
+    getAccounts,
   });
 
   useEffect(() => {
@@ -43,6 +46,7 @@ export function useOptionsWebMcp(options: UseOptionsWebMcpOptions) {
       onSelectSymbol,
       onSwitchTab,
       onSelectAccount,
+      getAccounts,
     };
   });
 
@@ -76,15 +80,16 @@ export function useOptionsWebMcp(options: UseOptionsWebMcpOptions) {
       onSelectSymbol: (symbol) => contextRef.current.onSelectSymbol?.(symbol),
       onSwitchTab: (tab) => contextRef.current.onSwitchTab?.(tab),
       onSelectAccount: (accountId) => contextRef.current.onSelectAccount?.(accountId),
+      getAccounts: () => contextRef.current.getAccounts?.() || [],
     };
 
     const registration = registerOptionsWebMcpTools(proxyContext, controller.signal);
-    setRegisteredToolCount(registration.toolNames.length);
     setTools(registration.tools);
 
     void registration.registrationPromise.then((count) => {
       if (!controller.signal.aborted) {
         setRegisteredToolCount(count);
+        setIsReady(count > 0);
       }
     });
 
@@ -96,6 +101,7 @@ export function useOptionsWebMcp(options: UseOptionsWebMcpOptions) {
   return {
     isSupported,
     registeredToolCount,
+    isReady,
     tools,
   };
 }

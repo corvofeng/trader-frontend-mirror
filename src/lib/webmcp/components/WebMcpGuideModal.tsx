@@ -23,12 +23,14 @@ export interface WebMcpToolItem {
   defaultArgs?: Record<string, unknown>;
 }
 
-interface WebMcpGuideModalProps {
+export interface WebMcpGuideModalProps {
   isOpen: boolean;
   onClose: () => void;
   theme: Theme;
   pageTitle?: string;
   customTools?: WebMcpToolItem[];
+  isReady?: boolean;
+  registeredCount?: number;
 }
 
 const DEFAULT_TOOL_ARGS: Record<string, Record<string, unknown>> = {
@@ -213,6 +215,8 @@ export function WebMcpGuideModal({
   theme,
   pageTitle = '当前页面',
   customTools,
+  isReady,
+  registeredCount,
 }: WebMcpGuideModalProps) {
   const [activeTab, setActiveTab] = useState<'prompts' | 'tools' | 'guide'>('prompts');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -465,7 +469,12 @@ ${toolNamesList || 'journal_list_accounts, journal_get_portfolio, journal_get_to
           const registeredList = await typedMc.getTools();
           const targetDescriptor = registeredList?.find((t) => t.name === toolName);
           if (targetDescriptor) {
-            const rawRes = await typedMc.executeTool(targetDescriptor, JSON.stringify(parsedArgs));
+            let rawRes: unknown;
+            try {
+              rawRes = await (typedMc.executeTool as (tool: unknown, args: unknown) => Promise<unknown>)(targetDescriptor, parsedArgs);
+            } catch {
+              rawRes = await (typedMc.executeTool as (tool: unknown, args: unknown) => Promise<unknown>)(targetDescriptor, JSON.stringify(parsedArgs));
+            }
             try {
               result = typeof rawRes === 'string' ? JSON.parse(rawRes) : rawRes;
             } catch {
@@ -513,6 +522,8 @@ ${toolNamesList || 'journal_list_accounts, journal_get_portfolio, journal_get_to
 
   const sampleToolName = availableTools[0]?.name || 'landing_get_overview';
 
+  const isReadyEffective = isReady !== undefined ? isReady : (registeredCount ?? availableTools.length) > 0;
+
   const consoleAllToolsSnippet = `// 1. 列出当前网页注册的所有 WebMCP 工具 (W3C WebMCP 标准)
 const tools = await (document.modelContext || window.modelContext).getTools();
 console.table(tools);`;
@@ -520,8 +531,8 @@ console.table(tools);`;
   const consoleSampleRunSnippet = `// 2. 调用指定工具（例如 ${sampleToolName}）
 const tools = await (document.modelContext || window.modelContext).getTools();
 const target = tools.find(t => t.name === '${sampleToolName}');
-const res = await (document.modelContext || window.modelContext).executeTool(target, '{}');
-console.log(JSON.parse(res));`;
+const res = await (document.modelContext || window.modelContext).executeTool(target, {});
+console.log(typeof res === 'string' ? JSON.parse(res) : res);`;
 
   return (
     <div
@@ -543,13 +554,20 @@ console.log(JSON.parse(res));`;
                 <h3 className={`text-lg font-bold ${themes[theme].text}`}>
                   WebMCP 工具面板与 AI 提示词
                 </h3>
-                <span className="inline-flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  已就绪
-                </span>
+                {isReadyEffective ? (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    已就绪
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-spin" />
+                    就绪中...
+                  </span>
+                )}
               </div>
               <p className={`text-xs ${themes[theme].text} opacity-60 mt-0.5`}>
-                当前 Host: <span className="font-mono font-medium text-indigo-600 dark:text-indigo-400">{currentHost}</span> · {pageTitle}已挂载 {availableTools.length} 项标准工具
+                当前 Host: <span className="font-mono font-medium text-indigo-600 dark:text-indigo-400">{currentHost}</span> · {pageTitle}{isReadyEffective ? `已挂载 ${registeredCount ?? availableTools.length} 项标准工具` : '正在挂载工具...'}
               </p>
             </div>
           </div>
@@ -689,11 +707,12 @@ console.log(JSON.parse(res));`;
                 <div className="space-y-3">
                   {availableTools.map((tool) => {
                     const currentArgs = getArgsForTool(tool.name, tool.defaultArgs);
+                    const formattedArgs = (currentArgs.trim() || '{}').replace(/\s+/g, ' ');
                     const executionSnippet = `// 网页控制台调用 ${tool.name} (W3C WebMCP 标准)
 const tools = await (document.modelContext || window.modelContext).getTools();
 const target = tools.find(t => t.name === '${tool.name}');
-const res = await (document.modelContext || window.modelContext).executeTool(target, ${JSON.stringify(currentArgs.replace(/\s+/g, ' '))});
-console.log(JSON.parse(res));`;
+const res = await (document.modelContext || window.modelContext).executeTool(target, ${formattedArgs});
+console.log(typeof res === 'string' ? JSON.parse(res) : res);`;
                     const result = toolResults[tool.name];
 
                     return (
