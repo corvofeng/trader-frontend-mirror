@@ -1,20 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
-import { registerJournalWebMcpTools, type WebMcpToolContext } from '../../../lib/webmcp/journalWebMcp';
+import { registerAdminWebMcpTools, type AdminWebMcpContext } from '../../../lib/webmcp/adminWebMcp';
 
-export interface UseJournalWebMcpOptions extends WebMcpToolContext {
+export interface UseAdminWebMcpOptions extends AdminWebMcpContext {
   enabled?: boolean;
 }
 
-export function useJournalWebMcp(options: UseJournalWebMcpOptions) {
+export function useAdminWebMcp(options: UseAdminWebMcpOptions) {
   const {
     userId,
     selectedAccountId,
     activeTab,
     isAuthenticated,
-    allowedTabs,
-    onSelectAccount,
     onSwitchTab,
-    getAccounts,
+    onSelectAccount,
     enabled = true,
   } = options;
 
@@ -22,16 +20,13 @@ export function useJournalWebMcp(options: UseJournalWebMcpOptions) {
   const [registeredToolCount, setRegisteredToolCount] = useState(0);
   const [tools, setTools] = useState<import('../../../lib/webmcp/landingWebMcp').WebMcpToolDescriptor[]>([]);
 
-  // Keep latest context in ref so tool callbacks always invoke up-to-date props
-  const contextRef = useRef<WebMcpToolContext>({
+  const contextRef = useRef<AdminWebMcpContext>({
     userId,
     selectedAccountId,
     activeTab,
     isAuthenticated,
-    allowedTabs,
-    onSelectAccount,
     onSwitchTab,
-    getAccounts,
+    onSelectAccount,
   });
 
   useEffect(() => {
@@ -40,10 +35,8 @@ export function useJournalWebMcp(options: UseJournalWebMcpOptions) {
       selectedAccountId,
       activeTab,
       isAuthenticated,
-      allowedTabs,
-      onSelectAccount,
       onSwitchTab,
-      getAccounts,
+      onSelectAccount,
     };
   });
 
@@ -58,7 +51,7 @@ export function useJournalWebMcp(options: UseJournalWebMcpOptions) {
 
     const controller = new AbortController();
 
-    const proxyContext: WebMcpToolContext = {
+    const proxyContext: AdminWebMcpContext = {
       get userId() {
         return contextRef.current.userId;
       },
@@ -71,15 +64,11 @@ export function useJournalWebMcp(options: UseJournalWebMcpOptions) {
       get isAuthenticated() {
         return contextRef.current.isAuthenticated;
       },
-      get allowedTabs() {
-        return contextRef.current.allowedTabs;
-      },
-      onSelectAccount: (accountId) => contextRef.current.onSelectAccount(accountId),
-      onSwitchTab: (tab) => contextRef.current.onSwitchTab(tab),
-      getAccounts: () => contextRef.current.getAccounts(),
+      onSwitchTab: (tab) => contextRef.current.onSwitchTab?.(tab),
+      onSelectAccount: (accountId) => contextRef.current.onSelectAccount?.(accountId),
     };
 
-    const registration = registerJournalWebMcpTools(proxyContext, controller.signal);
+    const registration = registerAdminWebMcpTools(proxyContext, controller.signal);
     setRegisteredToolCount(registration.toolNames.length);
     setTools(registration.tools);
 

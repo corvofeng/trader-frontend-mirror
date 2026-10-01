@@ -167,4 +167,96 @@ describe('Journal WebMCP tools', () => {
     expect(parsed.total_orders).toBe(1);
     expect(parsed.filled_orders).toBe(1);
   });
+
+  it('rejects journal_switch_tab with AUTH_REQUIRED when unauthenticated user attempts to open orders', async () => {
+    const onSwitchTab = vi.fn();
+    const context: WebMcpToolContext = {
+      userId: 'test-user',
+      selectedAccountId: 'acc-1',
+      activeTab: 'portfolio',
+      isAuthenticated: false,
+      allowedTabs: ['portfolio'],
+      onSelectAccount: vi.fn(),
+      onSwitchTab,
+      getAccounts: () => [mockAccount],
+    };
+
+    registerJournalWebMcpTools(context);
+    const switchTool = registeredTools.find((t) => t.name === 'journal_switch_tab');
+    const res = await switchTool!.execute({ tab: 'orders' });
+    const parsed = JSON.parse(res.content[0].text);
+
+    expect(parsed.success).toBe(false);
+    expect(parsed.error).toBe('AUTH_REQUIRED');
+    expect(parsed.allowed_tabs).toEqual(['portfolio']);
+    expect(onSwitchTab).not.toHaveBeenCalled();
+  });
+
+  it('rejects journal_get_today_orders and journal_get_trade_history when unauthenticated', async () => {
+    const context: WebMcpToolContext = {
+      userId: 'test-user',
+      selectedAccountId: 'acc-1',
+      activeTab: 'portfolio',
+      isAuthenticated: false,
+      onSelectAccount: vi.fn(),
+      onSwitchTab: vi.fn(),
+      getAccounts: () => [mockAccount],
+    };
+
+    registerJournalWebMcpTools(context);
+    const todayOrdersTool = registeredTools.find((t) => t.name === 'journal_get_today_orders');
+    const historyTool = registeredTools.find((t) => t.name === 'journal_get_trade_history');
+
+    const ordersRes = await todayOrdersTool!.execute({});
+    const historyRes = await historyTool!.execute({});
+
+    expect(JSON.parse(ordersRes.content[0].text)).toMatchObject({
+      success: false,
+      error: 'AUTH_REQUIRED',
+    });
+    expect(JSON.parse(historyRes.content[0].text)).toMatchObject({
+      success: false,
+      error: 'AUTH_REQUIRED',
+    });
+  });
+
+  it('rejects journal_get_orders_by_date with INVALID_PARAM for malformed date', async () => {
+    const context: WebMcpToolContext = {
+      userId: 'test-user',
+      selectedAccountId: 'acc-1',
+      activeTab: 'portfolio',
+      isAuthenticated: true,
+      onSelectAccount: vi.fn(),
+      onSwitchTab: vi.fn(),
+      getAccounts: () => [mockAccount],
+    };
+
+    registerJournalWebMcpTools(context);
+    const ordersTool = registeredTools.find((t) => t.name === 'journal_get_orders_by_date');
+    const res = await ordersTool!.execute({ date: 'not-a-date' });
+    const parsed = JSON.parse(res.content[0].text);
+
+    expect(parsed.success).toBe(false);
+    expect(parsed.error).toBe('INVALID_PARAM');
+  });
+
+  it('returns ACCOUNT_NOT_FOUND when requesting non-existent account', async () => {
+    const context: WebMcpToolContext = {
+      userId: 'test-user',
+      selectedAccountId: 'acc-1',
+      activeTab: 'portfolio',
+      isAuthenticated: true,
+      onSelectAccount: vi.fn(),
+      onSwitchTab: vi.fn(),
+      getAccounts: () => [mockAccount],
+    };
+
+    registerJournalWebMcpTools(context);
+    const portfolioTool = registeredTools.find((t) => t.name === 'journal_get_portfolio');
+    const res = await portfolioTool!.execute({ account_alias: 'non-existent-account' });
+    const parsed = JSON.parse(res.content[0].text);
+
+    expect(parsed.success).toBe(false);
+    expect(parsed.error).toBe('ACCOUNT_NOT_FOUND');
+  });
 });

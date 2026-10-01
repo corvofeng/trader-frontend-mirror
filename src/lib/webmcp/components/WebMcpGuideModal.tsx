@@ -45,7 +45,167 @@ const DEFAULT_TOOL_ARGS: Record<string, Record<string, unknown>> = {
   landing_get_portfolio_preview: {},
   landing_switch_language: { lang: 'zh' },
   landing_switch_theme: { theme: 'dark' },
+  options_get_overview: {},
+  options_list_symbols: {},
+  options_get_portfolio: {},
+  options_get_market_state: { symbol: '588000.SH' },
+  options_switch_tab: { tab: 'data' },
+  options_select_symbol: { symbol: '588000.SH' },
+  admin_get_system_status: {},
+  admin_get_cash_flow_summary: {},
+  admin_get_operations: { start_date: '2026-08-01', end_date: '2026-09-06' },
+  admin_switch_tab: { tab: 'operations' },
 };
+
+const FALLBACK_LANDING_TOOLS: WebMcpToolItem[] = [
+  {
+    name: 'landing_get_overview',
+    description: '获取交易系统主页概览、可访问的工作区模块与路由列表',
+    inputSchema: { type: 'object', properties: {} },
+    defaultArgs: {},
+  },
+  {
+    name: 'landing_navigate',
+    description: '跳转到系统指定页面（例如 /journal, /journal?tab=history, /journal?tab=orders, /options, /admin）',
+    inputSchema: { type: 'object', properties: { path: { type: 'string', description: '目标页面路径' } }, required: ['path'] },
+    defaultArgs: { path: '/journal' },
+  },
+  {
+    name: 'landing_list_accounts',
+    description: '获取交易账户列表与默认主账户',
+    inputSchema: { type: 'object', properties: {} },
+    defaultArgs: {},
+  },
+  {
+    name: 'landing_get_portfolio_preview',
+    description: '获取主账户的持仓及资产预览数据',
+    inputSchema: { type: 'object', properties: { account_alias: { type: 'string', description: '可选，指定账户别名' } } },
+    defaultArgs: {},
+  },
+  {
+    name: 'landing_switch_language',
+    description: '切换页面展示语言（zh: 中文, en: 英文）',
+    inputSchema: { type: 'object', properties: { lang: { type: 'string', enum: ['zh', 'en'] } }, required: ['lang'] },
+    defaultArgs: { lang: 'zh' },
+  },
+  {
+    name: 'landing_switch_theme',
+    description: '切换界面主题（light: 亮色, dark: 暗色, blue: 蓝色）',
+    inputSchema: { type: 'object', properties: { theme: { type: 'string', enum: ['light', 'dark', 'blue'] } }, required: ['theme'] },
+    defaultArgs: { theme: 'dark' },
+  },
+];
+
+const FALLBACK_JOURNAL_TOOLS: WebMcpToolItem[] = [
+  {
+    name: 'journal_list_accounts',
+    description: '列出当前用户的所有交易账户、资金别名及默认状态',
+    inputSchema: { type: 'object', properties: {} },
+    defaultArgs: {},
+  },
+  {
+    name: 'journal_select_account',
+    description: '切换当前查看的交易账户别名',
+    inputSchema: { type: 'object', properties: { account_alias: { type: 'string' } }, required: ['account_alias'] },
+    defaultArgs: { account_alias: 'main' },
+  },
+  {
+    name: 'journal_get_portfolio',
+    description: '获取当前选中账户的实时/快照持仓及资产列表',
+    inputSchema: { type: 'object', properties: { account_alias: { type: 'string' } } },
+    defaultArgs: {},
+  },
+  {
+    name: 'journal_get_trade_history',
+    description: '按日期范围与标的查询历史交易成交明细',
+    inputSchema: { type: 'object', properties: { start_date: { type: 'string' }, end_date: { type: 'string' } } },
+    defaultArgs: { start_date: '2026-08-01', end_date: '2026-09-06' },
+  },
+  {
+    name: 'journal_get_today_orders',
+    description: '获取账户当日的所有委托及成交订单',
+    inputSchema: { type: 'object', properties: { account_alias: { type: 'string' } } },
+    defaultArgs: {},
+  },
+  {
+    name: 'journal_get_orders_by_date',
+    description: '按指定日期查询账户的历史成交及委托订单明细',
+    inputSchema: { type: 'object', properties: { date: { type: 'string' } }, required: ['date'] },
+    defaultArgs: { date: new Date().toISOString().split('T')[0] },
+  },
+  {
+    name: 'journal_switch_tab',
+    description: '切换 Journal 页面工作区标签',
+    inputSchema: { type: 'object', properties: { tab: { type: 'string', enum: ['portfolio', 'trades', 'history', 'orders'] } }, required: ['tab'] },
+    defaultArgs: { tab: 'history' },
+  },
+];
+
+const FALLBACK_OPTIONS_TOOLS: WebMcpToolItem[] = [
+  {
+    name: 'options_get_overview',
+    description: '获取期权交易分析模块当前上下文（当前标的、当前账户、活动标签页及功能列表）',
+    inputSchema: { type: 'object', properties: {} },
+    defaultArgs: {},
+  },
+  {
+    name: 'options_list_symbols',
+    description: '获取支持期权分析与行情查询的标的代码列表',
+    inputSchema: { type: 'object', properties: {} },
+    defaultArgs: {},
+  },
+  {
+    name: 'options_get_portfolio',
+    description: '获取指定账户或当前账户的期权持仓、现货持仓、到期分布及资金占用数据',
+    inputSchema: { type: 'object', properties: { account_alias: { type: 'string' } } },
+    defaultArgs: {},
+  },
+  {
+    name: 'options_get_market_state',
+    description: '获取指定标的的期权市场状态（持仓量PCR、成交量、波动率形态等量化指标）',
+    inputSchema: { type: 'object', properties: { symbol: { type: 'string' } } },
+    defaultArgs: { symbol: '588000.SH' },
+  },
+  {
+    name: 'options_switch_tab',
+    description: '切换期权页面工作区标签页',
+    inputSchema: { type: 'object', properties: { tab: { type: 'string' } }, required: ['tab'] },
+    defaultArgs: { tab: 'data' },
+  },
+  {
+    name: 'options_select_symbol',
+    description: '切换当前分析的期权标的代码（例如 "588000.SH", "510050.SH"）',
+    inputSchema: { type: 'object', properties: { symbol: { type: 'string' } }, required: ['symbol'] },
+    defaultArgs: { symbol: '588000.SH' },
+  },
+];
+
+const FALLBACK_ADMIN_TOOLS: WebMcpToolItem[] = [
+  {
+    name: 'admin_get_system_status',
+    description: '获取系统管理中心状态（当前活动标签页、当前选中的管理账户及可访问的管理功能列表）',
+    inputSchema: { type: 'object', properties: {} },
+    defaultArgs: {},
+  },
+  {
+    name: 'admin_get_cash_flow_summary',
+    description: '获取指定账户的现金流与分红概览数据（需要登录管理员权限）',
+    inputSchema: { type: 'object', properties: { account_alias: { type: 'string' } } },
+    defaultArgs: {},
+  },
+  {
+    name: 'admin_get_operations',
+    description: '查询系统日常运维日志与资产快照操作流水（需要登录管理员权限）',
+    inputSchema: { type: 'object', properties: { start_date: { type: 'string' }, end_date: { type: 'string' } } },
+    defaultArgs: { start_date: '2026-08-01', end_date: '2026-09-06' },
+  },
+  {
+    name: 'admin_switch_tab',
+    description: '切换管理中心标签页（需要登录管理员权限）',
+    inputSchema: { type: 'object', properties: { tab: { type: 'string' } }, required: ['tab'] },
+    defaultArgs: { tab: 'operations' },
+  },
+];
 
 export function WebMcpGuideModal({
   isOpen,
@@ -68,13 +228,34 @@ export function WebMcpGuideModal({
     return typeof window !== 'undefined' ? window.location.host : 'stock.in.corvo.fun';
   }, []);
 
-  // Discover registered tools from navigator.modelContextTesting if available
+  // Discover registered tools from customTools, document.modelContext, window.modelContext, or navigator
   const availableTools: WebMcpToolItem[] = useMemo(() => {
     if (customTools && customTools.length > 0) {
-      return customTools;
+      return customTools.map((t) => ({
+        ...t,
+        defaultArgs: t.defaultArgs || DEFAULT_TOOL_ARGS[t.name] || {},
+      }));
     }
 
     if (typeof window !== 'undefined') {
+      const mc =
+        (typeof document !== 'undefined' ? (document as unknown as { modelContext?: { listTools?: () => WebMcpToolItem[] } }).modelContext : null) ||
+        (window as unknown as { modelContext?: { listTools?: () => WebMcpToolItem[] } }).modelContext;
+
+      if (typeof mc?.listTools === 'function') {
+        try {
+          const list = mc.listTools();
+          if (Array.isArray(list) && list.length > 0) {
+            return list.map((t) => ({
+              ...t,
+              defaultArgs: DEFAULT_TOOL_ARGS[t.name] || {},
+            }));
+          }
+        } catch {
+          // ignore
+        }
+      }
+
       const testing = (window.navigator as unknown as {
         modelContextTesting?: {
           listTools?: () => WebMcpToolItem[];
@@ -96,14 +277,67 @@ export function WebMcpGuideModal({
       }
     }
 
-    return [];
-  }, [customTools, isOpen]);
+    // Default fallback based on route/page
+    if (currentUrl.includes('/options') || pageTitle.includes('Options')) {
+      return FALLBACK_OPTIONS_TOOLS;
+    }
+    if (currentUrl.includes('/admin') || pageTitle.includes('Admin')) {
+      return FALLBACK_ADMIN_TOOLS;
+    }
+    if (currentUrl.includes('/journal') || pageTitle.includes('Journal')) {
+      return FALLBACK_JOURNAL_TOOLS;
+    }
+    return FALLBACK_LANDING_TOOLS;
+  }, [customTools, currentUrl, pageTitle]);
 
   const toolNamesList = useMemo(() => {
     return availableTools.map((t) => t.name).join(', ');
   }, [availableTools]);
 
   const aiPrompts = useMemo(() => {
+    if (currentUrl.includes('/options') || pageTitle.includes('Options')) {
+      return [
+        {
+          id: 'prompt-options-overview',
+          title: '期权持仓与希腊字母全景诊断（推荐）',
+          badge: '常用',
+          desc: '让 AI 调取当前期权账户持仓、到期分布与保证金占用情况',
+          content: `我正在访问期权交易分析页面：${currentUrl}
+当前页面已注册 WebMCP 工具：${toolNamesList || 'options_get_overview, options_get_portfolio, options_get_market_state, options_list_symbols'}
+请帮我：
+1. 调用 options_get_overview 查看当前选中的账户与分析标的；
+2. 调用 options_get_portfolio 获取账户当前的期权持仓、备兑现货持仓与保证金占用；
+3. 调用 options_get_market_state 获取当前标的的期权持仓量与市场形态；
+4. 综合汇报期权持仓的到期风险与资金安全边界。`,
+        },
+        {
+          id: 'prompt-options-state',
+          title: '标的期权市场状态分析',
+          badge: '量化',
+          desc: '查询持仓量PCR、成交量及量化特征',
+          content: `我正在访问期权分析页面：${currentUrl}
+请调用 options_get_market_state 查看标的 "588000.SH" 的市场指标，重点分析持仓量 PCR 与多空情绪。`,
+        },
+      ];
+    }
+
+    if (currentUrl.includes('/admin') || pageTitle.includes('Admin')) {
+      return [
+        {
+          id: 'prompt-admin-status',
+          title: '系统运维与管理员状态排查（推荐）',
+          badge: '管理',
+          desc: '让 AI 检查管理中心状态、现金流与运维流水',
+          content: `我正在访问管理中心页面：${currentUrl}
+当前页面已注册 WebMCP 工具：${toolNamesList || 'admin_get_system_status, admin_get_cash_flow_summary, admin_get_operations'}
+请帮我：
+1. 调用 admin_get_system_status 检查系统管理中心状态及当前选中的账户；
+2. 如果具备管理员权限，调用 admin_get_cash_flow_summary 查询账户现金流汇总，并调用 admin_get_operations 查看最近运维流水；
+3. 如果未登录，请明确提示需登录管理员账号。`,
+        },
+      ];
+    }
+
     const isJournal = currentUrl.includes('/journal') || pageTitle.includes('Journal');
 
     if (isJournal) {
@@ -210,21 +444,58 @@ ${toolNamesList || 'journal_list_accounts, journal_get_portfolio, journal_get_to
         parsedArgs = JSON.parse(argsStr);
       }
 
-      const testing = (window.navigator as unknown as {
-        modelContextTesting?: {
-          executeTool?: (name: string, argsJson: string) => Promise<unknown>;
-        };
-      }).modelContextTesting;
+      let result: unknown = null;
 
-      if (typeof testing?.executeTool === 'function') {
-        const result = await testing.executeTool(toolName, JSON.stringify(parsedArgs));
+      // 1. Direct execution via customTools (fastest and most reliable)
+      const customTool = customTools?.find((t) => t.name === toolName);
+      if (typeof (customTool as unknown as { execute?: (args: Record<string, unknown>) => Promise<unknown> })?.execute === 'function') {
+        result = await (customTool as unknown as { execute: (args: Record<string, unknown>) => Promise<unknown> }).execute(parsedArgs);
+      } else {
+        // 2. Standard WebMCP execution via document.modelContext or window.modelContext
+        const mc =
+          (typeof document !== 'undefined' ? (document as unknown as { modelContext?: unknown }).modelContext : null) ||
+          (typeof window !== 'undefined' ? (window as unknown as { modelContext?: unknown }).modelContext : null);
+
+        const typedMc = mc as {
+          getTools?: () => Promise<Array<{ name: string }>>;
+          executeTool?: (tool: unknown, inputArgsJson: string) => Promise<unknown>;
+        } | null;
+
+        if (typedMc && typeof typedMc.getTools === 'function' && typeof typedMc.executeTool === 'function') {
+          const registeredList = await typedMc.getTools();
+          const targetDescriptor = registeredList?.find((t) => t.name === toolName);
+          if (targetDescriptor) {
+            const rawRes = await typedMc.executeTool(targetDescriptor, JSON.stringify(parsedArgs));
+            try {
+              result = typeof rawRes === 'string' ? JSON.parse(rawRes) : rawRes;
+            } catch {
+              result = rawRes;
+            }
+          }
+        }
+
+        // 3. Fallback to testing shim if available
+        if (!result && typeof window !== 'undefined') {
+          const testing = (window.navigator as unknown as {
+            modelContextTesting?: {
+              executeTool?: (name: string, argsJson: string) => Promise<unknown>;
+            };
+          }).modelContextTesting;
+
+          if (typeof testing?.executeTool === 'function') {
+            result = await testing.executeTool(toolName, JSON.stringify(parsedArgs));
+          }
+        }
+      }
+
+      if (result !== null && result !== undefined) {
         setToolResults((prev) => ({
           ...prev,
           [toolName]: { status: 'success', data: result },
         }));
         toast.success(`工具 ${toolName} 执行成功！`);
       } else {
-        throw new Error('当前浏览器环境未检测到 navigator.modelContextTesting 运行时');
+        throw new Error(`未找到工具 ${toolName} 的执行入口，请确认工具已在当前页面挂载`);
       }
     } catch (err) {
       setToolResults((prev) => ({
@@ -240,12 +511,17 @@ ${toolNamesList || 'journal_list_accounts, journal_get_portfolio, journal_get_to
     }
   };
 
-  const consoleAllToolsSnippet = `// 1. 列出当前网页注册的所有 WebMCP 工具
-console.table(navigator.modelContextTesting?.listTools());`;
+  const sampleToolName = availableTools[0]?.name || 'landing_get_overview';
 
-  const consoleSampleRunSnippet = `// 2. 调用指定工具（以查询账户为例）
-const res = await navigator.modelContextTesting?.executeTool('journal_list_accounts', '{}');
-console.log(JSON.parse(res.content[0].text));`;
+  const consoleAllToolsSnippet = `// 1. 列出当前网页注册的所有 WebMCP 工具 (W3C WebMCP 标准)
+const tools = await (document.modelContext || window.modelContext).getTools();
+console.table(tools);`;
+
+  const consoleSampleRunSnippet = `// 2. 调用指定工具（例如 ${sampleToolName}）
+const tools = await (document.modelContext || window.modelContext).getTools();
+const target = tools.find(t => t.name === '${sampleToolName}');
+const res = await (document.modelContext || window.modelContext).executeTool(target, '{}');
+console.log(JSON.parse(res));`;
 
   return (
     <div
@@ -413,7 +689,11 @@ console.log(JSON.parse(res.content[0].text));`;
                 <div className="space-y-3">
                   {availableTools.map((tool) => {
                     const currentArgs = getArgsForTool(tool.name, tool.defaultArgs);
-                    const executionSnippet = `await navigator.modelContextTesting?.executeTool('${tool.name}', ${JSON.stringify(currentArgs.replace(/\s+/g, ' '))});`;
+                    const executionSnippet = `// 网页控制台调用 ${tool.name} (W3C WebMCP 标准)
+const tools = await (document.modelContext || window.modelContext).getTools();
+const target = tools.find(t => t.name === '${tool.name}');
+const res = await (document.modelContext || window.modelContext).executeTool(target, ${JSON.stringify(currentArgs.replace(/\s+/g, ' '))});
+console.log(JSON.parse(res));`;
                     const result = toolResults[tool.name];
 
                     return (
@@ -547,7 +827,7 @@ console.log(JSON.parse(res.content[0].text));`;
                   </div>
                 </div>
                 <p className={`${themes[theme].text} opacity-75`}>
-                  按 <kbd className="px-1.5 py-0.5 rounded bg-gray-200 dark:bg-gray-800 font-mono">F12</kbd> 打开 DevTools Console，可直接使用标准测试桩 <code className="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800 font-mono">navigator.modelContextTesting</code>：
+                  按 <kbd className="px-1.5 py-0.5 rounded bg-gray-200 dark:bg-gray-800 font-mono">F12</kbd> 打开 DevTools Console，可直接使用标准接口 <code className="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800 font-mono">document.modelContext</code> 或 <code className="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800 font-mono">window.modelContext</code>：
                 </p>
 
                 <div className="relative rounded-lg bg-gray-900 text-gray-100 p-3 font-mono text-[11px]">

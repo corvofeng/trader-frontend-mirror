@@ -8,6 +8,7 @@ export interface UseLandingWebMcpOptions extends LandingWebMcpContext {
 export function useLandingWebMcp(options: UseLandingWebMcpOptions) {
   const {
     userId,
+    isAuthenticated,
     currentTheme,
     currentLang,
     onNavigate,
@@ -18,9 +19,11 @@ export function useLandingWebMcp(options: UseLandingWebMcpOptions) {
 
   const [isSupported, setIsSupported] = useState(false);
   const [registeredToolCount, setRegisteredToolCount] = useState(0);
+  const [tools, setTools] = useState<import('../../../lib/webmcp/landingWebMcp').WebMcpToolDescriptor[]>([]);
 
   const contextRef = useRef<LandingWebMcpContext>({
     userId,
+    isAuthenticated,
     currentTheme,
     currentLang,
     onNavigate,
@@ -31,6 +34,7 @@ export function useLandingWebMcp(options: UseLandingWebMcpOptions) {
   useEffect(() => {
     contextRef.current = {
       userId,
+      isAuthenticated,
       currentTheme,
       currentLang,
       onNavigate,
@@ -42,14 +46,20 @@ export function useLandingWebMcp(options: UseLandingWebMcpOptions) {
   useEffect(() => {
     if (!enabled || typeof window === 'undefined') return;
 
-    const hasModelContext = 'modelContext' in document;
-    setIsSupported(hasModelContext);
+    const hasModelContext =
+      (typeof document !== 'undefined' && 'modelContext' in document) ||
+      'modelContext' in window ||
+      (typeof navigator !== 'undefined' && 'modelContext' in navigator);
+    setIsSupported(Boolean(hasModelContext));
 
     const controller = new AbortController();
 
     const proxyContext: LandingWebMcpContext = {
       get userId() {
         return contextRef.current.userId;
+      },
+      get isAuthenticated() {
+        return contextRef.current.isAuthenticated;
       },
       get currentTheme() {
         return contextRef.current.currentTheme;
@@ -62,8 +72,15 @@ export function useLandingWebMcp(options: UseLandingWebMcpOptions) {
       onLanguageChange: (lang) => contextRef.current.onLanguageChange(lang),
     };
 
-    const { toolNames } = registerLandingWebMcpTools(proxyContext, controller.signal);
-    setRegisteredToolCount(toolNames.length);
+    const registration = registerLandingWebMcpTools(proxyContext, controller.signal);
+    setRegisteredToolCount(registration.toolNames.length);
+    setTools(registration.tools);
+
+    void registration.registrationPromise.then((count) => {
+      if (!controller.signal.aborted) {
+        setRegisteredToolCount(count);
+      }
+    });
 
     return () => {
       controller.abort();
@@ -73,5 +90,6 @@ export function useLandingWebMcp(options: UseLandingWebMcpOptions) {
   return {
     isSupported,
     registeredToolCount,
+    tools,
   };
 }

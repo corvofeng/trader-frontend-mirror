@@ -336,6 +336,8 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
     userId: DEMO_USER_ID,
     selectedAccountId,
     activeTab,
+    isAuthenticated,
+    allowedTabs: tabs.map((t) => t.id),
     onSelectAccount: handleAccountChange,
     onSwitchTab: handleTabChange,
     getAccounts: () => accounts,
@@ -356,6 +358,7 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
                   toolCount={webMcp.registeredToolCount}
                   isSupported={webMcp.isSupported}
                   pageTitle="Journal 交易日志"
+                  customTools={webMcp.tools}
                 />
               </div>
               <p className={`text-sm ${themes[theme].text} opacity-75 mt-1`}>

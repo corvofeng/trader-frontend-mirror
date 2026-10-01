@@ -31,6 +31,7 @@ export function Landing({ theme, onThemeChange, user }: LandingProps) {
 
   const webMcp = useLandingWebMcp({
     userId: user?.id,
+    isAuthenticated: Boolean(user),
     currentTheme: theme,
     currentLang: lang,
     onNavigate: (path) => navigate(path),
@@ -49,6 +50,7 @@ export function Landing({ theme, onThemeChange, user }: LandingProps) {
               toolCount={webMcp.registeredToolCount}
               isSupported={webMcp.isSupported}
               pageTitle="主页 / 概览"
+              customTools={webMcp.tools}
             />
           </div>
           <div className="inline-flex items-center p-1 rounded-xl bg-slate-100/80 dark:bg-zinc-800/80 border border-slate-200/60 dark:border-zinc-700/60 text-xs font-semibold shadow-xs">

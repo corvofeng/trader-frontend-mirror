@@ -24,6 +24,8 @@ import {
   withAccountAliasInSearch,
 } from '../shared/utils/accountSelection';
 import { ADMIN_DEFAULT_TAB, ADMIN_TABS, type AdminTab, normalizeTab } from '../shared/utils/tabRouting';
+import { useAdminWebMcp } from './Admin/hooks/useAdminWebMcp';
+import { WebMcpBadge } from '../lib/webmcp/components/WebMcpBadge';
 
 interface AdminProps {
   theme: Theme;
@@ -771,13 +773,35 @@ export function Admin({ theme }: AdminProps) {
     { id: 'upload' as AdminTab, name: 'Upload', icon: Upload },
   ];
 
+  const webMcp = useAdminWebMcp({
+    userId: effectiveUserId,
+    selectedAccountId,
+    activeTab,
+    isAuthenticated: Boolean(userId),
+    onSwitchTab: handleTabChange,
+    onSelectAccount: (accountId) => {
+      setSelectedAccountId(accountId);
+      persistAccountAlias(accountId, { storage: ADMIN_ACCOUNT_STORAGE });
+      setRefreshKey((k) => k + 1);
+    },
+  });
+
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
       <div className="space-y-6 mb-6">
         <div className={`${themes[theme].card} rounded-lg p-4`}>
           <div className="flex items-center justify-between gap-4">
             <div>
-              <h1 className={`text-2xl font-bold ${themes[theme].text}`}>Admin</h1>
+              <div className="flex items-center gap-2.5">
+                <h1 className={`text-2xl font-bold ${themes[theme].text}`}>Admin</h1>
+                <WebMcpBadge
+                  theme={theme}
+                  toolCount={webMcp.registeredToolCount}
+                  isSupported={webMcp.isSupported}
+                  pageTitle="Admin 管理中心"
+                  customTools={webMcp.tools}
+                />
+              </div>
               <p className={`text-sm ${themes[theme].text} opacity-75 mt-1`}>
                 跨账户通用管理与监控
               </p>

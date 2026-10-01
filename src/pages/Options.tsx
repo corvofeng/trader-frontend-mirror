@@ -33,6 +33,8 @@ import {
   resolveCurrentAccountAlias,
 } from '../shared/utils/accountSelection';
 import { OPTIONS_DEFAULT_TAB, OPTIONS_TABS, type OptionsTab, normalizeTab } from '../shared/utils/tabRouting';
+import { useOptionsWebMcp } from './Options/hooks/useOptionsWebMcp';
+import { WebMcpBadge } from '../lib/webmcp/components/WebMcpBadge';
 
 interface OptionsProps {
   theme: Theme;
@@ -399,6 +401,22 @@ function OptionsContent({ theme }: OptionsProps) {
     { id: 'risk' as OptionsTab, name: 'Risk', icon: Activity },
   ];
 
+  const webMcp = useOptionsWebMcp({
+    userId: effectiveUserId,
+    selectedAccountId,
+    selectedSymbol,
+    activeTab,
+    isAuthenticated,
+    onSelectSymbol: (symbol: string) => {
+      setSelectedSymbol(symbol);
+      try {
+        localStorage.setItem('optionsSelectedSymbol', symbol);
+      } catch {}
+    },
+    onSwitchTab: (tab: OptionsTab) => handleTabChange(tab),
+    onSelectAccount: handleAccountChange,
+  });
+
   return (
     <main className="max-w-7xl mx-auto pl-2.5 pr-11 sm:px-6 lg:px-8 py-2.5 sm:py-8">
       <div className="space-y-3 sm:space-y-6">
@@ -418,6 +436,13 @@ function OptionsContent({ theme }: OptionsProps) {
                     <span className="text-[10px] sm:text-xs font-mono font-medium px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 border border-blue-200/50 dark:border-blue-800/40">
                       Options
                     </span>
+                    <WebMcpBadge
+                      theme={theme}
+                      toolCount={webMcp.registeredToolCount}
+                      isSupported={webMcp.isSupported}
+                      pageTitle="Options 期权分析"
+                      customTools={webMcp.tools}
+                    />
                   </div>
                   {/* 移动端紧凑模式摘要提示 */}
                   <div className="sm:hidden flex items-center gap-1.5 mt-0.5 text-[11px] font-mono tabular-nums text-gray-500 dark:text-zinc-400">
