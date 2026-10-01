@@ -322,6 +322,7 @@ export function PortfolioKlineChart({ theme, klineData, source, priceMode, sseDa
       },
       localization: {
         priceFormatter: formatAxisValue,
+        dateFormat: 'yyyy-MM-dd',
       },
       grid: {
         vertLines: {
@@ -354,7 +355,7 @@ export function PortfolioKlineChart({ theme, klineData, source, priceMode, sseDa
       },
       timeScale: {
         borderColor,
-        timeVisible: true,
+        timeVisible: false,
         secondsVisible: false,
         rightOffset: isMobile ? 1 : 0,
         barSpacing: isMobile ? 8 : 10,

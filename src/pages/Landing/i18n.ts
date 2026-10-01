@@ -41,7 +41,7 @@ export const landingTranslations = {
       title: '总资产 K 线',
       subtitle: '多账户资金 K 线走势与历史波动',
       openWorkspace: '打开资产全景',
-      shanghaiIndex: '总资产 K 线',
+      shanghaiIndex: '总资产 K 线 · 前复权',
     },
     commandSuite: {
       badge: 'Trading Command Suite',
@@ -114,7 +114,7 @@ export const landingTranslations = {
       title: 'Total Assets K-Line',
       subtitle: 'Multi-account historical equity candlestick tracking',
       openWorkspace: 'Open Dashboard',
-      shanghaiIndex: 'Total Assets K-Line',
+      shanghaiIndex: 'Total Assets K-Line · Adjusted',
     },
     commandSuite: {
       badge: 'Trading Command Suite',

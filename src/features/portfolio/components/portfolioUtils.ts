@@ -1,4 +1,4 @@
-import type { Holding, Trade, TrendData } from '../../../lib/services/types';
+import type { Holding, PortfolioKlinePoint, Trade, TrendData } from '../../../lib/services/types';
 
 export const DEFAULT_ASSET_KLINE_DAYS = 180;
 
@@ -204,6 +204,68 @@ export function calculateSMA(
     }
   }
   return result;
+}
+
+export function getAdjustedCandlePoint(
+  point: PortfolioKlinePoint,
+  hasAdjustedDataset: boolean = true
+): { open: number; high: number; low: number; close: number } | null {
+  const isPosFinite = (v?: number): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0;
+
+  if (hasAdjustedDataset) {
+    if (
+      isPosFinite(point.adjusted_open) &&
+      isPosFinite(point.adjusted_high) &&
+      isPosFinite(point.adjusted_low) &&
+      isPosFinite(point.adjusted_close)
+    ) {
+      return {
+        open: point.adjusted_open,
+        high: point.adjusted_high,
+        low: point.adjusted_low,
+        close: point.adjusted_close,
+      };
+    }
+    // Never fall back to unadjusted raw values in an adjusted dataset,
+    // as it creates abnormal vertical plunge spikes on cash flow days.
+    return null;
+  }
+
+  // Pure raw dataset fallback
+  if (
+    isPosFinite(point.open) &&
+    isPosFinite(point.high) &&
+    isPosFinite(point.low) &&
+    isPosFinite(point.close)
+  ) {
+    return {
+      open: point.open,
+      high: point.high,
+      low: point.low,
+      close: point.close,
+    };
+  }
+
+  return null;
+}
+
+export function getAdjustedCandleClose(
+  point: PortfolioKlinePoint,
+  hasAdjustedDataset: boolean = true
+): number | null {
+  if (hasAdjustedDataset) {
+    if (typeof point.adjusted_close === 'number' && Number.isFinite(point.adjusted_close) && point.adjusted_close > 0) {
+      return point.adjusted_close;
+    }
+    if (typeof point.adjusted_value === 'number' && Number.isFinite(point.adjusted_value) && point.adjusted_value > 0) {
+      return point.adjusted_value;
+    }
+    return null;
+  }
+  if (typeof point.close === 'number' && Number.isFinite(point.close) && point.close > 0) {
+    return point.close;
+  }
+  return null;
 }
 
 

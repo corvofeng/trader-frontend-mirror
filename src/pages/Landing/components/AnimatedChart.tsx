@@ -7,6 +7,7 @@ import type { User, Account } from '../../../lib/services/types';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { formatCompactNumber } from '../../../shared/utils/format';
 import { landingTranslations, Language } from '../i18n';
+import { getAdjustedCandlePoint } from '../../../features/portfolio/components/portfolioUtils';
 
 
 
@@ -72,6 +73,7 @@ export function AnimatedChart({ theme, lang = 'zh', user }: AnimatedChartProps) 
         },
         localization: {
           priceFormatter: formatAxisValue,
+          dateFormat: 'yyyy-MM-dd',
         },
         grid: {
           vertLines: { color: isDark ? '#374151' : '#e5e7eb' },
@@ -94,7 +96,7 @@ export function AnimatedChart({ theme, lang = 'zh', user }: AnimatedChartProps) 
         width: chartContainerRef.current.clientWidth,
         height: 400,
         timeScale: {
-          timeVisible: true,
+          timeVisible: false,
           secondsVisible: false,
           borderColor: isDark ? '#374151' : '#e5e7eb',
           fixLeftEdge: true,
@@ -158,13 +160,25 @@ export function AnimatedChart({ theme, lang = 'zh', user }: AnimatedChartProps) 
         const klineData = response.data;
 
         if (klineData.length > 0) {
-          const candlestickData = klineData.map(item => ({
-            time: item.date,
-            open: item.open,
-            high: item.high,
-            low: item.low,
-            close: item.close,
-          }));
+          const hasAdjusted = klineData.some(
+            item => typeof item.adjusted_close === 'number' && Number.isFinite(item.adjusted_close)
+          );
+
+          const candlestickData = klineData
+            .map(item => {
+              const adj = getAdjustedCandlePoint(item, hasAdjusted);
+              if (!adj) return null;
+              const dateStr = item.date.length >= 10 ? item.date.slice(0, 10) : item.date;
+              return {
+                time: dateStr,
+                open: adj.open,
+                high: adj.high,
+                low: adj.low,
+                close: adj.close,
+              };
+            })
+            .filter((item): item is { time: string; open: number; high: number; low: number; close: number } => item !== null)
+            .sort((a, b) => a.time.localeCompare(b.time));
 
           // Progressive loading animation
           let currentIndex = 0;

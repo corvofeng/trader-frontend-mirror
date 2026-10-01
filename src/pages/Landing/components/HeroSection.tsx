@@ -7,6 +7,7 @@ import { landingTranslations, Language } from '../i18n';
 import { getCurrencySymbolFromCode } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { AssetTrendChart, TrendDataPoint } from './AssetTrendChart';
+import { getAdjustedCandleClose } from '../../../features/portfolio/components/portfolioUtils';
 
 interface HeroSectionProps {
   theme: Theme;
@@ -123,27 +124,40 @@ export function HeroSection({
           }
         }
 
-        // 3. Fetch trend/kline data for 30-day daily PnL bar chart (adjusted for cash flows)
+        // 3. Fetch trend/kline & metrics data using unified portfolio interfaces (forward-adjusted)
         if (accountKey) {
           const endDate = new Date().toISOString().split('T')[0];
           const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-          const klineResponse = await portfolioService.getKlineData(userId, startDate, endDate, accountKey);
+          const [klineResponse, metricsResponse] = await Promise.all([
+            portfolioService.getKlineData(userId, startDate, endDate, accountKey),
+            portfolioService.getMetrics(userId, endDate, accountKey),
+          ]);
           const candles: PortfolioKlinePoint[] = klineResponse.data || [];
+          const hasAdjusted = candles.some(
+            c => typeof c.adjusted_close === 'number' && Number.isFinite(c.adjusted_close)
+          );
+          const validCandles = candles.filter(c => {
+            const close = getAdjustedCandleClose(c, hasAdjusted);
+            return close !== null && close > 0;
+          });
 
-          if (candles.length >= 2 && !cancelled) {
+          if (validCandles.length >= 2 && !cancelled) {
             const calculatedPoints: TrendDataPoint[] = [];
-            for (let i = 1; i < candles.length; i++) {
-              const prev = candles[i - 1];
-              const curr = candles[i];
-              const diff = curr.close - prev.close - (curr.cash_flow ?? 0);
-              const pct = prev.close > 0 ? (diff / prev.close) * 100 : 0;
+            for (let i = 1; i < validCandles.length; i++) {
+              const prev = validCandles[i - 1];
+              const curr = validCandles[i];
+              const prevClose = getAdjustedCandleClose(prev, hasAdjusted)!;
+              const currClose = getAdjustedCandleClose(curr, hasAdjusted)!;
+              // Forward adjustment (前复权) naturally normalizes away cash flow disturbances
+              const diff = currClose - prevClose;
+              const pct = prevClose > 0 ? (diff / prevClose) * 100 : 0;
               const dateStr = curr.date;
-              const dateLabel = dateStr.length >= 10 ? dateStr.slice(5) : dateStr;
+              const dateLabel = dateStr.length >= 10 ? dateStr.slice(5, 10) : dateStr;
 
               calculatedPoints.push({
                 date: dateStr,
                 dateLabel,
-                assetValue: curr.close,
+                assetValue: currClose,
                 dailyChange: Math.round(diff * 100) / 100,
                 dailyChangePct: Math.round(pct * 100) / 100,
               });
@@ -157,20 +171,26 @@ export function HeroSection({
               // Calculate daily win rate over the last 30 days
               const positiveDaysCount = calculatedPoints.filter((p) => p.dailyChange > 0).length;
               const totalDaysCount = calculatedPoints.length;
-              const calculatedWinRate = Number(((positiveDaysCount / totalDaysCount) * 100).toFixed(1));
+              const calculatedWinRate = (metricsResponse?.data?.positiveDayRatio !== null && metricsResponse?.data?.positiveDayRatio !== undefined)
+                ? Number((metricsResponse.data.positiveDayRatio * 100).toFixed(1))
+                : Number(((positiveDaysCount / totalDaysCount) * 100).toFixed(1));
               setWinRate(calculatedWinRate);
               setWinDays(positiveDaysCount);
               setTotalDays(totalDaysCount);
 
-              // Overwrite portfolioSummary using total asset K-line values for perfect consistency
-              const lastCandle = candles[candles.length - 1];
-              const prevCandle = candles[candles.length - 2];
-              const todayPnL = lastCandle.close - prevCandle.close - (lastCandle.cash_flow ?? 0);
-              const todayPnLPct = prevCandle.close > 0 ? (todayPnL / prevCandle.close) * 100 : 0;
+              // Overwrite portfolioSummary using total asset K-line values for consistency
+              const lastCandle = validCandles[validCandles.length - 1];
+              const prevCandle = validCandles[validCandles.length - 2];
+              const lastClose = getAdjustedCandleClose(lastCandle, hasAdjusted)!;
+              const prevClose = getAdjustedCandleClose(prevCandle, hasAdjusted)!;
+              const todayPnL = lastClose - prevClose;
+              const todayPnLPct = prevClose > 0 ? (todayPnL / prevClose) * 100 : 0;
+
+              const latestTotalValue = candles[candles.length - 1]?.close ?? lastCandle.close;
 
               setPortfolioSummary({
-                totalValue: lastCandle.close,
-                dailyChange: todayPnL,
+                totalValue: latestTotalValue,
+                dailyChange: Math.round(todayPnL * 100) / 100,
                 dailyChangePct: todayPnLPct,
                 currencySymbol,
               });
