@@ -1,4 +1,3 @@
-import React from 'react';
 import { Theme, themes } from '../../../lib/theme';
 import type { Holding } from '../../../lib/services/types';
 import { formatCurrency } from '../../../shared/utils/format';
@@ -17,7 +16,7 @@ interface HoldingsTableProps {
   onHoldingsPerPageChange: (value: number) => void;
   holdingsSort: { field: string; direction: 'asc' | 'desc' };
   onHoldingsSort: (field: string) => void;
-  onAnalyzeStock: (code: string, name: string) => void;
+  onAnalyzeStock?: (code: string, name: string) => void;
   isLoading?: boolean;
 }
 
@@ -79,7 +78,7 @@ export function HoldingsTable({
                         </div>
                       </th>
                       <th 
-                        className={`w-[30%] md:w-[30%] px-1 py-2 sm:px-4 sm:py-3 text-right text-sm font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
+                        className={`${onAnalyzeStock ? 'w-[24%] md:w-[25%]' : 'w-[28%] md:w-[30%]'} px-1 py-2 sm:px-4 sm:py-3 text-right text-sm font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
                         onClick={() => onHoldingsSort('total_value')}
                       >
                         <div className="flex items-center justify-end space-x-1">
@@ -88,7 +87,7 @@ export function HoldingsTable({
                         </div>
                       </th>
                       <th 
-                        className={`w-[24%] md:w-[25%] px-1 py-2 sm:px-4 sm:py-3 text-right text-sm font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
+                        className={`${onAnalyzeStock ? 'w-[24%] md:w-[25%]' : 'w-[28%] md:w-[30%]'} px-1 py-2 sm:px-4 sm:py-3 text-right text-sm font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider cursor-pointer`}
                         onClick={() => onHoldingsSort('profit_loss_percentage')}
                       >
                         <div className="flex items-center justify-end space-x-1">
@@ -96,9 +95,11 @@ export function HoldingsTable({
                           <SortIcon field="profit_loss_percentage" currentSort={holdingsSort} />
                         </div>
                       </th>
-                      <th className={`w-[12%] md:w-[15%] px-1 py-2 sm:px-4 sm:py-3 text-right text-sm font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
-                        <span className="hidden sm:inline">详情</span>
-                      </th>
+                      {onAnalyzeStock && (
+                        <th className={`w-[12%] md:w-[15%] px-1 py-2 sm:px-4 sm:py-3 text-right text-sm font-medium ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
+                          <span className="hidden sm:inline">详情</span>
+                        </th>
+                      )}
                     </tr>
           </thead>
           <tbody className={`divide-y ${themes[theme].border}`}>
@@ -116,9 +117,11 @@ export function HoldingsTable({
                     <td className="px-1 py-2 sm:px-4 sm:py-3">
                       <div className="ml-auto h-5 w-16 rounded bg-gray-200/70 dark:bg-gray-800/70 animate-pulse" />
                     </td>
-                    <td className="px-1 py-2 sm:px-4 sm:py-3">
-                      <div className="ml-auto h-8 w-16 rounded bg-gray-200/70 dark:bg-gray-800/70 animate-pulse" />
-                    </td>
+                    {onAnalyzeStock && (
+                      <td className="px-1 py-2 sm:px-4 sm:py-3">
+                        <div className="ml-auto h-8 w-16 rounded bg-gray-200/70 dark:bg-gray-800/70 animate-pulse" />
+                      </td>
+                    )}
                   </tr>
                 ))
               : paginatedHoldings.map((holding) => (
@@ -140,20 +143,22 @@ export function HoldingsTable({
                 }`}>
                   {holding.profit_loss_percentage >= 0 ? '+' : ''}{holding.profit_loss_percentage.toFixed(2)}%
                 </td>
-                <td className="px-1 py-2 sm:px-4 sm:py-3">
-                     <div className="flex justify-end">
-                       <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onAnalyzeStock(holding.stock_code, holding.stock_name);
-                          }}
-                          className={`px-2.5 py-1 rounded-md text-sm ${themes[theme].secondary} flex items-center gap-1.5 btn-tactile opacity-85 hover:opacity-100 whitespace-nowrap`}
-                        >
-                          <TrendingUp size={16} />
-                          <span className="hidden sm:inline">详情</span>
-                        </button>
-                     </div>
-                </td>
+                {onAnalyzeStock && (
+                  <td className="px-1 py-2 sm:px-4 sm:py-3">
+                       <div className="flex justify-end">
+                         <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onAnalyzeStock(holding.stock_code, holding.stock_name);
+                            }}
+                            className={`px-2.5 py-1 rounded-md text-sm ${themes[theme].secondary} flex items-center gap-1.5 btn-tactile opacity-85 hover:opacity-100 whitespace-nowrap`}
+                          >
+                            <TrendingUp size={16} />
+                            <span className="hidden sm:inline">详情</span>
+                          </button>
+                       </div>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

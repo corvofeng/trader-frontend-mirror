@@ -14,7 +14,7 @@ const getDb = (): Promise<any> => {
         console.warn('VITE_STATIC_DB_BASE_URL is not set in cloudflareServices. Falling back to relative path.');
       }
       const base = staticDbBase.replace(/\/$/, '');
-      const latestRes = await fetch(`${base}/latest.json`);
+      const latestRes = await fetch(`${base}/latest.json?_t=${Date.now()}`, { cache: 'no-cache' });
       if (!latestRes.ok) throw new Error(`latest.json not found: ${latestRes.status}`);
       const { date } = await latestRes.json();
       const dbRes = await fetch(`${base}/${date}.json`);
@@ -69,6 +69,25 @@ export const cloudflareServices: Services = {
       const db = await getDb();
       return { data: db.accounts || [], error: null };
     }
+  },
+
+  stockService: {
+    ...mockServices.stockService,
+    getStocks: async () => ({ data: [], error: null }),
+    getStockData: async (_symbol: string) => ({ data: [], error: null }),
+    getStockHistoryRaw: async (_symbol: string) => ({ data: [], error: null }),
+    getStockTicksRaw: async (_symbol: string) => ({ data: [], error: null }),
+    getStockGtimgRaw: async (_symbol: string) => ({ data: [], error: null }),
+    getTradingCalendar: async (_year?: number) => ({ data: [], error: null }),
+    getTodayOrders: async (_accountAlias?: string) => ({ data: [], error: null }),
+    getCurrentPrice: async (symbol: string) => ({
+      data: {
+        stock_code: symbol,
+        stock_name: symbol,
+        price: 0
+      },
+      error: null
+    })
   },
 
   portfolioService: {
@@ -201,6 +220,9 @@ export const cloudflareServices: Services = {
     ...mockServices.stockConfigService,
     getStockConfigs: async () => {
       const db = await getDb();
+      if (db.stock_configs && Array.isArray(db.stock_configs) && db.stock_configs.length > 0) {
+        return { data: db.stock_configs, error: null };
+      }
       const configs = (db.holdings || []).map((h: any) => ({
         stock_code: h.stock_code,
         category: 'Stock',

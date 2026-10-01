@@ -6,7 +6,9 @@ import { cloudflareServices } from './cloudflare';
 const env = import.meta.env.VITE_ENV;
 console.log(`Running in ${env} environment mode`);
 
-const services: Services = env === 'cloudflare'
+export const isCloudflareEnv = env === 'cloudflare';
+
+const services: Services = isCloudflareEnv
   ? cloudflareServices
   : env === 'production'
     ? prodServices

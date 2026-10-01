@@ -5,7 +5,7 @@ import { BarChart3, RefreshCw, SlidersHorizontal, ChevronDown, ChevronUp } from 
 import { Line } from 'react-chartjs-2';
 import type { Theme } from '../../../lib/theme';
 import { themes } from '../../../lib/theme';
-import { stockService } from '../../../lib/services';
+import { stockService, isCloudflareEnv } from '../../../lib/services';
 import { InfoTooltip } from '../../../shared/components';
 import type { PortfolioKlineMetrics, PortfolioKlinePoint, TrendData } from '../../../lib/services/types';
 import { formatCurrency, formatCompactCurrency } from '../../../shared/utils/format';
@@ -52,7 +52,7 @@ export function PortfolioTrend({ trendData, klineData, klineMetrics, theme, date
     const value = searchParams.get('trendAdjust');
     return value === 'raw' || value === 'nav' || value === 'adjusted' ? value : 'adjusted';
   })();
-  const showComparison = searchParams.get('trendCompare') !== '0';
+  const showComparison = !isCloudflareEnv && searchParams.get('trendCompare') !== '0';
   const viewMode = requestedViewMode === 'kline' && klineData.length === 0 ? 'absolute' : requestedViewMode;
 
   const updateTrendParams = React.useCallback((updates: Record<string, string | null>) => {
@@ -79,6 +79,13 @@ export function PortfolioTrend({ trendData, klineData, klineMetrics, theme, date
 
   // Fetch comparison index data for return comparison
   React.useEffect(() => {
+    if (isCloudflareEnv) {
+      setIsLoadingSSE(false);
+      setSseData([]);
+      setSseMetrics(null);
+      return;
+    }
+
     const fetchSSEData = async () => {
       setIsLoadingSSE(true);
       try {
@@ -251,7 +258,7 @@ export function PortfolioTrend({ trendData, klineData, klineMetrics, theme, date
         }
       ];
 
-      if (portfolioReturns.length > 0) {
+      if (!isCloudflareEnv && portfolioReturns.length > 0) {
         const portfolioMA20 = calculateSMA(portfolioReturns, 20);
         datasets.push({
           label: '总资产收益率 (MA20)',
@@ -632,7 +639,7 @@ export function PortfolioTrend({ trendData, klineData, klineMetrics, theme, date
                 <span className={`rounded-full px-2 py-0.5 whitespace-nowrap ${themes[theme].secondary}`}>
                   {modeSummary}
                 </span>
-                {hasKlineFallback && (
+                {!isCloudflareEnv && hasKlineFallback && (
                   <span className={`${themes[theme].text} opacity-60`}>
                     当前账户暂无 K 线接口数据，已自动回退到折线趋势视图。
                   </span>
@@ -722,24 +729,30 @@ export function PortfolioTrend({ trendData, klineData, klineMetrics, theme, date
                         )}
                       </div>
                     ) : viewMode === 'return' ? (
-                      <div className={segmentedGroupClass}>
-                        <button
-                          onClick={() => updateTrendParams({ trendCompare: showComparison ? '0' : '1' })}
-                          disabled={isLoadingSSE}
-                          className={`px-3 py-1.5 rounded-lg text-sm inline-flex items-center ${
-                            showComparison ? themes[theme].primary : themes[theme].secondary
-                          } ${isLoadingSSE ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                          {isLoadingSSE ? (
-                            <RefreshCw className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <>
-                              <BarChart3 className="w-4 h-4 mr-1" />
-                              上证对比
-                            </>
-                          )}
-                        </button>
-                      </div>
+                      !isCloudflareEnv ? (
+                        <div className={segmentedGroupClass}>
+                          <button
+                            onClick={() => updateTrendParams({ trendCompare: showComparison ? '0' : '1' })}
+                            disabled={isLoadingSSE}
+                            className={`px-3 py-1.5 rounded-lg text-sm inline-flex items-center ${
+                              showComparison ? themes[theme].primary : themes[theme].secondary
+                            } ${isLoadingSSE ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          >
+                            {isLoadingSSE ? (
+                              <RefreshCw className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <>
+                                <BarChart3 className="w-4 h-4 mr-1" />
+                                上证对比
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className={`rounded-xl border border-dashed ${themes[theme].border} px-3 py-2 text-sm ${themes[theme].text} opacity-60`}>
+                          总资产累计收益走势
+                        </div>
+                      )
                     ) : (
                       <div className={`rounded-xl border border-dashed ${themes[theme].border} px-3 py-2 text-sm ${themes[theme].text} opacity-60`}>
                         显示总资产与持仓市值双线

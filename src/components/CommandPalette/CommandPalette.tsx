@@ -19,6 +19,7 @@ import {
 import toast from 'react-hot-toast';
 import type { Theme } from '../../lib/theme';
 import type { User } from '../../lib/services/types';
+import { isCloudflareEnv } from '../../lib/services';
 
 export interface CommandPaletteProps {
   isOpen: boolean;
@@ -139,18 +140,22 @@ export function CommandPalette({
           onClose();
         },
       },
-      {
-        id: 'nav-options',
-        category: '导航',
-        title: '期权工具 Options',
-        subtitle: 'T型报价、盈亏图表、策略计算器',
-        icon: <BarChart2 className="w-4 h-4 text-purple-500" />,
-        keywords: ['options', 'qq', 'qiquan', 't型', '行权', '策略'],
-        action: () => {
-          navigate('/options');
-          onClose();
-        },
-      },
+      ...(!isCloudflareEnv
+        ? [
+            {
+              id: 'nav-options',
+              category: '导航' as const,
+              title: '期权工具 Options',
+              subtitle: 'T型报价、盈亏图表、策略计算器',
+              icon: <BarChart2 className="w-4 h-4 text-purple-500" />,
+              keywords: ['options', 'qq', 'qiquan', 't型', '行权', '策略'],
+              action: () => {
+                navigate('/options');
+                onClose();
+              },
+            },
+          ]
+        : []),
       {
         id: 'nav-about',
         category: '导航',
@@ -165,7 +170,7 @@ export function CommandPalette({
       },
     ];
 
-    if (user) {
+    if (user && !isCloudflareEnv) {
       list.push({
         id: 'nav-admin',
         category: '导航',

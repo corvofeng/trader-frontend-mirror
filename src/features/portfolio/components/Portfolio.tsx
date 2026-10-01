@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { logger } from '../../../shared/utils/logger';
-import { Filter, ExternalLink, Bell, BellOff, RefreshCw, AlertCircle } from 'lucide-react';
+import { Filter, ExternalLink, X, Download, Activity } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
 import type { Account, Holding, PortfolioKlineMetrics, PortfolioKlinePoint, Trade, TrendData, User } from '../../../lib/services/types';
@@ -9,13 +9,12 @@ import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearSca
 import type { LegendItem, TooltipItem } from 'chart.js';
 import { Pie } from 'react-chartjs-2';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
-import { portfolioService, accountService } from '../../../lib/services';
+import { portfolioService, accountService, isCloudflareEnv } from '../../../lib/services';
 import { checkIsMainAccount } from '../../../shared/utils/accountSelection';
 import { PortfolioTrend } from './PortfolioTrend';
 import { PortfolioHeatmap } from './PortfolioHeatmap';
 import { StockAnalysisModal } from './StockAnalysisModal';
 import { PortfolioAnalysisPanel } from './PortfolioAnalysisPanel';
-import { X, Download, Activity, Wrench } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { ScreenshotPreview } from './ScreenshotPreview';
 import { HoldingsTable } from './HoldingsTable';
@@ -24,7 +23,6 @@ import { OverviewControls } from './OverviewControls';
 import { PortfolioHeader } from './PortfolioHeader';
 import { StatsGrid } from './StatsGrid';
 import { FadeIn } from '../../../shared/components/FadeIn';
-import { useTradeNotifications } from '../hooks/useTradeNotifications';
 import {
   calculatePortfolioSummary,
   resolvePortfolioKlineRequestDates,
@@ -91,14 +89,9 @@ export function Portfolio({
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
-  const [showPushDebugModal, setShowPushDebugModal] = useState(false);
   const journalRef = useRef<HTMLDivElement>(null);
   const { currencyConfig } = useCurrency();
   const [, setIsRefreshing] = useState(false);
-
-  const notifications = useTradeNotifications({
-    accountAlias: !isSharedView ? selectedAccountId : undefined,
-  });
 
   const [internalAccounts, setInternalAccounts] = useState<Account[]>([]);
 
@@ -482,7 +475,7 @@ export function Portfolio({
       {/* Portfolio Analysis Panel moved to bottom */}
 
       {/* Stock Analysis Modal */}
-      {selectedStockForAnalysis && (
+      {!isCloudflareEnv && selectedStockForAnalysis && (
         <div className="no-print">
           <StockAnalysisModal
             stockCode={selectedStockForAnalysis.code}
@@ -564,7 +557,7 @@ export function Portfolio({
               onHoldingsPerPageChange={setHoldingsPerPage}
               holdingsSort={holdingsSort}
               onHoldingsSort={handleHoldingsSort}
-              onAnalyzeStock={(code, name) => setSelectedStockForAnalysis({ code, name })}
+              onAnalyzeStock={isCloudflareEnv ? undefined : (code, name) => setSelectedStockForAnalysis({ code, name })}
               isLoading={isLoading}
             />
           </div>
@@ -583,166 +576,21 @@ export function Portfolio({
             <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
               <div className="flex items-center gap-3">
                 <h2 className={`text-lg font-semibold ${themes[theme].text} whitespace-nowrap`}>成交记录</h2>
-                {!isSharedView && (
+                {!isSharedView && effectiveIsMainAccount && (
                   <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : '') || '';
-                        const isIos = /iPad|iPhone|iPod/i.test(ua) ||
-                          (typeof navigator !== 'undefined' && navigator.platform === 'MacIntel' && (navigator.maxTouchPoints ?? 0) > 1);
-                        const standalone =
-                          (typeof navigator !== 'undefined' &&
-                            (navigator as Navigator & { standalone?: boolean }).standalone === true) ||
-                          (typeof window !== 'undefined' && window.matchMedia?.('(display-mode: standalone)').matches === true);
-                        const isIosNeedsPwa = isIos && !standalone &&
-                          (notifications.permission === 'unsupported' || notifications.permission === 'denied');
-
-                        if (isIosNeedsPwa) {
-                          toast(
-                            (t) => (
-                              <div className="max-w-md w-full bg-white dark:bg-zinc-900 shadow-lg rounded-lg ring-1 ring-zinc-200 dark:ring-zinc-700 p-4 text-xs text-zinc-800 dark:text-zinc-200 border-l-4 border-sky-500">
-                                <div className="font-semibold text-sm mb-3 text-sky-600 dark:text-sky-400 flex items-center gap-1.5">
-                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
-                                  iOS 需安装为 PWA 才能收到推送
-                                </div>
-                                <div className="mb-2 opacity-80">
-                                  你现在是在 Safari 普通标签页，iOS 的 Web Push 通知<strong className="font-semibold">必须作为主屏 App</strong> 才能开启。
-                                </div>
-                                <ol className="space-y-2 mb-3 pl-1 opacity-95">
-                                  <li className="flex gap-2">
-                                    <span className="shrink-0 text-sky-500 font-semibold">①</span>
-                                    <span>点 Safari 底部的<strong className="font-semibold">⇪ 分享按钮</strong>（方框+向上箭头）</span>
-                                  </li>
-                                  <li className="flex gap-2">
-                                    <span className="shrink-0 text-sky-500 font-semibold">②</span>
-                                    <span>下滑找到<strong className="font-semibold">「添加到主屏幕」</strong>，右上角点「添加」</span>
-                                  </li>
-                                  <li className="flex gap-2">
-                                    <span className="shrink-0 text-sky-500 font-semibold">③</span>
-                                    <span><strong className="font-semibold">回到桌面，点击刚添加的 App 图标</strong> 重新打开</span>
-                                  </li>
-                                  <li className="flex gap-2">
-                                    <span className="shrink-0 text-emerald-500 font-semibold">④</span>
-                                    <span>再次点「订阅 PWA Push」→ 允许通知 ✅</span>
-                                  </li>
-                                </ol>
-                                <div className="text-[11px] opacity-70 mb-3">
-                                  ❌ <strong className="font-semibold">不支持 Chrome / Firefox / Edge for iOS</strong>，它们都是 WebKit 外壳，都没有 Web Push 权限。
-                                </div>
-                                <div className="flex gap-2">
-                                  <a
-                                    href="https://web.dev/learn/pwa/installation?hl=zh-cn"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-sky-500/10 text-sky-600 dark:text-sky-400 ring-1 ring-sky-500/20 hover:bg-sky-500/20 inline-flex items-center gap-1"
-                                  >web.dev 教程
-                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>
-                                  </a>
-                                  <button
-                                    onClick={() => toast.dismiss(t.id)}
-                                    className="ml-auto px-2.5 py-1 rounded-md text-[11px] bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700"
-                                  >知道了</button>
-                                </div>
-                              </div>
-                            ),
-                            { duration: 120_000 }
-                          );
-                          return;
-                        }
-                        if (notifications.enabled) {
-                          if (window.confirm('确认要取消 PWA 消息推送订阅吗？\n取消后，您将无法在后台或关闭页面时收到新成交通知。')) {
-                            void notifications.toggleEnabled();
-                          }
-                        } else {
-                          void notifications.toggleEnabled();
-                        }
-                      }}
-                      title={
-                        notifications.enabled
-                          ? '取消 PWA Web Push 订阅'
-                          : notifications.permission === 'denied'
-                          ? '通知权限被拒绝，点击查看如何解决（iOS 需添加到主屏幕）'
-                          : notifications.permission === 'unsupported'
-                          ? '当前环境不支持 Web Push（iOS 需添加到主屏幕，点击查看步骤）'
-                          : '订阅 PWA Web Push（关闭页面也能收到新成交通知）'
-                      }
-                      className={`group relative inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all duration-200 ${
-                        notifications.enabled
-                          ? 'bg-violet-50 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300 ring-1 ring-violet-500/30 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-500/20 dark:hover:text-red-300 hover:ring-red-500/30'
-                          : notifications.permission === 'denied'
-                          ? 'bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-300 ring-1 ring-red-500/20 hover:bg-red-100 dark:hover:bg-red-500/20'
-                          : notifications.permission === 'unsupported'
-                          ? 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400 ring-1 ring-amber-500/20 hover:bg-amber-100 dark:hover:bg-amber-500/20'
-                          : `${themes[theme].secondary} ${themes[theme].text} opacity-90 hover:opacity-100`
-                      }`}
+                    <a
+                      href="https://t.me/YHTraderNotice"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="在 Telegram 频道接收主账户实时交易成交通知"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-[#0088cc]/10 text-[#0088cc] dark:bg-[#0088cc]/15 dark:text-[#50b6ff] ring-1 ring-[#0088cc]/30 hover:bg-[#0088cc]/20 dark:hover:bg-[#0088cc]/25 transition-all duration-200"
                     >
-                      {notifications.enabled ? (
-                        <>
-                          {notifications.pushSubscribed ? (
-                            <>
-                              <Bell className="w-3.5 h-3.5 group-hover:hidden" />
-                              <BellOff className="w-3.5 h-3.5 hidden group-hover:inline" />
-                              <span className="hidden sm:inline">
-                                <span className="group-hover:hidden">已订阅 PWA</span>
-                                <span className="hidden group-hover:inline">取消 PWA 订阅</span>
-                              </span>
-                            </>
-                          ) : (
-                            <>
-                              <Bell className="w-3.5 h-3.5 animate-pulse" />
-                              <span className="hidden sm:inline">订阅中…</span>
-                            </>
-                          )}
-                        </>
-                      ) : notifications.permission === 'denied' ? (
-                        <>
-                          <BellOff className="w-3.5 h-3.5" />
-                          <span className="hidden sm:inline">权限被拒 · 点击解决</span>
-                        </>
-                      ) : notifications.permission === 'unsupported' ? (
-                        <>
-                          <BellOff className="w-3.5 h-3.5" />
-                          <span className="hidden sm:inline">需安装 PWA · 点击</span>
-                        </>
-                      ) : (
-                        <>
-                          <Bell className="w-3.5 h-3.5" />
-                          <span className="hidden sm:inline">订阅 PWA Push</span>
-                        </>
-                      )}
-                      {notifications.enabled && notifications.newTradesCount > 0 && (
-                        <span className="inline-flex items-center justify-center px-1.5 min-w-[18px] h-[18px] rounded-full bg-rose-500 text-white text-[10px] font-bold">
-                          {notifications.newTradesCount > 99 ? '99+' : notifications.newTradesCount}
-                        </span>
-                      )}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setShowPushDebugModal(true)}
-                      title="打开 PWA Push 调试面板（测试推送、环境诊断、清除计数等）"
-                      className={`inline-flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium ${themes[theme].secondary} hover:opacity-90 ring-1 ring-zinc-500/20`}
-                    >
-                      <Wrench className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
-                      <span className="hidden sm:inline">订阅调试</span>
-                    </button>
-
-                    {effectiveIsMainAccount && (
-                      <a
-                        href="https://t.me/YHTraderNotice"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title="在 Telegram 频道接收主账户实时交易成交通知"
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-[#0088cc]/10 text-[#0088cc] dark:bg-[#0088cc]/15 dark:text-[#50b6ff] ring-1 ring-[#0088cc]/30 hover:bg-[#0088cc]/20 dark:hover:bg-[#0088cc]/25 transition-all duration-200"
-                      >
-                        <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
-                          <path d="M20.665 3.717l-17.73 6.837c-1.21.486-1.203 1.161-.222 1.462l4.552 1.42 10.532-6.645c.498-.303.953-.14.578.192l-8.533 7.701-.33 4.955c.488 0 .702-.223.974-.488l2.338-2.275 4.866 3.59c.898.496 1.543.241 1.767-.83l3.193-15.04c.328-1.312-.5-1.907-1.357-1.522z" />
-                        </svg>
-                        <span className="hidden sm:inline">Telegram 订阅 (主账户)</span>
-                        <span className="sm:hidden">Telegram 订阅</span>
-                      </a>
-                    )}
+                      <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                        <path d="M20.665 3.717l-17.73 6.837c-1.21.486-1.203 1.161-.222 1.462l4.552 1.42 10.532-6.645c.498-.303.953-.14.578.192l-8.533 7.701-.33 4.955c.488 0 .702-.223.974-.488l2.338-2.275 4.866 3.59c.898.496 1.543.241 1.767-.83l3.193-15.04c.328-1.312-.5-1.907-1.357-1.522z" />
+                      </svg>
+                      <span className="hidden sm:inline">Telegram 订阅 (主账户)</span>
+                      <span className="sm:hidden">Telegram 订阅</span>
+                    </a>
                   </div>
                 )}
               </div>
@@ -764,37 +612,6 @@ export function Portfolio({
                 </button>
               </div>
             </div>
-            {!isSharedView && notifications.enabled && (
-              <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
-                {notifications.pushServerConfig ? (
-                  <span className={`${themes[theme].text} opacity-60`}>
-                    后端轮询间隔: {notifications.pushServerConfig.poll_interval_seconds}s
-                    {notifications.pushServerConfig.upstream_base_url && (
-                      <> · 数据源: {notifications.pushServerConfig.upstream_base_url}</>
-                    )}
-                  </span>
-                ) : notifications.error && /api\/push\/config|VAPID|Push Server|无法连接到 Push/.test(notifications.error) ? (
-                  <span className="text-amber-600 dark:text-amber-400 font-medium">
-                    Push Server 未连接（{notifications.error.replace(/^.*?[:：]\s*/, '')}）
-                  </span>
-                ) : (
-                  <span className={`${themes[theme].text} opacity-60`}>
-                    正在加载 Push Server 配置…
-                  </span>
-                )}
-                {notifications.newTradesCount > 0 && (
-                  <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                    本次会话已接收 {notifications.newTradesCount} 条推送
-                  </span>
-                )}
-              </div>
-            )}
-            {!isSharedView && notifications.error && (
-              <div className="mt-3 flex items-start gap-1.5 text-[11px] text-rose-600 dark:text-rose-400">
-                <AlertCircle className="w-3.5 h-3.5 mt-px shrink-0" />
-                <span className="break-all">{notifications.error}</span>
-              </div>
-            )}
           </div>
           
           {showRecentTrades && (
@@ -811,7 +628,7 @@ export function Portfolio({
                 sort={tradesSort}
                 onSort={handleTradesSort}
                 showHeader={false}
-                onAnalyzeStock={(code, name) => setSelectedStockForAnalysis({ code, name })}
+                onAnalyzeStock={isCloudflareEnv ? undefined : (code, name) => setSelectedStockForAnalysis({ code, name })}
               />
             </div>
           )}
@@ -834,652 +651,6 @@ export function Portfolio({
           />
         )}
       </div>
-
-      {/* PWA Push 调试面板 */}
-      {showPushDebugModal && (
-        <div
-          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-          onClick={() => setShowPushDebugModal(false)}
-        >
-          <div
-            className={`${themes[theme].card} rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className={`p-4 sm:p-5 border-b ${themes[theme].border} flex items-start justify-between gap-3`}>
-              <div>
-                <h3 className={`text-base sm:text-lg font-semibold ${themes[theme].text} flex items-center gap-2`}>
-                  <Wrench className="w-5 h-5 text-violet-500" />
-                  PWA Push 调试面板
-                </h3>
-                <p className={`mt-1 text-xs ${themes[theme].text} opacity-60`}>
-                  这里提供所有 Web Push 相关的测试与诊断工具，方便你排查问题。
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowPushDebugModal(false)}
-                className={`p-2 rounded-lg ${themes[theme].secondary} hover:opacity-80 transition-opacity shrink-0`}
-                aria-label="关闭"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-4 sm:p-5 overflow-y-auto flex flex-col gap-5">
-              {/* 0. 权限与基础状态 */}
-              <section>
-                <div className="flex items-start justify-between gap-3 mb-2">
-                  <div>
-                    <h4 className={`text-sm font-semibold ${themes[theme].text}`}>🔑 权限与基础状态</h4>
-                    <p className={`text-xs mt-0.5 ${themes[theme].text} opacity-60`}>
-                      先把通知权限拿到，其他测试才有可能成功。
-                    </p>
-                  </div>
-                </div>
-                <div className={`rounded-xl border ${themes[theme].border} ${themes[theme].background} p-3 sm:p-4 mb-3 text-xs`}>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 gap-y-3">
-                    <div>
-                      <div className={`opacity-60 mb-0.5`}>通知权限</div>
-                      <div className={`font-mono font-semibold text-sm ${
-                        notifications.permission === 'granted'
-                          ? 'text-emerald-600 dark:text-emerald-400'
-                          : notifications.permission === 'denied'
-                          ? 'text-rose-600 dark:text-rose-400'
-                          : 'text-amber-600 dark:text-amber-400'
-                      }`}>
-                        {notifications.permission}
-                      </div>
-                    </div>
-                    <div>
-                      <div className={`opacity-60 mb-0.5`}>Push Capable</div>
-                      <div className={`font-mono font-semibold text-sm ${
-                        notifications.pushCapable === 'yes'
-                          ? 'text-emerald-600 dark:text-emerald-400'
-                          : notifications.pushCapable === 'no'
-                          ? 'text-rose-600 dark:text-rose-400'
-                          : 'text-amber-600 dark:text-amber-400'
-                      }`}>
-                        {notifications.pushCapable}
-                      </div>
-                    </div>
-                    <div>
-                      <div className={`opacity-60 mb-0.5`}>已订阅</div>
-                      <div className={`font-mono font-semibold text-sm ${
-                        notifications.pushSubscribed
-                          ? 'text-emerald-600 dark:text-emerald-400'
-                          : notifications.enabled
-                          ? 'text-amber-600 dark:text-amber-400'
-                          : 'text-zinc-500 dark:text-zinc-400'
-                      }`}>
-                        {notifications.pushSubscribed ? '是（后端可推）' : notifications.enabled ? '开启中…' : '否'}
-                      </div>
-                    </div>
-                  </div>
-                  {notifications.error && (
-                    <div className="mt-3 pt-3 border-t border-dashed border-zinc-300 dark:border-zinc-700 text-rose-600 dark:text-rose-400 whitespace-pre-line break-words">
-                      最近一次错误：{notifications.error}
-                    </div>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (typeof window === 'undefined' || !('Notification' in window)) {
-                      toast.error('当前环境没有 Notification API（iOS PWA 请用 Safari + 主屏，或改用订阅按钮）');
-                      return;
-                    }
-                    try {
-                      // 直接调，不做任何前置检查/异步 —— 保证 user gesture 最强
-                      const res = await window.Notification.requestPermission();
-                      if (res === 'granted') {
-                        toast.success('✅ 通知权限已允许，现在可以发送测试通知了');
-                      } else if (res === 'denied') {
-                        const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : '') || '';
-                        const isIos = /iPad|iPhone|iPod/i.test(ua) ||
-                          (typeof navigator !== 'undefined' && navigator.platform === 'MacIntel' && (navigator.maxTouchPoints ?? 0) > 1);
-                        const standalone =
-                          (typeof navigator !== 'undefined' &&
-                            (navigator as Navigator & { standalone?: boolean }).standalone === true) ||
-                          (typeof window !== 'undefined' && window.matchMedia?.('(display-mode: standalone)').matches === true);
-                        if (isIos && !standalone) {
-                          toast(
-                            (t) => (
-                              <div className="max-w-md w-full bg-white dark:bg-zinc-900 shadow-lg rounded-lg ring-1 ring-zinc-200 dark:ring-zinc-700 p-4 text-xs text-zinc-800 dark:text-zinc-200 border-l-4 border-sky-500">
-                                <div className="font-semibold text-sm mb-3 text-sky-600 dark:text-sky-400 flex items-center gap-1.5">
-                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
-                                  iOS 需安装为 PWA 才能收到推送
-                                </div>
-                                <div className="mb-2 opacity-80">
-                                  iOS 的 Web Push 在普通标签页里会被直接驳回，<strong className="font-semibold">必须添加到主屏幕</strong>后才能真正允许通知权限。
-                                </div>
-                                <ol className="space-y-2 mb-3 pl-1 opacity-95">
-                                  <li className="flex gap-2">
-                                    <span className="shrink-0 text-sky-500 font-semibold">①</span>
-                                    <span>点 Safari 底部的<strong className="font-semibold">⇪ 分享按钮</strong>（方框+向上箭头）</span>
-                                  </li>
-                                  <li className="flex gap-2">
-                                    <span className="shrink-0 text-sky-500 font-semibold">②</span>
-                                    <span>下滑找到<strong className="font-semibold">「添加到主屏幕」</strong>，右上角点「添加」</span>
-                                  </li>
-                                  <li className="flex gap-2">
-                                    <span className="shrink-0 text-sky-500 font-semibold">③</span>
-                                    <span><strong className="font-semibold">回到桌面，点击刚添加的 App 图标</strong> 重新打开</span>
-                                  </li>
-                                  <li className="flex gap-2">
-                                    <span className="shrink-0 text-emerald-500 font-semibold">④</span>
-                                    <span>再次点「请求通知权限」→ 允许通知 ✅</span>
-                                  </li>
-                                </ol>
-                                <div className="text-[11px] opacity-70 mb-3">
-                                  ❌ <strong className="font-semibold">不支持 Chrome / Firefox / Edge for iOS</strong>，它们都是 WebKit 外壳。
-                                </div>
-                                <div className="flex gap-2">
-                                  <a
-                                    href="https://web.dev/learn/pwa/installation?hl=zh-cn"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-sky-500/10 text-sky-600 dark:text-sky-400 ring-1 ring-sky-500/20 hover:bg-sky-500/20 inline-flex items-center gap-1"
-                                  >web.dev 教程
-                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>
-                                  </a>
-                                  <button
-                                    onClick={() => toast.dismiss(t.id)}
-                                    className="ml-auto px-2.5 py-1 rounded-md text-[11px] bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700"
-                                  >知道了</button>
-                                </div>
-                              </div>
-                            ),
-                            { duration: 120_000 }
-                          );
-                        } else {
-                          toast.error(
-                            (t) => (
-                              <div className="text-xs whitespace-pre-line">
-                                <div className="font-semibold mb-1">❌ 通知权限被你选了「阻止」</div>
-                                <div>浏览器不会再次弹框，需手动改回：</div>
-                                <div>① 地址栏左侧 🔒 → 网站设置 → 通知 → 允许</div>
-                                <div>② 然后刷新页面，再点此按钮 / 或清空站点数据后重开</div>
-                                <button
-                                  onClick={() => toast.dismiss(t.id)}
-                                  className="mt-3 px-2 py-1 rounded bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700"
-                                >知道了</button>
-                              </div>
-                            ),
-                            { duration: 60_000 }
-                          );
-                        }
-                      } else {
-                        toast(`权限结果：${res}（default=没选，需再点一次或改站点设置）`);
-                      }
-                    } catch (e) {
-                      const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : '') || '';
-                      const isIos = /iPad|iPhone|iPod/i.test(ua) ||
-                        (typeof navigator !== 'undefined' && navigator.platform === 'MacIntel' && (navigator.maxTouchPoints ?? 0) > 1);
-                      const standalone =
-                        (typeof navigator !== 'undefined' &&
-                          (navigator as Navigator & { standalone?: boolean }).standalone === true) ||
-                        (typeof window !== 'undefined' && window.matchMedia?.('(display-mode: standalone)').matches === true);
-                      if (isIos && !standalone) {
-                        toast(
-                          (t) => (
-                            <div className="max-w-md w-full bg-white dark:bg-zinc-900 shadow-lg rounded-lg ring-1 ring-zinc-200 dark:ring-zinc-700 p-4 text-xs text-zinc-800 dark:text-zinc-200 border-l-4 border-sky-500">
-                              <div className="font-semibold text-sm mb-3 text-sky-600 dark:text-sky-400 flex items-center gap-1.5">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
-                                iOS 需安装为 PWA 才能请求通知权限
-                              </div>
-                              <div className="mb-2 opacity-80">
-                                你在普通 Safari 标签页里调用 <code>Notification.requestPermission()</code> 直接抛错了：
-                                <div className="font-mono mt-1 p-2 rounded bg-zinc-100 dark:bg-zinc-800/70">
-                                  {e instanceof Error ? e.message : String(e)}
-                                </div>
-                              </div>
-                              <ol className="space-y-2 mb-3 pl-1 opacity-95">
-                                <li className="flex gap-2">
-                                  <span className="shrink-0 text-sky-500 font-semibold">①</span>
-                                  <span>点 Safari 底部的<strong className="font-semibold">⇪ 分享按钮</strong>（方框+向上箭头）</span>
-                                </li>
-                                <li className="flex gap-2">
-                                  <span className="shrink-0 text-sky-500 font-semibold">②</span>
-                                  <span>下滑找到<strong className="font-semibold">「添加到主屏幕」</strong>，右上角点「添加」</span>
-                                </li>
-                                <li className="flex gap-2">
-                                  <span className="shrink-0 text-sky-500 font-semibold">③</span>
-                                  <span><strong className="font-semibold">回到桌面，点击刚添加的 App 图标</strong> 重新打开</span>
-                                </li>
-                                <li className="flex gap-2">
-                                  <span className="shrink-0 text-emerald-500 font-semibold">④</span>
-                                  <span>再次点「请求通知权限」→ 允许通知 ✅</span>
-                                </li>
-                              </ol>
-                              <div className="flex gap-2">
-                                <a
-                                  href="https://web.dev/learn/pwa/installation?hl=zh-cn"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-sky-500/10 text-sky-600 dark:text-sky-400 ring-1 ring-sky-500/20 hover:bg-sky-500/20 inline-flex items-center gap-1"
-                                >web.dev 教程
-                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>
-                                </a>
-                                <button
-                                  onClick={() => toast.dismiss(t.id)}
-                                  className="ml-auto px-2.5 py-1 rounded-md text-[11px] bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700"
-                                >知道了</button>
-                              </div>
-                            </div>
-                          ),
-                          { duration: 120_000 }
-                        );
-                      } else {
-                        toast.error('requestPermission 抛错：' + (e instanceof Error ? e.message : String(e)));
-                      }
-                    }
-                  }}
-                  className={`w-full inline-flex items-start gap-3 text-left p-3 rounded-xl border transition-all duration-200 ${
-                    themes[theme].border
-                  } bg-gradient-to-br from-sky-50 to-blue-50 dark:from-sky-500/15 dark:to-blue-500/15 ring-1 ring-sky-500/20 hover:ring-2 hover:ring-sky-500/40 active:scale-[0.98]`}
-                >
-                  <div className="shrink-0 w-9 h-9 rounded-lg bg-sky-500/15 text-sky-600 dark:text-sky-300 flex items-center justify-center">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className={`text-sm font-semibold ${themes[theme].text}`}>请求通知权限</div>
-                    <div className={`text-xs mt-1 ${themes[theme].text} opacity-75`}>
-                      直接调 <code className="px-1.5 py-0.5 rounded bg-white/60 dark:bg-zinc-800/60">Notification.requestPermission()</code>，
-                      会弹出系统级「允许 / 阻止」通知请求框。<span className="font-semibold text-sky-600 dark:text-sky-300">如果连这个按钮都不弹框</span>，
-                      说明你之前选过「阻止」，先在地址栏 🔒 里把通知从阻止改回允许。
-                    </div>
-                  </div>
-                </button>
-              </section>
-
-              {/* 1. 测试通知 */}
-              <section>
-                <div className="flex items-start justify-between gap-3 mb-2">
-                  <div>
-                    <h4 className={`text-sm font-semibold ${themes[theme].text}`}>📬 测试通知</h4>
-                    <p className={`text-xs mt-0.5 ${themes[theme].text} opacity-60`}>
-                      分别验证两条不同的链路：直接在本地弹通知，以及走后端 Push Server 再推回来。
-                    </p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      notifications.sendTestDesktopNotification();
-                    }}
-                    className={`w-full inline-flex items-start gap-3 text-left p-3 rounded-xl border transition-all duration-200 ${
-                      themes[theme].border
-                    } ${themes[theme].secondary} hover:ring-2 hover:ring-blue-500/30 active:scale-[0.98]`}
-                  >
-                    <div className="shrink-0 w-9 h-9 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className={`text-sm font-medium ${themes[theme].text}`}>本地桌面通知测试</div>
-                      <div className={`text-xs mt-1 ${themes[theme].text} opacity-60`}>
-                        立刻在本机弹一条桌面通知（不走 Push Server，不关闭页面也有效）。
-                      </div>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => void notifications.sendTestWebPush()}
-                    disabled={!notifications.enabled}
-                    className={`w-full inline-flex items-start gap-3 text-left p-3 rounded-xl border transition-all duration-200 ${
-                      themes[theme].border
-                    } ${themes[theme].secondary} ${
-                      notifications.enabled
-                        ? 'hover:ring-2 hover:ring-violet-500/30 active:scale-[0.98]'
-                        : 'opacity-50 cursor-not-allowed'
-                    }`}
-                  >
-                    <div className="shrink-0 w-9 h-9 rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400 flex items-center justify-center">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className={`text-sm font-medium ${themes[theme].text}`}>后端测试 Web Push</div>
-                      <div className={`text-xs mt-1 ${themes[theme].text} opacity-60`}>
-                        调 <code className="px-1.5 py-0.5 rounded bg-zinc-200/50 dark:bg-zinc-700/50">/api/push/test</code> 走完整链路（Push Server → 浏览器 → 桌面）。
-                      </div>
-                      {!notifications.enabled && (
-                        <div className={`text-[11px] mt-2 text-amber-600 dark:text-amber-400 font-medium`}>
-                          需先订阅后才能发送
-                        </div>
-                      )}
-                    </div>
-                  </button>
-                </div>
-              </section>
-
-              {/* 2. 环境诊断 */}
-              <section>
-                <div className="flex items-start justify-between gap-3 mb-2">
-                  <div>
-                    <h4 className={`text-sm font-semibold ${themes[theme].text}`}>🔎 环境诊断</h4>
-                    <p className={`text-xs mt-0.5 ${themes[theme].text} opacity-60`}>
-                      逐项检查浏览器是否满足 PWA Push 的前置条件，并给出具体修复建议。
-                    </p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const r = await notifications.diagnoseDesktopNotifications();
-                      const lines = [
-                        `平台: ${r.platform || '未知'}${r.isIos ? ' (iOS)' : ''}${r.isAndroid ? ' (Android)' : ''}`,
-                        `iOS Safari: ${r.isIosSafari ? '是' : '否'}`,
-                        `Android Chrome: ${r.isAndroidChrome ? '是' : '否'}`,
-                        `已添加到主屏幕(PWA): ${r.isStandalone ? '是' : '否'}`,
-                        '',
-                        `通知权限: ${r.notificationApi}`,
-                        `安全上下文: ${r.secureContext ? '✓' : '✗'}`,
-                        `SW 支持: ${r.serviceWorkerSupported ? '✓' : '✗'}`,
-                        `SW 激活: ${r.serviceWorkerActive ? '✓' : '✗'}`,
-                        `PushManager: ${r.pushManagerSupported ? '✓' : '✗'}`,
-                        '',
-                        r.details,
-                      ];
-                      toast((t) => (
-                        <div className="max-w-md w-full bg-white dark:bg-zinc-900 shadow-lg rounded-lg ring-1 ring-zinc-200 dark:ring-zinc-700 p-4 text-xs font-mono whitespace-pre-line text-zinc-800 dark:text-zinc-200 border-l-4 border-blue-500">
-                          <div className="font-semibold text-sm mb-2">桌面通知诊断结果</div>
-                          <div className="mb-3">{lines.join('\n')}</div>
-                          <button
-                            onClick={() => toast.dismiss(t.id)}
-                            className="px-2 py-1 rounded text-[11px] bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700"
-                          >关闭</button>
-                        </div>
-                      ), { duration: 60_000 });
-                    }}
-                    className={`w-full inline-flex items-start gap-3 text-left p-3 rounded-xl border transition-all duration-200 ${
-                      themes[theme].border
-                    } ${themes[theme].secondary} hover:ring-2 hover:ring-blue-500/30 active:scale-[0.98]`}
-                  >
-                    <div className="shrink-0 w-9 h-9 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className={`text-sm font-medium ${themes[theme].text}`}>桌面通知环境诊断</div>
-                      <div className={`text-xs mt-1 ${themes[theme].text} opacity-60`}>
-                        检查权限、Service Worker、iOS / Android 平台限制，给出中文修复建议。
-                      </div>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const r = await notifications.diagnosePushSubscriptionFlow();
-                      const lines = [
-                        ...r.stepLog,
-                        '',
-                        '---总结---',
-                        r.willSendSubscribeRequestIfClick
-                          ? '✅ 点订阅按钮时，应当会发送 POST /api/push/subscribe'
-                          : '❌ 点订阅按钮时，不会发送 /api/push/subscribe（缺少前置条件）',
-                        '',
-                        r.hint,
-                        r.lastError
-                          ? `\n最近一次错误: ${r.lastError}`
-                          : '',
-                      ].filter(Boolean);
-                      toast((t) => (
-                        <div className="max-w-lg w-full bg-white dark:bg-zinc-900 shadow-lg rounded-lg ring-1 ring-zinc-200 dark:ring-zinc-700 p-4 text-xs font-mono whitespace-pre-line text-zinc-800 dark:text-zinc-200 border-l-4 border-violet-500">
-                          <div className="font-semibold text-sm mb-2 text-violet-600 dark:text-violet-400">PWA Push 订阅流程诊断 · 13 步检查</div>
-                          <div className="mb-3 max-h-[60vh] overflow-y-auto">{lines.join('\n')}</div>
-                          <button
-                            onClick={() => toast.dismiss(t.id)}
-                            className="px-2 py-1 rounded text-[11px] bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700"
-                          >关闭</button>
-                        </div>
-                      ), { duration: 60_000 });
-                    }}
-                    className={`w-full inline-flex items-start gap-3 text-left p-3 rounded-xl border transition-all duration-200 ${
-                      themes[theme].border
-                    } ${themes[theme].secondary} hover:ring-2 hover:ring-violet-500/30 active:scale-[0.98]`}
-                  >
-                    <div className="shrink-0 w-9 h-9 rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400 flex items-center justify-center">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className={`text-sm font-medium ${themes[theme].text}`}>订阅流程诊断</div>
-                      <div className={`text-xs mt-1 ${themes[theme].text} opacity-60`}>
-                        13 步逐步检查为什么没发 <code className="px-1.5 py-0.5 rounded bg-zinc-200/50 dark:bg-zinc-700/50">/api/push/subscribe</code>，给出修复建议。
-                      </div>
-                    </div>
-                  </button>
-                </div>
-              </section>
-
-              {/* 3. 工具 */}
-              <section>
-                <div className="flex items-start justify-between gap-3 mb-2">
-                  <div>
-                    <h4 className={`text-sm font-semibold ${themes[theme].text}`}>🛠 工具</h4>
-                    <p className={`text-xs mt-0.5 ${themes[theme].text} opacity-60`}>
-                      常用小工具：重新探测 Push 能力、清除未读计数。
-                    </p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => void notifications.retryProbePushCapability()}
-                    className={`w-full inline-flex items-start gap-3 text-left p-3 rounded-xl border transition-all duration-200 ${
-                      themes[theme].border
-                    } ${themes[theme].secondary} hover:ring-2 hover:ring-amber-500/30 active:scale-[0.98]`}
-                  >
-                    <div className="shrink-0 w-9 h-9 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
-                      <RefreshCw className="w-[18px] h-[18px]" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className={`text-sm font-medium ${themes[theme].text}`}>重新探测 Push 能力</div>
-                      <div className={`text-xs mt-1 ${themes[theme].text} opacity-60`}>
-                        清除缓存并重新检测 Service Worker / PushManager（刚添加主屏、刚刷新配置时用）。
-                      </div>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={notifications.resetCount}
-                    disabled={!notifications.enabled || notifications.newTradesCount === 0}
-                    className={`w-full inline-flex items-start gap-3 text-left p-3 rounded-xl border transition-all duration-200 ${
-                      themes[theme].border
-                    } ${themes[theme].secondary} ${
-                      notifications.enabled && notifications.newTradesCount > 0
-                        ? 'hover:ring-2 hover:ring-rose-500/30 active:scale-[0.98]'
-                        : 'opacity-50 cursor-not-allowed'
-                    }`}
-                  >
-                    <div className="shrink-0 w-9 h-9 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center">
-                      <X className="w-[18px] h-[18px]" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className={`text-sm font-medium ${themes[theme].text}`}>清除未读计数</div>
-                      <div className={`text-xs mt-1 ${themes[theme].text} opacity-60`}>
-                        清零订阅按钮右上角的小红点徽章（当前 {notifications.newTradesCount} 条）。
-                      </div>
-                    </div>
-                  </button>
-                </div>
-              </section>
-
-              {/* 4. 如何安装为 PWA（帮助） */}
-              <section>
-                <div className="flex items-start justify-between gap-3 mb-2">
-                  <div>
-                    <h4 className={`text-sm font-semibold ${themes[theme].text}`}>📘 如何安装为 PWA（才能收到推送）</h4>
-                    <p className={`text-xs mt-0.5 ${themes[theme].text} opacity-60`}>
-                      PWA Push 只有在「添加到主屏幕 / 安装应用」模式下才真正生效。按你使用的设备选择安装步骤。
-                    </p>
-                  </div>
-                  <a
-                    href="https://web.dev/learn/pwa/installation?hl=zh-cn"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={`shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium ${themes[theme].secondary} ring-1 ring-zinc-500/20 hover:opacity-90`}
-                    title="打开 web.dev 官方 PWA 安装指南（新窗口）"
-                  >
-                    web.dev <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
-
-                {/* iOS 步骤 —— 默认高亮展开，因为限制最多 */}
-                <div className={`rounded-xl border ${themes[theme].border} bg-gradient-to-br from-sky-50/70 via-white to-indigo-50/70 dark:from-sky-500/10 dark:via-zinc-900/40 dark:to-indigo-500/10 p-3 sm:p-4 mb-3`}>
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-8 h-8 rounded-lg bg-sky-500/15 text-sky-600 dark:text-sky-300 flex items-center justify-center shrink-0">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
-                        <line x1="12" y1="18" x2="12.01" y2="18"/>
-                      </svg>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className={`text-sm font-semibold ${themes[theme].text}`}>iPhone / iPad (iOS)</div>
-                      <div className={`text-[11px] mt-0.5 ${themes[theme].text} opacity-70`}>iOS 的通知限制最严格，必须用 Safari + 添加到主屏幕</div>
-                    </div>
-                  </div>
-                  <ol className={`text-xs space-y-2.5 ${themes[theme].text} opacity-90 list-none pl-0`}>
-                    <li className="flex gap-3">
-                      <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-300 font-semibold text-[11px] border border-sky-500/20">1</span>
-                      <span>
-                        先确认<strong className="font-semibold"> iOS 版本 ≥ 16.4</strong>（设置 → 通用 → 软件更新）。
-                        <span className={`block mt-0.5 opacity-70`}>低于此版本的 iOS 完全不支持 Web Push。</span>
-                      </span>
-                    </li>
-                    <li className="flex gap-3">
-                      <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-300 font-semibold text-[11px] border border-sky-500/20">2</span>
-                      <span>
-                        必须使用<strong className="font-semibold">系统自带的 Safari 浏览器</strong>打开页面。
-                        <span className={`block mt-0.5 opacity-70`}>❌ Chrome / Firefox / Edge for iOS 都是 WebKit 外壳，<strong className="font-semibold">全部不支持 Web Push</strong>。</span>
-                      </span>
-                    </li>
-                    <li className="flex gap-3">
-                      <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-300 font-semibold text-[11px] border border-sky-500/20">3</span>
-                      <span>
-                        点击 Safari 底部工具栏的<strong className="font-semibold"> ⇪ 分享按钮</strong>（方框+向上箭头）。
-                      </span>
-                    </li>
-                    <li className="flex gap-3">
-                      <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-300 font-semibold text-[11px] border border-sky-500/20">4</span>
-                      <span>
-                        在分享菜单里下滑找到<strong className="font-semibold">「添加到主屏幕」</strong>（Add to Home Screen），点进去。
-                        <span className={`block mt-0.5 opacity-70`}>可以自己取个 App 名字，点右上角「添加」。</span>
-                      </span>
-                    </li>
-                    <li className="flex gap-3">
-                      <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-300 font-semibold text-[11px] border border-sky-500/20">5</span>
-                      <span>
-                        <strong className="font-semibold">回到手机桌面，点击刚刚添加的 App 图标</strong>重新打开页面。
-                        <span className={`block mt-0.5 opacity-70`}>这一步最关键 —— 必须从主屏图标打开，不能在 Safari 标签页里继续用。</span>
-                      </span>
-                    </li>
-                    <li className="flex gap-3">
-                      <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-semibold text-[11px] border border-emerald-500/20">6</span>
-                      <span>
-                        点击 <code className="px-1.5 py-0.5 rounded bg-white/60 dark:bg-zinc-800/60 text-[11px]">「订阅 PWA Push」</code> 按钮。
-                        <span className={`block mt-0.5 opacity-70`}>系统会弹出「允许通知」请求 → 选「允许」 → 完成 ✅</span>
-                      </span>
-                    </li>
-                  </ol>
-                  <div className={`mt-3 pt-3 border-t border-sky-500/20 text-[11px] ${themes[theme].text} opacity-80`}>
-                    💡 <strong>安装后如何确认是 PWA 模式？</strong> 页面顶部<strong>不会有 Safari 地址栏</strong>，没有分享按钮，也没有前进/后退箭头，整个应用全屏显示，像原生 App 一样。
-                  </div>
-                </div>
-
-                {/* Android 步骤 */}
-                <div className={`rounded-xl border ${themes[theme].border} ${themes[theme].background} p-3 sm:p-4 mb-3`}>
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
-                        <line x1="2" y1="12" x2="22" y2="12"/>
-                        <line x1="13" y1="2" x2="13" y2="22"/>
-                      </svg>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className={`text-sm font-semibold ${themes[theme].text}`}>Android（Chrome / Edge）</div>
-                      <div className={`text-[11px] mt-0.5 ${themes[theme].text} opacity-70`}>Android 支持比较宽松，Chrome 原生支持 PWA 安装和推送</div>
-                    </div>
-                  </div>
-                  <ol className={`text-xs space-y-2.5 ${themes[theme].text} opacity-90 list-none pl-0`}>
-                    <li className="flex gap-3">
-                      <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-semibold text-[11px] border border-emerald-500/20">1</span>
-                      <span>使用 Chrome（或基于 Chromium 的 Edge）用 <strong className="font-semibold">HTTPS</strong> 访问站点（localhost / 纯 http 不支持 PWA）。</span>
-                    </li>
-                    <li className="flex gap-3">
-                      <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-semibold text-[11px] border border-emerald-500/20">2</span>
-                      <span>浏览器<strong className="font-semibold">地址栏右侧通常会出现一个 ➕ 安装图标</strong>，或打开右上角 ⋮ 菜单 → <strong className="font-semibold">「安装应用」</strong> / 「添加到主屏幕」。</span>
-                    </li>
-                    <li className="flex gap-3">
-                      <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-semibold text-[11px] border border-emerald-500/20">3</span>
-                      <span>点击后按弹窗提示确认安装 → 系统会生成一个桌面图标。</span>
-                    </li>
-                    <li className="flex gap-3">
-                      <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-semibold text-[11px] border border-emerald-500/20">4</span>
-                      <span><strong className="font-semibold">从桌面图标启动 App</strong>，打开后点击「订阅 PWA Push」→ 允许通知，完成 ✅。</span>
-                    </li>
-                  </ol>
-                  <div className={`mt-3 pt-3 border-t border-emerald-500/20 text-[11px] ${themes[theme].text} opacity-80`}>
-                    💡 <strong>注意：</strong>开发模式下用 <code className="px-1 py-0.5 rounded bg-zinc-200/60 dark:bg-zinc-800/60">npm run dev</code> 启动的 vite（端口 5173）通常<strong>不会注册有效 Service Worker</strong>，建议 <code className="px-1 py-0.5 rounded bg-zinc-200/60 dark:bg-zinc-800/60">npm run build && npm run preview</code> 后用预览端口访问。
-                  </div>
-                </div>
-
-                {/* 桌面端步骤 */}
-                <div className={`rounded-xl border ${themes[theme].border} ${themes[theme].background} p-3 sm:p-4`}>
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-8 h-8 rounded-lg bg-violet-500/15 text-violet-600 dark:text-violet-400 flex items-center justify-center shrink-0">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-                        <line x1="8" y1="21" x2="16" y2="21"/>
-                        <line x1="12" y1="17" x2="12" y2="21"/>
-                      </svg>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className={`text-sm font-semibold ${themes[theme].text}`}>桌面端（Windows / macOS / Linux，Chrome / Edge）</div>
-                      <div className={`text-[11px] mt-0.5 ${themes[theme].text} opacity-70`}>桌面端不用强制安装也能收通知，但安装后关页推送更稳定</div>
-                    </div>
-                  </div>
-                  <ol className={`text-xs space-y-2.5 ${themes[theme].text} opacity-90 list-none pl-0`}>
-                    <li className="flex gap-3">
-                      <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-violet-500/15 text-violet-600 dark:text-violet-400 font-semibold text-[11px] border border-violet-500/20">1</span>
-                      <span>在地址栏输入 <code className="px-1.5 py-0.5 rounded bg-zinc-200/60 dark:bg-zinc-800/60">chrome://settings/content/notifications</code>（Edge 同路径），确认本网站的通知权限是「允许」不是「阻止」。</span>
-                    </li>
-                    <li className="flex gap-3">
-                      <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-violet-500/15 text-violet-600 dark:text-violet-400 font-semibold text-[11px] border border-violet-500/20">2</span>
-                      <span>（推荐安装 PWA）地址栏右侧出现 ➕ 安装图标 → 点「安装 YHTrader」，浏览器会生成一个独立窗口。</span>
-                    </li>
-                    <li className="flex gap-3">
-                      <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-violet-500/15 text-violet-600 dark:text-violet-400 font-semibold text-[11px] border border-violet-500/20">3</span>
-                      <span>Windows：设置 → 系统 → 通知 → <strong className="font-semibold">通知总开关 打开</strong> → 下面的 Chrome / Edge 开关也要打开；<strong className="font-semibold">「专注助手 / 免打扰」关闭</strong>（否则全局吞通知）。</span>
-                    </li>
-                    <li className="flex gap-3">
-                      <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-violet-500/15 text-violet-600 dark:text-violet-400 font-semibold text-[11px] border border-violet-500/20">4</span>
-                      <span>macOS：系统设置 → 通知 → Chrome / Edge / PWA App → 允许通知；<strong className="font-semibold">勿扰模式关闭</strong>。</span>
-                    </li>
-                    <li className="flex gap-3">
-                      <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-semibold text-[11px] border border-emerald-500/20">5</span>
-                      <span>回到应用，点击 <code className="px-1.5 py-0.5 rounded bg-zinc-200/60 dark:bg-zinc-800/60 text-[11px]">「订阅 PWA Push」</code> → 允许，完成 ✅。</span>
-                    </li>
-                  </ol>
-                </div>
-              </section>
-            </div>
-
-            <div className={`p-4 sm:p-5 border-t ${themes[theme].border} flex justify-end gap-3`}>
-              <button
-                type="button"
-                onClick={() => setShowPushDebugModal(false)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium ${themes[theme].secondary} hover:opacity-80 transition-opacity`}
-              >
-                关闭
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Screenshot Preview Modal */}
       {imageUrl && (

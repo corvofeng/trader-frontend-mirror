@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Bell, LogOut, LogIn, Menu, X, Sun, Moon, Palette, RefreshCw, TrendingUp, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Theme, themes } from '../../lib/theme';
-import { noticeService } from '../../lib/services';
+import { noticeService, isCloudflareEnv } from '../../lib/services';
 import type { Notice, User } from '../../lib/services/types';
 import { renderMarkdown } from '../../shared/utils/markdown';
 
@@ -152,6 +152,7 @@ export function Navigation({
   }, [notices]);
 
   const loadNotices = useCallback(async (options?: { silent?: boolean }) => {
+    if (isCloudflareEnv) return;
     if (noticesLoadingRef.current) return;
     noticesLoadingRef.current = true;
     if (!options?.silent) {
@@ -406,17 +407,19 @@ export function Navigation({
                 >
                   Journal
                 </button>
-                <button
-                  onClick={() => navigate('/options')}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium btn-tactile select-none ${
-                    isActivePath('/options')
-                      ? themes[theme].primary + ' shadow-xs font-semibold'
-                      : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-slate-200/50 dark:hover:bg-zinc-700/50'
-                  }`}
-                >
-                  Options
-                </button>
-                {user && (
+                {!isCloudflareEnv && (
+                  <button
+                    onClick={() => navigate('/options')}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium btn-tactile select-none ${
+                      isActivePath('/options')
+                        ? themes[theme].primary + ' shadow-xs font-semibold'
+                        : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-slate-200/50 dark:hover:bg-zinc-700/50'
+                    }`}
+                  >
+                    Options
+                  </button>
+                )}
+                {!isCloudflareEnv && user && (
                   <button
                     onClick={() => navigate('/admin')}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium btn-tactile select-none ${
@@ -464,7 +467,7 @@ export function Navigation({
                 <RefreshCw className="w-4 h-4 mr-2" />
                 刷新
               </button>
-              {user && (
+              {!isCloudflareEnv && user && (
                 <button
                   onClick={() => setNoticesOpen(true)}
                   className={`relative p-2 rounded-lg btn-tactile ${themes[theme].secondary}`}
@@ -507,37 +510,39 @@ export function Navigation({
                 )}
               </div>
               
-              {user ? (
-                <div className="flex items-center space-x-3">
-                  <div className="flex flex-col items-end">
-                    <span className={`text-sm font-medium ${themes[theme].text}`}>
-                      {user.name}
-                    </span>
-                    <span className={`text-xs ${themes[theme].text} opacity-75`}>
-                      {user.email}
-                    </span>
+              {!isCloudflareEnv && (
+                user ? (
+                  <div className="flex items-center space-x-3">
+                    <div className="flex flex-col items-end">
+                      <span className={`text-sm font-medium ${themes[theme].text}`}>
+                        {user.name}
+                      </span>
+                      <span className={`text-xs ${themes[theme].text} opacity-75`}>
+                        {user.email}
+                      </span>
+                    </div>
+                    <img
+                      src={user.avatar_url}
+                      alt={user.name}
+                      className="h-8 w-8 rounded-full object-cover"
+                    />
+                    <button
+                      onClick={onSignOut}
+                      className={`inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md ${themes[theme].secondary}`}
+                    >
+                      <LogOut className="w-4 h-4 mr-2" />
+                      Sign Out
+                    </button>
                   </div>
-                  <img
-                    src={user.avatar_url}
-                    alt={user.name}
-                    className="h-8 w-8 rounded-full object-cover"
-                  />
+                ) : (
                   <button
-                    onClick={onSignOut}
-                    className={`inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md ${themes[theme].secondary}`}
+                    onClick={onSignIn}
+                    className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md ${themes[theme].primary} text-white`}
                   >
-                    <LogOut className="w-4 h-4 mr-2" />
-                    Sign Out
+                    <LogIn className="w-4 h-4 mr-2" />
+                    Sign In
                   </button>
-                </div>
-              ) : (
-                <button
-                  onClick={onSignIn}
-                  className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md ${themes[theme].primary} text-white`}
-                >
-                  <LogIn className="w-4 h-4 mr-2" />
-                  Sign In
-                </button>
+                )
               )}
             </div>
 
@@ -592,16 +597,18 @@ export function Navigation({
                   >
                     Journal
                   </button>
-                  <button
-                    onClick={() => {
-                      navigate('/options');
-                      onMobileMenuToggle();
-                    }}
-                    className={`w-full px-4 py-2 rounded-lg text-sm font-medium text-left btn-tactile ${themes[theme].secondary}`}
-                  >
-                    Options
-                  </button>
-                  {user && (
+                  {!isCloudflareEnv && (
+                    <button
+                      onClick={() => {
+                        navigate('/options');
+                        onMobileMenuToggle();
+                      }}
+                      className={`w-full px-4 py-2 rounded-lg text-sm font-medium text-left btn-tactile ${themes[theme].secondary}`}
+                    >
+                      Options
+                    </button>
+                  )}
+                  {!isCloudflareEnv && user && (
                     <button
                       onClick={() => {
                         navigate('/admin');
@@ -621,7 +628,7 @@ export function Navigation({
                   >
                     About
                   </button>
-                  {user && (
+                  {!isCloudflareEnv && user && (
                     <button
                       onClick={() => {
                         setNoticesOpen(true);
@@ -656,42 +663,44 @@ export function Navigation({
                     </button>
                   ))}
                 </div>
-                {user ? (
-                  <>
-                    <div className="flex items-center justify-center space-x-3 py-2">
-                      <img
-                        src={user.avatar_url}
-                        alt={user.name}
-                        className="h-10 w-10 rounded-full object-cover"
-                      />
-                      <div className="flex flex-col">
-                        <span className={`text-sm font-medium ${themes[theme].text}`}>
-                          {user.name}
-                        </span>
-                        <span className={`text-xs ${themes[theme].text} opacity-75`}>
-                          {user.email}
-                        </span>
+                {!isCloudflareEnv && (
+                  user ? (
+                    <>
+                      <div className="flex items-center justify-center space-x-3 py-2">
+                        <img
+                          src={user.avatar_url}
+                          alt={user.name}
+                          className="h-10 w-10 rounded-full object-cover"
+                        />
+                        <div className="flex flex-col">
+                          <span className={`text-sm font-medium ${themes[theme].text}`}>
+                            {user.name}
+                          </span>
+                          <span className={`text-xs ${themes[theme].text} opacity-75`}>
+                            {user.email}
+                          </span>
+                        </div>
                       </div>
-                    </div>
+                      <button
+                        onClick={onSignOut}
+                        className={`w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md ${themes[theme].secondary}`}
+                      >
+                        <LogOut className="w-4 h-4 mr-2" />
+                        Sign Out
+                      </button>
+                    </>
+                  ) : (
                     <button
-                      onClick={onSignOut}
-                      className={`w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md ${themes[theme].secondary}`}
+                      onClick={() => {
+                        onSignIn();
+                        onMobileMenuToggle();
+                      }}
+                      className={`w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md ${themes[theme].primary} text-white`}
                     >
-                      <LogOut className="w-4 h-4 mr-2" />
-                      Sign Out
+                      <LogIn className="w-4 h-4 mr-2" />
+                      Sign In
                     </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={() => {
-                      onSignIn();
-                      onMobileMenuToggle();
-                    }}
-                    className={`w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md ${themes[theme].primary} text-white`}
-                  >
-                    <LogIn className="w-4 h-4 mr-2" />
-                    Sign In
-                  </button>
+                  )
                 )}
               </div>
             </div>

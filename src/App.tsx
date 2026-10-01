@@ -1,7 +1,7 @@
 import React, { useEffect, useState, Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { MainLayout } from './layouts/MainLayout';
-import { authService, accountService, portfolioService, stockConfigService } from './lib/services';
+import { authService, accountService, portfolioService, stockConfigService, isCloudflareEnv } from './lib/services';
 import { CurrencyProvider } from './lib/context/CurrencyContext';
 import analytics from './lib/analytics';
 import type { User, Stock } from './lib/services/types';
@@ -218,11 +218,11 @@ function AppContent() {
           />
           <Route
             path="/options"
-            element={<Options theme={theme} />}
+            element={isCloudflareEnv ? <Navigate to="/journal" replace /> : <Options theme={theme} />}
           />
           <Route
             path="/admin"
-            element={<Admin theme={theme} />}
+            element={isCloudflareEnv ? <Navigate to="/journal" replace /> : <Admin theme={theme} />}
           />
           <Route
             path="/about"
