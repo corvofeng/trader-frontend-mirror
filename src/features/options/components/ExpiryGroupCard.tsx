@@ -2647,10 +2647,10 @@ export function ExpiryGroupCard({
   return (
     <div className={`${themes[theme].card} ${themes[theme].border} relative isolate rounded-xl border overflow-hidden
       ${theme === 'dark'
-        ? 'shadow-[0_1px_2px_rgba(0,0,0,0.25),0_12px_28px_-16px_rgba(0,0,0,0.45)]'
+        ? 'shadow-[0_4px_20px_-2px_rgba(0,0,0,0.65),0_16px_36px_-4px_rgba(0,0,0,0.85),0_0_0_1px_rgba(255,255,255,0.07)]'
         : theme === 'blue'
-          ? 'shadow-[0_1px_2px_rgba(30,64,175,0.04),0_10px_28px_-16px_rgba(37,99,235,0.10)]'
-          : 'shadow-[0_1px_2px_rgba(15,23,42,0.04),0_10px_28px_-16px_rgba(15,23,42,0.08)]'
+          ? 'shadow-[0_4px_20px_-2px_rgba(15,23,42,0.08),0_16px_36px_-4px_rgba(30,58,138,0.14),0_0_0_1px_rgba(30,58,138,0.08)]'
+          : 'shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06),0_16px_36px_-4px_rgba(15,23,42,0.12),0_0_0_1px_rgba(15,23,42,0.06)]'
       }`}>
         <OptionQuoteSubscription realtimeCodes={dialogSubscriptionCodes} />
       <div className={`absolute inset-x-0 top-0 h-px z-10 bg-gradient-to-r ${

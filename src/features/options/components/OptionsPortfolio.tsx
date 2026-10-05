@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { createPortal } from 'react-dom';
-import { Calendar, Activity, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, Activity } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { setCookie, getCookie } from '../../../shared/utils/cookie';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
@@ -17,6 +16,7 @@ import { UnderlyingPriceMonitor } from './UnderlyingPriceMonitor';
 import { PortfolioAnalyticsTabs } from './PortfolioAnalyticsTabs';
 import { StockKlineChart } from './StockKlineChart';
 import { TodayOrderFlowPanel } from './TodayComboPanel';
+import { PortfolioMobileFab } from './PortfolioMobileFab';
 import { getDaysToExpiryColor, getPositionTypeInfo2, getStatusColorClass, getTypeIcon, getComboStatus } from '../utils/portfolioUi';
 
 interface OptionsPortfolioProps {
@@ -56,6 +56,24 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [activeSymbol, setActiveSymbol] = useState<string>(selectedSymbol || '');
   const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 768 : false));
+  const [isMobileTodayComboOpen, setIsMobileTodayComboOpen] = useState(false);
+  const [isMobileUnderlyingMonitorOpen, setIsMobileUnderlyingMonitorOpen] = useState(false);
+
+  const [isDesktopTodayComboOpen, setIsDesktopTodayComboOpen] = useState(() => {
+    try {
+      return localStorage.getItem('options_portfolio_today_combo_open') === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  const [isDesktopUnderlyingOpen, setIsDesktopUnderlyingOpen] = useState(() => {
+    try {
+      return localStorage.getItem('underlying_price_monitor_collapsed') === '0';
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
     const media = window.matchMedia('(max-width: 768px)');
@@ -92,14 +110,6 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   const lastLoggedCodesRef = useRef<string>('');
   
   const [wsRefreshNonce, setWsRefreshNonce] = useState(0);
-
-  const [isFabCollapsed, setIsFabCollapsed] = useState(false);
-  const [isMonthTocCollapsed, setIsMonthTocCollapsed] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return window.innerWidth < 768;
-    }
-    return false;
-  });
 
   const groups = useMemo(() => {
     if (!portfolioData) return [];
@@ -660,107 +670,60 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
 
   const computeCombosForPositions = (strategy: OptionsStrategy, type: 'call' | 'put') => computeCombosForStrategy(strategy, type);
 
+  // Heavyweight financial elevation shadows (Dense, deep, physical presence)
   const cardShadowFn = useMemo(() => {
-    if (theme === 'dark') return 'shadow-[0_1px_2px_rgba(0,0,0,0.25),0_12px_28px_-16px_rgba(0,0,0,0.45)]';
-    if (theme === 'blue') return 'shadow-[0_1px_2px_rgba(30,64,175,0.04),0_10px_28px_-16px_rgba(37,99,235,0.10)]';
-    return 'shadow-[0_1px_2px_rgba(15,23,42,0.04),0_10px_28px_-16px_rgba(15,23,42,0.08)]';
-  }, [theme]);
-
-  const floatingGlassBg = useMemo(() => {
-    if (theme === 'dark') return 'bg-zinc-900/70 border-zinc-800/60 text-zinc-100';
-    if (theme === 'blue') return 'bg-white/80 border-blue-100/80 text-slate-900';
-    return 'bg-white/80 border-slate-200/70 text-slate-900';
-  }, [theme]);
-
-  const refreshButton = useMemo(() => {
-    if (isFabCollapsed && isMobile) {
-      const collapsedEl = (
-        <div
-          style={{
-            position: 'fixed',
-            bottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
-            right: 0,
-            zIndex: 2147483000,
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => setIsFabCollapsed(false)}
-            className={`px-1.5 py-2.5 rounded-l-xl shadow-md border border-r-0 ${themes[theme].card} ${themes[theme].border} opacity-50 hover:opacity-100 transition-opacity flex items-center justify-center`}
-            title="展开快捷操作"
-          >
-            <ChevronLeft className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      );
-      if (typeof document === 'undefined') return collapsedEl;
-      return createPortal(collapsedEl, document.body);
+    if (theme === 'dark') {
+      return 'shadow-[0_4px_20px_-2px_rgba(0,0,0,0.65),0_16px_36px_-4px_rgba(0,0,0,0.85),0_0_0_1px_rgba(255,255,255,0.07)]';
     }
+    if (theme === 'blue') {
+      return 'shadow-[0_4px_20px_-2px_rgba(15,23,42,0.12),0_16px_36px_-4px_rgba(30,58,138,0.16),0_0_0_1px_rgba(30,58,138,0.08)]';
+    }
+    return 'shadow-[0_4px_20px_-2px_rgba(15,23,42,0.08),0_16px_36px_-4px_rgba(15,23,42,0.14),0_0_0_1px_rgba(15,23,42,0.06)]';
+  }, [theme]);
 
-    const btn = (
-      <div
-        style={{
-          position: 'fixed',
-          bottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
-          right: 'calc(12px + env(safe-area-inset-right, 0px))',
-          zIndex: 2147483000,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'flex-end',
-          gap: isMobile ? '8px' : '10px',
-        }}
-      >
-        {isMobile && (
-          <button
-            type="button"
-            onClick={() => setIsFabCollapsed(true)}
-            className="text-[10px] px-1.5 py-0.5 rounded-full bg-black/10 dark:bg-white/10 opacity-40 hover:opacity-100 transition-opacity flex items-center gap-0.5 text-muted-foreground select-none"
-            title="收起操作按钮"
-          >
-            <span>收起</span>
-            <ChevronRight className="w-3 h-3" />
-          </button>
-        )}
 
-        {/* Unified Refresh Button (Portfolio + Quotes + WebSocket) */}
-        <button
-          type="button"
-          onClick={handleManualRefresh}
-          disabled={isLoading}
-          className={`p-2.5 sm:p-3 rounded-full shadow-lg btn-tactile ${
-            isLoading ? 'opacity-70 cursor-wait' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-          } ${themes[theme].card} ${themes[theme].border} border ring-1 ring-black/5 dark:ring-white/5 backdrop-blur-xl relative overflow-hidden opacity-85 hover:opacity-100 active:opacity-100 transition-all`}
-          aria-label="Refresh Portfolio"
-          title={isConnected ? "刷新持仓与行情" : "行情已断开，点击刷新并重连"}
-        >
-          <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent dark:from-white/5 pointer-events-none" />
-          <RefreshCw
-            className={`w-4 h-4 sm:w-5 sm:h-5 relative ${themes[theme].text} ${isLoading ? 'animate-spin' : ''}`}
-            strokeWidth={1.75}
-          />
-          {isConnected ? (
-            <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900" title="行情实时推送已连接" />
-          ) : (
-            <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500 ring-2 ring-white dark:ring-slate-900 animate-ping" title="行情连接断开，点击刷新并重连" />
-          )}
-        </button>
-      </div>
-    );
-    if (typeof document === 'undefined') return btn;
-    return createPortal(btn, document.body);
-  }, [handleManualRefresh, isLoading, theme, isConnected, isMobile, isFabCollapsed]);
+  const handleOpenUnderlying = useCallback(() => {
+    if (isMobile) {
+      setIsMobileUnderlyingMonitorOpen(true);
+    } else {
+      setIsDesktopUnderlyingOpen(true);
+    }
+  }, [isMobile]);
+
+  const handleOpenTodayCombo = useCallback(() => {
+    if (isMobile) {
+      setIsMobileTodayComboOpen(true);
+    } else {
+      setIsDesktopTodayComboOpen(true);
+    }
+  }, [isMobile]);
 
   if (isLoading && !portfolioData) {
     return (
       <>
-          <OptionQuoteSubscription realtimeCodes={[activeSymbol]} />
-        <div className={`${themes[theme].card} rounded-xl ${cardShadowFn} p-8 border ${themes[theme].border}`}>
+        <OptionQuoteSubscription realtimeCodes={[activeSymbol]} />
+        <div className={`${themes[theme].card} rounded-2xl ${cardShadowFn} p-10 border ${themes[theme].border} relative overflow-hidden`}>
+          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-500/30 to-transparent pointer-events-none" />
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4 shadow-sm shadow-blue-500/20"></div>
-            <p className={`${themes[theme].text} font-medium`}>正在加载期权投资组合...</p>
+            <p className={`${themes[theme].text} font-semibold tracking-wide text-base`}>正在加载期权投资组合...</p>
+            <p className="text-xs text-muted-foreground mt-1 opacity-70">正在建立行情连接并读取持仓快照</p>
           </div>
         </div>
-        {refreshButton}
+        <PortfolioMobileFab
+          theme={theme}
+          activeSymbol={activeSymbol}
+          currentUnderlyingPrice={activeSymbol ? getCurrentUnderlyingPrice(activeSymbol) : null}
+          isWsConnected={isConnected}
+          isRefreshing={isLoading}
+          onRefresh={handleManualRefresh}
+          months={[]}
+          activeMonthKey={null}
+          monthlyStatusCounts={{}}
+          onSelectMonth={() => {}}
+          onOpenUnderlyingMonitor={handleOpenUnderlying}
+          onOpenTodayCombo={handleOpenTodayCombo}
+        />
       </>
     );
   }
@@ -768,18 +731,14 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
   if (!portfolioData) {
     return (
       <>
-          <OptionQuoteSubscription realtimeCodes={[activeSymbol]} />
-        <div className={`${themes[theme].card} rounded-xl ${cardShadowFn} p-8 border ${themes[theme].border} relative isolate overflow-hidden`}>
-          <div className={`absolute inset-x-0 top-0 h-px z-10 bg-gradient-to-r ${
-            theme === 'dark' ? 'from-zinc-800/60 via-zinc-900/20 to-transparent'
-            : theme === 'blue' ? 'from-blue-50/90 via-blue-50/40 to-transparent'
-            : 'from-slate-50/90 via-slate-50/40 to-transparent'
-          }`} aria-hidden="true" />
+        <OptionQuoteSubscription realtimeCodes={[activeSymbol]} />
+        <div className={`${themes[theme].card} rounded-2xl ${cardShadowFn} p-10 border ${themes[theme].border} relative isolate overflow-hidden`}>
+          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
           <div className="text-center">
-            <Calendar className={`w-12 h-12 mx-auto mb-4 ${themes[theme].text} opacity-40`} strokeWidth={1.5} />
-            <p className={`text-lg font-semibold tracking-tight ${themes[theme].text}`}>暂无期权持仓</p>
-            <p className={`text-sm ${themes[theme].text} opacity-65`}>
-              您还没有任何期权持仓
+            <Calendar className={`w-12 h-12 mx-auto mb-4 ${themes[theme].text} opacity-35`} strokeWidth={1.5} />
+            <p className={`text-lg font-bold tracking-tight ${themes[theme].text}`}>暂无期权持仓</p>
+            <p className={`text-sm ${themes[theme].text} opacity-65 mt-1`}>
+              当前选定账户或标的下暂无活跃期权持仓
             </p>
           </div>
         </div>
@@ -791,7 +750,20 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
           subjectPositions={[]}
           currencyConfig={currencyConfig}
         />
-        {refreshButton}
+        <PortfolioMobileFab
+          theme={theme}
+          activeSymbol={activeSymbol}
+          currentUnderlyingPrice={activeSymbol ? getCurrentUnderlyingPrice(activeSymbol) : null}
+          isWsConnected={isConnected}
+          isRefreshing={isLoading}
+          onRefresh={handleManualRefresh}
+          months={[]}
+          activeMonthKey={null}
+          monthlyStatusCounts={{}}
+          onSelectMonth={() => {}}
+          onOpenUnderlyingMonitor={handleOpenUnderlying}
+          onOpenTodayCombo={handleOpenTodayCombo}
+        />
       </>
     );
   }
@@ -847,10 +819,6 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         currencyConfig={currencyConfig}
       />
 
-      {isMobile && activeSymbol && (
-        <UnderlyingPriceMonitor symbol={activeSymbol} theme={theme} refreshNonce={wsRefreshNonce} isMobile={true} />
-      )}
-
       {activeSymbol && (
         <StockKlineChart
           symbol={activeSymbol}
@@ -861,171 +829,46 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       )}
 
       <div className="space-y-4 sm:space-y-5">
-        {(() => {
+        {groups.map((group) => {
           return (
-            <>
-
-              {/* Floating Right-Side Month TOC (Pure overlay so it never requires a page margin) */}
-              {months.length > 0 && !isMonthTocCollapsed && isMobile && (
-                <div
-                  className="fixed inset-0 bg-black/25 backdrop-blur-[2px] z-[58] transition-opacity animate-fade-in"
-                  onClick={() => setIsMonthTocCollapsed(true)}
-                  aria-hidden="true"
-                />
-              )}
-
-              {months.length > 0 && (
-                isMonthTocCollapsed ? (
-                  <div
-                    className="fixed right-0"
-                    style={{
-                      zIndex: 60,
-                      top: 'calc(260px + env(safe-area-inset-top, 0px))',
-                      width: 32,
-                      height: 60,
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setIsMonthTocCollapsed(false)}
-                      className={`w-full h-full py-2 flex flex-col items-center justify-center gap-0.5 select-none btn-tactile rounded-l-xl border border-r-0 ${themes[theme].card} ${themes[theme].border} shadow-[-4px_0_16px_rgba(0,0,0,0.08)] dark:shadow-[-4px_0_20px_rgba(0,0,0,0.4)] backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/5 opacity-80 hover:opacity-100 transition-all relative overflow-hidden`}
-                      title="展开月份选择"
-                    >
-                      <div className="absolute inset-y-0 left-0 w-px bg-gradient-to-b from-white/40 via-white/10 to-transparent dark:from-white/10 pointer-events-none" />
-                      <ChevronLeft className={`w-3.5 h-3.5 ${themes[theme].text} opacity-60`} strokeWidth={2} />
-                      <span
-                        className={`text-[10px] font-semibold ${themes[theme].text} opacity-90 leading-tight tracking-wider`}
-                        style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
-                      >
-                        月份
-                      </span>
-                    </button>
-                  </div>
-                ) : (
-                  <div
-                    className={`fixed right-2 sm:right-4 flex flex-col items-center gap-1 p-1.5 sm:p-2 rounded-2xl border ${floatingGlassBg} backdrop-blur-xl transition-all duration-200 select-none ring-1 ring-black/5 dark:ring-white/5`}
-                    style={{
-                      zIndex: 60,
-                      top: 'calc(260px + env(safe-area-inset-top, 0px))',
-                      boxShadow: theme === 'dark' ? '0 16px 48px -16px rgba(0,0,0,0.6)' : '0 12px 36px -12px rgba(15,23,42,0.2)',
-                    }}
-                  >
-                    <div className="w-full flex items-center justify-between gap-1 px-1 border-b border-current/10 pb-1 mb-0.5">
-                      <span className="text-[9px] uppercase tracking-wider font-bold opacity-40">
-                        月份
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setIsMonthTocCollapsed(true)}
-                        className="opacity-40 hover:opacity-100 transition-opacity p-0.5 rounded text-muted-foreground"
-                        title="收起月份栏"
-                      >
-                        <ChevronRight className="w-3 h-3" />
-                      </button>
-                    </div>
-                    <div className="flex flex-col gap-1 max-h-[calc(100vh-320px)] overflow-y-auto pr-0.5 scrollbar-thin">
-                      {months.map((m) => {
-                        const isActive = activeMonthKey === m.key;
-                        const monthNum = parseInt(m.key.split('-')[1], 10);
-                        const counts = monthlyStatusCounts[m.key] || { watch: 0, profit: 0, auto: 0, total: 0 };
-                        const hasAlerts = counts.watch > 0 || counts.profit > 0 || counts.auto > 0;
-
-                        return (
-                          <div key={m.key} className="flex items-center gap-1.5 px-0.5 py-0.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const el = document.getElementById(`expiry-group-${m.firstExpiry}`);
-                                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                if (isMobile) setIsMonthTocCollapsed(true);
-                              }}
-                              title={m.label}
-                              className={`text-center text-[10px] w-8 h-8 sm:w-9 sm:h-9 rounded-full transition-all duration-150 flex items-center justify-center font-semibold cursor-pointer active:scale-95 ${
-                                isActive
-                                  ? theme === 'dark'
-                                    ? 'bg-blue-500/25 text-blue-400 font-bold shadow-[0_0_0_1px_rgba(59,130,246,0.3)]'
-                                  : 'bg-blue-600 text-white font-bold shadow-md'
-                                  : theme === 'dark'
-                                    ? 'text-zinc-400 hover:bg-zinc-800/80 hover:text-zinc-200'
-                                    : theme === 'blue'
-                                      ? 'text-slate-600 hover:bg-blue-50 hover:text-blue-900'
-                                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                              }`}
-                            >
-                              {monthNum}月
-                            </button>
-
-                            {hasAlerts && (
-                              <div className="flex flex-col gap-0.5 shrink-0">
-                                {counts.auto > 0 && (
-                                  <span className="w-4 h-3 flex items-center justify-center text-[7px] font-bold rounded bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-400" title={`AUTO: ${counts.auto}`}>
-                                    {counts.auto}
-                                  </span>
-                                )}
-                                {counts.profit > 0 && (
-                                  <span className="w-4 h-3 flex items-center justify-center text-[7px] font-bold rounded bg-green-100 text-green-800 dark:bg-green-950/60 dark:text-green-400" title={`PROFIT: ${counts.profit}`}>
-                                    {counts.profit}
-                                  </span>
-                                )}
-                                {counts.watch > 0 && (
-                                  <span className="w-4 h-3 flex items-center justify-center text-[7px] font-bold rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-950/60 dark:text-yellow-400" title={`WATCH: ${counts.watch}`}>
-                                    {counts.watch}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )
-              )}
-
-
-              {groups.map((group) => {
-                return (
-                <div key={group.expiry} id={`expiry-group-${group.expiry}`}>
-                  <ExpiryGroupCard
-                    theme={theme}
-                    whitelists={whitelists}
-                    group={group}
-                    statusFilter={statusFilter}
-                    filterAndSortPositions={filterAndSortPositions}
-                    currencyConfig={currencyConfig}
-                    getDaysToExpiryColor={getDaysToExpiryColor}
-                    getTypeIcon={getTypeIcon}
-                    getStatusColor={getStatusColor}
-                    getPositionTypeInfo2={getPositionTypeInfo2}
-                    computeCombosForPositions={computeCombosForPositions}
-                    allExpiryBuckets={portfolioData.expiryBuckets || []}
-                    selectedSymbol={activeSymbol}
-                    underlyingPrice={getCurrentUnderlyingPrice(activeSymbol)}
-                    onClosePositions={handleClosePositions}
-                    isRefreshing={isLoading}
-                    advisedCombinations={(portfolioData.advised_combinations || []).filter(c => c.expiry === group.expiry)}
-                    onExecuteAdvised={executeAdvisedCombination}
-                    selectedAccountId={selectedAccountIdProp || null}
-                    userId={currentUserId || null}
-                    optionsData={optionsData}
-                    optionsDataMap={internalOptionsDataMap}
-                    isExpanded={expandedExpiryGroups[group.expiry] !== false}
-                    onToggleExpand={() => toggleExpiryGroup(group.expiry)}
-                    isTBoardExpanded={tBoardExpandedGroups[group.expiry] !== false}
-                    onToggleTBoard={() => toggleTBoardGroup(group.expiry)}
-                    onRefresh={fetchPortfolio}
-                    wsRefreshNonce={wsRefreshNonce}
-                    customColumns={DEFAULT_PORTFOLIO_COLUMNS}
-                    storageKey="options_portfolio_tboard_cols"
-                    defaultPreset="portfolio"
-                    tBoardTitle="持仓T型数量看板"
-                  />
-                </div>
-              );
-              })}
-            </>
+            <div key={group.expiry} id={`expiry-group-${group.expiry}`}>
+              <ExpiryGroupCard
+                theme={theme}
+                whitelists={whitelists}
+                group={group}
+                statusFilter={statusFilter}
+                filterAndSortPositions={filterAndSortPositions}
+                currencyConfig={currencyConfig}
+                getDaysToExpiryColor={getDaysToExpiryColor}
+                getTypeIcon={getTypeIcon}
+                getStatusColor={getStatusColor}
+                getPositionTypeInfo2={getPositionTypeInfo2}
+                computeCombosForPositions={computeCombosForPositions}
+                allExpiryBuckets={portfolioData.expiryBuckets || []}
+                selectedSymbol={activeSymbol}
+                underlyingPrice={getCurrentUnderlyingPrice(activeSymbol)}
+                onClosePositions={handleClosePositions}
+                isRefreshing={isLoading}
+                advisedCombinations={(portfolioData.advised_combinations || []).filter(c => c.expiry === group.expiry)}
+                onExecuteAdvised={executeAdvisedCombination}
+                selectedAccountId={selectedAccountIdProp || null}
+                userId={currentUserId || null}
+                optionsData={optionsData}
+                optionsDataMap={internalOptionsDataMap}
+                isExpanded={expandedExpiryGroups[group.expiry] !== false}
+                onToggleExpand={() => toggleExpiryGroup(group.expiry)}
+                isTBoardExpanded={tBoardExpandedGroups[group.expiry] !== false}
+                onToggleTBoard={() => toggleTBoardGroup(group.expiry)}
+                onRefresh={fetchPortfolio}
+                wsRefreshNonce={wsRefreshNonce}
+                customColumns={DEFAULT_PORTFOLIO_COLUMNS}
+                storageKey="options_portfolio_tboard_cols"
+                defaultPreset="portfolio"
+                tBoardTitle="持仓T型数量看板"
+              />
+            </div>
           );
-        })()}
+        })}
       </div>
 
       <TodayOrderFlowPanel
@@ -1033,17 +876,43 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         selectedAccountId={selectedAccountIdProp || null}
         userId={currentUserId || null}
         refreshKey={refreshKey}
+        isOpen={isMobile ? isMobileTodayComboOpen : isDesktopTodayComboOpen}
+        onOpenChange={isMobile ? setIsMobileTodayComboOpen : setIsDesktopTodayComboOpen}
+        hideHandle={true}
+        isMobile={isMobile}
       />
 
       {/* Underlying Price Monitor */}
-      {!isMobile && (
-        <UnderlyingPriceMonitor symbol={activeSymbol} theme={theme} refreshNonce={wsRefreshNonce} isMobile={false} />
+      {activeSymbol && (
+        <UnderlyingPriceMonitor
+          symbol={activeSymbol}
+          theme={theme}
+          refreshNonce={wsRefreshNonce}
+          isMobile={isMobile}
+          isOpen={isMobile ? isMobileUnderlyingMonitorOpen : isDesktopUnderlyingOpen}
+          onOpenChange={isMobile ? setIsMobileUnderlyingMonitorOpen : setIsDesktopUnderlyingOpen}
+          hideHandle={true}
+        />
       )}
 
-      {/* Fixed Refresh Button */}
-      {refreshButton}
-
-
+      {/* Unified Floating Action Hub (Material Speed Dial & Navigation for both Mobile & Desktop) */}
+      <PortfolioMobileFab
+        theme={theme}
+        activeSymbol={activeSymbol}
+        currentUnderlyingPrice={activeSymbol ? getCurrentUnderlyingPrice(activeSymbol) : null}
+        isWsConnected={isConnected}
+        isRefreshing={isLoading}
+        onRefresh={handleManualRefresh}
+        months={months}
+        activeMonthKey={activeMonthKey}
+        monthlyStatusCounts={monthlyStatusCounts}
+        onSelectMonth={(firstExpiry) => {
+          const el = document.getElementById(`expiry-group-${firstExpiry}`);
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }}
+        onOpenUnderlyingMonitor={handleOpenUnderlying}
+        onOpenTodayCombo={handleOpenTodayCombo}
+      />
 
       {/* 复杂策略编辑与构建统一使用上方“保存确认弹窗” */}
     </div>

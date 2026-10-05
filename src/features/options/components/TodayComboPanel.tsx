@@ -202,9 +202,22 @@ interface TodayOrderFlowPanelProps {
   selectedAccountId: string | null;
   userId?: string | null;
   refreshKey?: number;
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideHandle?: boolean;
+  isMobile?: boolean;
 }
 
-export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, refreshKey = 0 }: TodayOrderFlowPanelProps) {
+export function TodayOrderFlowPanel({
+  theme,
+  selectedAccountId,
+  userId = null,
+  refreshKey = 0,
+  isOpen: isOpenProp,
+  onOpenChange,
+  hideHandle = false,
+  isMobile = false,
+}: TodayOrderFlowPanelProps) {
   const [tasks, setTasks] = useState<SequentialTradeTask[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -251,13 +264,28 @@ export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, r
     }
   }, [ordersDisplayMode, ordersKind]);
 
-  const [isOpen, setIsOpen] = useState(() => {
+  const isControlled = typeof isOpenProp === 'boolean';
+  const [internalIsOpen, setInternalIsOpen] = useState(() => {
     try {
       return localStorage.getItem('options_portfolio_today_combo_open') === '1';
     } catch {
       return false;
     }
   });
+  const isOpen = isControlled ? isOpenProp : internalIsOpen;
+
+  const toggleOpen = useCallback(() => {
+    const next = !isOpen;
+    if (!isControlled) {
+      setInternalIsOpen(next);
+      try {
+        localStorage.setItem('options_portfolio_today_combo_open', next ? '1' : '0');
+      } catch {
+        logger.debug('[TodayComboPanel] Failed to persist options_portfolio_today_combo_open');
+      }
+    }
+    onOpenChange?.(next);
+  }, [isControlled, isOpen, onOpenChange]);
 
   const [activeMobileTab, setActiveMobileTab] = useState<'tasks' | 'orders'>('tasks');
 
@@ -557,18 +585,6 @@ export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, r
     setDetailError(null);
   }, []);
 
-  const toggleOpen = useCallback(() => {
-    setIsOpen(prev => {
-      const next = !prev;
-      try {
-        localStorage.setItem('options_portfolio_today_combo_open', next ? '1' : '0');
-      } catch {
-        logger.debug('[TodayComboPanel] Failed to persist options_portfolio_today_combo_open');
-      }
-      return next;
-    });
-  }, []);
-
   const getDims = useCallback(() => {
     const headerHeight = 52;
     const collapsedWidth = 36;
@@ -750,22 +766,38 @@ export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, r
     setOrdersError(null);
   }, [selectedAccountId]);
 
+  // In mobile mode or when hideHandle is enabled, do not render collapsed edge strip
+  if (!isOpen && (hideHandle || isMobile)) {
+    return null;
+  }
+
   const dims = getDims();
 
   const style: React.CSSProperties = isOpen
-    ? {
-        position: 'fixed',
-        zIndex: 49,
-        top: clampPos(panelPos, { width: dims.width, height: dims.height }).top,
-        left: clampPos(panelPos, { width: dims.width, height: dims.height }).left,
-        width: dims.width,
-        height: dims.height,
-        willChange: dragging || resizing ? 'top, left, width, height' : 'left, width, height',
-        transition:
-          dragging || resizing
-            ? 'none'
-            : `left ${panelMotionMs}ms cubic-bezier(0.22, 1, 0.36, 1), width ${panelMotionMs}ms cubic-bezier(0.22, 1, 0.36, 1), height ${panelMotionMs}ms ease`
-      }
+    ? isMobile
+      ? {
+          position: 'fixed',
+          zIndex: 69,
+          top: 'calc(16px + env(safe-area-inset-top, 0px))',
+          bottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
+          left: 8,
+          right: 8,
+          width: 'auto',
+          height: 'auto',
+        }
+      : {
+          position: 'fixed',
+          zIndex: 49,
+          top: clampPos(panelPos, { width: dims.width, height: dims.height }).top,
+          left: clampPos(panelPos, { width: dims.width, height: dims.height }).left,
+          width: dims.width,
+          height: dims.height,
+          willChange: dragging || resizing ? 'top, left, width, height' : 'left, width, height',
+          transition:
+            dragging || resizing
+              ? 'none'
+              : `left ${panelMotionMs}ms cubic-bezier(0.22, 1, 0.36, 1), width ${panelMotionMs}ms cubic-bezier(0.22, 1, 0.36, 1), height ${panelMotionMs}ms ease`
+        }
     : {
         position: 'fixed',
         zIndex: 49,
@@ -1047,20 +1079,33 @@ export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, r
 
   return (
     <>
+      {isMobile && isOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[68] animate-fade-in"
+          onClick={toggleOpen}
+          aria-hidden="true"
+        />
+      )}
       <div
         ref={panelRef}
         className={
           isOpen
-            ? `${themes[theme].card} shadow-lg rounded-lg border ${themes[theme].border} overflow-hidden opacity-95 hover:opacity-100 transition-opacity relative ${resizing ? 'ring-2 ring-blue-500' : ''}`
+            ? `${themes[theme].card} ${
+                theme === 'dark'
+                  ? 'shadow-[0_24px_60px_-12px_rgba(0,0,0,0.95),0_8px_24px_-4px_rgba(0,0,0,0.7),0_0_0_1px_rgba(255,255,255,0.08)]'
+                  : theme === 'blue'
+                    ? 'shadow-[0_24px_60px_-12px_rgba(30,58,138,0.25),0_8px_24px_-4px_rgba(30,58,138,0.12),0_0_0_1px_rgba(30,58,138,0.1)]'
+                    : 'shadow-[0_24px_60px_-12px_rgba(15,23,42,0.25),0_8px_24px_-4px_rgba(15,23,42,0.12),0_0_0_1px_rgba(15,23,42,0.08)]'
+              } rounded-2xl border ${themes[theme].border} overflow-hidden opacity-95 hover:opacity-100 transition-opacity relative ${resizing ? 'ring-2 ring-blue-500' : ''}`
             : `${themes[theme].card} ${themes[theme].border} border border-r-0 rounded-l-xl shadow-[-4px_0_16px_rgba(0,0,0,0.08)] dark:shadow-[-4px_0_20px_rgba(0,0,0,0.4)] backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/5 overflow-hidden opacity-85 hover:opacity-100 transition-all cursor-pointer relative`
         }
         style={style}
       >
         <div
-          className={`${isOpen ? 'px-3 py-2 border-b ' + themes[theme].border : 'p-0 h-full'} flex items-center ${isOpen ? 'justify-between' : 'justify-center'} select-none ${isOpen ? (dragging ? 'cursor-grabbing' : resizing ? 'cursor-se-resize' : 'cursor-grab') : ''}`}
-          onPointerDown={isOpen ? startDrag : undefined}
+          className={`${isOpen ? 'px-3 py-2 border-b ' + themes[theme].border : 'p-0 h-full'} flex items-center ${isOpen ? 'justify-between' : 'justify-center'} select-none ${isOpen ? (isMobile ? '' : dragging ? 'cursor-grabbing' : resizing ? 'cursor-se-resize' : 'cursor-grab') : ''}`}
+          onPointerDown={isOpen && !isMobile ? startDrag : undefined}
           style={{ touchAction: 'none' }}
-          title={isOpen ? '拖动移动位置' : '点击展开：今日组合交易任务'}
+          title={isOpen ? (isMobile ? undefined : '拖动移动位置') : '点击展开：今日组合交易任务'}
         >
           {isOpen ? (
             <>
@@ -1090,9 +1135,14 @@ export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, r
                     e.stopPropagation();
                     toggleOpen();
                   }}
-                  title="折叠到右侧"
+                  title={isMobile ? "关闭" : "折叠到右侧"}
+                  aria-label={isMobile ? "关闭" : "折叠到右侧"}
                 >
-                  <ChevronRight className={`w-4 h-4 ${themes[theme].text}`} />
+                  {isMobile ? (
+                    <X className={`w-4 h-4 ${themes[theme].text}`} strokeWidth={2} />
+                  ) : (
+                    <ChevronRight className={`w-4 h-4 ${themes[theme].text}`} />
+                  )}
                 </button>
               </div>
             </>
@@ -1532,12 +1582,14 @@ export function TodayOrderFlowPanel({ theme, selectedAccountId, userId = null, r
               )}
             </div>
 
-            <div
-              className="absolute right-0 bottom-0 w-6 h-6 cursor-se-resize bg-gray-400/10 hover:bg-gray-400/20 rounded-sm"
-              onPointerDown={startResize}
-              style={{ touchAction: 'none' }}
-              title="拖动调整大小"
-            />
+            {!isMobile && (
+              <div
+                className="absolute right-0 bottom-0 w-6 h-6 cursor-se-resize bg-gray-400/10 hover:bg-gray-400/20 rounded-sm"
+                onPointerDown={startResize}
+                style={{ touchAction: 'none' }}
+                title="拖动调整大小"
+              />
+            )}
           </>
         )}
       </div>

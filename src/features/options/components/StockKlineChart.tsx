@@ -710,7 +710,15 @@ export function StockKlineChart({ symbol, theme, optionsData, currentUnderlyingP
       : 'bg-white/60 border-slate-200 text-slate-600 hover:bg-slate-100';
 
   return (
-    <div className={`${themes[theme].card} rounded-lg shadow-md border ${themes[theme].border} p-3 md:p-4`}>
+    <div
+      className={`${themes[theme].card} rounded-xl border ${themes[theme].border} p-3 md:p-4 ${
+        theme === 'dark'
+          ? 'shadow-[0_4px_20px_-2px_rgba(0,0,0,0.65),0_16px_36px_-4px_rgba(0,0,0,0.85),0_0_0_1px_rgba(255,255,255,0.07)]'
+          : theme === 'blue'
+            ? 'shadow-[0_4px_20px_-2px_rgba(15,23,42,0.08),0_16px_36px_-4px_rgba(30,58,138,0.14),0_0_0_1px_rgba(30,58,138,0.08)]'
+            : 'shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06),0_16px_36px_-4px_rgba(15,23,42,0.12),0_0_0_1px_rgba(15,23,42,0.06)]'
+      }`}
+    >
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
         <div className="flex items-center gap-2 flex-wrap">
           <h3 className={`text-sm font-semibold ${themes[theme].text}`}>{symbol} 日 K 线</h3>

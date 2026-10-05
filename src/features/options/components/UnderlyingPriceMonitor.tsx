@@ -3,7 +3,7 @@ import { useAutoRefresh, useOptionPriceWebSocket } from '../hooks/useOptionPrice
 import { OptionQuoteSubscription } from './OptionQuoteSubscription';
 import { AnimatedFlash } from './AnimatedFlash';
 import { Theme, themes } from '../../../lib/theme';
-import { ChevronLeft, ChevronRight, Hourglass, RefreshCw, Activity } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Hourglass, RefreshCw, Activity, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface UnderlyingPriceMonitorProps {
@@ -11,9 +11,20 @@ interface UnderlyingPriceMonitorProps {
   theme: Theme;
   refreshNonce?: number;
   isMobile?: boolean;
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideHandle?: boolean;
 }
 
-export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobile: _isMobile }: UnderlyingPriceMonitorProps) {
+export function UnderlyingPriceMonitor({
+  symbol,
+  theme,
+  refreshNonce = 0,
+  isMobile = false,
+  isOpen: isOpenProp,
+  onOpenChange,
+  hideHandle = false,
+}: UnderlyingPriceMonitorProps) {
   const {
     prices,
     isConnected,
@@ -35,7 +46,7 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
     };
   }, []);
   const [viewportSize, setViewportSize] = useState(() => getViewportSize());
-  const [collapsed, setCollapsed] = useState(() => {
+  const [internalCollapsed, setInternalCollapsed] = useState(() => {
     try {
       const saved = localStorage.getItem('underlying_price_monitor_collapsed');
       if (saved === '1') return true;
@@ -45,6 +56,22 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
     }
     return getViewportSize().width < 1280;
   });
+
+  const isControlled = typeof isOpenProp === 'boolean';
+  const collapsed = isControlled ? !isOpenProp : internalCollapsed;
+
+  const toggleCollapsed = useCallback(() => {
+    const nextCollapsed = !collapsed;
+    if (!isControlled) {
+      setInternalCollapsed(nextCollapsed);
+      try {
+        localStorage.setItem('underlying_price_monitor_collapsed', nextCollapsed ? '1' : '0');
+      } catch {
+        void 0;
+      }
+    }
+    onOpenChange?.(!nextCollapsed);
+  }, [collapsed, isControlled, onOpenChange]);
 
   const getMonitorDims = useCallback((size = viewportSize) => {
     const compact = size.width < 768;
@@ -313,22 +340,15 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
     persistPanelPos(next);
   }, [getDefaultPanelPos, persistPanelPos]);
 
-  const toggleCollapsed = () => {
-    setCollapsed(prev => {
-      const next = !prev;
-      try {
-        localStorage.setItem('underlying_price_monitor_collapsed', next ? '1' : '0');
-      } catch {
-        void 0;
-      }
-      return next;
-    });
-  };
-
   if (!symbol) return null;
 
-  // ==================== COLLAPSED STATE (unified edge strip for mobile & desktop) ====================
+  // ==================== COLLAPSED STATE ====================
   if (collapsed) {
+    // In mobile mode or when hideHandle is enabled, do not render floating tab at the right edge
+    if (hideHandle || isMobile) {
+      return <OptionQuoteSubscription realtimeCodes={[symbol]} />;
+    }
+
     const collapsedStyle: React.CSSProperties = {
       position: 'fixed',
       zIndex: 48,
@@ -338,7 +358,7 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
       borderTopRightRadius: 0,
       borderBottomRightRadius: 0,
       transition: `top 240ms ease, bottom 240ms ease, width 240ms ease, opacity 240ms ease, transform 240ms ease`,
-      top: 'calc(168px + env(safe-area-inset-top, 0px))',
+      top: 'calc(172px + env(safe-area-inset-top, 0px))',
     };
 
     return (
@@ -375,7 +395,7 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
     );
   }
 
-  // ==================== EXPANDED STATE (unified for mobile & desktop) ====================
+  // ==================== EXPANDED STATE (Mobile Modal vs Desktop Floating) ====================
   const baseClass = `relative isolate rounded-2xl overflow-hidden backdrop-blur-xl transition-opacity ${dragging ? 'cursor-grabbing' : 'cursor-grab'}
     ${themes[theme].card} border ${themes[theme].border} opacity-97 hover:opacity-100
     ${theme === 'dark'
@@ -388,28 +408,47 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
   const monitorDims = getMonitorDims();
   const clampedPanelPos = clampPanelPos(panelPos);
 
-  const style: React.CSSProperties = {
-    position: 'fixed',
-    zIndex: 48,
-    width: monitorDims.width,
-    top: clampedPanelPos.top,
-    left: clampedPanelPos.left,
-    transition: dragging
-      ? 'none'
-      : `top ${motionMs}ms ease, left ${motionMs}ms ease, width ${motionMs}ms ease, opacity ${motionMs}ms ease, transform ${motionMs}ms ease`
-  };
+  const style: React.CSSProperties = isMobile
+    ? {
+        position: 'fixed',
+        zIndex: 66,
+        bottom: 'calc(20px + env(safe-area-inset-bottom, 0px))',
+        left: 12,
+        right: 12,
+        maxWidth: 420,
+        margin: '0 auto',
+        maxHeight: 'calc(100vh - 80px)',
+        overflowY: 'auto',
+      }
+    : {
+        position: 'fixed',
+        zIndex: 48,
+        width: monitorDims.width,
+        top: clampedPanelPos.top,
+        left: clampedPanelPos.left,
+        transition: dragging
+          ? 'none'
+          : `top ${motionMs}ms ease, left ${motionMs}ms ease, width ${motionMs}ms ease, opacity ${motionMs}ms ease, transform ${motionMs}ms ease`
+      };
 
   return (
     <>
       <OptionQuoteSubscription realtimeCodes={[symbol]} />
+      {isMobile && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[65] animate-fade-in"
+          onClick={toggleCollapsed}
+          aria-hidden="true"
+        />
+      )}
       <div ref={containerRef} className={baseClass} style={style}>
       <div className="absolute inset-0 bg-gradient-to-b from-white/40 via-transparent to-transparent dark:from-white/5 pointer-events-none z-[1]" aria-hidden="true" />
-      {/* Title bar (draggable) */}
+      {/* Title bar */}
       <div
-        className={`relative z-10 px-3 py-3 border-b ${themes[theme].border} bg-opacity-50 backdrop-blur-md select-none ${dragging ? 'cursor-grabbing' : 'cursor-grab'}`}
-        onPointerDown={startDrag}
+        className={`relative z-10 px-3 py-3 border-b ${themes[theme].border} bg-opacity-50 backdrop-blur-md select-none ${isMobile ? '' : dragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+        onPointerDown={isMobile ? undefined : startDrag}
         style={{ touchAction: 'none' }}
-        title="拖动移动位置"
+        title={isMobile ? undefined : "拖动移动位置"}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
@@ -441,11 +480,15 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
             <button
               type="button"
               onClick={toggleCollapsed}
-              className={`${themes[theme].secondary} rounded-lg p-1 transition-colors duration-150 active:scale-95 hover:opacity-90`}
-              aria-label="折叠到右侧"
-              title="折叠到右侧"
+              className={`${themes[theme].secondary} rounded-lg p-1.5 transition-colors duration-150 active:scale-95 hover:opacity-90`}
+              aria-label={isMobile ? "关闭" : "折叠到右侧"}
+              title={isMobile ? "关闭" : "折叠到右侧"}
             >
-              <ChevronRight className="w-4 h-4" strokeWidth={1.75} />
+              {isMobile ? (
+                <X className="w-4 h-4" strokeWidth={2} />
+              ) : (
+                <ChevronRight className="w-4 h-4" strokeWidth={1.75} />
+              )}
             </button>
             <div className={`rounded-lg px-2.5 py-1.5 text-right ${
               theme === 'dark' ? 'bg-white/[0.04] ring-1 ring-white/5' : 'bg-black/[0.02] ring-1 ring-black/[0.04]'
