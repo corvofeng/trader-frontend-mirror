@@ -5,6 +5,8 @@ export interface StrikeOpenInterestItem {
   strike: number;
   call: number;
   put: number;
+  callTimeValue?: number;
+  putTimeValue?: number;
 }
 
 interface OpenInterestOverlayProps {
@@ -13,7 +15,10 @@ interface OpenInterestOverlayProps {
   theme: Theme;
   data: StrikeOpenInterestItem[];
   maxOpenInterest: number;
+  maxTimeValue?: number;
   visible: boolean;
+  /** Whether to show the time value dashed curve. Defaults to true. */
+  showTimeValue?: boolean;
   /** CSS zoom factor applied to the table (e.g. mobileTBoardScale). Defaults to 1. */
   scale?: number;
 }
@@ -21,10 +26,15 @@ interface OpenInterestOverlayProps {
 interface MeasuredPoint {
   strike: number;
   centerY: number;
+  rowHeight: number;
   callX: number;
   putX: number;
   callOI: number;
   putOI: number;
+  callTVX: number;
+  putTVX: number;
+  callTimeValue: number;
+  putTimeValue: number;
 }
 
 export const formatOINumber = (val: number): string => {
@@ -83,12 +93,15 @@ export const OpenInterestOverlay: React.FC<OpenInterestOverlayProps> = ({
   theme,
   data,
   maxOpenInterest,
+  maxTimeValue,
   visible,
+  showTimeValue = true,
   scale = 1,
 }) => {
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [points, setPoints] = useState<MeasuredPoint[]>([]);
   const [strikeCol, setStrikeCol] = useState<{ left: number; right: number; width: number }>({ left: 0, right: 0, width: 0 });
+  const [headerBottom, setHeaderBottom] = useState<number>(65);
 
   const measureTable = useCallback(() => {
     const table = tableRef.current;
@@ -102,6 +115,11 @@ export const OpenInterestOverlay: React.FC<OpenInterestOverlayProps> = ({
 
     if (width <= 0 || height <= 0) return;
     setDimensions({ width, height });
+
+    // Measure table header bottom boundary to prevent tooltip overlapping/clipping
+    const thead = table.querySelector('thead');
+    const hBottom = thead ? (thead.offsetTop + thead.offsetHeight) * scale : 65 * scale;
+    setHeaderBottom(hBottom);
 
     // Measure strike column position, accounting for scale
     let left = 0;
@@ -124,6 +142,10 @@ export const OpenInterestOverlay: React.FC<OpenInterestOverlayProps> = ({
     // Max horizontal amplitude: span across 现价 + 时间价值 (~140px)
     const maxAmplitude = Math.min(160, Math.max(90, (left - 100) * 0.45));
     const safeMaxOI = Math.max(1, maxOpenInterest);
+    const safeMaxTV = Math.max(
+      0.0001,
+      maxTimeValue ?? Math.max(0.0001, ...data.flatMap(d => [d.callTimeValue ?? 0, d.putTimeValue ?? 0]))
+    );
 
     // Map each strike to its vertical position, accounting for scale
     const measured: MeasuredPoint[] = [];
@@ -145,23 +167,35 @@ export const OpenInterestOverlay: React.FC<OpenInterestOverlayProps> = ({
       const callRatio = Math.min(1, Math.max(0, item.call / safeMaxOI));
       const putRatio = Math.min(1, Math.max(0, item.put / safeMaxOI));
 
+      const callTV = item.callTimeValue ?? 0;
+      const putTV = item.putTimeValue ?? 0;
+      const callTVRatio = Math.min(1, Math.max(0, callTV / safeMaxTV));
+      const putTVRatio = Math.min(1, Math.max(0, putTV / safeMaxTV));
+
       // Call extends leftwards from left edge of strike column
       const callX = left - callRatio * maxAmplitude;
+      const callTVX = left - callTVRatio * maxAmplitude;
       // Put extends rightwards from right edge of strike column
       const putX = right + putRatio * maxAmplitude;
+      const putTVX = right + putTVRatio * maxAmplitude;
 
       measured.push({
         strike: item.strike,
         centerY,
+        rowHeight,
         callX,
         putX,
         callOI: item.call,
         putOI: item.put,
+        callTVX,
+        putTVX,
+        callTimeValue: callTV,
+        putTimeValue: putTV,
       });
     });
 
     setPoints(measured);
-  }, [tableRef, strikeHeaderRef, data, maxOpenInterest, scale]);
+  }, [tableRef, strikeHeaderRef, data, maxOpenInterest, maxTimeValue, scale]);
 
   // Re-measure on mount, resize, or data change
   useEffect(() => {
@@ -183,7 +217,14 @@ export const OpenInterestOverlay: React.FC<OpenInterestOverlayProps> = ({
   // Compute smooth curve and area paths
   const paths = useMemo(() => {
     if (!visible || points.length < 2 || dimensions.width <= 0) {
-      return { callLine: '', putLine: '', callArea: '', putArea: '' };
+      return {
+        callLine: '',
+        putLine: '',
+        callArea: '',
+        putArea: '',
+        callTVLine: '',
+        putTVLine: '',
+      };
     }
 
     const callPoints = points.map(p => ({ x: p.callX, y: p.centerY }));
@@ -206,8 +247,18 @@ export const OpenInterestOverlay: React.FC<OpenInterestOverlayProps> = ({
       ? `${putLine} L ${baselinePutX} ${lastY.toFixed(1)} L ${baselinePutX} ${firstY.toFixed(1)} Z`
       : '';
 
-    return { callLine, putLine, callArea, putArea };
-  }, [visible, points, dimensions, strikeCol]);
+    // Time value smooth spline paths (dashed curves)
+    let callTVLine = '';
+    let putTVLine = '';
+    if (showTimeValue) {
+      const callTVPoints = points.map(p => ({ x: p.callTVX, y: p.centerY }));
+      const putTVPoints = points.map(p => ({ x: p.putTVX, y: p.centerY }));
+      callTVLine = buildSmoothSplinePath(callTVPoints);
+      putTVLine = buildSmoothSplinePath(putTVPoints);
+    }
+
+    return { callLine, putLine, callArea, putArea, callTVLine, putTVLine };
+  }, [visible, points, dimensions, strikeCol, showTimeValue]);
 
   const [hoveredStrike, setHoveredStrike] = useState<number | null>(null);
   const pointsRef = React.useRef(points);
@@ -242,7 +293,7 @@ export const OpenInterestOverlay: React.FC<OpenInterestOverlayProps> = ({
       for (const p of currentPoints) {
         if (Math.abs(mouseY - p.centerY) > HIT_RADIUS) continue;
 
-        // Check Call Point
+        // Check Call Point (OI)
         if (p.callOI > 0) {
           const dx = mouseX - p.callX;
           const dy = mouseY - p.centerY;
@@ -253,9 +304,31 @@ export const OpenInterestOverlay: React.FC<OpenInterestOverlayProps> = ({
           }
         }
 
-        // Check Put Point
+        // Check Call Time Value Point
+        if (showTimeValue && p.callTimeValue > 0) {
+          const dx = mouseX - p.callTVX;
+          const dy = mouseY - p.centerY;
+          const d2 = dx * dx + dy * dy;
+          if (d2 <= minDistanceSq) {
+            minDistanceSq = d2;
+            found = p.strike;
+          }
+        }
+
+        // Check Put Point (OI)
         if (p.putOI > 0) {
           const dx = mouseX - p.putX;
+          const dy = mouseY - p.centerY;
+          const d2 = dx * dx + dy * dy;
+          if (d2 <= minDistanceSq) {
+            minDistanceSq = d2;
+            found = p.strike;
+          }
+        }
+
+        // Check Put Time Value Point
+        if (showTimeValue && p.putTimeValue > 0) {
+          const dx = mouseX - p.putTVX;
           const dy = mouseY - p.centerY;
           const d2 = dx * dx + dy * dy;
           if (d2 <= minDistanceSq) {
@@ -290,7 +363,7 @@ export const OpenInterestOverlay: React.FC<OpenInterestOverlayProps> = ({
       table.removeEventListener('mouseleave', handleMouseLeave);
       table.style.cursor = '';
     };
-  }, [tableRef, visible, strikeCol]);
+  }, [tableRef, visible, strikeCol, showTimeValue]);
 
   // Synchronize pointer cursor on table when hovering over a strike level
   useEffect(() => {
@@ -314,14 +387,15 @@ export const OpenInterestOverlay: React.FC<OpenInterestOverlayProps> = ({
   const strikeCenterX = (strikeCol.left + strikeCol.right) / 2;
 
   return (
-    <svg
-      className="absolute inset-0 pointer-events-none z-10 overflow-visible transition-opacity duration-300"
+    <>
+      <svg
+        className="absolute inset-0 pointer-events-none z-10 overflow-visible transition-opacity duration-300"
       style={{
         width: dimensions.width,
         height: dimensions.height,
       }}
       role="img"
-      aria-label="未平仓量分布图层"
+      aria-label="未平仓量与时间价值分布图层"
     >
       <defs>
         {/* Soft Call Area Gradient (Emerald) */}
@@ -343,6 +417,9 @@ export const OpenInterestOverlay: React.FC<OpenInterestOverlayProps> = ({
         <filter id="glow-put" x="-20%" y="-20%" width="140%" height="140%">
           <feDropShadow dx="0" dy="0" stdDeviation="1.5" floodColor="#f43f5e" floodOpacity="0.4" />
         </filter>
+        <filter id="glow-tv" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="0" stdDeviation="1.2" floodColor="#f59e0b" floodOpacity="0.45" />
+        </filter>
       </defs>
 
       {/* Call Area Fill */}
@@ -363,7 +440,37 @@ export const OpenInterestOverlay: React.FC<OpenInterestOverlayProps> = ({
         />
       )}
 
-      {/* Call Smooth Spline Line */}
+      {/* Call Time Value Dashed Spline Line */}
+      {showTimeValue && paths.callTVLine && (
+        <path
+          d={paths.callTVLine}
+          fill="none"
+          className="stroke-amber-500 dark:stroke-amber-400"
+          strokeWidth="1.8"
+          strokeDasharray="5 3.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          filter="url(#glow-tv)"
+          opacity={0.92}
+        />
+      )}
+
+      {/* Put Time Value Dashed Spline Line */}
+      {showTimeValue && paths.putTVLine && (
+        <path
+          d={paths.putTVLine}
+          fill="none"
+          className="stroke-amber-500 dark:stroke-amber-400"
+          strokeWidth="1.8"
+          strokeDasharray="5 3.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          filter="url(#glow-tv)"
+          opacity={0.92}
+        />
+      )}
+
+      {/* Call Smooth Spline Line (OI) */}
       {paths.callLine && (
         <path
           d={paths.callLine}
@@ -376,7 +483,7 @@ export const OpenInterestOverlay: React.FC<OpenInterestOverlayProps> = ({
         />
       )}
 
-      {/* Put Smooth Spline Line */}
+      {/* Put Smooth Spline Line (OI) */}
       {paths.putLine && (
         <path
           d={paths.putLine}
@@ -388,7 +495,6 @@ export const OpenInterestOverlay: React.FC<OpenInterestOverlayProps> = ({
           filter="url(#glow-put)"
         />
       )}
-
 
       {/* Subtle Micro Data Dots */}
       {points.map(p => {
@@ -429,213 +535,232 @@ export const OpenInterestOverlay: React.FC<OpenInterestOverlayProps> = ({
         );
       })}
 
-      {/* Hovered State: Separate Call and Put HUD cards and Strike/PCR center pill */}
-      {hoveredPoint && (
-        <g key={`oi-hover-hud-${hoveredPoint.strike}`} className="pointer-events-none">
-          {/* Crosshair Guideline across the row */}
-          <line
-            x1={Math.min(hoveredPoint.callX, strikeCol.left - 40)}
-            y1={hoveredPoint.centerY}
-            x2={Math.max(hoveredPoint.putX, strikeCol.right + 40)}
-            y2={hoveredPoint.centerY}
-            className="stroke-indigo-400/50 dark:stroke-indigo-300/50"
-            strokeDasharray="3 3"
-            strokeWidth="1.2"
-          />
+        {/* Hovered State: Separate Call and Put HUD indicators on the curve */}
+        {hoveredPoint && (
+          <g key={`oi-hover-hud-${hoveredPoint.strike}`} className="pointer-events-none">
+            {/* Crosshair Guideline across the row */}
+            <line
+              x1={Math.min(
+                hoveredPoint.callX,
+                showTimeValue && hoveredPoint.callTimeValue > 0 ? hoveredPoint.callTVX : hoveredPoint.callX,
+                strikeCol.left - 40
+              )}
+              y1={hoveredPoint.centerY}
+              x2={Math.max(
+                hoveredPoint.putX,
+                showTimeValue && hoveredPoint.putTimeValue > 0 ? hoveredPoint.putTVX : hoveredPoint.putX,
+                strikeCol.right + 40
+              )}
+              y2={hoveredPoint.centerY}
+              className="stroke-indigo-400/50 dark:stroke-indigo-300/50"
+              strokeDasharray="3 3"
+              strokeWidth="1.2"
+            />
 
-          {/* Pulse Rings on active Nodes (centered in-place ripple animation) */}
-          {hoveredPoint.callOI > 0 && (
-            <circle
-              cx={hoveredPoint.callX}
-              cy={hoveredPoint.centerY}
-              r="6"
-              className="fill-none stroke-emerald-500/80 dark:stroke-emerald-400/80 stroke-1 pointer-events-none"
-            >
-              <animate
-                attributeName="r"
-                values="6;16"
-                dur="1.2s"
-                repeatCount="indefinite"
+            {/* Time Value Indicator Nodes on the Dashed Line */}
+            {showTimeValue && hoveredPoint.callTimeValue > 0 && (
+              <circle
+                cx={hoveredPoint.callTVX}
+                cy={hoveredPoint.centerY}
+                r="4.5"
+                className="fill-amber-400 stroke-2 stroke-white dark:stroke-zinc-950"
               />
-              <animate
-                attributeName="opacity"
-                values="0.8;0"
-                dur="1.2s"
-                repeatCount="indefinite"
+            )}
+            {showTimeValue && hoveredPoint.putTimeValue > 0 && (
+              <circle
+                cx={hoveredPoint.putTVX}
+                cy={hoveredPoint.centerY}
+                r="4.5"
+                className="fill-amber-400 stroke-2 stroke-white dark:stroke-zinc-950"
               />
-            </circle>
-          )}
-          {hoveredPoint.putOI > 0 && (
-            <circle
-              cx={hoveredPoint.putX}
-              cy={hoveredPoint.centerY}
-              r="6"
-              className="fill-none stroke-rose-500/80 dark:stroke-rose-400/80 stroke-1 pointer-events-none"
-            >
-              <animate
-                attributeName="r"
-                values="6;16"
-                dur="1.2s"
-                repeatCount="indefinite"
-              />
-              <animate
-                attributeName="opacity"
-                values="0.8;0"
-                dur="1.2s"
-                repeatCount="indefinite"
-              />
-            </circle>
-          )}
+            )}
 
-          {(() => {
-            const isAbove = hoveredPoint.centerY > 65;
-            const cardHeight = 48;
-            const cardY = isAbove ? hoveredPoint.centerY - cardHeight - 10 : hoveredPoint.centerY + 12;
+            {/* Pulse Rings on active Nodes (centered in-place ripple animation) */}
+            {hoveredPoint.callOI > 0 && (
+              <circle
+                cx={hoveredPoint.callX}
+                cy={hoveredPoint.centerY}
+                r="6"
+                className="fill-none stroke-emerald-500/80 dark:stroke-emerald-400/80 stroke-1 pointer-events-none"
+              >
+                <animate
+                  attributeName="r"
+                  values="6;16"
+                  dur="1.2s"
+                  repeatCount="indefinite"
+                />
+                <animate
+                  attributeName="opacity"
+                  values="0.8;0"
+                  dur="1.2s"
+                  repeatCount="indefinite"
+                />
+              </circle>
+            )}
+            {hoveredPoint.putOI > 0 && (
+              <circle
+                cx={hoveredPoint.putX}
+                cy={hoveredPoint.centerY}
+                r="6"
+                className="fill-none stroke-rose-500/80 dark:stroke-rose-400/80 stroke-1 pointer-events-none"
+              >
+                <animate
+                  attributeName="r"
+                  values="6;16"
+                  dur="1.2s"
+                  repeatCount="indefinite"
+                />
+                <animate
+                  attributeName="opacity"
+                  values="0.8;0"
+                  dur="1.2s"
+                  repeatCount="indefinite"
+                />
+              </circle>
+            )}
+          </g>
+        )}
+      </svg>
 
-            const cardWidth = 142;
+      {/* Unified HUD Floating Popover Card (HTML at z-30: never clipped by sticky thead) */}
+      {hoveredPoint && (() => {
+        const cardWidth = 310;
+        const cardHeight = showTimeValue ? 96 : 74;
 
-            // Call Card on the Left side, anchored over callX
-            const callCardX = Math.max(10, Math.min(strikeCol.left - cardWidth - 6, hoveredPoint.callX - cardWidth / 2));
-            const callArrowX = Math.max(callCardX + 12, Math.min(callCardX + cardWidth - 12, hoveredPoint.callX));
+        // Smart vertical placement: If placing above would collide with or slide under thead, place below!
+        const spaceAbove = hoveredPoint.centerY - hoveredPoint.rowHeight / 2 - headerBottom;
+        const isAbove = spaceAbove >= cardHeight + 14;
 
-            // Put Card on the Right side, anchored over putX
-            const putCardX = Math.min(dimensions.width - cardWidth - 10, Math.max(strikeCol.right + 6, hoveredPoint.putX - cardWidth / 2));
-            const putArrowX = Math.max(putCardX + 12, Math.min(putCardX + cardWidth - 12, hoveredPoint.putX));
+        const tooltipY = isAbove
+          ? hoveredPoint.centerY - hoveredPoint.rowHeight / 2 - cardHeight - 8
+          : hoveredPoint.centerY + hoveredPoint.rowHeight / 2 + 8;
 
-            // Center Strike & PCR Pill
-            const pcrWidth = 88;
-            const pcrHeight = 36;
-            const pcrX = strikeCenterX - pcrWidth / 2;
-            const pcrY = isAbove ? hoveredPoint.centerY - pcrHeight - 10 : hoveredPoint.centerY + 12;
+        const tooltipX = Math.max(
+          cardWidth / 2 + 8,
+          Math.min(dimensions.width - cardWidth / 2 - 8, strikeCenterX)
+        );
 
-            const pcrText = hoveredPoint.callOI > 0
-              ? (hoveredPoint.putOI / hoveredPoint.callOI).toFixed(2)
-              : hoveredPoint.putOI > 0 ? '∞' : '--';
+        const placement = isAbove ? 'top' : 'bottom';
+        // Compute arrow left position relative to card container so it always aims at strikeCenterX
+        const arrowLeft = Math.max(18, Math.min(cardWidth - 18, strikeCenterX - (tooltipX - cardWidth / 2)));
 
-            return (
-              <g className="pointer-events-none">
-                {/* 1. Left Call Card */}
-                {hoveredPoint.callOI > 0 && (
-                  <g>
-                    {isAbove ? (
-                      <polygon
-                        points={`${callArrowX - 5},${cardY + cardHeight - 1} ${callArrowX + 5},${cardY + cardHeight - 1} ${callArrowX},${cardY + cardHeight + 5}`}
-                        className="fill-white dark:fill-zinc-900 text-emerald-500/40 dark:text-emerald-500/50"
-                        stroke="currentColor"
-                        strokeWidth="1"
-                        strokeLinejoin="round"
-                      />
-                    ) : (
-                      <polygon
-                        points={`${callArrowX - 5},${cardY + 1} ${callArrowX + 5},${cardY + 1} ${callArrowX},${cardY - 5}`}
-                        className="fill-white dark:fill-zinc-900 text-emerald-500/40 dark:text-emerald-500/50"
-                        stroke="currentColor"
-                        strokeWidth="1"
-                        strokeLinejoin="round"
-                      />
-                    )}
-                    <foreignObject
-                      x={callCardX}
-                      y={cardY}
-                      width={cardWidth}
-                      height={cardHeight}
-                      className="overflow-visible pointer-events-none"
-                    >
-                      <div className="w-full h-full bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border border-emerald-500/40 dark:border-emerald-500/50 shadow-lg rounded-xl p-1.5 px-2.5 flex flex-col justify-between ring-1 ring-emerald-500/20">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10.5px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                            Call 未平仓
-                          </span>
-                          {hoveredPoint.callOI >= 10000 && (
-                            <span className="text-[9.5px] font-mono font-semibold text-emerald-700 dark:text-emerald-300">
-                              {formatOINumber(hoveredPoint.callOI)}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-baseline justify-between font-mono">
-                          <span className="text-[12px] font-bold text-slate-900 dark:text-zinc-100">
-                            {hoveredPoint.callOI.toLocaleString()}
-                          </span>
-                          <span className="text-[9.5px] font-normal text-slate-400 dark:text-zinc-500">张</span>
-                        </div>
-                      </div>
-                    </foreignObject>
-                  </g>
-                )}
+        const pcrText = hoveredPoint.callOI > 0
+          ? (hoveredPoint.putOI / hoveredPoint.callOI).toFixed(2)
+          : hoveredPoint.putOI > 0 ? '∞' : '--';
 
-                {/* 2. Center Strike & PCR Pill */}
-                <foreignObject
-                  x={pcrX}
-                  y={pcrY}
-                  width={pcrWidth}
-                  height={pcrHeight}
-                  className="overflow-visible pointer-events-none"
-                >
-                  <div className="w-full h-full bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border border-indigo-200/90 dark:border-indigo-800/80 shadow-md rounded-xl p-1 px-1.5 flex flex-col items-center justify-center font-mono ring-1 ring-indigo-500/20">
-                    <span className="text-[9.5px] font-bold text-slate-800 dark:text-zinc-100 leading-tight">
-                      @{hoveredPoint.strike}
+        return (
+          <div
+            className="absolute z-30 pointer-events-none transition-all duration-150 ease-out"
+            style={{
+              left: tooltipX,
+              top: tooltipY,
+              transform: 'translate(-50%, 0)',
+            }}
+          >
+            <div className="w-[310px] bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border border-slate-200/90 dark:border-zinc-700/80 shadow-2xl rounded-2xl p-2.5 px-3 flex flex-col gap-2 ring-1 ring-black/5 dark:ring-white/10 select-none">
+              {/* Header: Strike & PCR */}
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-zinc-800 pb-1.5 font-mono">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-medium text-slate-400 dark:text-zinc-500 uppercase tracking-wider">行权价</span>
+                  <span className="text-sm font-bold text-slate-900 dark:text-zinc-50">@{hoveredPoint.strike}</span>
+                </div>
+                <div className="flex items-center gap-2 text-[10.5px]">
+                  <span className="px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-semibold border border-indigo-200/60 dark:border-indigo-800/60">
+                    P/C: {pcrText}
+                  </span>
+                </div>
+              </div>
+
+              {/* Comparison Grid: Call (Left) vs Put (Right) */}
+              <div className="grid grid-cols-2 divide-x divide-slate-100 dark:divide-zinc-800 gap-x-2.5">
+                {/* Call Side (Emerald) */}
+                <div className="space-y-1 pr-1">
+                  <div className="flex items-center justify-between text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                    <span className="flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      Call 认购
                     </span>
-                    <span className="text-[10px] font-medium text-indigo-600 dark:text-indigo-400 leading-tight">
-                      P/C: {pcrText}
+                    {hoveredPoint.callOI >= 10000 && (
+                      <span className="text-[9.5px] font-mono text-emerald-700 dark:text-emerald-300 font-normal">
+                        {formatOINumber(hoveredPoint.callOI)}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Call OI Row */}
+                  <div className="flex items-baseline justify-between font-mono text-xs">
+                    <span className="text-[10px] text-slate-400 dark:text-zinc-500">未平仓</span>
+                    <span className="font-bold text-slate-800 dark:text-zinc-200">
+                      {hoveredPoint.callOI > 0 ? hoveredPoint.callOI.toLocaleString() : '-'}
+                      {hoveredPoint.callOI > 0 && <span className="text-[9.5px] font-normal text-slate-400 dark:text-zinc-500 ml-0.5">张</span>}
                     </span>
                   </div>
-                </foreignObject>
 
-                {/* 3. Right Put Card */}
-                {hoveredPoint.putOI > 0 && (
-                  <g>
-                    {isAbove ? (
-                      <polygon
-                        points={`${putArrowX - 5},${cardY + cardHeight - 1} ${putArrowX + 5},${cardY + cardHeight - 1} ${putArrowX},${cardY + cardHeight + 5}`}
-                        className="fill-white dark:fill-zinc-900 text-rose-500/40 dark:text-rose-500/50"
-                        stroke="currentColor"
-                        strokeWidth="1"
-                        strokeLinejoin="round"
-                      />
-                    ) : (
-                      <polygon
-                        points={`${putArrowX - 5},${cardY + 1} ${putArrowX + 5},${cardY + 1} ${putArrowX},${cardY - 5}`}
-                        className="fill-white dark:fill-zinc-900 text-rose-500/40 dark:text-rose-500/50"
-                        stroke="currentColor"
-                        strokeWidth="1"
-                        strokeLinejoin="round"
-                      />
+                  {/* Call TV Row */}
+                  {showTimeValue && (
+                    <div className="flex items-baseline justify-between font-mono text-xs">
+                      <span className="text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-0.5">
+                        <span className="w-2 border-t border-dashed border-amber-500 inline-block" />
+                        时间价值
+                      </span>
+                      <span className="font-semibold text-amber-600 dark:text-amber-400">
+                        {hoveredPoint.callTimeValue > 0 ? hoveredPoint.callTimeValue.toFixed(4) : '-'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Put Side (Rose) */}
+                <div className="space-y-1 pl-2.5">
+                  <div className="flex items-center justify-between text-[11px] font-semibold text-rose-600 dark:text-rose-400">
+                    <span className="flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                      Put 认沽
+                    </span>
+                    {hoveredPoint.putOI >= 10000 && (
+                      <span className="text-[9.5px] font-mono text-rose-700 dark:text-rose-300 font-normal">
+                        {formatOINumber(hoveredPoint.putOI)}
+                      </span>
                     )}
-                    <foreignObject
-                      x={putCardX}
-                      y={cardY}
-                      width={cardWidth}
-                      height={cardHeight}
-                      className="overflow-visible pointer-events-none"
-                    >
-                      <div className="w-full h-full bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border border-rose-500/40 dark:border-rose-500/50 shadow-lg rounded-xl p-1.5 px-2.5 flex flex-col justify-between ring-1 ring-rose-500/20">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10.5px] font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                            Put 未平仓
-                          </span>
-                          {hoveredPoint.putOI >= 10000 && (
-                            <span className="text-[9.5px] font-mono font-semibold text-rose-700 dark:text-rose-300">
-                              {formatOINumber(hoveredPoint.putOI)}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-baseline justify-between font-mono">
-                          <span className="text-[12px] font-bold text-slate-900 dark:text-zinc-100">
-                            {hoveredPoint.putOI.toLocaleString()}
-                          </span>
-                          <span className="text-[9.5px] font-normal text-slate-400 dark:text-zinc-500">张</span>
-                        </div>
-                      </div>
-                    </foreignObject>
-                  </g>
-                )}
-              </g>
-            );
-          })()}
-        </g>
-      )}
-    </svg>
+                  </div>
+
+                  {/* Put OI Row */}
+                  <div className="flex items-baseline justify-between font-mono text-xs">
+                    <span className="text-[10px] text-slate-400 dark:text-zinc-500">未平仓</span>
+                    <span className="font-bold text-slate-800 dark:text-zinc-200">
+                      {hoveredPoint.putOI > 0 ? hoveredPoint.putOI.toLocaleString() : '-'}
+                      {hoveredPoint.putOI > 0 && <span className="text-[9.5px] font-normal text-slate-400 dark:text-zinc-500 ml-0.5">张</span>}
+                    </span>
+                  </div>
+
+                  {/* Put TV Row */}
+                  {showTimeValue && (
+                    <div className="flex items-baseline justify-between font-mono text-xs">
+                      <span className="text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-0.5">
+                        <span className="w-2 border-t border-dashed border-amber-500 inline-block" />
+                        时间价值
+                      </span>
+                      <span className="font-semibold text-amber-600 dark:text-amber-400">
+                        {hoveredPoint.putTimeValue > 0 ? hoveredPoint.putTimeValue.toFixed(4) : '-'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Popover Arrow pointing at strike */}
+              <div
+                className={`absolute w-2.5 h-2.5 bg-white dark:bg-zinc-900 border-slate-200/90 dark:border-zinc-700/80 rotate-45 ${
+                  placement === 'top'
+                    ? '-bottom-1.5 border-b border-r'
+                    : '-top-1.5 border-t border-l'
+                }`}
+                style={{ left: arrowLeft, transform: 'translateX(-50%) rotate(45deg)' }}
+              />
+            </div>
+          </div>
+        );
+      })()}
+    </>
   );
 };

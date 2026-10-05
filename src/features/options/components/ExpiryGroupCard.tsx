@@ -261,6 +261,21 @@ export function ExpiryGroupCard({
     } catch {}
   }, [showOpenInterestOverlay]);
 
+  const [showTimeValueCurve, setShowTimeValueCurve] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('tboard_show_tv_curve');
+      return saved !== 'false';
+    } catch {
+      return true;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('tboard_show_tv_curve', String(showTimeValueCurve));
+    } catch {}
+  }, [showTimeValueCurve]);
+
   const [showColumnSettings, setShowColumnSettings] = useState(false);
 
   const fallbackPresetCols = useMemo(() => {
@@ -621,7 +636,38 @@ export function ExpiryGroupCard({
     return { strikes, metrics };
   }, [allExpiryBuckets, group.expiry, group.complex, selectedSymbol, filteredPositions, optionsData, localOptionsData, optionsDataMap, underlyingPrice]);
 
-  const { openInterestByStrike, maxOpenInterest } = useMemo(() => {
+  const resolveTimeValuesForStrike = useCallback((strike: number, quote?: OptionQuote | null): { callTV: number; putTV: number } => {
+    const q = quote ?? quotesByStrike.get(strike);
+    if (!q) return { callTV: 0, putTV: 0 };
+    let callTV: number | null = null;
+    let putTV: number | null = null;
+    const qCallTV = q.callTimeValue;
+    const qPutTV = q.putTimeValue;
+    if (typeof qCallTV === 'number' && Number.isFinite(qCallTV)) callTV = Math.max(0, qCallTV);
+    if (typeof qPutTV === 'number' && Number.isFinite(qPutTV)) putTV = Math.max(0, qPutTV);
+    if ((callTV == null || putTV == null) && underlyingPrice != null) {
+      const callCode = q.call_contract_code || '';
+      const callFullCode = q.call_contract_code_full || '';
+      const putCode = q.put_contract_code || '';
+      const putFullCode = q.put_contract_code_full || '';
+      const rawCallPrice = (callCode && prices[callCode]?.price) ?? (callFullCode && prices[callFullCode]?.price) ?? q.callPrice ?? q.call_last_price;
+      const rawPutPrice = (putCode && prices[putCode]?.price) ?? (putFullCode && prices[putFullCode]?.price) ?? q.putPrice ?? q.put_last_price;
+      const callPrice = typeof rawCallPrice === 'number' ? rawCallPrice : (rawCallPrice != null && rawCallPrice !== '' ? Number(rawCallPrice) : null);
+      const putPrice = typeof rawPutPrice === 'number' ? rawPutPrice : (rawPutPrice != null && rawPutPrice !== '' ? Number(rawPutPrice) : null);
+      if (callTV == null && typeof callPrice === 'number' && Number.isFinite(callPrice)) {
+        callTV = Math.max(0, callPrice - Math.max(0, underlyingPrice - strike));
+      }
+      if (putTV == null && typeof putPrice === 'number' && Number.isFinite(putPrice)) {
+        putTV = Math.max(0, putPrice - Math.max(0, strike - underlyingPrice));
+      }
+    }
+    return {
+      callTV: callTV != null && Number.isFinite(callTV) ? Math.max(0, callTV) : 0,
+      putTV: putTV != null && Number.isFinite(putTV) ? Math.max(0, putTV) : 0,
+    };
+  }, [quotesByStrike, underlyingPrice, prices]);
+
+  const { openInterestByStrike, maxOpenInterest, maxTimeValue: maxOverlayTimeValue } = useMemo(() => {
     const list = (tBoardStrikesAndMetrics.metrics || []).map((metric) => {
       const quote = quotesByStrike.get(metric.s);
       const rawQuote = quote as (OptionQuote & {
@@ -646,15 +692,19 @@ export function ExpiryGroupCard({
         rawQuote?.putOi ??
         0
       );
+      const { callTV, putTV } = resolveTimeValuesForStrike(metric.s, quote);
       return {
         strike: metric.s,
         call: Number.isFinite(call) && call > 0 ? call : 0,
         put: Number.isFinite(put) && put > 0 ? put : 0,
+        callTimeValue: callTV,
+        putTimeValue: putTV,
       };
     });
     const maxOI = Math.max(1, ...list.flatMap(item => [item.call, item.put]));
-    return { openInterestByStrike: list, maxOpenInterest: maxOI };
-  }, [tBoardStrikesAndMetrics.metrics, quotesByStrike]);
+    const maxTV = Math.max(0.0001, ...list.flatMap(item => [item.callTimeValue, item.putTimeValue]));
+    return { openInterestByStrike: list, maxOpenInterest: maxOI, maxTimeValue: maxTV };
+  }, [tBoardStrikesAndMetrics.metrics, quotesByStrike, resolveTimeValuesForStrike]);
 
   const oiSummary = useMemo(() => {
     if (!openInterestByStrike || openInterestByStrike.length === 0) return null;
@@ -2846,27 +2896,56 @@ export function ExpiryGroupCard({
 
                       {isTBoardExpanded && (
                         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                          {showOpenInterestOverlay && oiSummary && (
+                          {showOpenInterestOverlay && (
                             <div className="hidden md:flex items-center gap-2 text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-slate-100/90 dark:bg-zinc-800/90 border border-slate-200/80 dark:border-zinc-700/60 shadow-xs">
-                              {oiSummary.maxCall > 0 && (
-                                <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium" title={`全市场 Call 最大未平仓量: 行权价 ${oiSummary.maxCallStrike} (${oiSummary.maxCall.toLocaleString()} 张)`}>
-                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                  Call主力 {oiSummary.maxCallStrike} ({formatOINumber(oiSummary.maxCall)})
+                              {oiSummary && (
+                                <>
+                                  {oiSummary.maxCall > 0 && (
+                                    <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium" title={`全市场 Call 最大未平仓量: 行权价 ${oiSummary.maxCallStrike} (${oiSummary.maxCall.toLocaleString()} 张)`}>
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                      Call主力 {oiSummary.maxCallStrike} ({formatOINumber(oiSummary.maxCall)})
+                                    </span>
+                                  )}
+                                  {oiSummary.maxCall > 0 && oiSummary.maxPut > 0 && (
+                                    <span className="text-gray-300 dark:text-zinc-600">|</span>
+                                  )}
+                                  {oiSummary.maxPut > 0 && (
+                                    <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400 font-medium" title={`全市场 Put 最大未平仓量: 行权价 ${oiSummary.maxPutStrike} (${oiSummary.maxPut.toLocaleString()} 张)`}>
+                                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                      Put主力 {oiSummary.maxPutStrike} ({formatOINumber(oiSummary.maxPut)})
+                                    </span>
+                                  )}
+                                  <span className="text-gray-300 dark:text-zinc-600">|</span>
+                                  <span className="text-gray-600 dark:text-zinc-300">
+                                    P/C比: <span className="font-bold text-slate-800 dark:text-zinc-200">{oiSummary.pcr}</span>
+                                  </span>
+                                  <span className="text-gray-300 dark:text-zinc-600">|</span>
+                                </>
+                              )}
+                              {/* 图例与时间价值虚线开关 */}
+                              <div className="flex items-center gap-2 text-[10.5px]">
+                                <span className="flex items-center gap-1 text-slate-500 dark:text-zinc-400" title="实线为未平仓量 (OI) 分布曲线">
+                                  <span className="w-2.5 h-0.5 bg-emerald-500 inline-block rounded-full" />
+                                  <span>实线OI</span>
                                 </span>
-                              )}
-                              {oiSummary.maxCall > 0 && oiSummary.maxPut > 0 && (
-                                <span className="text-gray-300 dark:text-zinc-600">|</span>
-                              )}
-                              {oiSummary.maxPut > 0 && (
-                                <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400 font-medium" title={`全市场 Put 最大未平仓量: 行权价 ${oiSummary.maxPutStrike} (${oiSummary.maxPut.toLocaleString()} 张)`}>
-                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                                  Put主力 {oiSummary.maxPutStrike} ({formatOINumber(oiSummary.maxPut)})
-                                </span>
-                              )}
-                              <span className="text-gray-300 dark:text-zinc-600">|</span>
-                              <span className="text-gray-600 dark:text-zinc-300">
-                                P/C比: <span className="font-bold text-slate-800 dark:text-zinc-200">{oiSummary.pcr}</span>
-                              </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowTimeValueCurve(prev => !prev);
+                                  }}
+                                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors ${
+                                    showTimeValueCurve
+                                      ? 'text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 font-medium'
+                                      : 'text-gray-400 opacity-60 hover:opacity-100'
+                                  }`}
+                                  title="点击开启或关闭时间价值虚线对比"
+                                >
+                                  <span className="w-3 border-t-2 border-dashed border-amber-500 inline-block" />
+                                  <span>虚线时间价值</span>
+                                  <span className="text-[9px] font-mono font-semibold">{showTimeValueCurve ? 'ON' : 'OFF'}</span>
+                                </button>
+                              </div>
                             </div>
                           )}
 
@@ -2900,11 +2979,11 @@ export function ExpiryGroupCard({
                                 ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30'
                                 : 'bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-gray-400 border border-transparent hover:bg-gray-200 dark:hover:bg-zinc-700'
                             }`}
-                            title="开启或关闭市场未平仓量 (OI) 分布平滑曲线图层"
+                            title="开启或关闭未平仓量 (实线) 与时间价值 (虚线) 对比图层"
                           >
                             <span className={`w-1.5 h-1.5 rounded-full ${showOpenInterestOverlay ? 'bg-blue-500 animate-pulse' : 'bg-gray-400'}`} />
-                            <span className="hidden sm:inline">未平仓量 (OI) 图层</span>
-                            <span className="sm:hidden">OI图层</span>
+                            <span className="hidden sm:inline">OI / 价值图层</span>
+                            <span className="sm:hidden">OI/价值</span>
                             <span className="text-[10px] font-mono opacity-80">{showOpenInterestOverlay ? 'ON' : 'OFF'}</span>
                           </button>
 
@@ -3209,7 +3288,9 @@ export function ExpiryGroupCard({
                                       theme={theme}
                                       data={openInterestByStrike}
                                       maxOpenInterest={maxOpenInterest}
+                                      maxTimeValue={maxOverlayTimeValue}
                                       visible={showOpenInterestOverlay}
+                                      showTimeValue={showTimeValueCurve}
                                       scale={mobileTBoardScale}
                                     />
                                   </div>
@@ -3382,12 +3463,29 @@ export function ExpiryGroupCard({
                                               ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30'
                                               : 'bg-black/5 dark:bg-white/5 opacity-70 hover:opacity-100'
                                           }`}
-                                          title="切换未平仓量 (OI) 平滑分布曲线"
+                                          title="开启或关闭未平仓量 (实线) 与时间价值 (虚线) 对比图层"
                                         >
                                           <span className={`w-1.5 h-1.5 rounded-full ${showOpenInterestOverlay ? 'bg-blue-500 animate-pulse' : 'bg-gray-400'}`} />
                                           <span>OI图层</span>
                                           <span className="text-[10px] font-mono">{showOpenInterestOverlay ? 'ON' : 'OFF'}</span>
                                         </button>
+
+                                        {showOpenInterestOverlay && (
+                                          <button
+                                            type="button"
+                                            onClick={() => setShowTimeValueCurve(prev => !prev)}
+                                            className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
+                                              showTimeValueCurve
+                                                ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 font-medium'
+                                                : 'bg-black/5 dark:bg-white/5 opacity-60 hover:opacity-100'
+                                            }`}
+                                            title="切换时间价值虚线分布"
+                                          >
+                                            <span className="w-2.5 border-t-2 border-dashed border-amber-500 inline-block" />
+                                            <span>时间价值:</span>
+                                            <span className="text-[10px] font-mono font-semibold">{showTimeValueCurve ? 'ON' : 'OFF'}</span>
+                                          </button>
+                                        )}
 
                                         <button
                                           type="button"
@@ -3474,12 +3572,29 @@ export function ExpiryGroupCard({
                                               ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30'
                                               : 'bg-black/5 dark:bg-white/5 opacity-70 hover:opacity-100 border border-transparent'
                                           }`}
-                                          title="开启或关闭未平仓量 (OI) 图层"
+                                          title="开启或关闭未平仓量 (实线) 与时间价值 (虚线) 图层"
                                         >
                                           <span className={`w-1.5 h-1.5 rounded-full ${showOpenInterestOverlay ? 'bg-blue-500 animate-pulse' : 'bg-gray-400'}`} />
                                           <span>OI:</span>
                                           <span className="font-mono text-[10px] font-semibold">{showOpenInterestOverlay ? 'ON' : 'OFF'}</span>
                                         </button>
+
+                                        {showOpenInterestOverlay && (
+                                          <button
+                                            type="button"
+                                            onClick={() => setShowTimeValueCurve(prev => !prev)}
+                                            className={`inline-flex items-center gap-1 px-1.5 py-1 rounded-md text-[11px] font-medium transition-all whitespace-nowrap shadow-2xs ${
+                                              showTimeValueCurve
+                                                ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 font-medium'
+                                                : 'bg-black/5 dark:bg-white/5 opacity-60 hover:opacity-100 border border-transparent'
+                                            }`}
+                                            title="开启或关闭时间价值虚线图层"
+                                          >
+                                            <span className="w-2 border-t-2 border-dashed border-amber-500 inline-block" />
+                                            <span>TV:</span>
+                                            <span className="font-mono text-[10px] font-semibold">{showTimeValueCurve ? 'ON' : 'OFF'}</span>
+                                          </button>
+                                        )}
 
                                         <button
                                           type="button"
@@ -3519,23 +3634,33 @@ export function ExpiryGroupCard({
                                       </div>
                                     </div>
 
-                                    {/* Mobile Optional Third Row: OI Summary (if enabled and available) */}
-                                    {showOpenInterestOverlay && oiSummary && (
+                                    {/* Mobile Optional Third Row: OI & TV Summary (if enabled and available) */}
+                                    {showOpenInterestOverlay && (
                                       <div className="flex sm:hidden items-center justify-between px-3 py-1 bg-blue-500/5 dark:bg-blue-500/10 border-t border-blue-500/10 text-[10px] font-mono text-muted-foreground overflow-x-auto whitespace-nowrap">
                                         <div className="flex items-center gap-2">
-                                          {oiSummary.maxCall > 0 && (
+                                          {oiSummary?.maxCall ? (
                                             <span className="text-emerald-500 font-medium">
                                               Call主力 {oiSummary.maxCallStrike} ({formatOINumber(oiSummary.maxCall)})
                                             </span>
-                                          )}
-                                          {oiSummary.maxCall > 0 && oiSummary.maxPut > 0 && <span className="opacity-30">|</span>}
-                                          {oiSummary.maxPut > 0 && (
+                                          ) : null}
+                                          {oiSummary?.maxCall && oiSummary?.maxPut ? <span className="opacity-30">|</span> : null}
+                                          {oiSummary?.maxPut ? (
                                             <span className="text-rose-500 font-medium">
                                               Put主力 {oiSummary.maxPutStrike} ({formatOINumber(oiSummary.maxPut)})
                                             </span>
-                                          )}
+                                          ) : null}
                                         </div>
-                                        <span className="font-medium text-slate-700 dark:text-zinc-300">PCR: {oiSummary.pcr}</span>
+                                        <div className="flex items-center gap-2">
+                                          <span className="flex items-center gap-1 text-[9.5px]">
+                                            <span className="w-2 h-0.5 bg-emerald-500 inline-block rounded-full" />
+                                            <span>OI</span>
+                                          </span>
+                                          <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400 text-[9.5px]">
+                                            <span className="w-2 border-t border-dashed border-amber-500 inline-block" />
+                                            <span>TV</span>
+                                          </span>
+                                          {oiSummary && <span className="font-medium text-slate-700 dark:text-zinc-300">PCR: {oiSummary.pcr}</span>}
+                                        </div>
                                       </div>
                                     )}
                                   </header>

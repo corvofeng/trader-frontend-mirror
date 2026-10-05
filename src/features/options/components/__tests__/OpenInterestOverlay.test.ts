@@ -56,5 +56,20 @@ describe('OpenInterestOverlay helpers', () => {
       // Must end at last point
       expect(path.endsWith('200.0 150.0')).toBe(true);
     });
+
+    it('generates dashed spline curves correctly for time value data points', () => {
+      const tvPoints = [
+        { x: 350, y: 40 },
+        { x: 310, y: 80 },
+        { x: 260, y: 120 }, // peak time value near ATM
+        { x: 320, y: 160 },
+        { x: 350, y: 200 },
+      ];
+
+      const path = buildSmoothSplinePath(tvPoints);
+      expect(path.startsWith('M 350 40')).toBe(true);
+      expect(path.split(' C ').length).toBe(5);
+      expect(path.endsWith('350.0 200.0')).toBe(true);
+    });
   });
 });
