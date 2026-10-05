@@ -14,6 +14,7 @@ import { AnimatedFlash } from './AnimatedFlash';
 import { OptionQuoteSubscription } from './OptionQuoteSubscription';
 import { RealTimeSpreadChart } from './RealTimeSpreadChart';
 import { OpenInterestOverlay, formatOINumber } from './OpenInterestOverlay';
+import { StrikeOptionHoverCard } from './StrikeOptionHoverCard';
 import { getComboStatus } from '../utils/portfolioUi';
 
 const STANDARD_ETF_OPTION_CONTRACT_UNIT = 10000;
@@ -5541,6 +5542,30 @@ const TBoardRow = React.memo(function TBoardRow({
   filteredPositions,
   onSetConfirmData,
 }: TBoardRowProps) {
+  const strikeCellRef = useRef<HTMLTableCellElement | null>(null);
+  const [isStrikeHovered, setIsStrikeHovered] = useState(false);
+  const hoverTimeoutRef = useRef<number | null>(null);
+
+  const handleStrikeMouseEnter = useCallback(() => {
+    if (hoverTimeoutRef.current) window.clearTimeout(hoverTimeoutRef.current);
+    hoverTimeoutRef.current = window.setTimeout(() => {
+      setIsStrikeHovered(true);
+    }, 180);
+  }, []);
+
+  const handleStrikeMouseLeave = useCallback(() => {
+    if (hoverTimeoutRef.current) window.clearTimeout(hoverTimeoutRef.current);
+    setIsStrikeHovered(false);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        window.clearTimeout(hoverTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const tBoardValueTextClass = `inline-flex items-center justify-center text-[13px] font-semibold leading-tight ${themes[theme].text}`;
   const tBoardComboValueClass = `inline-flex min-w-[2.5rem] items-center justify-center text-[13px] font-semibold leading-tight ${themes[theme].text}`;
   const getTBoardActionButtonClass = (variant: 'adjust' | 'release' = 'adjust') => (
@@ -5766,10 +5791,12 @@ const TBoardRow = React.memo(function TBoardRow({
       data-strike={m.s}
       data-atm-strike={isAtmStrike ? "true" : undefined}
       style={{ backgroundImage: rowBg }}
-      className={`${themes[theme].cardHover} transition-all duration-300 ${
+      className={`${themes[theme].cardHover} transition-all duration-200 ${
         isAtmHighlighted
           ? 'relative z-10 ring-2 ring-blue-500/70 shadow-lg shadow-blue-500/20 bg-blue-500/10 dark:bg-blue-500/20'
-          : ''
+          : isStrikeHovered
+            ? 'relative z-10 bg-black/[0.025] dark:bg-white/[0.035] shadow-xs'
+            : ''
       }`}
     >
       <td className={`align-top text-center py-2 ${themes[theme].text}`}>
@@ -5815,34 +5842,70 @@ const TBoardRow = React.memo(function TBoardRow({
           </div>
         </div>
       </td>
-      <td className={`text-center py-1.5 px-2 w-20 ${themes[theme].text} text-xs leading-tight`}>
+      <td
+        className={`text-center py-1.5 px-2 w-20 ${themes[theme].text} text-xs leading-tight transition-colors duration-150 cursor-default hover:bg-emerald-500/10 dark:hover:bg-emerald-500/15`}
+        title={`认购卖方保证金: ${callMarginText}`}
+      >
         <AnimatedFlash value={callMarginText} className="font-mono text-xs text-gray-500" type="price" />
       </td>
-      <td className={`text-center py-1.5 px-2 w-20 ${themes[theme].text} text-xs leading-tight`}>
+      <td
+        className={`text-center py-1.5 px-2 w-20 ${themes[theme].text} text-xs leading-tight transition-colors duration-150 cursor-default hover:bg-emerald-500/10 dark:hover:bg-emerald-500/15`}
+        title={`认购时间价值: ${displayCallTV}`}
+      >
         <AnimatedFlash value={displayCallTV} className="font-mono text-xs text-gray-500" />
       </td>
-      <td className={`text-center py-1.5 px-2 w-20 border-r ${themes[theme].border} ${themes[theme].text} text-xs leading-tight`}>
-        <AnimatedFlash value={callPrice || '-'} className="font-mono text-xs" type="price" />
+      <td
+        className={`text-center py-1.5 px-2 w-20 border-r ${themes[theme].border} ${themes[theme].text} text-xs leading-tight transition-colors duration-150 cursor-default hover:bg-emerald-500/15 dark:hover:bg-emerald-500/20`}
+        title={`认购现价: ${callPrice || '-'}`}
+      >
+        <div className="transition-transform duration-150 hover:scale-105">
+          <AnimatedFlash value={callPrice || '-'} className="font-mono text-xs font-semibold" type="price" />
+        </div>
       </td>
       <td
+        ref={strikeCellRef}
         data-role="strike"
-        className={`text-center py-1.5 px-2 w-20 font-bold font-mono text-[13px] transition-all duration-300 ${themes[theme].text} ${
+        onMouseEnter={handleStrikeMouseEnter}
+        onMouseLeave={handleStrikeMouseLeave}
+        className={`text-center py-1 px-2 w-20 font-bold font-mono text-[13px] transition-all duration-200 cursor-pointer select-none ${themes[theme].text} ${
           isAtmHighlighted
-            ? 'bg-blue-500/20 text-blue-600 dark:text-blue-300 font-extrabold scale-110'
+            ? 'bg-blue-500/25 text-blue-600 dark:text-blue-300 font-extrabold scale-110 shadow-md ring-2 ring-blue-500/60 rounded-md z-10'
             : isAtmStrike
-              ? 'text-amber-500 dark:text-yellow-400'
+              ? 'text-amber-500 dark:text-yellow-400 font-extrabold'
               : ''
         }`}
       >
-        {m.s}
+        <div
+          className={`inline-flex items-center justify-center gap-1 px-2 py-0.5 rounded-md transition-all duration-200 ${
+            isStrikeHovered
+              ? 'bg-blue-500/15 text-blue-600 dark:text-blue-300 ring-1 ring-blue-500/40 shadow-sm scale-110 -translate-y-0.5'
+              : 'hover:scale-105 hover:bg-black/5 dark:hover:bg-white/10'
+          }`}
+        >
+          <span>{m.s}</span>
+          {isAtmStrike && (
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 dark:bg-yellow-400 animate-pulse" title="平值 (ATM)" />
+          )}
+        </div>
       </td>
-      <td className={`text-center py-1.5 px-2 w-20 border-l ${themes[theme].border} ${themes[theme].text} text-xs leading-tight`}>
-        <AnimatedFlash value={putPrice || '-'} className="font-mono text-xs" type="price" />
+      <td
+        className={`text-center py-1.5 px-2 w-20 border-l ${themes[theme].border} ${themes[theme].text} text-xs leading-tight transition-colors duration-150 cursor-default hover:bg-rose-500/15 dark:hover:bg-rose-500/20`}
+        title={`认沽现价: ${putPrice || '-'}`}
+      >
+        <div className="transition-transform duration-150 hover:scale-105">
+          <AnimatedFlash value={putPrice || '-'} className="font-mono text-xs font-semibold" type="price" />
+        </div>
       </td>
-      <td className={`text-center py-1.5 px-2 w-20 ${themes[theme].text} text-xs leading-tight`}>
+      <td
+        className={`text-center py-1.5 px-2 w-20 ${themes[theme].text} text-xs leading-tight transition-colors duration-150 cursor-default hover:bg-rose-500/10 dark:hover:bg-rose-500/15`}
+        title={`认沽时间价值: ${displayPutTV}`}
+      >
         <AnimatedFlash value={displayPutTV} className="font-mono text-xs text-gray-500" />
       </td>
-      <td className={`text-center py-1.5 px-2 w-20 ${themes[theme].text} text-xs leading-tight`}>
+      <td
+        className={`text-center py-1.5 px-2 w-20 ${themes[theme].text} text-xs leading-tight transition-colors duration-150 cursor-default hover:bg-rose-500/10 dark:hover:bg-rose-500/15`}
+        title={`认沽卖方保证金: ${putMarginText}`}
+      >
         <AnimatedFlash value={putMarginText} className="font-mono text-xs text-gray-500" type="price" />
       </td>
       <td className={`align-top text-center py-2 px-3 w-20 ${themes[theme].text}`}>
@@ -5888,6 +5951,35 @@ const TBoardRow = React.memo(function TBoardRow({
           )}
         </div>
       </td>
+      {isStrikeHovered && (
+        <StrikeOptionHoverCard
+          isOpen={isStrikeHovered}
+          triggerRef={strikeCellRef}
+          strike={m.s}
+          isAtm={isAtmStrike}
+          underlyingPrice={underlyingPrice}
+          groupExpiry={groupExpiry}
+          quote={quote}
+          callPrice={callPrice}
+          putPrice={putPrice}
+          callTV={callTV}
+          putTV={putTV}
+          callMargin={quote ? (quote.callMargin ?? quote.call_margin) : undefined}
+          putMargin={quote ? (quote.putMargin ?? quote.put_margin) : undefined}
+          currencyConfig={currencyConfig}
+          theme={theme}
+          positions={{
+            callRight: m.callRight,
+            callObligation: m.callObligation,
+            callCovered: m.callCovered,
+            putRight: m.putRight,
+            putObligation: m.putObligation,
+            putCovered: m.putCovered,
+            comboCallQty: m.comboCallQty,
+            comboPutQty: m.comboPutQty,
+          }}
+        />
+      )}
     </tr>
   );
 }, (prevProps, nextProps) => {
