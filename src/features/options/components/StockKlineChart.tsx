@@ -52,7 +52,7 @@ const todayUTCTimestamp = (): UTCTimestamp => {
   return Math.floor(d.getTime() / 1000) as UTCTimestamp;
 };
 
-type RangeMode = '6M' | '1Y' | 'ALL';
+type RangeMode = '3M' | '6M' | '1Y' | 'ALL';
 
 const applyChartVisibleRange = (
   chart: IChartApi,
@@ -69,7 +69,9 @@ const applyChartVisibleRange = (
   }
   const lastTs = data[data.length - 1].time;
   const d = new Date((lastTs as number) * 1000);
-  if (mode === '6M') {
+  if (mode === '3M') {
+    d.setMonth(d.getMonth() - 3);
+  } else if (mode === '6M') {
     d.setMonth(d.getMonth() - 6);
   } else if (mode === '1Y') {
     d.setFullYear(d.getFullYear() - 1);
@@ -94,17 +96,18 @@ export function StockKlineChart({ symbol, theme, optionsData, currentUnderlyingP
   const highSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
   const fillSeriesRef = useRef<ISeriesApi<'Area'> | null>(null);
 
+  const isMobileInitial = typeof window !== 'undefined' && window.innerWidth < 640;
   const klineDataRef = useRef<KlineRecord[]>([]);
-  const rangeModeRef = useRef<RangeMode>('1Y');
-  const coneVisibleRef = useRef(true);
+  const rangeModeRef = useRef<RangeMode>(isMobileInitial ? '3M' : '1Y');
+  const coneVisibleRef = useRef(!isMobileInitial);
   const lastKlineTsRef = useRef<UTCTimestamp | null>(null);
   const hasAppliedConeRangeRef = useRef(false);
 
   const [loading, setLoading] = useState(true);
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
+  const [isMobile, setIsMobile] = useState(() => isMobileInitial);
   const [hoveredPrice, setHoveredPrice] = useState<number | null>(null);
-  const [rangeMode, setRangeMode] = useState<RangeMode>('1Y');
-  const [coneVisible, setConeVisible] = useState(true);
+  const [rangeMode, setRangeMode] = useState<RangeMode>(() => isMobileInitial ? '3M' : '1Y');
+  const [coneVisible, setConeVisible] = useState(() => !isMobileInitial);
   const [deltaLevel, setDeltaLevel] = useState<ConeDeltaLevel>(0.8);
   const [nowTs, setNowTs] = useState(() => Math.floor(Date.now() / 1000));
   const [, forceRender] = useState(0);
@@ -333,7 +336,15 @@ export function StockKlineChart({ symbol, theme, optionsData, currentUnderlyingP
   useEffect(() => {
     coneVisibleRef.current = coneVisible;
     applyConeToSeries(coneRef.current, underlyingForCone);
-  }, [coneVisible, coneRef.current, underlyingForCone, applyConeToSeries]);
+    const chart = chartRef.current;
+    if (chart && klineDataRef.current.length > 0) {
+      try {
+        applyChartVisibleRange(chart, klineDataRef.current, rangeModeRef.current, coneRef.current, coneVisible);
+      } catch (_) {
+        /* ignore */
+      }
+    }
+  }, [coneVisible, underlyingForCone, applyConeToSeries]);
 
   useEffect(() => {
     const lowS = lowSeriesRef.current;
@@ -717,21 +728,26 @@ export function StockKlineChart({ symbol, theme, optionsData, currentUnderlyingP
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
         <div className="flex items-center gap-2 flex-wrap">
           <h3 className={`text-sm font-semibold ${themes[theme].text}`}>{symbol} 日 K 线</h3>
-          <ConeSummaryChip
-            theme={theme}
-            cone={coneRef.current.filter((p) => p.isExpiryPoint)}
-            deltaLevel={deltaLevel}
-            underlyingPrice={underlyingForCone}
-          />
+          {coneVisible && (
+            <ConeSummaryChip
+              theme={theme}
+              cone={coneRef.current.filter((p) => p.isExpiryPoint)}
+              deltaLevel={deltaLevel}
+              underlyingPrice={underlyingForCone}
+            />
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="inline-flex rounded-lg overflow-hidden">
-            {rangeBtn('6M', '6 个月', '显示最近 6 个月走势', 'first')}
-            {rangeBtn('1Y', '1 年', '只显示最近 1 年走势（默认）', 'middle')}
+            {rangeBtn('3M', '3 个月', '显示最近 3 个月走势', 'first')}
+            {rangeBtn('6M', '6 个月', '显示最近 6 个月走势', 'middle')}
+            {rangeBtn('1Y', '1 年', '显示最近 1 年走势', 'middle')}
             {rangeBtn('ALL', '全部', '显示全部历史走势，同时包含未来到期日', 'last')}
           </div>
 
-          <DeltaLevelPicker theme={theme} value={deltaLevel} onChange={setDeltaLevel} />
+          {coneVisible && (
+            <DeltaLevelPicker theme={theme} value={deltaLevel} onChange={setDeltaLevel} />
+          )}
 
           <button
             type="button"
