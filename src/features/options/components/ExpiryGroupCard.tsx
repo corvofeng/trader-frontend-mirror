@@ -209,7 +209,27 @@ export function ExpiryGroupCard({
   const [isMobileViewport, setIsMobileViewport] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth < 768 : false
   ));
-  const [mobileTBoardScale, setMobileTBoardScale] = useState(0.85);
+  const [mobileTBoardScale, setMobileTBoardScale] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('options_tboard_scale');
+        if (saved) {
+          const val = parseFloat(saved);
+          if (Number.isFinite(val) && val >= 0.6 && val <= 1.3) return val;
+        }
+      } catch {}
+      return window.innerWidth < 768 ? 0.85 : 1.0;
+    }
+    return 1.0;
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('options_tboard_scale', String(mobileTBoardScale));
+      } catch {}
+    }
+  }, [mobileTBoardScale]);
   const [isTBoardFullscreen, setIsTBoardFullscreen] = useState(false);
   const [atmHighlightActive, setAtmHighlightActive] = useState(false);
   const atmHighlightTimerRef = useRef<number | null>(null);
@@ -1709,24 +1729,30 @@ export function ExpiryGroupCard({
                     container.querySelector<HTMLElement>('[data-atm-strike="true"]');
     let desiredScrollTop = container.scrollTop;
     if (spotRow) {
-      const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
-      const containerRect = container.getBoundingClientRect();
-      const spotRect = spotRow.getBoundingClientRect();
-      const deltaY = (spotRect.top + spotRect.height / 2) - (containerRect.top + containerRect.height / 2);
-      if (Number.isFinite(deltaY)) {
-        desiredScrollTop = Math.max(
-          0,
-          Math.min(container.scrollTop + deltaY, maxScrollTop)
-        );
+      if (!isTBoardFullscreen) {
+        spotRow.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'center' });
+      } else {
+        const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
+        const containerRect = container.getBoundingClientRect();
+        const spotRect = spotRow.getBoundingClientRect();
+        const deltaY = (spotRect.top + spotRect.height / 2) - (containerRect.top + containerRect.height / 2);
+        if (Number.isFinite(deltaY)) {
+          desiredScrollTop = Math.max(
+            0,
+            Math.min(container.scrollTop + deltaY, maxScrollTop)
+          );
+        }
       }
     }
 
-    isProgrammaticTBoardScrollRef.current = true;
-    container.scrollTo({
-      left: desiredScrollLeft,
-      top: desiredScrollTop,
-      behavior: smooth ? 'smooth' : 'auto'
-    });
+    if (isTBoardFullscreen || desiredScrollLeft !== container.scrollLeft) {
+      isProgrammaticTBoardScrollRef.current = true;
+      container.scrollTo({
+        left: desiredScrollLeft,
+        top: isTBoardFullscreen ? desiredScrollTop : container.scrollTop,
+        behavior: smooth ? 'smooth' : 'auto'
+      });
+    }
     window.setTimeout(() => {
       isProgrammaticTBoardScrollRef.current = false;
       initialCenteredRef.current = true;
@@ -2884,12 +2910,33 @@ export function ExpiryGroupCard({
                                 ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30'
                                 : 'bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-gray-400 border border-transparent hover:bg-gray-200 dark:hover:bg-zinc-700'
                             }`}
-                            title="自定义T型报价展示列"
+                            title="自定义T型展示列"
                           >
                             <SlidersHorizontal className="w-3.5 h-3.5" />
                             <span className="hidden sm:inline">自定义列</span>
                             <span className="sm:hidden">列</span>
                           </button>
+
+                          <div
+                            className="hidden sm:inline-flex items-center gap-1.5 bg-black/5 dark:bg-white/5 px-2.5 py-0.5 rounded-full border border-black/5 dark:border-white/5 shrink-0"
+                            title="调整T型看板缩放大小与字体"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <span className="text-[11px] opacity-70 select-none">缩放</span>
+                            <input
+                              type="range"
+                              min={70}
+                              max={115}
+                              step={5}
+                              value={Math.round(mobileTBoardScale * 100)}
+                              onChange={(event) => setMobileTBoardScale(Number(event.target.value) / 100)}
+                              className="w-14 accent-blue-600 h-1 cursor-pointer"
+                              aria-label="调整T型看板列表大小"
+                            />
+                            <span className="text-[11px] font-mono opacity-80 min-w-[28px] text-right font-medium">
+                              {Math.round(mobileTBoardScale * 100)}%
+                            </span>
+                          </div>
 
                           <button
                             type="button"
@@ -2986,7 +3033,7 @@ export function ExpiryGroupCard({
                                   className={
                                     inFullscreen
                                       ? "flex-1 min-h-0 overflow-auto overscroll-contain select-none"
-                                      : "overflow-auto max-h-[75vh] sm:max-h-[760px] min-h-[460px] rounded-xl border border-black/10 dark:border-white/10 overscroll-contain shadow-xs"
+                                      : "overflow-x-auto rounded-xl border border-black/10 dark:border-white/10 shadow-xs"
                                   }
                                   style={{ WebkitOverflowScrolling: 'touch' }}
                                   onScroll={handleTBoardScroll}
@@ -2994,35 +3041,37 @@ export function ExpiryGroupCard({
                                   <div className="relative inline-block min-w-full">
                                     <table
                                       ref={tBoardTableRef}
-                                      className="w-full text-xs sm:text-sm"
+                                      className="w-full text-xs sm:text-[13px]"
                                       style={{
-                                        minWidth: `${Math.max(820, (callColumns.length * 2 + 1) * 88)}px`,
-                                        ...((isMobileViewport || inFullscreen) ? { zoom: mobileTBoardScale } : undefined),
+                                        minWidth: isMobileViewport
+                                          ? `${Math.max(640, (callColumns.length * 2 + 1) * 62)}px`
+                                          : `${Math.max(720, (callColumns.length * 2 + 1) * 68)}px`,
+                                        zoom: mobileTBoardScale,
                                       }}
                                     >
                                       <thead className={`sticky top-0 z-20 shadow-xs backdrop-blur-md ${
                                         theme === 'dark' ? 'bg-zinc-900/95' : theme === 'blue' ? 'bg-slate-900/95' : 'bg-slate-100/95'
                                       }`}>
                                         <tr className={`${themes[theme].text} opacity-85 text-xs sm:text-sm font-bold tracking-wide`}>
-                                          <th className="text-center py-2.5 sm:py-3" colSpan={callColumns.length}>Calls (认购)</th>
-                                          <th className={`text-center py-2.5 sm:py-3 border-l border-r ${themes[theme].border}`}></th>
-                                          <th className="text-center py-2.5 sm:py-3" colSpan={putColumns.length}>Puts (认沽)</th>
+                                          <th className="text-center py-2 sm:py-2.5" colSpan={callColumns.length}>Calls (认购)</th>
+                                          <th className={`text-center py-2 sm:py-2.5 border-l border-r ${themes[theme].border}`}></th>
+                                          <th className="text-center py-2 sm:py-2.5" colSpan={putColumns.length}>Puts (认沽)</th>
                                         </tr>
-                                        <tr className={`text-xs sm:text-[13px] ${themes[theme].text} opacity-85 font-semibold`}>
+                                        <tr className={`text-[11px] sm:text-xs xl:text-[13px] ${themes[theme].text} opacity-85 font-semibold`}>
                                           {callColumns.map((col, idx) => (
                                             <th
                                               key={`call-head-${col.key}`}
-                                              className={`text-center py-2.5 px-3 whitespace-nowrap ${idx === callColumns.length - 1 ? `border-r ${themes[theme].border}` : ''}`}
+                                              className={`text-center py-2 px-1.5 sm:px-2 whitespace-nowrap ${idx === callColumns.length - 1 ? `border-r ${themes[theme].border}` : ''}`}
                                               title={col.description}
                                             >
                                               {col.label}
                                             </th>
                                           ))}
-                                          <th ref={strikeHeaderRef} className={`text-center py-2.5 px-4 font-bold text-xs sm:text-sm whitespace-nowrap ${themes[theme].text}`}>行权价</th>
+                                          <th ref={strikeHeaderRef} className={`text-center py-2 px-2 sm:px-3 font-bold text-xs sm:text-sm whitespace-nowrap ${themes[theme].text}`}>行权价</th>
                                           {putColumns.map((col, idx) => (
                                             <th
                                               key={`put-head-${col.key}`}
-                                              className={`text-center py-2.5 px-3 whitespace-nowrap ${idx === 0 ? `border-l ${themes[theme].border}` : ''}`}
+                                              className={`text-center py-2 px-1.5 sm:px-2 whitespace-nowrap ${idx === 0 ? `border-l ${themes[theme].border}` : ''}`}
                                               title={col.description}
                                             >
                                               {col.label}
@@ -3161,7 +3210,7 @@ export function ExpiryGroupCard({
                                       data={openInterestByStrike}
                                       maxOpenInterest={maxOpenInterest}
                                       visible={showOpenInterestOverlay}
-                                      scale={(isMobileViewport || inFullscreen) ? mobileTBoardScale : 1}
+                                      scale={mobileTBoardScale}
                                     />
                                   </div>
                                 </div>
@@ -5692,12 +5741,12 @@ const TBoardRow = React.memo(function TBoardRow({
     };
   }, []);
 
-  const tBoardValueTextClass = `inline-flex items-center justify-center text-[13px] font-semibold leading-tight ${themes[theme].text}`;
-  const tBoardComboValueClass = `inline-flex min-w-[2.5rem] items-center justify-center text-[13px] font-semibold leading-tight ${themes[theme].text}`;
+  const tBoardValueTextClass = `inline-flex items-center justify-center text-xs sm:text-[12px] xl:text-[13px] font-semibold tabular-nums leading-tight ${themes[theme].text}`;
+  const tBoardComboValueClass = `inline-flex min-w-[1.8rem] sm:min-w-[2rem] items-center justify-center text-xs sm:text-[12px] xl:text-[13px] font-semibold tabular-nums leading-tight ${themes[theme].text}`;
   const getTBoardActionButtonClass = (variant: 'adjust' | 'release' = 'adjust') => (
     variant === 'adjust'
-      ? 'inline-flex min-w-[3.6rem] items-center justify-center rounded-full border border-blue-200/90 bg-white/88 px-2.5 py-1 text-[11px] font-semibold text-blue-700 shadow-sm backdrop-blur transition-all hover:-translate-y-[1px] hover:border-blue-300 hover:bg-blue-50 dark:border-blue-500/30 dark:bg-slate-900/80 dark:text-blue-300 dark:hover:bg-blue-950/70'
-      : 'inline-flex min-w-[3.6rem] items-center justify-center rounded-full border border-rose-200/90 bg-white/88 px-2.5 py-1 text-[11px] font-semibold text-rose-700 shadow-sm backdrop-blur transition-all hover:-translate-y-[1px] hover:border-rose-300 hover:bg-rose-50 dark:border-rose-500/30 dark:bg-slate-900/80 dark:text-rose-300 dark:hover:bg-rose-950/70'
+      ? 'inline-flex min-w-[2.8rem] sm:min-w-[3.2rem] items-center justify-center rounded-md border border-blue-200/90 bg-white/88 px-1.5 sm:px-2 py-0.5 text-[10.5px] sm:text-[11px] font-semibold text-blue-700 shadow-2xs backdrop-blur transition-all hover:-translate-y-[1px] hover:border-blue-300 hover:bg-blue-50 dark:border-blue-500/30 dark:bg-slate-900/80 dark:text-blue-300 dark:hover:bg-blue-950/70'
+      : 'inline-flex min-w-[2.8rem] sm:min-w-[3.2rem] items-center justify-center rounded-md border border-rose-200/90 bg-white/88 px-1.5 sm:px-2 py-0.5 text-[10.5px] sm:text-[11px] font-semibold text-rose-700 shadow-2xs backdrop-blur transition-all hover:-translate-y-[1px] hover:border-rose-300 hover:bg-rose-50 dark:border-rose-500/30 dark:bg-slate-900/80 dark:text-rose-300 dark:hover:bg-rose-950/70'
   );
 
   const intensity = Math.min(1, m.risk / maxRisk);
@@ -5968,11 +6017,11 @@ const TBoardRow = React.memo(function TBoardRow({
         return (
           <td
             key={`c-lastPrice-${m.s}`}
-            className={`text-center py-2 px-2.5 sm:px-3.5 w-22 sm:w-26 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] leading-tight transition-colors duration-150 cursor-default hover:bg-emerald-500/15 dark:hover:bg-emerald-500/20`}
+            className={`text-center py-1.5 sm:py-2 px-1.5 sm:px-2 w-16 sm:w-20 lg:w-22 ${borderClass} ${themes[theme].text} text-xs sm:text-[12px] xl:text-[13px] tabular-nums leading-tight transition-colors duration-150 cursor-default hover:bg-emerald-500/15 dark:hover:bg-emerald-500/20`}
             title={`认购现价: ${callPrice || '-'}`}
           >
             <div className="transition-transform duration-150 hover:scale-105">
-              <AnimatedFlash value={callPrice || '-'} className="font-mono text-xs sm:text-[13px] font-bold" type="price" />
+              <AnimatedFlash value={callPrice || '-'} className="font-mono text-xs sm:text-[12px] xl:text-[13px] font-bold tabular-nums" type="price" />
             </div>
           </td>
         );
@@ -5980,67 +6029,67 @@ const TBoardRow = React.memo(function TBoardRow({
         return (
           <td
             key={`c-timeValue-${m.s}`}
-            className={`text-center py-2 px-2.5 sm:px-3.5 w-22 sm:w-26 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] leading-tight transition-colors duration-150 cursor-default hover:bg-emerald-500/10 dark:hover:bg-emerald-500/15`}
+            className={`text-center py-1.5 sm:py-2 px-1.5 sm:px-2 w-16 sm:w-20 lg:w-22 ${borderClass} ${themes[theme].text} text-xs sm:text-[12px] xl:text-[13px] tabular-nums leading-tight transition-colors duration-150 cursor-default hover:bg-emerald-500/10 dark:hover:bg-emerald-500/15`}
             title={`认购时间价值: ${displayCallTV}`}
           >
-            <AnimatedFlash value={displayCallTV} className="font-mono text-xs sm:text-[13px] text-gray-700 dark:text-zinc-300 font-medium" />
+            <AnimatedFlash value={displayCallTV} className="font-mono text-xs sm:text-[12px] xl:text-[13px] tabular-nums text-gray-700 dark:text-zinc-300 font-medium" />
           </td>
         );
       case 'intrinsicValue':
         return (
           <td
             key={`c-intrinsicValue-${m.s}`}
-            className={`text-center py-2 px-2.5 sm:px-3.5 w-22 sm:w-26 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] leading-tight transition-colors duration-150 cursor-default hover:bg-emerald-500/10 dark:hover:bg-emerald-500/15`}
+            className={`text-center py-1.5 sm:py-2 px-1.5 sm:px-2 w-16 sm:w-20 lg:w-22 ${borderClass} ${themes[theme].text} text-xs sm:text-[12px] xl:text-[13px] tabular-nums leading-tight transition-colors duration-150 cursor-default hover:bg-emerald-500/10 dark:hover:bg-emerald-500/15`}
             title={`认购内在价值: ${callIV != null ? callIV.toFixed(4) : '-'}`}
           >
-            <span className="font-mono text-xs sm:text-[13px] text-gray-700 dark:text-zinc-300 font-medium">{callIV != null ? callIV.toFixed(4) : '-'}</span>
+            <span className="font-mono text-xs sm:text-[12px] xl:text-[13px] tabular-nums text-gray-700 dark:text-zinc-300 font-medium">{callIV != null ? callIV.toFixed(4) : '-'}</span>
           </td>
         );
       case 'impliedVol':
         return (
           <td
             key={`c-impliedVol-${m.s}`}
-            className={`text-center py-2 px-2.5 sm:px-3.5 w-22 sm:w-26 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] leading-tight transition-colors duration-150 cursor-default`}
+            className={`text-center py-1.5 sm:py-2 px-1 sm:px-1.5 w-14 sm:w-16 lg:w-18 ${borderClass} ${themes[theme].text} text-xs sm:text-[12px] xl:text-[13px] tabular-nums leading-tight transition-colors duration-150 cursor-default`}
             title={`认购隐含波动率: ${formatIV(callImpliedVol)}`}
           >
-            <span className="font-mono text-xs sm:text-[13px] text-purple-600 dark:text-purple-400 font-semibold">{formatIV(callImpliedVol)}</span>
+            <span className="font-mono text-xs sm:text-[12px] xl:text-[13px] tabular-nums text-purple-600 dark:text-purple-400 font-semibold">{formatIV(callImpliedVol)}</span>
           </td>
         );
       case 'openInterest':
         return (
           <td
             key={`c-openInterest-${m.s}`}
-            className={`text-center py-2 px-2.5 sm:px-3.5 w-22 sm:w-26 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] leading-tight transition-colors duration-150 cursor-default`}
+            className={`text-center py-1.5 sm:py-2 px-1.5 sm:px-2 w-16 sm:w-20 ${borderClass} ${themes[theme].text} text-xs sm:text-[12px] xl:text-[13px] tabular-nums leading-tight transition-colors duration-150 cursor-default`}
             title={`认购未平仓量: ${callOI?.toLocaleString() ?? 0} 张`}
           >
-            <span className="font-mono text-xs sm:text-[13px] text-gray-800 dark:text-zinc-200 font-medium">{callOI ? formatOINumber(callOI) : '-'}</span>
+            <span className="font-mono text-xs sm:text-[12px] xl:text-[13px] tabular-nums text-gray-800 dark:text-zinc-200 font-medium">{callOI ? formatOINumber(callOI) : '-'}</span>
           </td>
         );
       case 'volume':
         return (
           <td
             key={`c-volume-${m.s}`}
-            className={`text-center py-2 px-2.5 sm:px-3.5 w-22 sm:w-26 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] leading-tight transition-colors duration-150 cursor-default`}
+            className={`text-center py-1.5 sm:py-2 px-1.5 sm:px-2 w-16 sm:w-20 ${borderClass} ${themes[theme].text} text-xs sm:text-[12px] xl:text-[13px] tabular-nums leading-tight transition-colors duration-150 cursor-default`}
             title={`认购成交量: ${callVol?.toLocaleString() ?? 0} 张`}
           >
-            <span className="font-mono text-xs sm:text-[13px] text-gray-800 dark:text-zinc-200 font-medium">{callVol ? formatOINumber(callVol) : '-'}</span>
+            <span className="font-mono text-xs sm:text-[12px] xl:text-[13px] tabular-nums text-gray-800 dark:text-zinc-200 font-medium">{callVol ? formatOINumber(callVol) : '-'}</span>
           </td>
         );
       case 'margin':
         return (
           <td
             key={`c-margin-${m.s}`}
-            className={`text-center py-2 px-2.5 sm:px-3.5 w-22 sm:w-26 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] leading-tight transition-colors duration-150 cursor-default hover:bg-emerald-500/10 dark:hover:bg-emerald-500/15`}
+            className={`text-center py-1.5 sm:py-2 px-1.5 sm:px-2 w-18 sm:w-22 lg:w-24 ${borderClass} ${themes[theme].text} text-xs sm:text-[12px] xl:text-[13px] tabular-nums leading-tight transition-colors duration-150 cursor-default hover:bg-emerald-500/10 dark:hover:bg-emerald-500/15`}
             title={`认购卖方保证金: ${callMarginText}`}
           >
-            <AnimatedFlash value={callMarginText} className="font-mono text-xs sm:text-[13px] text-gray-700 dark:text-zinc-300 font-medium" type="price" />
+            <AnimatedFlash value={callMarginText} className="font-mono text-xs sm:text-[12px] xl:text-[13px] tabular-nums text-gray-700 dark:text-zinc-300 font-medium" type="price" />
           </td>
         );
       case 'right':
         return (
-          <td key={`c-right-${m.s}`} className={`align-top text-center py-2 px-3 w-22 sm:w-26 ${borderClass} ${themes[theme].text}`}>
+          <td key={`c-right-${m.s}`} className={`align-middle text-center py-1.5 sm:py-2 px-1 sm:px-1.5 w-14 sm:w-16 lg:w-18 ${borderClass} ${themes[theme].text}`}>
             <div className="flex items-center justify-center gap-1">
-              <div className="flex flex-col items-center gap-1.5">
+              <div className="flex flex-col items-center gap-1">
                 <span className={tBoardValueTextClass}>{displayVal('call_right', m.s, m.callRight)}{m.callRightAvail !== m.callRight ? `（${m.callRightAvail}）` : ''}</span>
                 <button type="button" className={getTBoardActionButtonClass('adjust')} onClick={() => openAdjustConfirm('call_right', m.s)}>调整</button>
               </div>
@@ -6049,9 +6098,9 @@ const TBoardRow = React.memo(function TBoardRow({
         );
       case 'obligation':
         return (
-          <td key={`c-obligation-${m.s}`} className={`align-top text-center py-2 ${borderClass} ${themes[theme].text}`}>
+          <td key={`c-obligation-${m.s}`} className={`align-middle text-center py-1.5 sm:py-2 px-1 sm:px-1.5 w-14 sm:w-16 lg:w-18 ${borderClass} ${themes[theme].text}`}>
             <div className="flex items-center justify-center gap-1">
-              <div className="flex flex-col items-center gap-1.5">
+              <div className="flex flex-col items-center gap-1">
                 <span className={tBoardValueTextClass}>{displayVal('call_obligation', m.s, m.callObligation)}{m.callObligationAvail !== m.callObligation ? `（${m.callObligationAvail}）` : ''}</span>
                 <button type="button" className={getTBoardActionButtonClass('adjust')} onClick={() => openAdjustConfirm('call_obligation', m.s)}>调整</button>
               </div>
@@ -6060,9 +6109,9 @@ const TBoardRow = React.memo(function TBoardRow({
         );
       case 'covered':
         return (
-          <td key={`c-covered-${m.s}`} className={`align-top text-center py-2 ${borderClass} ${themes[theme].text}`}>
+          <td key={`c-covered-${m.s}`} className={`align-middle text-center py-1.5 sm:py-2 px-1 sm:px-1.5 w-14 sm:w-16 lg:w-18 ${borderClass} ${themes[theme].text}`}>
             <div className="flex items-center justify-center gap-1">
-              <div className="flex flex-col items-center gap-1.5">
+              <div className="flex flex-col items-center gap-1">
                 <span className={tBoardValueTextClass}>{displayVal('call_covered', m.s, m.callCovered)}{m.callCoveredAvail !== m.callCovered ? `（${m.callCoveredAvail}）` : ''}</span>
                 <button type="button" className={getTBoardActionButtonClass('adjust')} onClick={() => openAdjustConfirm('call_covered', m.s)}>调整</button>
               </div>
@@ -6071,8 +6120,8 @@ const TBoardRow = React.memo(function TBoardRow({
         );
       case 'combo':
         return (
-          <td key={`c-combo-${m.s}`} className={`align-top text-center py-2 ${borderClass} ${themes[theme].text}`}>
-            <div className="flex flex-col items-center gap-1.5">
+          <td key={`c-combo-${m.s}`} className={`align-middle text-center py-1.5 sm:py-2 px-1 sm:px-1.5 w-14 sm:w-16 lg:w-18 ${borderClass} ${themes[theme].text}`}>
+            <div className="flex flex-col items-center gap-1">
               {m.comboCallStrategies.length > 0 ? (
                 <>
                   <span className={`${tBoardComboValueClass} ${TBOARD_COMBO_HINT_CLASS} cursor-help`} title={m.comboCallStrategies.map(s => `${s.strategy.name} (${s.qty})`).join('\n')}>{m.comboCallStrategies.reduce((sum, s) => sum + s.qty, 0)}</span>
@@ -6093,25 +6142,25 @@ const TBoardRow = React.memo(function TBoardRow({
         );
       case 'delta':
         return (
-          <td key={`c-delta-${m.s}`} className={`text-center py-2 px-2 sm:px-3 w-18 sm:w-20 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] font-mono font-medium`} title={`认购 Delta: ${formatGreek(callDelta)}`}>
+          <td key={`c-delta-${m.s}`} className={`text-center py-1.5 sm:py-2 px-1 sm:px-1.5 w-14 sm:w-16 ${borderClass} ${themes[theme].text} text-xs sm:text-[12px] font-mono tabular-nums font-medium`} title={`认购 Delta: ${formatGreek(callDelta)}`}>
             <span>{formatGreek(callDelta)}</span>
           </td>
         );
       case 'gamma':
         return (
-          <td key={`c-gamma-${m.s}`} className={`text-center py-2 px-2 sm:px-3 w-18 sm:w-20 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] font-mono font-medium`} title={`认购 Gamma: ${formatGreek(callGamma, 4)}`}>
+          <td key={`c-gamma-${m.s}`} className={`text-center py-1.5 sm:py-2 px-1 sm:px-1.5 w-14 sm:w-16 ${borderClass} ${themes[theme].text} text-xs sm:text-[12px] font-mono tabular-nums font-medium`} title={`认购 Gamma: ${formatGreek(callGamma, 4)}`}>
             <span>{formatGreek(callGamma, 4)}</span>
           </td>
         );
       case 'theta':
         return (
-          <td key={`c-theta-${m.s}`} className={`text-center py-2 px-2 sm:px-3 w-18 sm:w-20 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] font-mono font-medium`} title={`认购 Theta: ${formatGreek(callTheta)}`}>
+          <td key={`c-theta-${m.s}`} className={`text-center py-1.5 sm:py-2 px-1 sm:px-1.5 w-14 sm:w-16 ${borderClass} ${themes[theme].text} text-xs sm:text-[12px] font-mono tabular-nums font-medium`} title={`认购 Theta: ${formatGreek(callTheta)}`}>
             <span>{formatGreek(callTheta)}</span>
           </td>
         );
       case 'vega':
         return (
-          <td key={`c-vega-${m.s}`} className={`text-center py-2 px-2 sm:px-3 w-18 sm:w-20 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] font-mono font-medium`} title={`认购 Vega: ${formatGreek(callVega)}`}>
+          <td key={`c-vega-${m.s}`} className={`text-center py-1.5 sm:py-2 px-1 sm:px-1.5 w-14 sm:w-16 ${borderClass} ${themes[theme].text} text-xs sm:text-[12px] font-mono tabular-nums font-medium`} title={`认购 Vega: ${formatGreek(callVega)}`}>
             <span>{formatGreek(callVega)}</span>
           </td>
         );
@@ -6127,11 +6176,11 @@ const TBoardRow = React.memo(function TBoardRow({
         return (
           <td
             key={`p-lastPrice-${m.s}`}
-            className={`text-center py-2 px-2.5 sm:px-3.5 w-22 sm:w-26 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] leading-tight transition-colors duration-150 cursor-default hover:bg-rose-500/15 dark:hover:bg-rose-500/20`}
+            className={`text-center py-1.5 sm:py-2 px-1.5 sm:px-2 w-16 sm:w-20 lg:w-22 ${borderClass} ${themes[theme].text} text-xs sm:text-[12px] xl:text-[13px] tabular-nums leading-tight transition-colors duration-150 cursor-default hover:bg-rose-500/15 dark:hover:bg-rose-500/20`}
             title={`认沽现价: ${putPrice || '-'}`}
           >
             <div className="transition-transform duration-150 hover:scale-105">
-              <AnimatedFlash value={putPrice || '-'} className="font-mono text-xs sm:text-[13px] font-bold" type="price" />
+              <AnimatedFlash value={putPrice || '-'} className="font-mono text-xs sm:text-[12px] xl:text-[13px] font-bold tabular-nums" type="price" />
             </div>
           </td>
         );
@@ -6139,67 +6188,67 @@ const TBoardRow = React.memo(function TBoardRow({
         return (
           <td
             key={`p-timeValue-${m.s}`}
-            className={`text-center py-2 px-2.5 sm:px-3.5 w-22 sm:w-26 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] leading-tight transition-colors duration-150 cursor-default hover:bg-rose-500/10 dark:hover:bg-rose-500/15`}
+            className={`text-center py-1.5 sm:py-2 px-1.5 sm:px-2 w-16 sm:w-20 lg:w-22 ${borderClass} ${themes[theme].text} text-xs sm:text-[12px] xl:text-[13px] tabular-nums leading-tight transition-colors duration-150 cursor-default hover:bg-rose-500/10 dark:hover:bg-rose-500/15`}
             title={`认沽时间价值: ${displayPutTV}`}
           >
-            <AnimatedFlash value={displayPutTV} className="font-mono text-xs sm:text-[13px] text-gray-700 dark:text-zinc-300 font-medium" />
+            <AnimatedFlash value={displayPutTV} className="font-mono text-xs sm:text-[12px] xl:text-[13px] tabular-nums text-gray-700 dark:text-zinc-300 font-medium" />
           </td>
         );
       case 'intrinsicValue':
         return (
           <td
             key={`p-intrinsicValue-${m.s}`}
-            className={`text-center py-2 px-2.5 sm:px-3.5 w-22 sm:w-26 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] leading-tight transition-colors duration-150 cursor-default hover:bg-rose-500/10 dark:hover:bg-rose-500/15`}
+            className={`text-center py-1.5 sm:py-2 px-1.5 sm:px-2 w-16 sm:w-20 lg:w-22 ${borderClass} ${themes[theme].text} text-xs sm:text-[12px] xl:text-[13px] tabular-nums leading-tight transition-colors duration-150 cursor-default hover:bg-rose-500/10 dark:hover:bg-rose-500/15`}
             title={`认沽内在价值: ${putIV != null ? putIV.toFixed(4) : '-'}`}
           >
-            <span className="font-mono text-xs sm:text-[13px] text-gray-700 dark:text-zinc-300 font-medium">{putIV != null ? putIV.toFixed(4) : '-'}</span>
+            <span className="font-mono text-xs sm:text-[12px] xl:text-[13px] tabular-nums text-gray-700 dark:text-zinc-300 font-medium">{putIV != null ? putIV.toFixed(4) : '-'}</span>
           </td>
         );
       case 'impliedVol':
         return (
           <td
             key={`p-impliedVol-${m.s}`}
-            className={`text-center py-2 px-2.5 sm:px-3.5 w-22 sm:w-26 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] leading-tight transition-colors duration-150 cursor-default`}
+            className={`text-center py-1.5 sm:py-2 px-1 sm:px-1.5 w-14 sm:w-16 lg:w-18 ${borderClass} ${themes[theme].text} text-xs sm:text-[12px] xl:text-[13px] tabular-nums leading-tight transition-colors duration-150 cursor-default`}
             title={`认沽隐含波动率: ${formatIV(putImpliedVol)}`}
           >
-            <span className="font-mono text-xs sm:text-[13px] text-purple-600 dark:text-purple-400 font-semibold">{formatIV(putImpliedVol)}</span>
+            <span className="font-mono text-xs sm:text-[12px] xl:text-[13px] tabular-nums text-purple-600 dark:text-purple-400 font-semibold">{formatIV(putImpliedVol)}</span>
           </td>
         );
       case 'openInterest':
         return (
           <td
             key={`p-openInterest-${m.s}`}
-            className={`text-center py-2 px-2.5 sm:px-3.5 w-22 sm:w-26 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] leading-tight transition-colors duration-150 cursor-default`}
+            className={`text-center py-1.5 sm:py-2 px-1.5 sm:px-2 w-16 sm:w-20 ${borderClass} ${themes[theme].text} text-xs sm:text-[12px] xl:text-[13px] tabular-nums leading-tight transition-colors duration-150 cursor-default`}
             title={`认沽未平仓量: ${putOI?.toLocaleString() ?? 0} 张`}
           >
-            <span className="font-mono text-xs sm:text-[13px] text-gray-800 dark:text-zinc-200 font-medium">{putOI ? formatOINumber(putOI) : '-'}</span>
+            <span className="font-mono text-xs sm:text-[12px] xl:text-[13px] tabular-nums text-gray-800 dark:text-zinc-200 font-medium">{putOI ? formatOINumber(putOI) : '-'}</span>
           </td>
         );
       case 'volume':
         return (
           <td
             key={`p-volume-${m.s}`}
-            className={`text-center py-2 px-2.5 sm:px-3.5 w-22 sm:w-26 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] leading-tight transition-colors duration-150 cursor-default`}
+            className={`text-center py-1.5 sm:py-2 px-1.5 sm:px-2 w-16 sm:w-20 ${borderClass} ${themes[theme].text} text-xs sm:text-[12px] xl:text-[13px] tabular-nums leading-tight transition-colors duration-150 cursor-default`}
             title={`认沽成交量: ${putVol?.toLocaleString() ?? 0} 张`}
           >
-            <span className="font-mono text-xs sm:text-[13px] text-gray-800 dark:text-zinc-200 font-medium">{putVol ? formatOINumber(putVol) : '-'}</span>
+            <span className="font-mono text-xs sm:text-[12px] xl:text-[13px] tabular-nums text-gray-800 dark:text-zinc-200 font-medium">{putVol ? formatOINumber(putVol) : '-'}</span>
           </td>
         );
       case 'margin':
         return (
           <td
             key={`p-margin-${m.s}`}
-            className={`text-center py-2 px-2.5 sm:px-3.5 w-22 sm:w-26 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] leading-tight transition-colors duration-150 cursor-default hover:bg-rose-500/10 dark:hover:bg-rose-500/15`}
+            className={`text-center py-1.5 sm:py-2 px-1.5 sm:px-2 w-18 sm:w-22 lg:w-24 ${borderClass} ${themes[theme].text} text-xs sm:text-[12px] xl:text-[13px] tabular-nums leading-tight transition-colors duration-150 cursor-default hover:bg-rose-500/10 dark:hover:bg-rose-500/15`}
             title={`认沽卖方保证金: ${putMarginText}`}
           >
-            <AnimatedFlash value={putMarginText} className="font-mono text-xs sm:text-[13px] text-gray-700 dark:text-zinc-300 font-medium" type="price" />
+            <AnimatedFlash value={putMarginText} className="font-mono text-xs sm:text-[12px] xl:text-[13px] tabular-nums text-gray-700 dark:text-zinc-300 font-medium" type="price" />
           </td>
         );
       case 'right':
         return (
-          <td key={`p-right-${m.s}`} className={`align-top text-center py-2 px-3 w-20 ${borderClass} ${themes[theme].text}`}>
+          <td key={`p-right-${m.s}`} className={`align-middle text-center py-1.5 sm:py-2 px-1 sm:px-1.5 w-14 sm:w-16 lg:w-18 ${borderClass} ${themes[theme].text}`}>
             <div className="flex items-center justify-center gap-1">
-              <div className="flex flex-col items-center gap-1.5">
+              <div className="flex flex-col items-center gap-1">
                 <span className={tBoardValueTextClass}>{displayVal('put_right', m.s, m.putRight)}{m.putRightAvail !== m.putRight ? `（${m.putRightAvail}）` : ''}</span>
                 <button type="button" className={getTBoardActionButtonClass('adjust')} onClick={() => openAdjustConfirm('put_right', m.s)}>调整</button>
               </div>
@@ -6208,9 +6257,9 @@ const TBoardRow = React.memo(function TBoardRow({
         );
       case 'obligation':
         return (
-          <td key={`p-obligation-${m.s}`} className={`align-top text-center py-2 ${borderClass} ${themes[theme].text}`}>
+          <td key={`p-obligation-${m.s}`} className={`align-middle text-center py-1.5 sm:py-2 px-1 sm:px-1.5 w-14 sm:w-16 lg:w-18 ${borderClass} ${themes[theme].text}`}>
             <div className="flex items-center justify-center gap-1">
-              <div className="flex flex-col items-center gap-1.5">
+              <div className="flex flex-col items-center gap-1">
                 <span className={tBoardValueTextClass}>{displayVal('put_obligation', m.s, m.putObligation)}{m.putObligationAvail !== m.putObligation ? `（${m.putObligationAvail}）` : ''}</span>
                 <button type="button" className={getTBoardActionButtonClass('adjust')} onClick={() => openAdjustConfirm('put_obligation', m.s)}>调整</button>
               </div>
@@ -6219,9 +6268,9 @@ const TBoardRow = React.memo(function TBoardRow({
         );
       case 'covered':
         return (
-          <td key={`p-covered-${m.s}`} className={`align-top text-center py-2 ${borderClass} ${themes[theme].text}`}>
+          <td key={`p-covered-${m.s}`} className={`align-middle text-center py-1.5 sm:py-2 px-1 sm:px-1.5 w-14 sm:w-16 lg:w-18 ${borderClass} ${themes[theme].text}`}>
             <div className="flex items-center justify-center gap-1">
-              <div className="flex flex-col items-center gap-1.5">
+              <div className="flex flex-col items-center gap-1">
                 <span className={tBoardValueTextClass}>{displayVal('put_covered', m.s, m.putCovered)}{m.putCoveredAvail !== m.putCovered ? `（${m.putCoveredAvail}）` : ''}</span>
                 <button type="button" className={getTBoardActionButtonClass('adjust')} onClick={() => openAdjustConfirm('put_covered', m.s)}>调整</button>
               </div>
@@ -6230,8 +6279,8 @@ const TBoardRow = React.memo(function TBoardRow({
         );
       case 'combo':
         return (
-          <td key={`p-combo-${m.s}`} className={`align-top text-center py-2 ${borderClass} ${themes[theme].text}`}>
-            <div className="flex flex-col items-center gap-1.5">
+          <td key={`p-combo-${m.s}`} className={`align-middle text-center py-1.5 sm:py-2 px-1 sm:px-1.5 w-14 sm:w-16 lg:w-18 ${borderClass} ${themes[theme].text}`}>
+            <div className="flex flex-col items-center gap-1">
               {m.comboPutStrategies.length > 0 ? (
                 <>
                   <span className={`${tBoardComboValueClass} ${TBOARD_COMBO_HINT_CLASS} cursor-help`} title={m.comboPutStrategies.map(s => `${s.strategy.name} (${s.qty})`).join('\n')}>{m.comboPutStrategies.reduce((sum, s) => sum + s.qty, 0)}</span>
@@ -6252,25 +6301,25 @@ const TBoardRow = React.memo(function TBoardRow({
         );
       case 'delta':
         return (
-          <td key={`p-delta-${m.s}`} className={`text-center py-2 px-2 sm:px-3 w-18 sm:w-20 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] font-mono font-medium`} title={`认沽 Delta: ${formatGreek(putDelta)}`}>
+          <td key={`p-delta-${m.s}`} className={`text-center py-1.5 sm:py-2 px-1 sm:px-1.5 w-14 sm:w-16 ${borderClass} ${themes[theme].text} text-xs sm:text-[12px] font-mono tabular-nums font-medium`} title={`认沽 Delta: ${formatGreek(putDelta)}`}>
             <span>{formatGreek(putDelta)}</span>
           </td>
         );
       case 'gamma':
         return (
-          <td key={`p-gamma-${m.s}`} className={`text-center py-2 px-2 sm:px-3 w-18 sm:w-20 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] font-mono font-medium`} title={`认沽 Gamma: ${formatGreek(putGamma, 4)}`}>
+          <td key={`p-gamma-${m.s}`} className={`text-center py-1.5 sm:py-2 px-1 sm:px-1.5 w-14 sm:w-16 ${borderClass} ${themes[theme].text} text-xs sm:text-[12px] font-mono tabular-nums font-medium`} title={`认沽 Gamma: ${formatGreek(putGamma, 4)}`}>
             <span>{formatGreek(putGamma, 4)}</span>
           </td>
         );
       case 'theta':
         return (
-          <td key={`p-theta-${m.s}`} className={`text-center py-2 px-2 sm:px-3 w-18 sm:w-20 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] font-mono font-medium`} title={`认沽 Theta: ${formatGreek(putTheta)}`}>
+          <td key={`p-theta-${m.s}`} className={`text-center py-1.5 sm:py-2 px-1 sm:px-1.5 w-14 sm:w-16 ${borderClass} ${themes[theme].text} text-xs sm:text-[12px] font-mono tabular-nums font-medium`} title={`认沽 Theta: ${formatGreek(putTheta)}`}>
             <span>{formatGreek(putTheta)}</span>
           </td>
         );
       case 'vega':
         return (
-          <td key={`p-vega-${m.s}`} className={`text-center py-2 px-2 sm:px-3 w-18 sm:w-20 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] font-mono font-medium`} title={`认沽 Vega: ${formatGreek(putVega)}`}>
+          <td key={`p-vega-${m.s}`} className={`text-center py-1.5 sm:py-2 px-1 sm:px-1.5 w-14 sm:w-16 ${borderClass} ${themes[theme].text} text-xs sm:text-[12px] font-mono tabular-nums font-medium`} title={`认沽 Vega: ${formatGreek(putVega)}`}>
             <span>{formatGreek(putVega)}</span>
           </td>
         );
@@ -6298,7 +6347,7 @@ const TBoardRow = React.memo(function TBoardRow({
         data-role="strike"
         onMouseEnter={handleStrikeMouseEnter}
         onMouseLeave={handleStrikeMouseLeave}
-        className={`text-center py-2 px-2.5 sm:px-4 w-22 sm:w-26 font-extrabold font-mono text-sm sm:text-base transition-all duration-200 cursor-pointer select-none ${themes[theme].text} ${
+        className={`text-center py-1.5 sm:py-2 px-1.5 sm:px-2.5 w-16 sm:w-20 lg:w-22 font-extrabold font-mono text-xs sm:text-sm xl:text-base transition-all duration-200 cursor-pointer select-none ${themes[theme].text} ${
           isAtmHighlighted
             ? 'bg-blue-500/25 text-blue-600 dark:text-blue-300 font-extrabold scale-110 shadow-md ring-2 ring-blue-500/60 rounded-md z-10'
             : isAtmStrike
@@ -6307,7 +6356,7 @@ const TBoardRow = React.memo(function TBoardRow({
         }`}
       >
         <div
-          className={`inline-flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-lg text-sm sm:text-base font-extrabold transition-all duration-200 ${
+          className={`inline-flex items-center justify-center gap-1.5 px-1.5 sm:px-2 py-0.5 rounded-lg text-xs sm:text-sm xl:text-base font-extrabold transition-all duration-200 ${
             isStrikeHovered
               ? 'bg-blue-500/15 text-blue-600 dark:text-blue-300 ring-1 ring-blue-500/40 shadow-sm scale-110 -translate-y-0.5'
               : 'hover:scale-105 hover:bg-black/5 dark:hover:bg-white/10'
