@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Calendar, Activity, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
-import { PortfolioActivityLog, ActivityLogEntry } from './PortfolioActivityLog';
 import { Theme, themes } from '../../../lib/theme';
 import { setCookie, getCookie } from '../../../shared/utils/cookie';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
@@ -66,11 +65,6 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     return () => media.removeEventListener('change', listener);
   }, []);
 
-  // Activity Log State
-  const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>([]);
-  const [isLogOpen, setIsLogOpen] = useState(false);
-  const previousPositionsRef = useRef<Record<string, OptionsPosition>>({});
-  const isBaselineEstablishedRef = useRef(false);
   const {
     isConnected,
     send,
@@ -388,13 +382,6 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     [visibleContracts]
   );
 
-  // Reset baseline when account changes
-  useEffect(() => {
-    isBaselineEstablishedRef.current = false;
-    previousPositionsRef.current = {};
-    setActivityLogs([]);
-  }, [selectedAccountIdProp, activeSymbol]);
-
   const getSanitizedUnderlying = (code: string) => {
     return code?.startsWith('US.') ? code.replace('US.', '') : code;
   };
@@ -436,83 +423,6 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
 
   // 复杂策略编辑复用“保存确认弹窗”，不使用独立编辑器
 
-  const processDiff = useCallback((newData: OptionsPortfolioData) => {
-      const getPositionsMap = (pData: OptionsPortfolioData) => {
-         const map: Record<string, OptionsPosition> = {};
-         (pData.expiryBuckets || []).forEach(b => {
-           b.single.forEach(p => map[p.id] = p);
-           b.complex.forEach(s => s.positions.forEach(p => map[p.id] = p));
-         });
-         return map;
-      };
-
-      const currentPositions = getPositionsMap(newData);
-
-      // Initial load baseline check
-      if (!isBaselineEstablishedRef.current) {
-        previousPositionsRef.current = currentPositions;
-        isBaselineEstablishedRef.current = true;
-        return;
-      }
-
-      const previousPositions = previousPositionsRef.current;
-      const newLogs: ActivityLogEntry[] = [];
-      const now = Date.now();
-
-      // 1. Check for closed positions
-      Object.entries(previousPositions).forEach(([id, pos]) => {
-         if (!currentPositions[id] && pos.quantity > 0 && pos.status !== 'closed' && pos.status !== 'expired') {
-           newLogs.push({
-             id: `closed-${id}-${now}`,
-             timestamp: now,
-             type: 'closed',
-             symbol: pos.symbol,
-             contract_code_full: pos.contract_code_full,
-             description: `${pos.symbol} ${pos.type.toUpperCase()} ${pos.strike} closed`
-           });
-         }
-      });
-
-      // 2. Check for new and updated positions
-      Object.entries(currentPositions).forEach(([id, pos]) => {
-         const prev = previousPositions[id];
-         if (!prev) {
-           if (pos.quantity > 0) {
-              newLogs.push({
-                id: `new-${id}-${now}`,
-                timestamp: now,
-                type: 'new',
-                symbol: pos.symbol,
-                contract_code_full: pos.contract_code_full,
-                description: `${pos.symbol} ${pos.type.toUpperCase()} ${pos.strike} opened (${pos.quantity})`
-              });
-           }
-         } else {
-           if (prev.quantity !== pos.quantity) {
-              newLogs.push({
-                id: `update-${id}-${now}`,
-                timestamp: now,
-                type: 'update',
-                symbol: pos.symbol,
-                contract_code_full: pos.contract_code_full,
-                description: `Quantity changed: ${prev.quantity} -> ${pos.quantity}`,
-                details: { oldQty: prev.quantity, newQty: pos.quantity }
-              });
-           }
-         }
-      });
-      
-      if (newLogs.length > 0) {
-          setActivityLogs(prev => [...newLogs, ...prev]);
-          toast.success(`${newLogs.length} position updates detected`, {
-              icon: '🔔',
-              duration: 3000
-          });
-      }
-      
-      previousPositionsRef.current = currentPositions;
-  }, []);
-
   const fetchPortfolio = useCallback(async (): Promise<OptionsPortfolioData | null> => {
     let fetched: OptionsPortfolioData | null = null;
     try {
@@ -553,9 +463,6 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
           setWhitelists(whitelistsRes.data);
         }
 
-        // Diff Logic
-        processDiff(data);
-
         setPortfolioData(data);
         fetched = data;
       }
@@ -566,7 +473,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     } finally {
       setIsLoading(false);
     }
-  }, [selectedAccountIdProp, activeSymbol, processDiff, selectedSymbol]);
+  }, [selectedAccountIdProp, activeSymbol, selectedSymbol]);
 
   const refreshPortfolioAndQuotes = useCallback(async () => {
     const effectiveSymbol = activeSymbol || selectedSymbol || '';
@@ -700,12 +607,8 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
 
   useEffect(() => {
     if (!portfolioSnapshot) return;
-    
-    // Process diff logic for websocket updates
-    processDiff(portfolioSnapshot);
-
     setPortfolioData(portfolioSnapshot);
-  }, [portfolioSnapshot, processDiff]);
+  }, [portfolioSnapshot]);
 
   
 
@@ -884,8 +787,6 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
           theme={theme}
           accountAlias={selectedAccountIdProp || ''}
           portfolioData={portfolioData}
-          activityLogsCount={activityLogs.length}
-          onOpenLog={() => setIsLogOpen(true)}
           currentUnderlyingPrice={activeSymbol ? getCurrentUnderlyingPrice(activeSymbol) : null}
           subjectPositions={[]}
           currencyConfig={currencyConfig}
@@ -941,8 +842,6 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         theme={theme}
         accountAlias={selectedAccountIdProp || ''}
         portfolioData={portfolioData}
-        activityLogsCount={activityLogs.length}
-        onOpenLog={() => setIsLogOpen(true)}
         currentUnderlyingPrice={activeSymbol ? getCurrentUnderlyingPrice(activeSymbol) : null}
         subjectPositions={portfolioData.subject_positions}
         currencyConfig={currencyConfig}
@@ -1144,14 +1043,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       {/* Fixed Refresh Button */}
       {refreshButton}
 
-      {/* Activity Log Side Panel */}
-      <PortfolioActivityLog
-        isOpen={isLogOpen}
-        onClose={() => setIsLogOpen(false)}
-        logs={activityLogs}
-        onClear={() => setActivityLogs([])}
-        theme={theme}
-      />
+
 
       {/* 复杂策略编辑与构建统一使用上方“保存确认弹窗” */}
     </div>

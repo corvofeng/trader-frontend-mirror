@@ -8,7 +8,6 @@ import {
   FileSpreadsheet,
   ExternalLink,
   Wallet,
-  Activity,
   Dot,
 } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
@@ -37,8 +36,6 @@ export interface PortfolioAnalyticsTabsProps {
   theme: Theme;
   accountAlias?: string;
   portfolioData?: OptionsPortfolioData | null;
-  activityLogsCount?: number;
-  onOpenLog?: () => void;
   currentUnderlyingPrice?: number | null;
   subjectPositions?: SubjectPosition[];
   currencyConfig: CurrencyConfig;
@@ -51,8 +48,6 @@ export function PortfolioAnalyticsTabs({
   theme,
   accountAlias: propAccountAlias,
   portfolioData,
-  activityLogsCount = 0,
-  onOpenLog,
   currentUnderlyingPrice,
   subjectPositions = [],
   currencyConfig,
@@ -391,33 +386,6 @@ export function PortfolioAnalyticsTabs({
                 </span>
               )}
 
-              {/* 查看持仓变动日志按钮 */}
-              {onOpenLog && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onOpenLog();
-                  }}
-                  className={`p-1.5 rounded-lg transition-colors ${
-                    theme === 'dark'
-                      ? 'hover:bg-zinc-800/80 text-zinc-300'
-                      : theme === 'blue'
-                        ? 'hover:bg-blue-50 text-slate-700'
-                        : 'hover:bg-slate-100 text-slate-700'
-                  } relative shrink-0`}
-                  title="查看持仓变动日志"
-                >
-                  <Activity className="w-3.5 h-3.5 sm:w-4 sm:h-4" strokeWidth={1.75} />
-                  {activityLogsCount > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400/80 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500 ring-1 ring-white/40 dark:ring-zinc-900/40"></span>
-                    </span>
-                  )}
-                </button>
-              )}
-
               {/* Google Sheet 数据源外链 */}
               {activeTab === 'history' && isMainAccount && (
                 <a
@@ -482,29 +450,6 @@ export function PortfolioAnalyticsTabs({
                 <span>现价 {currentUnderlyingPrice.toFixed(4)}</span>
               </span>
             )}
-            {onOpenLog && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onOpenLog();
-                }}
-                className={`p-1 rounded transition-colors ${
-                  theme === 'dark'
-                    ? 'hover:bg-zinc-800 text-zinc-300'
-                    : 'hover:bg-slate-100 text-slate-700'
-                } relative shrink-0`}
-                title="查看持仓变动日志"
-              >
-                <Activity className="w-3 h-3" strokeWidth={1.75} />
-                {activityLogsCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400/80 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500 ring-1 ring-white/40 dark:ring-zinc-900/40"></span>
-                  </span>
-                )}
-              </button>
-            )}
           </div>
 
           {/* 右侧：移动端专属关键指标与底表 */}
@@ -546,8 +491,6 @@ export function PortfolioAnalyticsTabs({
               theme={theme}
               portfolioData={portfolioData}
               currencyConfig={currencyConfig}
-              activityLogsCount={activityLogsCount}
-              onOpenLog={onOpenLog ?? (() => {})}
               currentUnderlyingPrice={currentUnderlyingPrice}
               showHeader={false}
             />

@@ -1,6 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import {
-  Activity,
   ChevronDown,
   ChevronUp,
   Dot,
@@ -19,8 +18,6 @@ export interface PortfolioOverviewProps {
   theme: Theme;
   portfolioData: OptionsPortfolioData;
   currencyConfig: CurrencyConfig;
-  activityLogsCount: number;
-  onOpenLog: () => void;
   currentUnderlyingPrice?: number | null;
   showHeader?: boolean;
 }
@@ -29,8 +26,6 @@ export function PortfolioOverview({
   theme,
   portfolioData,
   currencyConfig,
-  activityLogsCount,
-  onOpenLog,
   currentUnderlyingPrice,
   showHeader = true,
 }: PortfolioOverviewProps) {
@@ -348,25 +343,6 @@ export function PortfolioOverview({
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
           <div className="flex items-center gap-2.5 min-w-0">
             <h2 className={`text-[15px] sm:text-[17px] font-semibold tracking-tight ${themes[theme].text}`}>期权投资组合概览</h2>
-            <button
-              onClick={onOpenLog}
-              className={`p-1.5 rounded-lg transition-colors ${
-                theme === 'dark'
-                  ? 'hover:bg-zinc-800/80 text-zinc-300'
-                  : theme === 'blue'
-                    ? 'hover:bg-blue-50 text-slate-700'
-                    : 'hover:bg-slate-100 text-slate-700'
-              } relative shrink-0`}
-              title="查看持仓变动日志"
-            >
-              <Activity className="w-4 h-4 sm:w-[18px] sm:h-[18px]" strokeWidth={1.75} />
-              {activityLogsCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400/80 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500 ring-1 ring-white/40 dark:ring-zinc-900/40"></span>
-                </span>
-              )}
-            </button>
           </div>
           <div className="flex items-center justify-between gap-2 sm:justify-end">
             {currentUnderlyingPrice != null && (
