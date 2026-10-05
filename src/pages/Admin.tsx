@@ -705,9 +705,10 @@ export function Admin({ theme }: AdminProps) {
   React.useEffect(() => {
     if (activeTab !== 'calendar') return;
     if (!selectedAccountId) return;
-    const monthKey = format(currentMonth, 'yyyy-MM');
-    const selectedMonthKey = selectedDate ? selectedDate.slice(0, 7) : monthKey;
-    const monthKeys = Array.from(new Set([monthKey, selectedMonthKey]));
+    const currentMonthKey = format(currentMonth, 'yyyy-MM');
+    const prevMonthKey = format(addMonths(currentMonth, -1), 'yyyy-MM');
+    const selectedMonthKey = selectedDate ? selectedDate.slice(0, 7) : currentMonthKey;
+    const monthKeys = Array.from(new Set([currentMonthKey, prevMonthKey, selectedMonthKey]));
 
     let cancelled = false;
     const fetchStats = async () => {
@@ -733,21 +734,28 @@ export function Admin({ theme }: AdminProps) {
 
   React.useEffect(() => {
     if (activeTab !== 'calendar') return;
-    const year = currentMonth.getFullYear();
-    if (tradingDaysByYear[year]) return;
+    const prevMonth = addMonths(currentMonth, -1);
+    const years = Array.from(new Set([currentMonth.getFullYear(), prevMonth.getFullYear()]));
+    const missingYears = years.filter(year => !tradingDaysByYear[year]);
+    if (missingYears.length === 0) return;
+
     let cancelled = false;
     const fetchTradingCalendar = async () => {
       try {
-        const { data, error } = await stockService.getTradingCalendar(year);
-        if (error) throw error;
-        const tradingDates = data || [];
-        if (!cancelled && tradingDates.length > 0) {
-          setTradingDaysByYear(prev => ({
-            ...prev,
-            [year]: new Set(tradingDates),
-          }));
-          setTradingCalendarError(null);
-        }
+        await Promise.all(
+          missingYears.map(async (year) => {
+            const { data, error } = await stockService.getTradingCalendar(year);
+            if (error) throw error;
+            const tradingDates = data || [];
+            if (!cancelled && tradingDates.length > 0) {
+              setTradingDaysByYear(prev => ({
+                ...prev,
+                [year]: new Set(tradingDates),
+              }));
+              setTradingCalendarError(null);
+            }
+          })
+        );
       } catch (err) {
         if (!cancelled) {
           console.error('Failed to load trading calendar', err);
@@ -1565,16 +1573,13 @@ export function Admin({ theme }: AdminProps) {
                     const start = startOfWeek(monthStart, { weekStartsOn: 0 });
                     const end = endOfWeek(monthEnd, { weekStartsOn: 0 });
                     const days = eachDayOfInterval({ start, end });
-                    const year = currentMonth.getFullYear();
-                    const tradingSet = tradingDaysByYear[year];
-                    const monthKey = format(currentMonth, 'yyyy-MM');
-                    const monthStats = ordersStatsByMonth[monthKey];
                     return days.map((day) => {
                       const dateStr = format(day, 'yyyy-MM-dd');
+                      const dayMonthKey = format(day, 'yyyy-MM');
                       const isCurrentMonth = isSameMonth(day, monthStart);
                       const isSelected = selectedDate && isSameDay(day, new Date(selectedDate));
-                      const isTradingDay = !!tradingSet && tradingSet.has(dateStr);
-                      const stats = monthStats ? monthStats[dateStr] : undefined;
+                      const isTradingDay = !!tradingDaysByYear[day.getFullYear()]?.has(dateStr);
+                      const stats = ordersStatsByMonth[dayMonthKey]?.[dateStr];
                       let baseClass = 'border rounded-lg p-1 h-20 flex flex-col items-center justify-between cursor-pointer text-xs transition-colors duration-150 ease-out';
                       if (isTradingDay) {
                         baseClass += ' bg-emerald-50/70 dark:bg-emerald-900/25 border-emerald-400 dark:border-emerald-500 hover:bg-emerald-100/80 dark:hover:bg-emerald-900/40';
