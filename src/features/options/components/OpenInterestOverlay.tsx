@@ -474,22 +474,48 @@ export const OpenInterestOverlay: React.FC<OpenInterestOverlayProps> = ({
             strokeWidth="1.2"
           />
 
-          {/* Pulse Rings on active Nodes */}
+          {/* Pulse Rings on active Nodes (centered in-place ripple animation) */}
           {hoveredPoint.callOI > 0 && (
             <circle
               cx={hoveredPoint.callX}
               cy={hoveredPoint.centerY}
-              r="8"
-              className="fill-none stroke-emerald-500/60 dark:stroke-emerald-400/60 stroke-1 animate-ping"
-            />
+              r="6"
+              className="fill-none stroke-emerald-500/80 dark:stroke-emerald-400/80 stroke-1 pointer-events-none"
+            >
+              <animate
+                attributeName="r"
+                values="6;16"
+                dur="1.2s"
+                repeatCount="indefinite"
+              />
+              <animate
+                attributeName="opacity"
+                values="0.8;0"
+                dur="1.2s"
+                repeatCount="indefinite"
+              />
+            </circle>
           )}
           {hoveredPoint.putOI > 0 && (
             <circle
               cx={hoveredPoint.putX}
               cy={hoveredPoint.centerY}
-              r="8"
-              className="fill-none stroke-rose-500/60 dark:stroke-rose-400/60 stroke-1 animate-ping"
-            />
+              r="6"
+              className="fill-none stroke-rose-500/80 dark:stroke-rose-400/80 stroke-1 pointer-events-none"
+            >
+              <animate
+                attributeName="r"
+                values="6;16"
+                dur="1.2s"
+                repeatCount="indefinite"
+              />
+              <animate
+                attributeName="opacity"
+                values="0.8;0"
+                dur="1.2s"
+                repeatCount="indefinite"
+              />
+            </circle>
           )}
 
           {(() => {
