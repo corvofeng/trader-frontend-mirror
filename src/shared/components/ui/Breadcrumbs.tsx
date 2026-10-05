@@ -1,4 +1,3 @@
-import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ChevronRight, Home } from 'lucide-react';
 import type { Theme } from '../../types';
@@ -89,7 +88,7 @@ export function Breadcrumbs({ theme, customItems }: BreadcrumbsProps) {
 
   return (
     <nav 
-      className={`${themes[theme].background} px-4 py-2 border-b ${themes[theme].border}`}
+      className={`hidden sm:block ${themes[theme].background} px-4 py-2 border-b ${themes[theme].border}`}
       aria-label="Breadcrumb navigation"
     >
       <div className="max-w-7xl mx-auto">

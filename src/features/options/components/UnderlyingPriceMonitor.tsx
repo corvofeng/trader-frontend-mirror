@@ -397,13 +397,7 @@ export function UnderlyingPriceMonitor({
 
   // ==================== EXPANDED STATE (Mobile Modal vs Desktop Floating) ====================
   const baseClass = `relative isolate rounded-2xl overflow-hidden backdrop-blur-xl transition-opacity ${dragging ? 'cursor-grabbing' : 'cursor-grab'}
-    ${themes[theme].card} border ${themes[theme].border} opacity-97 hover:opacity-100
-    ${theme === 'dark'
-      ? 'shadow-[0_14px_40px_-12px_rgba(0,0,0,0.55)] border-zinc-800/70'
-      : theme === 'blue'
-        ? 'shadow-[0_14px_40px_-12px_rgba(37,99,235,0.16)] border-blue-100/80'
-        : 'shadow-[0_14px_40px_-12px_rgba(15,23,42,0.14)] border-slate-200/70'
-    } ring-1 ring-black/5 dark:ring-white/5`;
+    ${themes[theme].card} border ${themes[theme].border} fin-card-floating opacity-97 hover:opacity-100`;
   const motionMs = 240;
   const monitorDims = getMonitorDims();
   const clampedPanelPos = clampPanelPos(panelPos);

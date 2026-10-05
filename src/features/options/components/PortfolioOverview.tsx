@@ -43,19 +43,19 @@ export function PortfolioOverview({
   }, [currentUnderlyingPrice]);
 
   const cardShadow = useMemo(() => {
-    if (theme === 'dark') return 'shadow-[0_1px_2px_rgba(0,0,0,0.25),0_12px_28px_-16px_rgba(0,0,0,0.45)]';
-    if (theme === 'blue') return 'shadow-[0_1px_2px_rgba(30,64,175,0.04),0_10px_28px_-16px_rgba(37,99,235,0.10)]';
-    return 'shadow-[0_1px_2px_rgba(15,23,42,0.04),0_10px_28px_-16px_rgba(15,23,42,0.08)]';
+    if (theme === 'dark') return 'shadow-[0_4px_20px_-2px_rgba(0,0,0,0.65),0_16px_36px_-4px_rgba(0,0,0,0.85),0_0_0_1px_rgba(255,255,255,0.07)]';
+    if (theme === 'blue') return 'shadow-[0_4px_20px_-2px_rgba(15,23,42,0.08),0_16px_36px_-4px_rgba(30,58,138,0.14),0_0_0_1px_rgba(30,58,138,0.08)]';
+    return 'shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06),0_16px_36px_-4px_rgba(15,23,42,0.12),0_0_0_1px_rgba(15,23,42,0.06)]';
   }, [theme]);
 
   const tileDivider = useMemo(() => {
-    if (theme === 'dark') return 'border-zinc-800/80';
-    if (theme === 'blue') return 'border-blue-100/80';
-    return 'border-slate-200/70';
+    if (theme === 'dark') return 'border-[#222a3d]';
+    if (theme === 'blue') return 'border-blue-200/80';
+    return 'border-slate-200';
   }, [theme]);
 
   const bgHighlight = useMemo(() => {
-    if (theme === 'dark') return 'from-zinc-800/60 via-zinc-900/20 to-transparent';
+    if (theme === 'dark') return 'from-[#1c2230] via-transparent to-transparent';
     if (theme === 'blue') return 'from-blue-50/90 via-blue-50/40 to-transparent';
     return 'from-slate-50/90 via-slate-50/40 to-transparent';
   }, [theme]);
@@ -153,29 +153,29 @@ export function PortfolioOverview({
   const renderOverviewContent = () => (
     <div className="p-3 sm:p-5 space-y-3 sm:space-y-4">
       {/* 4 核心资产磁贴 */}
-      <div className={`grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 ${tileDivider} rounded-xl overflow-hidden border ${tileDivider}`}>
+      <div className={`grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 ${tileDivider} rounded-xl overflow-hidden border ${tileDivider} fin-well shadow-inner`}>
         {stats.map((stat) => (
           <div
             key={stat.label}
-            className={`px-3 py-2.5 sm:px-4 sm:py-3 ${
+            className={`px-3 py-2.5 sm:px-4 sm:py-3.5 ${
               theme === 'dark'
-                ? 'bg-zinc-900/30 hover:bg-zinc-800/40'
+                ? 'bg-[#151923]/60 hover:bg-[#1a202d]/80'
                 : theme === 'blue'
-                  ? 'bg-white/60 hover:bg-blue-50/60'
-                  : 'bg-white/60 hover:bg-slate-50/80'
+                  ? 'bg-white/80 hover:bg-blue-50/80'
+                  : 'bg-white/80 hover:bg-slate-50'
             } transition-colors duration-150`}
           >
             <div className="flex items-center justify-between gap-1">
-              <h3 className={`text-[11px] sm:text-xs font-medium ${themes[theme].text} opacity-70 tracking-wide`}>
+              <h3 className={`text-[11px] sm:text-xs font-semibold ${themes[theme].text} opacity-75 tracking-wider uppercase`}>
                 {stat.label}
               </h3>
               {stat.subLabel && (
-                <span className="text-[10px] font-mono opacity-35 hidden sm:inline">
+                <span className="text-[10px] font-mono opacity-40 hidden sm:inline">
                   {stat.subLabel}
                 </span>
               )}
             </div>
-            <p className={`text-[15px] sm:text-[20px] font-semibold mt-1 tracking-tight break-all ${stat.valueClassName} ${stat.mono ? 'font-mono tabular-nums' : ''}`}>
+            <p className={`text-[16px] sm:text-[22px] font-bold mt-1 tracking-tight break-all ${stat.valueClassName} ${stat.mono ? 'font-mono tabular-nums' : ''}`}>
               {stat.value}
             </p>
           </div>
@@ -186,12 +186,12 @@ export function PortfolioOverview({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
         {/* 卡片 1: 资金效率与风险监控 */}
         <div
-          className={`p-3.5 sm:p-4 rounded-xl border ${tileDivider} ${
+          className={`p-3.5 sm:p-4 rounded-xl border ${tileDivider} fin-well shadow-xs ${
             theme === 'dark'
-              ? 'bg-zinc-900/25'
+              ? 'bg-[#141822]/40'
               : theme === 'blue'
-                ? 'bg-blue-50/40'
-                : 'bg-slate-50/60'
+                ? 'bg-blue-50/50'
+                : 'bg-slate-50/80'
           }`}
         >
           <div className="flex items-center justify-between mb-3">
@@ -246,12 +246,12 @@ export function PortfolioOverview({
 
         {/* 卡片 2: 资产构成与配置分布 */}
         <div
-          className={`p-3.5 sm:p-4 rounded-xl border ${tileDivider} ${
+          className={`p-3.5 sm:p-4 rounded-xl border ${tileDivider} fin-well shadow-xs ${
             theme === 'dark'
-              ? 'bg-zinc-900/25'
+              ? 'bg-[#141822]/40'
               : theme === 'blue'
-                ? 'bg-blue-50/40'
-                : 'bg-slate-50/60'
+                ? 'bg-blue-50/50'
+                : 'bg-slate-50/80'
           }`}
         >
           <div className="flex items-center justify-between mb-3">

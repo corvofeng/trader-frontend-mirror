@@ -344,36 +344,48 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
   });
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
-      <div className="space-y-6 mb-6">
-        <div className={`${themes[theme].card} rounded-xl p-5 border ${themes[theme].border} card-subtle-ring transition-colors duration-150`}>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2.5">
-                <h1 className={`text-2xl font-bold tracking-tight ${themes[theme].text}`}>
-                  Stock Trading Journal
-                </h1>
-                <WebMcpBadge
-                  theme={theme}
-                  toolCount={webMcp.registeredToolCount}
-                  isSupported={webMcp.isSupported}
-                  isReady={webMcp.isReady}
-                  pageTitle="Journal 交易日志"
-                  customTools={webMcp.tools}
-                />
+    <main className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 py-2.5 sm:py-8">
+      <div className="space-y-4 sm:space-y-6 mb-6">
+        <div className={`${themes[theme].card} rounded-xl sm:rounded-2xl p-3 sm:p-5 border ${themes[theme].border} fin-card-elevated relative transition-colors duration-150`}>
+          <div className="fin-specular-line" aria-hidden="true" />
+          <div className="flex items-center justify-between gap-2.5">
+            <div className="min-w-0 flex items-center gap-2.5 sm:gap-3">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 ring-1 ring-blue-500/20 shadow-xs">
+                <Briefcase className="w-4 h-4 sm:w-5 sm:h-5" strokeWidth={2.2} />
               </div>
-              <p className={`text-sm ${themes[theme].text} opacity-75 mt-1`}>
-                Review your portfolio, trades and performance in one place
-              </p>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                  <h1 className={`text-base sm:text-2xl font-bold tracking-tight ${themes[theme].text}`}>
+                    交易日志
+                  </h1>
+                  <span className="text-[10px] sm:text-xs font-mono font-medium px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 border border-blue-200/50 dark:border-blue-800/40">
+                    Journal
+                  </span>
+                  <WebMcpBadge
+                    theme={theme}
+                    toolCount={webMcp.registeredToolCount}
+                    isSupported={webMcp.isSupported}
+                    isReady={webMcp.isReady}
+                    pageTitle="Journal 交易日志"
+                    customTools={webMcp.tools}
+                  />
+                </div>
+                <p className={`hidden sm:block text-sm ${themes[theme].text} opacity-75 mt-0.5`}>
+                  Review your portfolio, trades and performance in one place
+                </p>
+              </div>
             </div>
             {!portfolioUuid && (
-              <AccountSelector
-                userId={DEMO_USER_ID}
-                theme={theme}
-                selectedAccountId={selectedAccountId}
-                onAccountChange={handleAccountChange}
-                preferOptions={false}
-              />
+              <div className="shrink-0">
+                <AccountSelector
+                  userId={DEMO_USER_ID}
+                  theme={theme}
+                  selectedAccountId={selectedAccountId}
+                  onAccountChange={handleAccountChange}
+                  preferOptions={false}
+                  align="right"
+                />
+              </div>
             )}
           </div>
         </div>

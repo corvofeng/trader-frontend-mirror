@@ -40,13 +40,13 @@ function getBaseTheme(theme: Theme): ThemeColors {
   const baseThemes = {
     light: {
       primary: 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs',
-      secondary: 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/60',
-      background: 'bg-slate-50',
+      secondary: 'bg-slate-100 hover:bg-slate-200/90 text-slate-800 border border-slate-300/60 shadow-2xs',
+      background: 'bg-[#f0f3f7]',
       text: 'text-slate-900',
       card: 'bg-white',
-      cardHover: 'hover:bg-slate-50/80',
-      input: 'bg-white border-slate-200 text-slate-900',
-      border: 'border-slate-200/80',
+      cardHover: 'hover:bg-slate-50/90',
+      input: 'bg-white border-slate-300 text-slate-900',
+      border: 'border-slate-200/90',
       semantic: {
         snapshotBanner: 'bg-amber-50 border-l-4 border-amber-500',
         snapshotIcon: 'text-amber-500',
@@ -55,40 +55,40 @@ function getBaseTheme(theme: Theme): ThemeColors {
       chart: {
         upColor: '#10b981',
         downColor: '#ef4444',
-        gridColor: '#f1f5f9',
+        gridColor: '#e2e8f0',
         crosshairColor: '#94a3b8'
       }
     },
     dark: {
-      primary: 'bg-blue-600 hover:bg-blue-500 text-white shadow-sm shadow-blue-500/20',
-      secondary: 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/50',
-      background: 'bg-zinc-950',
+      primary: 'bg-blue-600 hover:bg-blue-500 text-white shadow-sm shadow-blue-500/25',
+      secondary: 'bg-[#181d28] hover:bg-[#202736] text-zinc-200 border border-[#273248]/70 shadow-2xs',
+      background: 'bg-[#0b0e14]',
       text: 'text-zinc-100',
-      card: 'bg-zinc-900/90',
-      cardHover: 'hover:bg-zinc-800/80',
-      input: 'bg-zinc-900 border-zinc-800 text-zinc-100',
-      border: 'border-zinc-800/80',
+      card: 'bg-[#121620]',
+      cardHover: 'hover:bg-[#181d2a]',
+      input: 'bg-[#0d1017] border-[#222a3d] text-zinc-100',
+      border: 'border-[#202738]/90',
       semantic: {
-        snapshotBanner: 'bg-amber-950/40 border-l-4 border-amber-500/80',
+        snapshotBanner: 'bg-amber-950/30 border-l-4 border-amber-500/80',
         snapshotIcon: 'text-amber-400',
         snapshotText: 'text-amber-200/90',
       },
       chart: {
         upColor: '#10b981',
         downColor: '#ef4444',
-        gridColor: '#27272a',
-        crosshairColor: '#71717a'
+        gridColor: '#1b2130',
+        crosshairColor: '#64748b'
       }
     },
     blue: {
       primary: 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs shadow-blue-500/20',
-      secondary: 'bg-blue-100/80 hover:bg-blue-200/80 text-blue-900 border border-blue-200/60',
-      background: 'bg-[#f0f5ff]',
+      secondary: 'bg-blue-100/80 hover:bg-blue-200/80 text-blue-900 border border-blue-200/70 shadow-2xs',
+      background: 'bg-[#edf2f9]',
       text: 'text-slate-900',
       card: 'bg-white',
       cardHover: 'hover:bg-blue-50/60',
       input: 'bg-white border-blue-200 text-slate-900',
-      border: 'border-blue-100',
+      border: 'border-blue-200/80',
       semantic: {
         snapshotBanner: 'bg-amber-50/90 border-l-4 border-amber-500',
         snapshotIcon: 'text-amber-500',
@@ -113,7 +113,7 @@ export const themes: Record<Theme, ThemeColors> = {
 };
 
 export const THEME_HEX_BACKGROUNDS: Record<Theme, string> = {
-  light: '#f8fafc',
-  dark: '#09090b',
-  blue: '#f0f5ff'
+  light: '#f0f3f7',
+  dark: '#0b0e14',
+  blue: '#edf2f9'
 };

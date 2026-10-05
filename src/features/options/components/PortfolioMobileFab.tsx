@@ -80,15 +80,8 @@ export function PortfolioMobileFab({
   };
 
   // Heavyweight financial elevation shadow tokens
-  const heavyElevation =
-    theme === 'dark'
-      ? 'shadow-[0_16px_40px_-6px_rgba(0,0,0,0.85),0_6px_16px_-4px_rgba(0,0,0,0.65),0_0_0_1px_rgba(255,255,255,0.08)]'
-      : 'shadow-[0_16px_40px_-6px_rgba(15,23,42,0.22),0_6px_16px_-4px_rgba(15,23,42,0.12),0_0_0_1px_rgba(15,23,42,0.08)]';
-
-  const pillShadow =
-    theme === 'dark'
-      ? 'shadow-[0_8px_24px_-2px_rgba(0,0,0,0.7),0_2px_8px_-2px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.08)]'
-      : 'shadow-[0_8px_24px_-2px_rgba(15,23,42,0.16),0_2px_8px_-2px_rgba(15,23,42,0.08),0_0_0_1px_rgba(15,23,42,0.06)]';
+  const heavyElevation = 'fin-card-floating';
+  const pillShadow = 'fin-card-elevated';
 
   return (
     <>

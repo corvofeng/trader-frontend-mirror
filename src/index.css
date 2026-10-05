@@ -137,12 +137,98 @@
     }
   }
 
-  /* Subtle ring and depth */
+  /* Financial Institutional Elevation & Tactile Depth */
   .card-subtle-ring {
-    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+    box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.04), 0 4px 16px -2px rgba(15, 23, 42, 0.06), inset 0 1px 0 0 rgba(255, 255, 255, 0.85);
   }
   .dark .card-subtle-ring {
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 2px 8px -2px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 3px 12px -2px rgba(0, 0, 0, 0.65), 0 12px 28px -4px rgba(0, 0, 0, 0.8), inset 0 1px 0 0 rgba(255, 255, 255, 0.07);
+  }
+  .blue .card-subtle-ring {
+    box-shadow: 0 0 0 1px rgba(30, 58, 138, 0.08), 0 3px 12px -2px rgba(30, 58, 138, 0.07), 0 12px 28px -4px rgba(30, 58, 138, 0.1), inset 0 1px 0 0 rgba(255, 255, 255, 0.85);
+  }
+
+  /* Solid Institutional Financial Card with Multi-layer Ambient Occlusion + Specular Bevel */
+  .fin-card-elevated {
+    position: relative;
+    box-shadow:
+      0 1px 2px rgba(15, 23, 42, 0.04),
+      0 6px 18px -3px rgba(15, 23, 42, 0.07),
+      0 16px 36px -6px rgba(15, 23, 42, 0.09),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.9);
+  }
+  .dark .fin-card-elevated {
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.07),
+      0 3px 12px -2px rgba(0, 0, 0, 0.65),
+      0 14px 32px -4px rgba(0, 0, 0, 0.85),
+      0 28px 56px -12px rgba(0, 0, 0, 0.95),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+  }
+  .blue .fin-card-elevated {
+    box-shadow:
+      0 0 0 1px rgba(30, 58, 138, 0.08),
+      0 3px 12px -2px rgba(15, 23, 42, 0.06),
+      0 14px 32px -4px rgba(30, 58, 138, 0.12),
+      0 28px 56px -12px rgba(30, 58, 138, 0.14),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.85);
+  }
+
+  /* Deep Floating Shadow for Modals, Floating Hubs, and Monitors */
+  .fin-card-floating {
+    box-shadow:
+      0 8px 24px -4px rgba(15, 23, 42, 0.14),
+      0 24px 60px -8px rgba(15, 23, 42, 0.22),
+      0 0 0 1px rgba(15, 23, 42, 0.06),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.85);
+  }
+  .dark .fin-card-floating {
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.1),
+      0 8px 28px -4px rgba(0, 0, 0, 0.75),
+      0 24px 64px -8px rgba(0, 0, 0, 0.92),
+      0 48px 96px -16px rgba(0, 0, 0, 0.98),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.12);
+  }
+  .blue .fin-card-floating {
+    box-shadow:
+      0 0 0 1px rgba(30, 58, 138, 0.1),
+      0 8px 28px -4px rgba(30, 58, 138, 0.18),
+      0 24px 64px -8px rgba(30, 58, 138, 0.25),
+      0 48px 96px -16px rgba(15, 23, 42, 0.2),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.85);
+  }
+
+  /* Recessed Well / Console Track for Tab switchers, Metric Tiles, and Inputs */
+  .fin-well {
+    background-color: rgba(15, 23, 42, 0.035);
+    box-shadow: inset 0 1px 3px 0 rgba(15, 23, 42, 0.07), inset 0 0 0 1px rgba(15, 23, 42, 0.03);
+  }
+  .dark .fin-well {
+    background-color: rgba(0, 0, 0, 0.35);
+    box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  }
+  .blue .fin-well {
+    background-color: rgba(30, 58, 138, 0.04);
+    box-shadow: inset 0 1px 3px 0 rgba(30, 58, 138, 0.07), inset 0 0 0 1px rgba(30, 58, 138, 0.03);
+  }
+
+  /* 1px Specular Accent Bevel */
+  .fin-specular-line {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.7) 50%, transparent 100%);
+    pointer-events: none;
+    z-index: 10;
+  }
+  .dark .fin-specular-line {
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.15) 50%, transparent 100%);
+  }
+  .blue .fin-specular-line {
+    background: linear-gradient(90deg, transparent 0%, rgba(147, 197, 253, 0.5) 50%, transparent 100%);
   }
 
   .glass-card {

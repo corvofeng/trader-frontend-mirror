@@ -434,12 +434,13 @@ function OptionsContent({ theme }: OptionsProps) {
   return (
     <main className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 py-2 sm:py-8">
       <div className="space-y-3 sm:space-y-6">
-        <div className={`${themes[theme].card} rounded-xl p-3 sm:p-5 border ${themes[theme].border} card-subtle-ring transition-colors duration-150`}>
+        <div className={`${themes[theme].card} rounded-xl sm:rounded-2xl p-3.5 sm:p-5 border ${themes[theme].border} fin-card-elevated relative transition-colors duration-150`}>
+          <div className="fin-specular-line" aria-hidden="true" />
           <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
             {/* 标题栏与移动端折叠动作区 */}
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0 flex items-center gap-2.5 sm:gap-3">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 ring-1 ring-blue-500/20 shadow-xs">
                   <BarChart2 className="w-4 h-4 sm:w-5 sm:h-5" strokeWidth={2.2} />
                 </div>
                 <div className="min-w-0">

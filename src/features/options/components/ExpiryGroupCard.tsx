@@ -2645,19 +2645,9 @@ export function ExpiryGroupCard({
   const tooltipArrowClass = theme === 'dark' ? 'border-b-zinc-900' : 'border-b-white';
 
   return (
-    <div className={`${themes[theme].card} ${themes[theme].border} relative isolate rounded-xl border overflow-hidden
-      ${theme === 'dark'
-        ? 'shadow-[0_4px_20px_-2px_rgba(0,0,0,0.65),0_16px_36px_-4px_rgba(0,0,0,0.85),0_0_0_1px_rgba(255,255,255,0.07)]'
-        : theme === 'blue'
-          ? 'shadow-[0_4px_20px_-2px_rgba(15,23,42,0.08),0_16px_36px_-4px_rgba(30,58,138,0.14),0_0_0_1px_rgba(30,58,138,0.08)]'
-          : 'shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06),0_16px_36px_-4px_rgba(15,23,42,0.12),0_0_0_1px_rgba(15,23,42,0.06)]'
-      }`}>
-        <OptionQuoteSubscription realtimeCodes={dialogSubscriptionCodes} />
-      <div className={`absolute inset-x-0 top-0 h-px z-10 bg-gradient-to-r ${
-        theme === 'dark' ? 'from-zinc-800/60 via-zinc-900/20 to-transparent'
-        : theme === 'blue' ? 'from-blue-50/90 via-blue-50/40 to-transparent'
-        : 'from-slate-50/90 via-slate-50/40 to-transparent'
-      }`} aria-hidden="true" />
+    <div className={`${themes[theme].card} ${themes[theme].border} relative isolate rounded-xl sm:rounded-2xl border overflow-hidden fin-card-elevated`}>
+      <OptionQuoteSubscription realtimeCodes={dialogSubscriptionCodes} />
+      <div className="fin-specular-line" aria-hidden="true" />
       <div className={`relative border-b ${themes[theme].border} px-3 py-3 pr-12 sm:px-5 sm:py-4 sm:pr-16`}>
         <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 flex flex-1 items-start gap-3">

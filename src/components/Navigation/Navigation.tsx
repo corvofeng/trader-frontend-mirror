@@ -378,7 +378,7 @@ export function Navigation({
   
   return (
     <React.Fragment>
-      <nav className={`${themes[theme].card} border-b ${themes[theme].border} backdrop-blur-md bg-opacity-90 dark:bg-opacity-90 sticky top-0 z-40 transition-colors duration-200 pt-[env(safe-area-inset-top,0px)]`}>
+      <nav className={`${themes[theme].card} border-b ${themes[theme].border} backdrop-blur-md bg-opacity-95 dark:bg-opacity-95 sticky top-0 z-40 transition-colors duration-200 pt-[env(safe-area-inset-top,0px)] shadow-[0_4px_20px_-4px_rgba(15,23,42,0.07)] dark:shadow-[0_4px_24px_-4px_rgba(0,0,0,0.85)]`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center">
@@ -386,7 +386,7 @@ export function Navigation({
                 className="flex items-center gap-2.5 cursor-pointer group"
                 onClick={() => navigate('/')}
               >
-                <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-sm shadow-blue-500/30 group-hover:scale-105 transition-transform duration-200">
+                <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/30 group-hover:scale-105 transition-transform duration-200 ring-1 ring-white/20">
                   <TrendingUp className="w-4 h-4" />
                 </div>
                 <span className={`text-lg sm:text-xl font-bold tracking-tight ${themes[theme].text}`}>
@@ -396,13 +396,13 @@ export function Navigation({
             </div>
             
             <div className="hidden md:flex items-center space-x-4">
-              <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100/80 dark:bg-zinc-800/60 border border-slate-200/50 dark:border-zinc-700/50 card-subtle-ring">
+              <div className="flex items-center gap-1.5 p-1 rounded-xl fin-well border border-black/5 dark:border-white/5">
                 <button
                   onClick={() => navigate('/journal')}
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium btn-tactile select-none ${
                     isActivePath('/journal')
-                      ? themes[theme].primary + ' shadow-xs font-semibold'
-                      : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-slate-200/50 dark:hover:bg-zinc-700/50'
+                      ? themes[theme].primary + ' shadow-sm font-semibold ring-1 ring-white/10'
+                      : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5'
                   }`}
                 >
                   Journal
@@ -412,8 +412,8 @@ export function Navigation({
                     onClick={() => navigate('/options')}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium btn-tactile select-none ${
                       isActivePath('/options')
-                        ? themes[theme].primary + ' shadow-xs font-semibold'
-                        : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-slate-200/50 dark:hover:bg-zinc-700/50'
+                        ? themes[theme].primary + ' shadow-sm font-semibold ring-1 ring-white/10'
+                        : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5'
                     }`}
                   >
                     Options
@@ -424,8 +424,8 @@ export function Navigation({
                     onClick={() => navigate('/admin')}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium btn-tactile select-none ${
                       isActivePath('/admin')
-                        ? themes[theme].primary + ' shadow-xs font-semibold'
-                        : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-slate-200/50 dark:hover:bg-zinc-700/50'
+                        ? themes[theme].primary + ' shadow-sm font-semibold ring-1 ring-white/10'
+                        : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5'
                     }`}
                   >
                     Admin
@@ -435,8 +435,8 @@ export function Navigation({
                   onClick={() => navigate('/about')}
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium btn-tactile select-none ${
                     isActivePath('/about')
-                      ? themes[theme].primary + ' shadow-xs font-semibold'
-                      : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-slate-200/50 dark:hover:bg-zinc-700/50'
+                      ? themes[theme].primary + ' shadow-sm font-semibold ring-1 ring-white/10'
+                      : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5'
                   }`}
                 >
                   About
@@ -491,7 +491,7 @@ export function Navigation({
                 </button>
                 
                 {showThemeDropdown && (
-                  <div className={`absolute right-0 mt-2 w-48 rounded-xl shadow-xl ${themes[theme].card} border ${themes[theme].border} card-subtle-ring popover-spring z-50 overflow-hidden`}>
+                  <div className={`absolute right-0 mt-2 w-48 rounded-xl ${themes[theme].card} border ${themes[theme].border} fin-card-floating popover-spring z-50 overflow-hidden`}>
                     <div className="py-1" role="menu" aria-orientation="vertical">
                       {Object.keys(themes).map((themeName) => (
                         <button

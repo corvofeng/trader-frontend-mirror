@@ -1090,13 +1090,7 @@ export function TodayOrderFlowPanel({
         ref={panelRef}
         className={
           isOpen
-            ? `${themes[theme].card} ${
-                theme === 'dark'
-                  ? 'shadow-[0_24px_60px_-12px_rgba(0,0,0,0.95),0_8px_24px_-4px_rgba(0,0,0,0.7),0_0_0_1px_rgba(255,255,255,0.08)]'
-                  : theme === 'blue'
-                    ? 'shadow-[0_24px_60px_-12px_rgba(30,58,138,0.25),0_8px_24px_-4px_rgba(30,58,138,0.12),0_0_0_1px_rgba(30,58,138,0.1)]'
-                    : 'shadow-[0_24px_60px_-12px_rgba(15,23,42,0.25),0_8px_24px_-4px_rgba(15,23,42,0.12),0_0_0_1px_rgba(15,23,42,0.08)]'
-              } rounded-2xl border ${themes[theme].border} overflow-hidden opacity-95 hover:opacity-100 transition-opacity relative ${resizing ? 'ring-2 ring-blue-500' : ''}`
+            ? `${themes[theme].card} fin-card-floating rounded-2xl border ${themes[theme].border} overflow-hidden opacity-98 hover:opacity-100 transition-opacity relative ${resizing ? 'ring-2 ring-blue-500' : ''}`
             : `${themes[theme].card} ${themes[theme].border} border border-r-0 rounded-l-xl shadow-[-4px_0_16px_rgba(0,0,0,0.08)] dark:shadow-[-4px_0_20px_rgba(0,0,0,0.4)] backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/5 overflow-hidden opacity-85 hover:opacity-100 transition-all cursor-pointer relative`
         }
         style={style}
@@ -1172,7 +1166,7 @@ export function TodayOrderFlowPanel({
         {renderBody && (
           <>
             <div
-              className={`px-3 py-3 bg-white dark:bg-gray-900 transition-opacity duration-200 ease-out ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+              className={`px-3 py-3 ${themes[theme].card} transition-opacity duration-200 ease-out ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
               style={{ height: `calc(100% - ${dims.headerHeight}px)`, overflow: 'hidden' }}
             >
               {!selectedAccountId && <div className={`text-sm ${themes[theme].text} opacity-75`}>请选择账户后再查看今日组合交易任务。</div>}

@@ -137,12 +137,6 @@ export function PortfolioAnalyticsTabs({
   // 接收从历史走势组件传出的最新点
   const [latestHistoryPoint, setLatestHistoryPoint] = useState<PortfolioHistoryItem | null>(null);
 
-  const cardShadow = useMemo(() => {
-    if (theme === 'dark') return 'shadow-[0_4px_20px_-2px_rgba(0,0,0,0.65),0_16px_36px_-4px_rgba(0,0,0,0.85),0_0_0_1px_rgba(255,255,255,0.07)]';
-    if (theme === 'blue') return 'shadow-[0_4px_20px_-2px_rgba(15,23,42,0.08),0_16px_36px_-4px_rgba(30,58,138,0.14),0_0_0_1px_rgba(30,58,138,0.08)]';
-    return 'shadow-[0_4px_20px_-2px_rgba(15,23,42,0.06),0_16px_36px_-4px_rgba(15,23,42,0.12),0_0_0_1px_rgba(15,23,42,0.06)]';
-  }, [theme]);
-
   // Tab 切换处理
   const handleTabClick = useCallback(
     (tab: AnalyticsTab, e: React.MouseEvent) => {
@@ -244,8 +238,9 @@ export function PortfolioAnalyticsTabs({
 
   return (
     <div
-      className={`${themes[theme].card} ${themes[theme].border} border rounded-xl sm:rounded-2xl ${cardShadow} transition-all duration-300 overflow-hidden ${className}`}
+      className={`${themes[theme].card} ${themes[theme].border} border rounded-xl sm:rounded-2xl fin-card-elevated transition-all duration-300 overflow-hidden relative ${className}`}
     >
+      <div className="fin-specular-line" aria-hidden="true" />
       {/* 聚合头部：完整保留标题、账户徽章、描述与 Tab 切换器 */}
       <div
         onClick={() => setIsExpanded((prev) => !prev)}
@@ -291,7 +286,7 @@ export function PortfolioAnalyticsTabs({
 
             {/* Tab 药丸切换器 - 严格限制为单行、永不折行 */}
             <div
-              className="inline-flex items-center p-0.5 sm:p-1 rounded-lg sm:rounded-xl bg-black/[0.05] dark:bg-white/[0.08] backdrop-blur-sm shrink-0"
+              className="inline-flex items-center p-0.5 sm:p-1 rounded-lg sm:rounded-xl fin-well border border-black/5 dark:border-white/5 shrink-0"
               onClick={(e) => e.stopPropagation()}
             >
               {/* 组合概览 Tab */}
@@ -301,7 +296,7 @@ export function PortfolioAnalyticsTabs({
                   onClick={(e) => handleTabClick('overview', e)}
                   className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 rounded-md sm:rounded-lg text-xs font-medium whitespace-nowrap shrink-0 transition-all ${
                     activeTab === 'overview'
-                      ? 'bg-white dark:bg-zinc-800 text-gray-900 dark:text-white shadow-xs font-semibold'
+                      ? 'bg-white dark:bg-[#181d28] text-gray-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10 font-semibold'
                       : 'text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white'
                   }`}
                 >
@@ -316,7 +311,7 @@ export function PortfolioAnalyticsTabs({
                 onClick={(e) => handleTabClick('history', e)}
                 className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 rounded-md sm:rounded-lg text-xs font-medium whitespace-nowrap shrink-0 transition-all ${
                   activeTab === 'history'
-                    ? 'bg-white dark:bg-zinc-800 text-gray-900 dark:text-white shadow-xs font-semibold'
+                    ? 'bg-white dark:bg-[#181d28] text-gray-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10 font-semibold'
                     : 'text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white'
                 }`}
               >
@@ -337,7 +332,7 @@ export function PortfolioAnalyticsTabs({
                   onClick={(e) => handleTabClick('subject', e)}
                   className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 rounded-md sm:rounded-lg text-xs font-medium whitespace-nowrap shrink-0 transition-all ${
                     activeTab === 'subject'
-                      ? 'bg-white dark:bg-zinc-800 text-gray-900 dark:text-white shadow-xs font-semibold'
+                      ? 'bg-white dark:bg-[#181d28] text-gray-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10 font-semibold'
                       : 'text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white'
                   }`}
                 >
