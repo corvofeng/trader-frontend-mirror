@@ -2870,6 +2870,25 @@ export function ExpiryGroupCard({
                             </div>
                           )}
 
+                          {/* 定位平值 (桌面端快捷入口) */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              hasUserAdjustedTBoardRef.current = false;
+                              scrollToAtm(true);
+                            }}
+                            className={`hidden sm:inline-flex items-center gap-1 sm:gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all shadow-xs active:scale-95 whitespace-nowrap ${
+                              atmHighlightActive
+                                ? 'bg-blue-600 text-white ring-2 ring-blue-400/50 shadow-blue-500/30'
+                                : 'bg-blue-500/15 text-blue-600 dark:text-blue-400 hover:bg-blue-500/25 border border-blue-500/30'
+                            }`}
+                            title="一键定位平值与行权价"
+                          >
+                            <Crosshair className={`w-3.5 h-3.5 shrink-0 transition-transform duration-500 ${atmHighlightActive ? 'rotate-90 scale-110 text-white' : ''}`} />
+                            <span>{atmHighlightActive ? '已定位平值' : '定位平值'}</span>
+                          </button>
+
                           <button
                             type="button"
                             onClick={(e) => {
@@ -2909,7 +2928,7 @@ export function ExpiryGroupCard({
 
                           <div
                             className="hidden sm:inline-flex items-center gap-1.5 bg-black/5 dark:bg-white/5 px-2.5 py-0.5 rounded-full border border-black/5 dark:border-white/5 shrink-0"
-                            title="调整T型看板缩放大小与字体"
+                            title="调整T型看板缩放大小与字体 (点击百分比重置为 100%)"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <span className="text-[11px] opacity-70 select-none">缩放</span>
@@ -2920,12 +2939,17 @@ export function ExpiryGroupCard({
                               step={5}
                               value={Math.round(mobileTBoardScale * 100)}
                               onChange={(event) => setMobileTBoardScale(Number(event.target.value) / 100)}
-                              className="w-14 accent-blue-600 h-1 cursor-pointer"
+                              className="w-16 accent-blue-600 h-1 cursor-pointer"
                               aria-label="调整T型看板列表大小"
                             />
-                            <span className="text-[11px] font-mono opacity-80 min-w-[28px] text-right font-medium">
+                            <button
+                              type="button"
+                              onClick={() => setMobileTBoardScale(1.0)}
+                              className="text-[11px] font-mono tabular-nums opacity-80 min-w-[34px] text-right font-medium hover:text-blue-600 transition-colors"
+                              title="点击重置为 100%"
+                            >
                               {Math.round(mobileTBoardScale * 100)}%
-                            </span>
+                            </button>
                           </div>
 
                           <button
@@ -2963,58 +2987,44 @@ export function ExpiryGroupCard({
                             return (
                               <div className={inFullscreen ? "h-full flex flex-col" : "space-y-2.5 sm:space-y-3"}>
                                 {!inFullscreen && (
-                                  <div className="md:hidden flex items-center justify-between gap-2 py-0.5">
-                                    <div className="flex items-center gap-1.5 shrink-0">
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          hasUserAdjustedTBoardRef.current = false;
-                                          scrollToAtm(true);
-                                        }}
-                                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all active:scale-95 whitespace-nowrap shadow-2xs ${
-                                          atmHighlightActive
-                                            ? 'bg-blue-600 text-white ring-2 ring-blue-400/50 shadow-blue-500/30'
-                                            : 'bg-blue-500/15 text-blue-600 dark:text-blue-400 hover:bg-blue-500/25 border border-blue-500/30'
-                                        }`}
-                                        title="一键定位平值与行权价"
-                                      >
-                                        <Crosshair className={`w-3.5 h-3.5 shrink-0 transition-transform duration-500 ${atmHighlightActive ? 'rotate-90 scale-110 text-white' : ''}`} />
-                                        <span>{atmHighlightActive ? '已定位平值' : '定位平值'}</span>
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => setShowColumnSettings(true)}
-                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-zinc-200 transition-all active:scale-95 whitespace-nowrap shadow-2xs"
-                                        title="自定义T型展示列"
-                                      >
-                                        <SlidersHorizontal className="w-3.5 h-3.5" />
-                                        <span>列</span>
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={enterFullscreen}
-                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white transition-all active:scale-95 whitespace-nowrap shadow-2xs"
-                                        title="进入全屏沉浸浏览与操作"
-                                      >
-                                        <Maximize2 className="w-3.5 h-3.5 shrink-0" />
-                                        <span>全屏</span>
-                                      </button>
-                                    </div>
-                                    <div className="flex items-center gap-1.5 bg-black/5 dark:bg-white/5 px-2 py-0.5 rounded-lg border border-black/5 dark:border-white/5 shrink-0">
-                                      <span className="text-[11px] opacity-70">缩放</span>
+                                  <div className="sm:hidden flex items-center justify-between gap-2 py-0.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        hasUserAdjustedTBoardRef.current = false;
+                                        scrollToAtm(true);
+                                      }}
+                                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all active:scale-95 whitespace-nowrap shadow-2xs ${
+                                        atmHighlightActive
+                                          ? 'bg-blue-600 text-white ring-2 ring-blue-400/50 shadow-blue-500/30'
+                                          : 'bg-blue-500/15 text-blue-600 dark:text-blue-400 hover:bg-blue-500/25 border border-blue-500/30'
+                                      }`}
+                                      title="一键定位平值与行权价"
+                                    >
+                                      <Crosshair className={`w-3.5 h-3.5 shrink-0 transition-transform duration-500 ${atmHighlightActive ? 'rotate-90 scale-110 text-white' : ''}`} />
+                                      <span>{atmHighlightActive ? '已定位平值' : '定位平值'}</span>
+                                    </button>
+
+                                    <div className="flex items-center gap-1.5 bg-black/5 dark:bg-white/5 px-2.5 py-1 rounded-lg border border-black/5 dark:border-white/5 shrink-0">
+                                      <span className="text-xs opacity-70 select-none">缩放</span>
                                       <input
                                         type="range"
                                         min={70}
-                                        max={110}
+                                        max={115}
                                         step={5}
                                         value={Math.round(mobileTBoardScale * 100)}
                                         onChange={(event) => setMobileTBoardScale(Number(event.target.value) / 100)}
-                                        className="w-16 accent-blue-600 h-1 cursor-pointer"
+                                        className="w-20 accent-blue-600 h-1.5 cursor-pointer"
                                         aria-label="调整T型持仓列表大小"
                                       />
-                                      <span className="text-[11px] font-mono opacity-80 min-w-[28px] text-right font-medium">
+                                      <button
+                                        type="button"
+                                        onClick={() => setMobileTBoardScale(1.0)}
+                                        className="text-xs font-mono tabular-nums opacity-80 min-w-[34px] text-right font-medium hover:text-blue-600 transition-colors"
+                                        title="点击重置为 100%"
+                                      >
                                         {Math.round(mobileTBoardScale * 100)}%
-                                      </span>
+                                      </button>
                                     </div>
                                   </div>
                                 )}
@@ -3347,16 +3357,21 @@ export function ExpiryGroupCard({
                                           <input
                                             type="range"
                                             min={70}
-                                            max={110}
+                                            max={115}
                                             step={5}
                                             value={Math.round(mobileTBoardScale * 100)}
                                             onChange={(event) => setMobileTBoardScale(Number(event.target.value) / 100)}
                                             className="w-20 accent-blue-600 h-1.5 cursor-pointer"
                                             aria-label="调整全屏T型报价表格大小"
                                           />
-                                          <span className="text-xs font-mono opacity-80 min-w-[32px] text-right">
+                                          <button
+                                            type="button"
+                                            onClick={() => setMobileTBoardScale(1.0)}
+                                            className="text-xs font-mono tabular-nums opacity-80 min-w-[34px] text-right font-medium hover:text-blue-600 transition-colors"
+                                            title="点击重置为 100%"
+                                          >
                                             {Math.round(mobileTBoardScale * 100)}%
-                                          </span>
+                                          </button>
                                         </div>
 
                                         <button
@@ -3482,20 +3497,25 @@ export function ExpiryGroupCard({
                                       </div>
 
                                       <div className="flex items-center gap-1.5 bg-black/5 dark:bg-white/5 px-2 py-0.5 rounded-md border border-black/5 dark:border-white/5 shrink-0">
-                                        <span className="text-[10px] opacity-70 font-mono">表格大小</span>
+                                        <span className="text-[10px] opacity-70 font-mono">缩放</span>
                                         <input
                                           type="range"
                                           min={70}
-                                          max={110}
+                                          max={115}
                                           step={5}
                                           value={Math.round(mobileTBoardScale * 100)}
                                           onChange={(event) => setMobileTBoardScale(Number(event.target.value) / 100)}
-                                          className="w-16 accent-blue-600 h-1 cursor-pointer"
+                                          className="w-18 accent-blue-600 h-1.5 cursor-pointer"
                                           aria-label="调整全屏T型报价表格大小"
                                         />
-                                        <span className="text-[10px] font-mono opacity-80 min-w-[28px] text-right font-medium">
+                                        <button
+                                          type="button"
+                                          onClick={() => setMobileTBoardScale(1.0)}
+                                          className="text-[10px] font-mono tabular-nums opacity-80 min-w-[34px] text-right font-medium hover:text-blue-600 transition-colors"
+                                          title="点击重置为 100%"
+                                        >
                                           {Math.round(mobileTBoardScale * 100)}%
-                                        </span>
+                                        </button>
                                       </div>
                                     </div>
 
