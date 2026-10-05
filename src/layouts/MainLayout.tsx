@@ -33,7 +33,30 @@ export function MainLayout({
   onThemeDropdownToggle
 }: MainLayoutProps) {
   const location = useLocation();
-  const showNav = true;
+  const isTerminal = location.pathname === '/terminal';
+  const [hideGlobalNavInTerminal, setHideGlobalNavInTerminal] = useState(() => {
+    try {
+      return localStorage.getItem('terminal_hide_global_nav') === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    const handleNavChange = () => {
+      try {
+        setHideGlobalNavInTerminal(localStorage.getItem('terminal_hide_global_nav') === '1');
+      } catch {}
+    };
+    window.addEventListener('storage', handleNavChange);
+    window.addEventListener('terminal_nav_change', handleNavChange);
+    return () => {
+      window.removeEventListener('storage', handleNavChange);
+      window.removeEventListener('terminal_nav_change', handleNavChange);
+    };
+  }, []);
+
+  const showNav = !isTerminal || !hideGlobalNavInTerminal;
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   // Global ⌘K / Ctrl+K shortcut listener for Magic Keyboard and desktop
@@ -67,7 +90,7 @@ export function MainLayout({
         />
       )}
 
-      {location.pathname !== '/' && <Breadcrumbs theme={theme} />}
+      {location.pathname !== '/' && !isTerminal && <Breadcrumbs theme={theme} />}
 
       {children}
 

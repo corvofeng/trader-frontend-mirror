@@ -1,8 +1,8 @@
 import React from 'react';
-import { Briefcase, BarChart2, TrendingUp, History } from 'lucide-react';
+import { Briefcase, BarChart2, TrendingUp, History, Settings } from 'lucide-react';
 import { type Theme, themes } from '../../../lib/theme';
 
-export type TerminalTab = 'portfolio' | 'options' | 'trade' | 'history';
+export type TerminalTab = 'portfolio' | 'options' | 'trade' | 'history' | 'settings';
 
 interface M3BottomNavProps {
   activeTab: TerminalTab;
@@ -22,6 +22,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'options', label: '期权', icon: BarChart2 },
   { id: 'trade', label: '交易', icon: TrendingUp },
   { id: 'history', label: '记录', icon: History },
+  { id: 'settings', label: '设置', icon: Settings },
 ];
 
 export const M3BottomNav: React.FC<M3BottomNavProps> = ({

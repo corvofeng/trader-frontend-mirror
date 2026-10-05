@@ -223,7 +223,7 @@ function AppContent() {
           />
           <Route
             path="/terminal"
-            element={<Terminal theme={theme} user={user} />}
+            element={<Terminal theme={theme} user={user} onThemeChange={handleThemeChange} />}
           />
           <Route
             path="/admin"
