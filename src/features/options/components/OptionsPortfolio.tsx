@@ -25,6 +25,8 @@ interface OptionsPortfolioProps {
   refreshKey?: number;
   optionsData?: OptionsData | null;
   selectedSymbol?: string;
+  bottomOffset?: string;
+  hideMobileFab?: boolean;
 }
 
 interface VisibleContractInfo {
@@ -38,7 +40,15 @@ const DEMO_USER_ID = 'mock-user-id';
 
   
 
-export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdProp, refreshKey = 0, optionsData, selectedSymbol }: OptionsPortfolioProps) {
+export function OptionsPortfolio({
+  theme,
+  selectedAccountId: selectedAccountIdProp,
+  refreshKey = 0,
+  optionsData,
+  selectedSymbol,
+  bottomOffset,
+  hideMobileFab = false,
+}: OptionsPortfolioProps) {
   const [portfolioData, setPortfolioData] = useState<OptionsPortfolioData | null>(null);
   const [whitelists, setWhitelists] = useState<OptionWhitelist[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -912,6 +922,8 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
         }}
         onOpenUnderlyingMonitor={handleOpenUnderlying}
         onOpenTodayCombo={handleOpenTodayCombo}
+        bottomOffset={bottomOffset}
+        hideFab={hideMobileFab}
       />
 
       {/* 复杂策略编辑与构建统一使用上方“保存确认弹窗” */}

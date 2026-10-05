@@ -419,6 +419,19 @@ export function Navigation({
                     Options
                   </button>
                 )}
+                {!isCloudflareEnv && (
+                  <button
+                    onClick={() => navigate('/terminal')}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium btn-tactile select-none ${
+                      isActivePath('/terminal')
+                        ? themes[theme].primary + ' shadow-sm font-semibold ring-1 ring-white/10'
+                        : 'text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50/60 dark:hover:bg-blue-950/40 font-semibold'
+                    }`}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                    <span>Terminal</span>
+                  </button>
+                )}
                 {!isCloudflareEnv && user && (
                   <button
                     onClick={() => navigate('/admin')}
@@ -606,6 +619,23 @@ export function Navigation({
                       className={`w-full px-4 py-2 rounded-lg text-sm font-medium text-left btn-tactile ${themes[theme].secondary}`}
                     >
                       Options
+                    </button>
+                  )}
+                  {!isCloudflareEnv && (
+                    <button
+                      onClick={() => {
+                        navigate('/terminal');
+                        onMobileMenuToggle();
+                      }}
+                      className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold text-left btn-tactile flex items-center justify-between bg-blue-50/70 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200/50 dark:border-blue-800/40"
+                    >
+                      <span className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                        交易终端 (Terminal)
+                      </span>
+                      <span className="text-[10px] font-mono uppercase bg-blue-600 text-white px-1.5 py-0.5 rounded">
+                        Pro
+                      </span>
                     </button>
                   )}
                   {!isCloudflareEnv && user && (

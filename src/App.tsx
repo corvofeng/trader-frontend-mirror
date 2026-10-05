@@ -18,6 +18,7 @@ const Landing = React.lazy(() => import('./pages/Landing').then(module => ({ def
 const Journal = React.lazy(() => import('./pages/Journal/JournalPage').then(module => ({ default: module.Journal })));
 const Options = React.lazy(() => import('./pages/Options').then(module => ({ default: module.Options })));
 const Admin = React.lazy(() => import('./pages/Admin').then(module => ({ default: module.Admin })));
+const Terminal = React.lazy(() => import('./pages/Terminal/TerminalPage').then(module => ({ default: module.TerminalPage })));
 const About = React.lazy(() => import('./pages/About').then(module => ({ default: module.About })));
 
 const Loading = () => (
@@ -219,6 +220,10 @@ function AppContent() {
           <Route
             path="/options"
             element={isCloudflareEnv ? <Navigate to="/journal" replace /> : <Options theme={theme} />}
+          />
+          <Route
+            path="/terminal"
+            element={<Terminal theme={theme} user={user} />}
           />
           <Route
             path="/admin"

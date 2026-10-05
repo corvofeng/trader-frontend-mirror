@@ -27,6 +27,8 @@ export interface PortfolioMobileFabProps {
   onOpenUnderlyingMonitor: () => void;
   onOpenTodayCombo: () => void;
   todayTasksCount?: number;
+  bottomOffset?: string;
+  hideFab?: boolean;
 }
 
 export function PortfolioMobileFab({
@@ -43,7 +45,10 @@ export function PortfolioMobileFab({
   onOpenUnderlyingMonitor,
   onOpenTodayCombo,
   todayTasksCount = 0,
+  bottomOffset,
+  hideFab = false,
 }: PortfolioMobileFabProps) {
+  if (hideFab) return null;
   const [isOpen, setIsOpen] = useState(false);
   const [isMonthSheetOpen, setIsMonthSheetOpen] = useState(false);
 
@@ -98,7 +103,7 @@ export function PortfolioMobileFab({
       <div
         className="fixed z-[63] flex flex-col items-end pointer-events-none select-none"
         style={{
-          bottom: 'calc(20px + env(safe-area-inset-bottom, 0px))',
+          bottom: bottomOffset || 'calc(20px + env(safe-area-inset-bottom, 0px))',
           right: 'calc(18px + env(safe-area-inset-right, 0px))',
         }}
       >
