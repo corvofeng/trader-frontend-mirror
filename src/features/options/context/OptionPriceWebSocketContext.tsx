@@ -131,7 +131,7 @@ interface OptionPriceWebSocketContextType {
   queryOptionsData: (symbol: string) => void;
   queryOrders: (accountId: string) => void;
   connect: () => void;
-  reconnect: () => void;
+  reconnect: (options?: { silent?: boolean }) => void;
   send: (payload: unknown) => void;
   portfolioSnapshot: OptionsPortfolioData | null;
 }
@@ -175,6 +175,7 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
   const subscriptionFlushTimerRef = useRef<number | null>(null);
   const flushSubscriptionsRef = useRef<() => void>(() => undefined);
   const lastRealtimeRequestAtRef = useRef(0);
+  const notifyOnConnectRef = useRef(false);
 
   const queuePriceUpdate = useCallback((updates: Record<string, PriceUpdate>) => {
     const realtimeUpdates: Record<string, PriceUpdate> = {};
@@ -230,6 +231,11 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
 
           flushSubscriptionsRef.current();
 
+          if (notifyOnConnectRef.current) {
+            notifyOnConnectRef.current = false;
+            toast.success('WebSocket 行情连接已建立', { id: 'options-ws-connection-toast' });
+          }
+
           clearAutoCloseTimer();
           autoCloseTimeoutId.current = window.setTimeout(() => {
             if (clientRef.current !== nextClient) return;
@@ -242,9 +248,17 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
           console.log('Option Price WebSocket Disconnected');
           setIsConnected(false);
           clearAutoCloseTimer();
+          if (notifyOnConnectRef.current) {
+            notifyOnConnectRef.current = false;
+            toast.error('WebSocket 行情连接已断开', { id: 'options-ws-connection-toast' });
+          }
         },
         onError: (error) => {
           console.error('Option Price WebSocket Error:', error);
+          if (notifyOnConnectRef.current) {
+            notifyOnConnectRef.current = false;
+            toast.error('WebSocket 行情连接失败', { id: 'options-ws-connection-toast' });
+          }
         },
         onMessage: (data) => {
           lastPongTime.current = Date.now();
@@ -372,6 +386,10 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
       nextClient.connect();
     } catch (e) {
       console.error('Failed to initialize WebSocket:', e);
+      if (notifyOnConnectRef.current) {
+        notifyOnConnectRef.current = false;
+        toast.error('WebSocket 初始化失败', { id: 'options-ws-connection-toast' });
+      }
     }
   }, [clearAutoCloseTimer, queuePriceUpdate]);
 
@@ -567,8 +585,12 @@ export function OptionPriceWebSocketProvider({ children }: OptionPriceWebSocketP
     return () => window.clearInterval(ordinaryRefreshTimer);
   }, [sendSubscriptionList]);
 
-  const reconnect = useCallback(() => {
+  const reconnect = useCallback((options?: { silent?: boolean }) => {
     console.log('Manual WebSocket reconnection triggered');
+    notifyOnConnectRef.current = true;
+    if (!options?.silent) {
+      toast.loading('正在连接 WebSocket 行情服务...', { id: 'options-ws-connection-toast' });
+    }
     connect();
   }, [connect]);
 

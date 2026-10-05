@@ -109,7 +109,7 @@ function OptionsContent({ theme }: OptionsProps) {
   const [accessibleAccountKeys, setAccessibleAccountKeys] = useState<string[] | null>(null);
   const [optionsAccounts, setOptionsAccounts] = useState<Account[]>([]);
   const [defaultAccountKey, setDefaultAccountKey] = useState<string | null>(null);
-  const { isConnected, queryOptionsData, optionsDataSnapshots } = useOptionPriceWebSocket();
+  const { isConnected, queryOptionsData, optionsDataSnapshots, reconnect } = useOptionPriceWebSocket();
   const pendingFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [payoffChartEngine, setPayoffChartEngine] = useState<PayoffChartEngine>(() => {
     try {
@@ -477,6 +477,7 @@ function OptionsContent({ theme }: OptionsProps) {
                         queryOptionsData(selectedSymbol);
                       }
                     }
+                    reconnect({ silent: true });
                     setRefreshKey((k) => k + 1);
                     toast.success('已触发行情数据刷新！', { id: 'options-refresh-toast' });
                   }}
@@ -534,6 +535,7 @@ function OptionsContent({ theme }: OptionsProps) {
                         queryOptionsData(selectedSymbol);
                       }
                     }
+                    reconnect({ silent: true });
                     setRefreshKey((k) => k + 1);
                     toast.success('已触发行情数据刷新！', { id: 'options-refresh-toast' });
                   }}
@@ -585,6 +587,7 @@ function OptionsContent({ theme }: OptionsProps) {
                         } else {
                           setRefreshKey((k) => k + 1);
                         }
+                        reconnect({ silent: true });
                         toast.success('期权数据刷新请求已发送！', { id: 'options-refresh-toast' });
                       }}
                       disabled={!selectedSymbol}

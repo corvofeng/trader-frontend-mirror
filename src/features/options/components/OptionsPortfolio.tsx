@@ -616,12 +616,8 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
     });
   }, [activeSymbol, fetchPortfolio, selectedSymbol]);
 
-  const handleReconnectWebSocket = useCallback(() => {
-    reconnect();
-    toast.success('已触发 WebSocket 行情服务重连', { id: 'options-ws-reconnect-toast' });
-  }, [reconnect]);
-
   const handleManualRefresh = useCallback(async () => {
+    reconnect({ silent: true });
     const toastId = toast.loading('正在刷新持仓与行情数据...', { id: 'options-portfolio-refresh-toast' });
     try {
       await refreshPortfolioAndQuotes();
@@ -630,7 +626,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
       console.error('Refresh portfolio failed:', e);
       toast.error('持仓与行情刷新失败，请稍后重试', { id: toastId });
     }
-  }, [refreshPortfolioAndQuotes]);
+  }, [reconnect, refreshPortfolioAndQuotes]);
 
   useEffect(() => {
     void refreshPortfolioAndQuotes();
@@ -822,24 +818,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
           </button>
         )}
 
-        {/* WebSocket Reconnect Button */}
-        <button
-          type="button"
-          onClick={handleReconnectWebSocket}
-          className={`p-2.5 sm:p-3 rounded-full shadow-lg btn-tactile ${
-            !isConnected ? 'bg-red-500/20 text-red-500 ring-2 ring-red-500/30 animate-pulse' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-          } ${themes[theme].card} ${themes[theme].border} border ring-1 ring-black/5 dark:ring-white/5 backdrop-blur-xl relative overflow-hidden transition-all opacity-85 hover:opacity-100 active:opacity-100`}
-          aria-label="Reconnect WebSocket"
-          title={!isConnected ? "行情连接断开，点击重连" : "重连行情服务"}
-        >
-          <Activity
-            className={`w-4 h-4 sm:w-5 sm:h-5 relative ${!isConnected ? 'text-red-500' : 'text-green-500'}`}
-            strokeWidth={1.75}
-          />
-          {!isConnected && <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full animate-ping" />}
-        </button>
-
-        {/* Portfolio Refresh Button */}
+        {/* Unified Refresh Button (Portfolio + Quotes + WebSocket) */}
         <button
           type="button"
           onClick={handleManualRefresh}
@@ -848,22 +827,24 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
             isLoading ? 'opacity-70 cursor-wait' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
           } ${themes[theme].card} ${themes[theme].border} border ring-1 ring-black/5 dark:ring-white/5 backdrop-blur-xl relative overflow-hidden opacity-85 hover:opacity-100 active:opacity-100 transition-all`}
           aria-label="Refresh Portfolio"
-          title="刷新持仓"
+          title={isConnected ? "刷新持仓与行情" : "行情已断开，点击刷新并重连"}
         >
           <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent dark:from-white/5 pointer-events-none" />
           <RefreshCw
             className={`w-4 h-4 sm:w-5 sm:h-5 relative ${themes[theme].text} ${isLoading ? 'animate-spin' : ''}`}
             strokeWidth={1.75}
           />
-          {isConnected && (
-            <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-500" title="行情实时推送已连接" />
+          {isConnected ? (
+            <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900" title="行情实时推送已连接" />
+          ) : (
+            <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500 ring-2 ring-white dark:ring-slate-900 animate-ping" title="行情连接断开，点击刷新并重连" />
           )}
         </button>
       </div>
     );
     if (typeof document === 'undefined') return btn;
     return createPortal(btn, document.body);
-  }, [handleManualRefresh, isLoading, theme, handleReconnectWebSocket, isConnected, isMobile, isFabCollapsed]);
+  }, [handleManualRefresh, isLoading, theme, isConnected, isMobile, isFabCollapsed]);
 
   if (isLoading && !portfolioData) {
     return (

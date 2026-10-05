@@ -193,11 +193,21 @@ export function ExpiryGroupCard({
   ));
   const [mobileTBoardScale, setMobileTBoardScale] = useState(0.85);
   const [isTBoardFullscreen, setIsTBoardFullscreen] = useState(false);
+  const [atmHighlightActive, setAtmHighlightActive] = useState(false);
+  const atmHighlightTimerRef = useRef<number | null>(null);
   const pageLockRef = useRef(false);
   const requestedContractUnitRef = useRef<Record<string, number>>({});
   const tBoardScrollRef = useRef<HTMLDivElement | null>(null);
   const strikeHeaderRef = useRef<HTMLTableCellElement | null>(null);
   const tBoardTableRef = useRef<HTMLTableElement | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (atmHighlightTimerRef.current) {
+        window.clearTimeout(atmHighlightTimerRef.current);
+      }
+    };
+  }, []);
   const [showOpenInterestOverlay, setShowOpenInterestOverlay] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem('tboard_show_oi_overlay');
@@ -1601,17 +1611,29 @@ export function ExpiryGroupCard({
     const container = tBoardScrollRef.current;
     if (!container) return;
 
-    const strikeHeader = strikeHeaderRef.current;
+    if (smooth) {
+      setAtmHighlightActive(true);
+      if (atmHighlightTimerRef.current) {
+        window.clearTimeout(atmHighlightTimerRef.current);
+      }
+      atmHighlightTimerRef.current = window.setTimeout(() => {
+        setAtmHighlightActive(false);
+      }, 1500);
+    }
+
+    const strikeHeader = container.querySelector<HTMLElement>('[data-role="strike-header"]') || strikeHeaderRef.current;
     let desiredScrollLeft = container.scrollLeft;
     if (strikeHeader) {
       const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth);
       const containerRect = container.getBoundingClientRect();
       const strikeRect = strikeHeader.getBoundingClientRect();
       const deltaX = (strikeRect.left + strikeRect.width / 2) - (containerRect.left + containerRect.width / 2);
-      desiredScrollLeft = Math.max(
-        0,
-        Math.min(container.scrollLeft + deltaX, maxScrollLeft)
-      );
+      if (Number.isFinite(deltaX)) {
+        desiredScrollLeft = Math.max(
+          0,
+          Math.min(container.scrollLeft + deltaX, maxScrollLeft)
+        );
+      }
     }
 
     const spotRow = container.querySelector<HTMLElement>('[data-spot-indicator="true"]') ||
@@ -1622,10 +1644,12 @@ export function ExpiryGroupCard({
       const containerRect = container.getBoundingClientRect();
       const spotRect = spotRow.getBoundingClientRect();
       const deltaY = (spotRect.top + spotRect.height / 2) - (containerRect.top + containerRect.height / 2);
-      desiredScrollTop = Math.max(
-        0,
-        Math.min(container.scrollTop + deltaY, maxScrollTop)
-      );
+      if (Number.isFinite(deltaY)) {
+        desiredScrollTop = Math.max(
+          0,
+          Math.min(container.scrollTop + deltaY, maxScrollTop)
+        );
+      }
     }
 
     isProgrammaticTBoardScrollRef.current = true;
@@ -1637,10 +1661,28 @@ export function ExpiryGroupCard({
     window.setTimeout(() => {
       isProgrammaticTBoardScrollRef.current = false;
       initialCenteredRef.current = true;
-    }, 400);
+    }, 450);
   }, []);
 
   const strikesCount = tBoardStrikesAndMetrics.strikes.length;
+
+  const atmStrike = useMemo(() => {
+    const strikes = tBoardStrikesAndMetrics.strikes;
+    if (!strikes || strikes.length === 0) return null;
+    if (underlyingPrice == null || !Number.isFinite(underlyingPrice)) {
+      return strikes[Math.floor(strikes.length / 2)];
+    }
+    let closest = strikes[0];
+    let minDiff = Math.abs(strikes[0] - underlyingPrice);
+    for (let i = 1; i < strikes.length; i++) {
+      const diff = Math.abs(strikes[i] - underlyingPrice);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closest = strikes[i];
+      }
+    }
+    return closest;
+  }, [tBoardStrikesAndMetrics.strikes, underlyingPrice]);
 
   useEffect(() => {
     if (!isMobileViewport || !isTBoardExpanded || strikesCount === 0) return;
@@ -1692,14 +1734,19 @@ export function ExpiryGroupCard({
 
     window.addEventListener('keydown', handleKeyDown);
 
-    const timer = window.setTimeout(() => {
+    // Initial instant placement followed by smooth glide & highlight
+    const initTimer = window.setTimeout(() => {
       scrollToAtm(false);
-    }, 80);
+    }, 40);
+    const animTimer = window.setTimeout(() => {
+      scrollToAtm(true);
+    }, 160);
 
     return () => {
       document.body.style.overflow = originalOverflow;
       window.removeEventListener('keydown', handleKeyDown);
-      window.clearTimeout(timer);
+      window.clearTimeout(initTimer);
+      window.clearTimeout(animTimer);
     };
   }, [isTBoardFullscreen, exitFullscreen, scrollToAtm]);
 
@@ -2817,11 +2864,15 @@ export function ExpiryGroupCard({
                                           hasUserAdjustedTBoardRef.current = false;
                                           scrollToAtm(true);
                                         }}
-                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-blue-500/15 text-blue-600 dark:text-blue-400 hover:bg-blue-500/25 border border-blue-500/30 transition-all active:scale-95 whitespace-nowrap shadow-2xs"
+                                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all active:scale-95 whitespace-nowrap shadow-2xs ${
+                                          atmHighlightActive
+                                            ? 'bg-blue-600 text-white ring-2 ring-blue-400/50 shadow-blue-500/30'
+                                            : 'bg-blue-500/15 text-blue-600 dark:text-blue-400 hover:bg-blue-500/25 border border-blue-500/30'
+                                        }`}
                                         title="一键定位平值与行权价"
                                       >
-                                        <Crosshair className="w-3.5 h-3.5 shrink-0" />
-                                        <span>定位平值</span>
+                                        <Crosshair className={`w-3.5 h-3.5 shrink-0 transition-transform duration-500 ${atmHighlightActive ? 'rotate-90 scale-110 text-white' : ''}`} />
+                                        <span>{atmHighlightActive ? '已定位平值' : '定位平值'}</span>
                                       </button>
                                       <button
                                         type="button"
@@ -2936,14 +2987,23 @@ export function ExpiryGroupCard({
                                               : 'text-orange-500 dark:text-orange-400';
 
                                             const spotIndicator = (
-                                              <tr key={`spot-${group.expiry}`} data-spot-indicator="true" style={{ background: 'transparent' }}>
+                                              <tr
+                                                key={`spot-${group.expiry}`}
+                                                data-spot-indicator="true"
+                                                className={`transition-all duration-500 ${
+                                                  atmHighlightActive
+                                                    ? 'ring-2 ring-amber-400/80 bg-amber-500/15 dark:bg-yellow-400/20 shadow-lg shadow-yellow-500/25'
+                                                    : ''
+                                                }`}
+                                                style={{ background: 'transparent' }}
+                                              >
                                                 <td colSpan={15} className="py-1 px-2">
                                                   <div className="flex items-center gap-1.5">
-                                                    <div className="h-px flex-1 bg-gradient-to-r from-transparent via-yellow-500/60 to-transparent" />
-                                                    <span className={`text-[11px] font-semibold whitespace-nowrap ${spotColor}`}>
+                                                    <div className={`h-px flex-1 transition-all duration-500 ${atmHighlightActive ? "bg-gradient-to-r from-transparent via-amber-400 to-transparent h-[2px]" : "bg-gradient-to-r from-transparent via-yellow-500/60 to-transparent"}`} />
+                                                    <span className={`text-[11px] font-semibold whitespace-nowrap transition-all duration-300 ${spotColor} ${atmHighlightActive ? "scale-110 font-bold text-amber-500 dark:text-yellow-300 drop-shadow-[0_0_8px_rgba(234,179,8,0.7)]" : ""}`}>
                                                       {isInRange ? '' : '⚠ '}标的价格: {formatCurrency(underlyingPrice, currencyConfig, 4)}
                                                     </span>
-                                                    <div className="h-px flex-1 bg-gradient-to-r from-transparent via-yellow-500/60 to-transparent" />
+                                                    <div className={`h-px flex-1 transition-all duration-500 ${atmHighlightActive ? "bg-gradient-to-r from-transparent via-amber-400 to-transparent h-[2px]" : "bg-gradient-to-r from-transparent via-yellow-500/60 to-transparent"}`} />
                                                   </div>
                                                 </td>
                                               </tr>
@@ -3144,11 +3204,15 @@ export function ExpiryGroupCard({
                                         <button
                                           type="button"
                                           onClick={() => scrollToAtm(true)}
-                                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-500/15 text-blue-600 dark:text-blue-400 hover:bg-blue-500/25 border border-blue-500/30 transition-colors whitespace-nowrap"
+                                          className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all active:scale-95 whitespace-nowrap shadow-2xs ${
+                                            atmHighlightActive
+                                              ? 'bg-blue-600 text-white ring-2 ring-blue-400/50 shadow-blue-500/30'
+                                              : 'bg-blue-500/15 text-blue-600 dark:text-blue-400 hover:bg-blue-500/25 border border-blue-500/30'
+                                          }`}
                                           title="一键定位居中平值行权价与标的价格"
                                         >
-                                          <Crosshair className="w-3.5 h-3.5 shrink-0" />
-                                          <span>定位平值</span>
+                                          <Crosshair className={`w-3.5 h-3.5 shrink-0 transition-transform duration-500 ${atmHighlightActive ? 'rotate-90 scale-110 text-white' : ''}`} />
+                                          <span>{atmHighlightActive ? '已定位平值' : '定位平值'}</span>
                                         </button>
 
                                         <div className="flex items-center gap-1.5 bg-black/5 dark:bg-white/5 px-2.5 py-1 rounded-lg border border-black/5 dark:border-white/5">
@@ -3235,11 +3299,15 @@ export function ExpiryGroupCard({
                                         <button
                                           type="button"
                                           onClick={() => scrollToAtm(true)}
-                                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/25 active:scale-95 transition-all whitespace-nowrap shadow-2xs"
+                                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all active:scale-95 whitespace-nowrap shadow-2xs ${
+                                            atmHighlightActive
+                                              ? 'bg-blue-600 text-white ring-2 ring-blue-400/50 shadow-blue-500/30'
+                                              : 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/25'
+                                          }`}
                                           title="一键定位平值"
                                         >
-                                          <Crosshair className="w-3.5 h-3.5 shrink-0" />
-                                          <span>定位平值</span>
+                                          <Crosshair className={`w-3.5 h-3.5 shrink-0 transition-transform duration-500 ${atmHighlightActive ? 'rotate-90 scale-110 text-white' : ''}`} />
+                                          <span>{atmHighlightActive ? '已定位平值' : '定位平值'}</span>
                                         </button>
 
                                         <button
@@ -5433,6 +5501,8 @@ interface TBoardMetric {
 
 interface TBoardRowProps {
   metric: TBoardMetric;
+  isAtmStrike?: boolean;
+  isAtmHighlighted?: boolean;
   theme: Theme;
   maxRisk: number;
   maxTimeValue: number;
@@ -5453,6 +5523,8 @@ interface TBoardRowProps {
 
 const TBoardRow = React.memo(function TBoardRow({
   metric: m,
+  isAtmStrike = false,
+  isAtmHighlighted = false,
   theme,
   maxRisk,
   maxTimeValue,
@@ -5690,7 +5762,16 @@ const TBoardRow = React.memo(function TBoardRow({
   };
 
   return (
-    <tr data-strike={m.s} style={{ backgroundImage: rowBg, contentVisibility: 'auto' as any, contain: 'layout style paint' as any }} className={themes[theme].cardHover}>
+    <tr
+      data-strike={m.s}
+      data-atm-strike={isAtmStrike ? "true" : undefined}
+      style={{ backgroundImage: rowBg }}
+      className={`${themes[theme].cardHover} transition-all duration-300 ${
+        isAtmHighlighted
+          ? 'relative z-10 ring-2 ring-blue-500/70 shadow-lg shadow-blue-500/20 bg-blue-500/10 dark:bg-blue-500/20'
+          : ''
+      }`}
+    >
       <td className={`align-top text-center py-2 ${themes[theme].text}`}>
         <div className="flex flex-col items-center gap-1.5">
           {m.comboCallStrategies.length > 0 ? (
@@ -5743,7 +5824,17 @@ const TBoardRow = React.memo(function TBoardRow({
       <td className={`text-center py-1.5 px-2 w-20 border-r ${themes[theme].border} ${themes[theme].text} text-xs leading-tight`}>
         <AnimatedFlash value={callPrice || '-'} className="font-mono text-xs" type="price" />
       </td>
-      <td data-role="strike" className={`text-center py-1.5 px-2 w-20 font-bold font-mono text-[13px] ${themes[theme].text}`}>{m.s}
+      <td
+        data-role="strike"
+        className={`text-center py-1.5 px-2 w-20 font-bold font-mono text-[13px] transition-all duration-300 ${themes[theme].text} ${
+          isAtmHighlighted
+            ? 'bg-blue-500/20 text-blue-600 dark:text-blue-300 font-extrabold scale-110'
+            : isAtmStrike
+              ? 'text-amber-500 dark:text-yellow-400'
+              : ''
+        }`}
+      >
+        {m.s}
       </td>
       <td className={`text-center py-1.5 px-2 w-20 border-l ${themes[theme].border} ${themes[theme].text} text-xs leading-tight`}>
         <AnimatedFlash value={putPrice || '-'} className="font-mono text-xs" type="price" />
@@ -5801,6 +5892,8 @@ const TBoardRow = React.memo(function TBoardRow({
   );
 }, (prevProps, nextProps) => {
   // Custom comparator: only re-render when THIS row's display data changes
+  if (prevProps.isAtmStrike !== nextProps.isAtmStrike) return false;
+  if (prevProps.isAtmHighlighted !== nextProps.isAtmHighlighted) return false;
   if (prevProps.metric !== nextProps.metric) return false;
   if (prevProps.theme !== nextProps.theme) return false;
   if (prevProps.maxRisk !== nextProps.maxRisk) return false;
