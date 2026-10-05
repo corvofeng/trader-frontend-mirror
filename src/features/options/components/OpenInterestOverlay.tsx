@@ -389,37 +389,6 @@ export const OpenInterestOverlay: React.FC<OpenInterestOverlayProps> = ({
         />
       )}
 
-      {/* Top Header Direction Indicators (Clean & Unobtrusive) */}
-      {points.length > 0 && strikeCol.width > 0 && (
-        <g className="pointer-events-none select-none opacity-80">
-          <text
-            x={strikeCol.left - 8}
-            y={Math.max(14, points[0].centerY - 16)}
-            textAnchor="end"
-            className="fill-emerald-600 dark:fill-emerald-400 text-[10px] font-medium tracking-tight"
-            style={{
-              filter: isDark
-                ? 'drop-shadow(0 1px 2px rgba(0,0,0,0.8))'
-                : 'drop-shadow(0 1px 2px rgba(255,255,255,0.8))',
-            }}
-          >
-            ← Call 未平仓量 (OI)
-          </text>
-          <text
-            x={strikeCol.right + 8}
-            y={Math.max(14, points[0].centerY - 16)}
-            textAnchor="start"
-            className="fill-rose-600 dark:fill-rose-400 text-[10px] font-medium tracking-tight"
-            style={{
-              filter: isDark
-                ? 'drop-shadow(0 1px 2px rgba(0,0,0,0.8))'
-                : 'drop-shadow(0 1px 2px rgba(255,255,255,0.8))',
-            }}
-          >
-            Put 未平仓量 (OI) →
-          </text>
-        </g>
-      )}
 
       {/* Subtle Micro Data Dots */}
       {points.map(p => {

@@ -2,7 +2,7 @@ import React, { useCallback, useRef, useState } from 'react';
 import { logger } from '../shared/utils/logger';
 import { useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { BarChart2, TrendingUp, Briefcase, Calculator, RefreshCw, Shield, Activity, BookOpen, Hourglass, BellRing, Compass, ChevronDown, SlidersHorizontal } from 'lucide-react';
+import { BarChart2, TrendingUp, Briefcase, Calculator, RefreshCw, Shield, Activity, BookOpen, Hourglass, BellRing, Compass, ChevronDown, SlidersHorizontal, ChevronUp, LineChart, Layers, Globe } from 'lucide-react';
 import { Theme, themes } from '../lib/theme';
 import { OptionsChain } from '../features/options/components/OptionsChain';
 import { TimeValueChart } from '../features/options/components/TimeValueChart';
@@ -421,8 +421,18 @@ function OptionsContent({ theme }: OptionsProps) {
     getAccounts: () => optionsAccounts,
   });
 
+  const [expandedMobileCharts, setExpandedMobileCharts] = useState<{
+    timeValue: boolean;
+    spread: boolean;
+    surface: boolean;
+  }>({
+    timeValue: false,
+    spread: false,
+    surface: false,
+  });
+
   return (
-    <main className="max-w-7xl mx-auto pl-2.5 pr-11 sm:px-6 lg:px-8 py-2.5 sm:py-8">
+    <main className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 py-2 sm:py-8">
       <div className="space-y-3 sm:space-y-6">
         <div className={`${themes[theme].card} rounded-xl p-3 sm:p-5 border ${themes[theme].border} card-subtle-ring transition-colors duration-150`}>
           <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
@@ -659,34 +669,180 @@ function OptionsContent({ theme }: OptionsProps) {
                     selectedSymbol={selectedSymbol}
                     selectedExpiry={selectedExpiry}
                     onExpiryChange={setSelectedExpiry}
+                    selectedAccountId={selectedAccountId}
                   />
 
-                  <OptionsCalculatorCard
-                    theme={theme}
-                    onOpenCalculator={() => setShowCalculatorModal(true)}
-                  />
+                  {/* Mobile Quick Floating Tools Dock */}
+                  <div
+                    className="sm:hidden fixed z-40 left-1/2 -translate-x-1/2 flex items-center gap-1.5 p-1.5 rounded-full border shadow-xl backdrop-blur-xl transition-all"
+                    style={{
+                      bottom: 'calc(14px + env(safe-area-inset-bottom, 0px))',
+                      backgroundColor: theme === 'dark' ? 'rgba(24, 24, 27, 0.88)' : 'rgba(255, 255, 255, 0.92)',
+                      borderColor: theme === 'dark' ? 'rgba(63, 63, 70, 0.6)' : 'rgba(229, 231, 235, 0.8)',
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setShowCalculatorModal(true)}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium btn-tactile ${themes[theme].secondary}`}
+                      title="期权收益计算器"
+                    >
+                      <Calculator className="w-3.5 h-3.5 text-purple-500" />
+                      <span>计算器</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setExpandedMobileCharts(prev => ({ ...prev, timeValue: true }));
+                        setTimeout(() => {
+                          document.getElementById('mobile-chart-time-value')?.scrollIntoView({ behavior: 'smooth' });
+                        }, 50);
+                      }}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium btn-tactile ${themes[theme].secondary}`}
+                      title="时间价值图表"
+                    >
+                      <LineChart className="w-3.5 h-3.5 text-blue-500" />
+                      <span>时间价值</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setExpandedMobileCharts(prev => ({ ...prev, spread: true }));
+                        setTimeout(() => {
+                          document.getElementById('mobile-chart-spread')?.scrollIntoView({ behavior: 'smooth' });
+                        }, 50);
+                      }}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium btn-tactile ${themes[theme].secondary}`}
+                      title="垂直价差图表"
+                    >
+                      <Layers className="w-3.5 h-3.5 text-emerald-500" />
+                      <span>垂直价差</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setExpandedMobileCharts(prev => ({ ...prev, surface: true }));
+                        setTimeout(() => {
+                          document.getElementById('mobile-chart-surface')?.scrollIntoView({ behavior: 'smooth' });
+                        }, 50);
+                      }}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium btn-tactile ${themes[theme].secondary}`}
+                      title="波动率曲面"
+                    >
+                      <Globe className="w-3.5 h-3.5 text-amber-500" />
+                      <span>曲面</span>
+                    </button>
+                  </div>
 
-                  <TimeValueChart
-                    theme={theme}
-                    optionsData={optionsData}
-                    selectedSymbol={selectedSymbol}
-                    chartEngine={marketChartEngine}
-                    onChartEngineChange={handleMarketChartEngineChange}
-                  />
+                  <div className="hidden sm:block">
+                    <OptionsCalculatorCard
+                      theme={theme}
+                      onOpenCalculator={() => setShowCalculatorModal(true)}
+                    />
+                  </div>
 
-                  <VerticalSpreadMonthlyPricesChart
-                    theme={theme}
-                    optionsData={optionsData}
-                    selectedSymbol={selectedSymbol}
-                    chartEngine={marketChartEngine}
-                    onChartEngineChange={handleMarketChartEngineChange}
-                  />
+                  {/* 时间价值图表：移动端支持折叠以释放超大高度 */}
+                  <div id="mobile-chart-time-value">
+                    <div className="sm:hidden mb-2">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedMobileCharts(prev => ({ ...prev, timeValue: !prev.timeValue }))}
+                        className={`w-full flex items-center justify-between p-3 rounded-xl border ${themes[theme].card} ${themes[theme].border} btn-tactile`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <LineChart className="w-4 h-4 text-blue-500" />
+                          <span className={`text-sm font-semibold ${themes[theme].text}`}>时间价值分析图表</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-gray-500 dark:text-zinc-400">
+                            {expandedMobileCharts.timeValue ? '收起' : '点击展开'}
+                          </span>
+                          {expandedMobileCharts.timeValue ? (
+                            <ChevronUp className="w-4 h-4 text-gray-400" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4 text-gray-400" />
+                          )}
+                        </div>
+                      </button>
+                    </div>
+                    <div className={`${expandedMobileCharts.timeValue ? 'block' : 'hidden'} sm:block`}>
+                      <TimeValueChart
+                        theme={theme}
+                        optionsData={optionsData}
+                        selectedSymbol={selectedSymbol}
+                        chartEngine={marketChartEngine}
+                        onChartEngineChange={handleMarketChartEngineChange}
+                      />
+                    </div>
+                  </div>
 
-                  <VolatilitySurface
-                    theme={theme}
-                    optionsData={optionsData}
-                    selectedSymbol={selectedSymbol}
-                  />
+                  {/* 垂直价差月度价格图表：移动端支持折叠 */}
+                  <div id="mobile-chart-spread">
+                    <div className="sm:hidden mb-2">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedMobileCharts(prev => ({ ...prev, spread: !prev.spread }))}
+                        className={`w-full flex items-center justify-between p-3 rounded-xl border ${themes[theme].card} ${themes[theme].border} btn-tactile`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Layers className="w-4 h-4 text-emerald-500" />
+                          <span className={`text-sm font-semibold ${themes[theme].text}`}>垂直价差月度价格</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-gray-500 dark:text-zinc-400">
+                            {expandedMobileCharts.spread ? '收起' : '点击展开'}
+                          </span>
+                          {expandedMobileCharts.spread ? (
+                            <ChevronUp className="w-4 h-4 text-gray-400" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4 text-gray-400" />
+                          )}
+                        </div>
+                      </button>
+                    </div>
+                    <div className={`${expandedMobileCharts.spread ? 'block' : 'hidden'} sm:block`}>
+                      <VerticalSpreadMonthlyPricesChart
+                        theme={theme}
+                        optionsData={optionsData}
+                        selectedSymbol={selectedSymbol}
+                        chartEngine={marketChartEngine}
+                        onChartEngineChange={handleMarketChartEngineChange}
+                      />
+                    </div>
+                  </div>
+
+                  {/* 波动率曲面：移动端支持折叠 */}
+                  <div id="mobile-chart-surface">
+                    <div className="sm:hidden mb-2">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedMobileCharts(prev => ({ ...prev, surface: !prev.surface }))}
+                        className={`w-full flex items-center justify-between p-3 rounded-xl border ${themes[theme].card} ${themes[theme].border} btn-tactile`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Globe className="w-4 h-4 text-amber-500" />
+                          <span className={`text-sm font-semibold ${themes[theme].text}`}>隐含波动率曲面 (3D)</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-gray-500 dark:text-zinc-400">
+                            {expandedMobileCharts.surface ? '收起' : '点击展开'}
+                          </span>
+                          {expandedMobileCharts.surface ? (
+                            <ChevronUp className="w-4 h-4 text-gray-400" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4 text-gray-400" />
+                          )}
+                        </div>
+                      </button>
+                    </div>
+                    <div className={`${expandedMobileCharts.surface ? 'block' : 'hidden'} sm:block`}>
+                      <VolatilitySurface
+                        theme={theme}
+                        optionsData={optionsData}
+                        selectedSymbol={selectedSymbol}
+                      />
+                    </div>
+                  </div>
                 </>
               )}
 

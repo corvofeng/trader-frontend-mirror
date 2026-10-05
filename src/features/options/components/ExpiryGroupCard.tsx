@@ -1,7 +1,7 @@
 import React, { useCallback, useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { format } from 'date-fns';
-import { ChevronDown, ChevronUp, X, HelpCircle, Maximize2, Minimize2, Crosshair, RefreshCw, ArrowLeft } from 'lucide-react';
+import { ChevronDown, ChevronUp, X, HelpCircle, Maximize2, Minimize2, Crosshair, RefreshCw, ArrowLeft, SlidersHorizontal } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { formatCurrency } from '../../../shared/utils/format';
 import type { OptionsPosition, OptionsStrategy, AdvisedCombination, OptionsData, OptionQuote, OptionWhitelist } from '../../../lib/services/types';
@@ -16,6 +16,13 @@ import { RealTimeSpreadChart } from './RealTimeSpreadChart';
 import { OpenInterestOverlay, formatOINumber } from './OpenInterestOverlay';
 import { StrikeOptionHoverCard } from './StrikeOptionHoverCard';
 import { getComboStatus } from '../utils/portfolioUi';
+import {
+  TBoardColumnKey,
+  TBOARD_COLUMNS_BY_KEY,
+  DEFAULT_PORTFOLIO_COLUMNS,
+  DEFAULT_QUOTE_COLUMNS,
+} from '../types/tboard';
+import { TBoardColumnSettingsModal } from './TBoardColumnSettingsModal';
 
 const STANDARD_ETF_OPTION_CONTRACT_UNIT = 10000;
 const STANDARD_ETF_OPTION_UNDERLYINGS = new Set([
@@ -62,6 +69,11 @@ interface ExpiryGroupCardProps {
   isRefreshing?: boolean;
   onRefresh?: () => void;
   wsRefreshNonce?: number;
+  customColumns?: TBoardColumnKey[];
+  onColumnsChange?: (columns: TBoardColumnKey[]) => void;
+  storageKey?: string;
+  tBoardTitle?: string;
+  defaultPreset?: 'portfolio' | 'quote';
 }
 
 type ComboDraftState = {
@@ -111,7 +123,12 @@ export function ExpiryGroupCard({
   whitelists = [],
   isRefreshing,
   onRefresh,
-  wsRefreshNonce = 0
+  wsRefreshNonce = 0,
+  customColumns,
+  onColumnsChange,
+  storageKey,
+  tBoardTitle,
+  defaultPreset,
 }: ExpiryGroupCardProps) {
   const {
     prices,
@@ -223,6 +240,57 @@ export function ExpiryGroupCard({
       localStorage.setItem('tboard_show_oi_overlay', String(showOpenInterestOverlay));
     } catch {}
   }, [showOpenInterestOverlay]);
+
+  const [showColumnSettings, setShowColumnSettings] = useState(false);
+
+  const fallbackPresetCols = useMemo(() => {
+    if (defaultPreset === 'quote') return DEFAULT_QUOTE_COLUMNS;
+    if (defaultPreset === 'portfolio') return DEFAULT_PORTFOLIO_COLUMNS;
+    return (group.single.length > 0 || group.complex.length > 0)
+      ? DEFAULT_PORTFOLIO_COLUMNS
+      : DEFAULT_QUOTE_COLUMNS;
+  }, [defaultPreset, group.single.length, group.complex.length]);
+
+  const [activeColumns, setActiveColumns] = useState<TBoardColumnKey[]>(() => {
+    if (storageKey && typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem(storageKey);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return customColumns && customColumns.length > 0 ? customColumns : fallbackPresetCols;
+  });
+
+  useEffect(() => {
+    if (customColumns && customColumns.length > 0) {
+      if (!storageKey || !localStorage.getItem(storageKey)) {
+        setActiveColumns(customColumns);
+      }
+    }
+  }, [customColumns, storageKey]);
+
+  const handleColumnsChange = useCallback((newCols: TBoardColumnKey[]) => {
+    if (newCols.length === 0) return;
+    setActiveColumns(newCols);
+    if (storageKey && typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(newCols));
+      } catch {}
+    }
+    onColumnsChange?.(newCols);
+  }, [storageKey, onColumnsChange]);
+
+  const callColumns = useMemo(
+    () => activeColumns.map(k => TBOARD_COLUMNS_BY_KEY[k]).filter(Boolean),
+    [activeColumns]
+  );
+  const putColumns = useMemo(
+    () => [...callColumns].reverse(),
+    [callColumns]
+  );
   const lastLoggedConfirmRef = useRef<string | null>(null);
   
 
@@ -1667,23 +1735,6 @@ export function ExpiryGroupCard({
 
   const strikesCount = tBoardStrikesAndMetrics.strikes.length;
 
-  const atmStrike = useMemo(() => {
-    const strikes = tBoardStrikesAndMetrics.strikes;
-    if (!strikes || strikes.length === 0) return null;
-    if (underlyingPrice == null || !Number.isFinite(underlyingPrice)) {
-      return strikes[Math.floor(strikes.length / 2)];
-    }
-    let closest = strikes[0];
-    let minDiff = Math.abs(strikes[0] - underlyingPrice);
-    for (let i = 1; i < strikes.length; i++) {
-      const diff = Math.abs(strikes[i] - underlyingPrice);
-      if (diff < minDiff) {
-        minDiff = diff;
-        closest = strikes[i];
-      }
-    }
-    return closest;
-  }, [tBoardStrikesAndMetrics.strikes, underlyingPrice]);
 
   useEffect(() => {
     if (!isMobileViewport || !isTBoardExpanded || strikesCount === 0) return;
@@ -2768,7 +2819,7 @@ export function ExpiryGroupCard({
                       >
                         <div className={`w-3.5 h-3.5 sm:w-4 sm:h-4 rounded shrink-0 ${theme === 'dark' ? 'bg-zinc-600' : theme === 'blue' ? 'bg-blue-400' : 'bg-slate-400'}`}></div>
                         <h4 className={`text-sm sm:text-[17px] font-semibold tracking-tight whitespace-nowrap ${themes[theme].text}`}>
-                          {filteredPositions.length > 0 ? '持仓T型数量看板' : 'T型报价'}
+                          {tBoardTitle || (filteredPositions.length > 0 ? '持仓T型数量看板' : 'T型报价')}
                         </h4>
                         {isTBoardExpanded ? (
                           <ChevronUp className={`w-4 h-4 shrink-0 ${themes[theme].text} opacity-50`} strokeWidth={2} />
@@ -2826,6 +2877,24 @@ export function ExpiryGroupCard({
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
+                              setShowColumnSettings(true);
+                            }}
+                            className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-full text-xs font-medium transition-all shadow-xs ${
+                              showColumnSettings
+                                ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30'
+                                : 'bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-gray-400 border border-transparent hover:bg-gray-200 dark:hover:bg-zinc-700'
+                            }`}
+                            title="自定义T型报价展示列"
+                          >
+                            <SlidersHorizontal className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">自定义列</span>
+                            <span className="sm:hidden">列</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
                               enterFullscreen();
                             }}
                             className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all shadow-xs ${
@@ -2877,6 +2946,15 @@ export function ExpiryGroupCard({
                                       </button>
                                       <button
                                         type="button"
+                                        onClick={() => setShowColumnSettings(true)}
+                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-zinc-200 transition-all active:scale-95 whitespace-nowrap shadow-2xs"
+                                        title="自定义T型展示列"
+                                      >
+                                        <SlidersHorizontal className="w-3.5 h-3.5" />
+                                        <span>列</span>
+                                      </button>
+                                      <button
+                                        type="button"
                                         onClick={enterFullscreen}
                                         className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white transition-all active:scale-95 whitespace-nowrap shadow-2xs"
                                         title="进入全屏沉浸浏览与操作"
@@ -2908,41 +2986,48 @@ export function ExpiryGroupCard({
                                   className={
                                     inFullscreen
                                       ? "flex-1 min-h-0 overflow-auto overscroll-contain select-none"
-                                      : "overflow-x-auto"
+                                      : "overflow-auto max-h-[75vh] sm:max-h-[760px] min-h-[460px] rounded-xl border border-black/10 dark:border-white/10 overscroll-contain shadow-xs"
                                   }
-                                  style={inFullscreen ? { WebkitOverflowScrolling: 'touch' } : undefined}
+                                  style={{ WebkitOverflowScrolling: 'touch' }}
                                   onScroll={handleTBoardScroll}
                                 >
                                   <div className="relative inline-block min-w-full">
                                     <table
                                       ref={tBoardTableRef}
-                                      className="w-full text-xs min-w-[1120px]"
-                                      style={(isMobileViewport || inFullscreen) ? { zoom: mobileTBoardScale } : undefined}
+                                      className="w-full text-xs sm:text-sm"
+                                      style={{
+                                        minWidth: `${Math.max(820, (callColumns.length * 2 + 1) * 88)}px`,
+                                        ...((isMobileViewport || inFullscreen) ? { zoom: mobileTBoardScale } : undefined),
+                                      }}
                                     >
-                                      <thead className={inFullscreen ? `sticky top-0 z-20 shadow-xs ${
+                                      <thead className={`sticky top-0 z-20 shadow-xs backdrop-blur-md ${
                                         theme === 'dark' ? 'bg-zinc-900/95' : theme === 'blue' ? 'bg-slate-900/95' : 'bg-slate-100/95'
-                                      } backdrop-blur-md` : undefined}>
-                                        <tr className={`${themes[theme].text} opacity-75`}>
-                                          <th className="text-center py-2" colSpan={7}>Calls</th>
-                                          <th className={`text-center py-2 border-l border-r ${themes[theme].border}`}></th>
-                                          <th className="text-center py-2" colSpan={7}>Puts</th>
+                                      }`}>
+                                        <tr className={`${themes[theme].text} opacity-85 text-xs sm:text-sm font-bold tracking-wide`}>
+                                          <th className="text-center py-2.5 sm:py-3" colSpan={callColumns.length}>Calls (认购)</th>
+                                          <th className={`text-center py-2.5 sm:py-3 border-l border-r ${themes[theme].border}`}></th>
+                                          <th className="text-center py-2.5 sm:py-3" colSpan={putColumns.length}>Puts (认沽)</th>
                                         </tr>
-                                        <tr className={`text-xs ${themes[theme].text} opacity-70`}>
-                                          <th className="text-center py-2">组合</th>
-                                          <th className="text-center py-2">备兑</th>
-                                          <th className="text-center py-2">义务</th>
-                                          <th className="text-center py-2 px-2">权利</th>
-                                          <th className="text-center py-2 px-2">保证金</th>
-                                          <th className="text-center py-2 px-2">时间价值</th>
-                                          <th className={`text-center py-2 px-2 border-r ${themes[theme].border}`}>现价</th>
-                                          <th ref={strikeHeaderRef} className={`text-center py-2 px-3 font-bold ${themes[theme].text}`}>行权价</th>
-                                          <th className={`text-center py-2 px-2 border-l ${themes[theme].border}`}>现价</th>
-                                          <th className="text-center py-2 px-2">时间价值</th>
-                                          <th className="text-center py-2 px-2">保证金</th>
-                                          <th className="text-center py-2 px-2">权利</th>
-                                          <th className="text-center py-2">义务</th>
-                                          <th className="text-center py-2">备兑</th>
-                                          <th className="text-center py-2">组合</th>
+                                        <tr className={`text-xs sm:text-[13px] ${themes[theme].text} opacity-85 font-semibold`}>
+                                          {callColumns.map((col, idx) => (
+                                            <th
+                                              key={`call-head-${col.key}`}
+                                              className={`text-center py-2.5 px-3 whitespace-nowrap ${idx === callColumns.length - 1 ? `border-r ${themes[theme].border}` : ''}`}
+                                              title={col.description}
+                                            >
+                                              {col.label}
+                                            </th>
+                                          ))}
+                                          <th ref={strikeHeaderRef} className={`text-center py-2.5 px-4 font-bold text-xs sm:text-sm whitespace-nowrap ${themes[theme].text}`}>行权价</th>
+                                          {putColumns.map((col, idx) => (
+                                            <th
+                                              key={`put-head-${col.key}`}
+                                              className={`text-center py-2.5 px-3 whitespace-nowrap ${idx === 0 ? `border-l ${themes[theme].border}` : ''}`}
+                                              title={col.description}
+                                            >
+                                              {col.label}
+                                            </th>
+                                          ))}
                                         </tr>
                                       </thead>
                                       <tbody className={`divide-y ${themes[theme].border}`}>
@@ -2963,8 +3048,8 @@ export function ExpiryGroupCard({
                                               const callFullCode = quote.call_contract_code_full || '';
                                               const putCode = quote.put_contract_code || '';
                                               const putFullCode = quote.put_contract_code_full || '';
-                                              const callPrice = (callCode && prices[callCode]?.price) || (callFullCode && prices[callFullCode]?.price) || quote.call_last_price;
-                                              const putPrice = (putCode && prices[putCode]?.price) || (putFullCode && prices[putFullCode]?.price) || quote.put_last_price;
+                                              const callPrice = (callCode && prices[callCode]?.price) || (callFullCode && prices[callFullCode]?.price) || quote.callPrice || quote.call_last_price;
+                                              const putPrice = (putCode && prices[putCode]?.price) || (putFullCode && prices[putFullCode]?.price) || quote.putPrice || quote.put_last_price;
                                               if (callTV == null && typeof callPrice === 'number' && Number.isFinite(callPrice)) { callTV = callPrice - Math.max(0, underlyingPrice - strike); }
                                               if (putTV == null && typeof putPrice === 'number' && Number.isFinite(putPrice)) { putTV = putPrice - Math.max(0, strike - underlyingPrice); }
                                             }
@@ -2998,7 +3083,7 @@ export function ExpiryGroupCard({
                                                 }`}
                                                 style={{ background: 'transparent' }}
                                               >
-                                                <td colSpan={15} className="py-1 px-2">
+                                                <td colSpan={callColumns.length * 2 + 1} className="py-1 px-2">
                                                   <div className="flex items-center gap-1.5">
                                                     <div className={`h-px flex-1 transition-all duration-500 ${atmHighlightActive ? "bg-gradient-to-r from-transparent via-amber-400 to-transparent h-[2px]" : "bg-gradient-to-r from-transparent via-yellow-500/60 to-transparent"}`} />
                                                     <span className={`text-[11px] font-semibold whitespace-nowrap transition-all duration-300 ${spotColor} ${atmHighlightActive ? "scale-110 font-bold text-amber-500 dark:text-yellow-300 drop-shadow-[0_0_8px_rgba(234,179,8,0.7)]" : ""}`}>
@@ -3019,6 +3104,7 @@ export function ExpiryGroupCard({
                                                 <TBoardRow
                                                   key={`trow-top-${group.expiry}-${metrics[i].s}`}
                                                   metric={metrics[i]}
+                                                  columns={activeColumns}
                                                   theme={theme}
                                                   maxRisk={maxRisk}
                                                   maxTimeValue={maxTimeValue}
@@ -3047,6 +3133,7 @@ export function ExpiryGroupCard({
                                             <TBoardRow
                                               key={`trow-top-${group.expiry}-${m.s}`}
                                               metric={m}
+                                              columns={activeColumns}
                                               theme={theme}
                                               maxRisk={maxRisk}
                                               maxTimeValue={maxTimeValue}
@@ -3248,6 +3335,20 @@ export function ExpiryGroupCard({
                                           <span className="text-[10px] font-mono">{showOpenInterestOverlay ? 'ON' : 'OFF'}</span>
                                         </button>
 
+                                        <button
+                                          type="button"
+                                          onClick={() => setShowColumnSettings(true)}
+                                          className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
+                                            showColumnSettings
+                                              ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30'
+                                              : 'bg-black/5 dark:bg-white/5 opacity-70 hover:opacity-100'
+                                          }`}
+                                          title="自定义T型报价展示列"
+                                        >
+                                          <SlidersHorizontal className="w-3.5 h-3.5" />
+                                          <span>自定义列</span>
+                                        </button>
+
                                         {onRefresh && (
                                           <button
                                             type="button"
@@ -3324,6 +3425,20 @@ export function ExpiryGroupCard({
                                           <span className={`w-1.5 h-1.5 rounded-full ${showOpenInterestOverlay ? 'bg-blue-500 animate-pulse' : 'bg-gray-400'}`} />
                                           <span>OI:</span>
                                           <span className="font-mono text-[10px] font-semibold">{showOpenInterestOverlay ? 'ON' : 'OFF'}</span>
+                                        </button>
+
+                                        <button
+                                          type="button"
+                                          onClick={() => setShowColumnSettings(true)}
+                                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all whitespace-nowrap shadow-2xs ${
+                                            showColumnSettings
+                                              ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30'
+                                              : 'bg-black/5 dark:bg-white/5 opacity-70 hover:opacity-100 border border-transparent'
+                                          }`}
+                                          title="自定义T型报价展示列"
+                                        >
+                                          <SlidersHorizontal className="w-3 h-3" />
+                                          <span>列</span>
                                         </button>
                                       </div>
 
@@ -5471,6 +5586,15 @@ export function ExpiryGroupCard({
       </div>
     </div>
   )}
+
+  <TBoardColumnSettingsModal
+    theme={theme}
+    isOpen={showColumnSettings}
+    onClose={() => setShowColumnSettings(false)}
+    activeColumns={activeColumns}
+    onChangeColumns={handleColumnsChange}
+    defaultPreset={defaultPreset || (group.single.length > 0 || group.complex.length > 0 ? 'portfolio' : 'quote')}
+  />
 </div>
 );
 }
@@ -5502,6 +5626,7 @@ interface TBoardMetric {
 
 interface TBoardRowProps {
   metric: TBoardMetric;
+  columns: TBoardColumnKey[];
   isAtmStrike?: boolean;
   isAtmHighlighted?: boolean;
   theme: Theme;
@@ -5524,6 +5649,7 @@ interface TBoardRowProps {
 
 const TBoardRow = React.memo(function TBoardRow({
   metric: m,
+  columns,
   isAtmStrike = false,
   isAtmHighlighted = false,
   theme,
@@ -5597,13 +5723,18 @@ const TBoardRow = React.memo(function TBoardRow({
     const callMargin = quote.callMargin ?? quote.call_margin;
     const putMargin = quote.putMargin ?? quote.put_margin;
 
-    const getPrice = (code: string, fullCode: string, last?: number) => {
+    const rawCallLast = (quote as any)?.callPrice ?? (quote as any)?.call_last_price ?? (quote as any)?.call_price ?? (quote as any)?.callLastPrice;
+    const rawPutLast = (quote as any)?.putPrice ?? (quote as any)?.put_last_price ?? (quote as any)?.put_price ?? (quote as any)?.putLastPrice;
+
+    const getPrice = (code: string, fullCode: string, last?: unknown) => {
       const p = (code && prices[code]) || (fullCode && prices[fullCode]);
-      if (p) return p.price.toFixed(4);
-      return typeof last === 'number' && last ? last.toFixed(4) : '-';
+      if (p && typeof p.price === 'number' && Number.isFinite(p.price)) return p.price.toFixed(4);
+      const numLast = typeof last === 'number' ? last : (last != null && last !== '' ? Number(last) : null);
+      if (numLast != null && Number.isFinite(numLast)) return numLast.toFixed(4);
+      return '-';
     };
-    callPrice = getPrice(callCode, callFullCode, quote.call_last_price);
-    putPrice = getPrice(putCode, putFullCode, quote.put_last_price);
+    callPrice = getPrice(callCode, callFullCode, rawCallLast);
+    putPrice = getPrice(putCode, putFullCode, rawPutLast);
     if (typeof callMargin === 'number' && Number.isFinite(callMargin)) {
       callMarginText = formatCurrency(callMargin, currencyConfig, Number.isInteger(callMargin) ? 0 : 2);
     }
@@ -5786,6 +5917,368 @@ const TBoardRow = React.memo(function TBoardRow({
     });
   };
 
+  const callColumns = useMemo(
+    () => columns.map(k => TBOARD_COLUMNS_BY_KEY[k]).filter(Boolean),
+    [columns]
+  );
+  const putColumns = useMemo(
+    () => [...callColumns].reverse(),
+    [callColumns]
+  );
+
+  let callIV: number | null = null;
+  let putIV: number | null = null;
+  if (underlyingPrice != null) {
+    callIV = Math.max(0, underlyingPrice - m.s);
+    putIV = Math.max(0, m.s - underlyingPrice);
+  } else if (quote) {
+    callIV = quote.callIntrinsicValue ?? null;
+    putIV = quote.putIntrinsicValue ?? null;
+  }
+
+  const callImpliedVol = quote?.callImpliedVol;
+  const putImpliedVol = quote?.putImpliedVol;
+  const callOI = quote?.callOpenInterest;
+  const putOI = quote?.putOpenInterest;
+  const callVol = quote?.callVolume;
+  const putVol = quote?.putVolume;
+  const callDelta = quote?.callDelta;
+  const putDelta = quote?.putDelta;
+  const callGamma = quote?.callGamma;
+  const putGamma = quote?.putGamma;
+  const callTheta = quote?.callTheta;
+  const putTheta = quote?.putTheta;
+  const callVega = quote?.callVega;
+  const putVega = quote?.putVega;
+
+  const formatIV = (v?: number) => {
+    if (v == null || !Number.isFinite(v) || v <= 0) return '-';
+    const pct = v > 1 ? v : v * 100;
+    return `${pct.toFixed(1)}%`;
+  };
+  const formatGreek = (v?: number, decimals = 3) => {
+    if (v == null || !Number.isFinite(v)) return '-';
+    return v.toFixed(decimals);
+  };
+
+  const renderCallCell = (key: TBoardColumnKey, isLast: boolean) => {
+    const borderClass = isLast ? `border-r ${themes[theme].border}` : '';
+    switch (key) {
+      case 'lastPrice':
+        return (
+          <td
+            key={`c-lastPrice-${m.s}`}
+            className={`text-center py-2 px-2.5 sm:px-3.5 w-22 sm:w-26 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] leading-tight transition-colors duration-150 cursor-default hover:bg-emerald-500/15 dark:hover:bg-emerald-500/20`}
+            title={`认购现价: ${callPrice || '-'}`}
+          >
+            <div className="transition-transform duration-150 hover:scale-105">
+              <AnimatedFlash value={callPrice || '-'} className="font-mono text-xs sm:text-[13px] font-bold" type="price" />
+            </div>
+          </td>
+        );
+      case 'timeValue':
+        return (
+          <td
+            key={`c-timeValue-${m.s}`}
+            className={`text-center py-2 px-2.5 sm:px-3.5 w-22 sm:w-26 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] leading-tight transition-colors duration-150 cursor-default hover:bg-emerald-500/10 dark:hover:bg-emerald-500/15`}
+            title={`认购时间价值: ${displayCallTV}`}
+          >
+            <AnimatedFlash value={displayCallTV} className="font-mono text-xs sm:text-[13px] text-gray-700 dark:text-zinc-300 font-medium" />
+          </td>
+        );
+      case 'intrinsicValue':
+        return (
+          <td
+            key={`c-intrinsicValue-${m.s}`}
+            className={`text-center py-2 px-2.5 sm:px-3.5 w-22 sm:w-26 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] leading-tight transition-colors duration-150 cursor-default hover:bg-emerald-500/10 dark:hover:bg-emerald-500/15`}
+            title={`认购内在价值: ${callIV != null ? callIV.toFixed(4) : '-'}`}
+          >
+            <span className="font-mono text-xs sm:text-[13px] text-gray-700 dark:text-zinc-300 font-medium">{callIV != null ? callIV.toFixed(4) : '-'}</span>
+          </td>
+        );
+      case 'impliedVol':
+        return (
+          <td
+            key={`c-impliedVol-${m.s}`}
+            className={`text-center py-2 px-2.5 sm:px-3.5 w-22 sm:w-26 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] leading-tight transition-colors duration-150 cursor-default`}
+            title={`认购隐含波动率: ${formatIV(callImpliedVol)}`}
+          >
+            <span className="font-mono text-xs sm:text-[13px] text-purple-600 dark:text-purple-400 font-semibold">{formatIV(callImpliedVol)}</span>
+          </td>
+        );
+      case 'openInterest':
+        return (
+          <td
+            key={`c-openInterest-${m.s}`}
+            className={`text-center py-2 px-2.5 sm:px-3.5 w-22 sm:w-26 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] leading-tight transition-colors duration-150 cursor-default`}
+            title={`认购未平仓量: ${callOI?.toLocaleString() ?? 0} 张`}
+          >
+            <span className="font-mono text-xs sm:text-[13px] text-gray-800 dark:text-zinc-200 font-medium">{callOI ? formatOINumber(callOI) : '-'}</span>
+          </td>
+        );
+      case 'volume':
+        return (
+          <td
+            key={`c-volume-${m.s}`}
+            className={`text-center py-2 px-2.5 sm:px-3.5 w-22 sm:w-26 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] leading-tight transition-colors duration-150 cursor-default`}
+            title={`认购成交量: ${callVol?.toLocaleString() ?? 0} 张`}
+          >
+            <span className="font-mono text-xs sm:text-[13px] text-gray-800 dark:text-zinc-200 font-medium">{callVol ? formatOINumber(callVol) : '-'}</span>
+          </td>
+        );
+      case 'margin':
+        return (
+          <td
+            key={`c-margin-${m.s}`}
+            className={`text-center py-2 px-2.5 sm:px-3.5 w-22 sm:w-26 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] leading-tight transition-colors duration-150 cursor-default hover:bg-emerald-500/10 dark:hover:bg-emerald-500/15`}
+            title={`认购卖方保证金: ${callMarginText}`}
+          >
+            <AnimatedFlash value={callMarginText} className="font-mono text-xs sm:text-[13px] text-gray-700 dark:text-zinc-300 font-medium" type="price" />
+          </td>
+        );
+      case 'right':
+        return (
+          <td key={`c-right-${m.s}`} className={`align-top text-center py-2 px-3 w-22 sm:w-26 ${borderClass} ${themes[theme].text}`}>
+            <div className="flex items-center justify-center gap-1">
+              <div className="flex flex-col items-center gap-1.5">
+                <span className={tBoardValueTextClass}>{displayVal('call_right', m.s, m.callRight)}{m.callRightAvail !== m.callRight ? `（${m.callRightAvail}）` : ''}</span>
+                <button type="button" className={getTBoardActionButtonClass('adjust')} onClick={() => openAdjustConfirm('call_right', m.s)}>调整</button>
+              </div>
+            </div>
+          </td>
+        );
+      case 'obligation':
+        return (
+          <td key={`c-obligation-${m.s}`} className={`align-top text-center py-2 ${borderClass} ${themes[theme].text}`}>
+            <div className="flex items-center justify-center gap-1">
+              <div className="flex flex-col items-center gap-1.5">
+                <span className={tBoardValueTextClass}>{displayVal('call_obligation', m.s, m.callObligation)}{m.callObligationAvail !== m.callObligation ? `（${m.callObligationAvail}）` : ''}</span>
+                <button type="button" className={getTBoardActionButtonClass('adjust')} onClick={() => openAdjustConfirm('call_obligation', m.s)}>调整</button>
+              </div>
+            </div>
+          </td>
+        );
+      case 'covered':
+        return (
+          <td key={`c-covered-${m.s}`} className={`align-top text-center py-2 ${borderClass} ${themes[theme].text}`}>
+            <div className="flex items-center justify-center gap-1">
+              <div className="flex flex-col items-center gap-1.5">
+                <span className={tBoardValueTextClass}>{displayVal('call_covered', m.s, m.callCovered)}{m.callCoveredAvail !== m.callCovered ? `（${m.callCoveredAvail}）` : ''}</span>
+                <button type="button" className={getTBoardActionButtonClass('adjust')} onClick={() => openAdjustConfirm('call_covered', m.s)}>调整</button>
+              </div>
+            </div>
+          </td>
+        );
+      case 'combo':
+        return (
+          <td key={`c-combo-${m.s}`} className={`align-top text-center py-2 ${borderClass} ${themes[theme].text}`}>
+            <div className="flex flex-col items-center gap-1.5">
+              {m.comboCallStrategies.length > 0 ? (
+                <>
+                  <span className={`${tBoardComboValueClass} ${TBOARD_COMBO_HINT_CLASS} cursor-help`} title={m.comboCallStrategies.map(s => `${s.strategy.name} (${s.qty})`).join('\n')}>{m.comboCallStrategies.reduce((sum, s) => sum + s.qty, 0)}</span>
+                  <div className={TBOARD_ACTION_STACK_CLASS}>
+                    <button type="button" className={`${getTBoardActionButtonClass('adjust')} whitespace-nowrap shrink-0`} onClick={() => openComboManageModal('call')}>调整</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <span className={tBoardComboValueClass}>0</span>
+                  <div className={TBOARD_ACTION_STACK_CLASS}>
+                    <button type="button" className={`${getTBoardActionButtonClass('adjust')} whitespace-nowrap shrink-0`} onClick={() => openComboManageModal('call')}>调整</button>
+                  </div>
+                </>
+              )}
+            </div>
+          </td>
+        );
+      case 'delta':
+        return (
+          <td key={`c-delta-${m.s}`} className={`text-center py-2 px-2 sm:px-3 w-18 sm:w-20 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] font-mono font-medium`} title={`认购 Delta: ${formatGreek(callDelta)}`}>
+            <span>{formatGreek(callDelta)}</span>
+          </td>
+        );
+      case 'gamma':
+        return (
+          <td key={`c-gamma-${m.s}`} className={`text-center py-2 px-2 sm:px-3 w-18 sm:w-20 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] font-mono font-medium`} title={`认购 Gamma: ${formatGreek(callGamma, 4)}`}>
+            <span>{formatGreek(callGamma, 4)}</span>
+          </td>
+        );
+      case 'theta':
+        return (
+          <td key={`c-theta-${m.s}`} className={`text-center py-2 px-2 sm:px-3 w-18 sm:w-20 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] font-mono font-medium`} title={`认购 Theta: ${formatGreek(callTheta)}`}>
+            <span>{formatGreek(callTheta)}</span>
+          </td>
+        );
+      case 'vega':
+        return (
+          <td key={`c-vega-${m.s}`} className={`text-center py-2 px-2 sm:px-3 w-18 sm:w-20 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] font-mono font-medium`} title={`认购 Vega: ${formatGreek(callVega)}`}>
+            <span>{formatGreek(callVega)}</span>
+          </td>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const renderPutCell = (key: TBoardColumnKey, isFirst: boolean) => {
+    const borderClass = isFirst ? `border-l ${themes[theme].border}` : '';
+    switch (key) {
+      case 'lastPrice':
+        return (
+          <td
+            key={`p-lastPrice-${m.s}`}
+            className={`text-center py-2 px-2.5 sm:px-3.5 w-22 sm:w-26 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] leading-tight transition-colors duration-150 cursor-default hover:bg-rose-500/15 dark:hover:bg-rose-500/20`}
+            title={`认沽现价: ${putPrice || '-'}`}
+          >
+            <div className="transition-transform duration-150 hover:scale-105">
+              <AnimatedFlash value={putPrice || '-'} className="font-mono text-xs sm:text-[13px] font-bold" type="price" />
+            </div>
+          </td>
+        );
+      case 'timeValue':
+        return (
+          <td
+            key={`p-timeValue-${m.s}`}
+            className={`text-center py-2 px-2.5 sm:px-3.5 w-22 sm:w-26 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] leading-tight transition-colors duration-150 cursor-default hover:bg-rose-500/10 dark:hover:bg-rose-500/15`}
+            title={`认沽时间价值: ${displayPutTV}`}
+          >
+            <AnimatedFlash value={displayPutTV} className="font-mono text-xs sm:text-[13px] text-gray-700 dark:text-zinc-300 font-medium" />
+          </td>
+        );
+      case 'intrinsicValue':
+        return (
+          <td
+            key={`p-intrinsicValue-${m.s}`}
+            className={`text-center py-2 px-2.5 sm:px-3.5 w-22 sm:w-26 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] leading-tight transition-colors duration-150 cursor-default hover:bg-rose-500/10 dark:hover:bg-rose-500/15`}
+            title={`认沽内在价值: ${putIV != null ? putIV.toFixed(4) : '-'}`}
+          >
+            <span className="font-mono text-xs sm:text-[13px] text-gray-700 dark:text-zinc-300 font-medium">{putIV != null ? putIV.toFixed(4) : '-'}</span>
+          </td>
+        );
+      case 'impliedVol':
+        return (
+          <td
+            key={`p-impliedVol-${m.s}`}
+            className={`text-center py-2 px-2.5 sm:px-3.5 w-22 sm:w-26 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] leading-tight transition-colors duration-150 cursor-default`}
+            title={`认沽隐含波动率: ${formatIV(putImpliedVol)}`}
+          >
+            <span className="font-mono text-xs sm:text-[13px] text-purple-600 dark:text-purple-400 font-semibold">{formatIV(putImpliedVol)}</span>
+          </td>
+        );
+      case 'openInterest':
+        return (
+          <td
+            key={`p-openInterest-${m.s}`}
+            className={`text-center py-2 px-2.5 sm:px-3.5 w-22 sm:w-26 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] leading-tight transition-colors duration-150 cursor-default`}
+            title={`认沽未平仓量: ${putOI?.toLocaleString() ?? 0} 张`}
+          >
+            <span className="font-mono text-xs sm:text-[13px] text-gray-800 dark:text-zinc-200 font-medium">{putOI ? formatOINumber(putOI) : '-'}</span>
+          </td>
+        );
+      case 'volume':
+        return (
+          <td
+            key={`p-volume-${m.s}`}
+            className={`text-center py-2 px-2.5 sm:px-3.5 w-22 sm:w-26 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] leading-tight transition-colors duration-150 cursor-default`}
+            title={`认沽成交量: ${putVol?.toLocaleString() ?? 0} 张`}
+          >
+            <span className="font-mono text-xs sm:text-[13px] text-gray-800 dark:text-zinc-200 font-medium">{putVol ? formatOINumber(putVol) : '-'}</span>
+          </td>
+        );
+      case 'margin':
+        return (
+          <td
+            key={`p-margin-${m.s}`}
+            className={`text-center py-2 px-2.5 sm:px-3.5 w-22 sm:w-26 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] leading-tight transition-colors duration-150 cursor-default hover:bg-rose-500/10 dark:hover:bg-rose-500/15`}
+            title={`认沽卖方保证金: ${putMarginText}`}
+          >
+            <AnimatedFlash value={putMarginText} className="font-mono text-xs sm:text-[13px] text-gray-700 dark:text-zinc-300 font-medium" type="price" />
+          </td>
+        );
+      case 'right':
+        return (
+          <td key={`p-right-${m.s}`} className={`align-top text-center py-2 px-3 w-20 ${borderClass} ${themes[theme].text}`}>
+            <div className="flex items-center justify-center gap-1">
+              <div className="flex flex-col items-center gap-1.5">
+                <span className={tBoardValueTextClass}>{displayVal('put_right', m.s, m.putRight)}{m.putRightAvail !== m.putRight ? `（${m.putRightAvail}）` : ''}</span>
+                <button type="button" className={getTBoardActionButtonClass('adjust')} onClick={() => openAdjustConfirm('put_right', m.s)}>调整</button>
+              </div>
+            </div>
+          </td>
+        );
+      case 'obligation':
+        return (
+          <td key={`p-obligation-${m.s}`} className={`align-top text-center py-2 ${borderClass} ${themes[theme].text}`}>
+            <div className="flex items-center justify-center gap-1">
+              <div className="flex flex-col items-center gap-1.5">
+                <span className={tBoardValueTextClass}>{displayVal('put_obligation', m.s, m.putObligation)}{m.putObligationAvail !== m.putObligation ? `（${m.putObligationAvail}）` : ''}</span>
+                <button type="button" className={getTBoardActionButtonClass('adjust')} onClick={() => openAdjustConfirm('put_obligation', m.s)}>调整</button>
+              </div>
+            </div>
+          </td>
+        );
+      case 'covered':
+        return (
+          <td key={`p-covered-${m.s}`} className={`align-top text-center py-2 ${borderClass} ${themes[theme].text}`}>
+            <div className="flex items-center justify-center gap-1">
+              <div className="flex flex-col items-center gap-1.5">
+                <span className={tBoardValueTextClass}>{displayVal('put_covered', m.s, m.putCovered)}{m.putCoveredAvail !== m.putCovered ? `（${m.putCoveredAvail}）` : ''}</span>
+                <button type="button" className={getTBoardActionButtonClass('adjust')} onClick={() => openAdjustConfirm('put_covered', m.s)}>调整</button>
+              </div>
+            </div>
+          </td>
+        );
+      case 'combo':
+        return (
+          <td key={`p-combo-${m.s}`} className={`align-top text-center py-2 ${borderClass} ${themes[theme].text}`}>
+            <div className="flex flex-col items-center gap-1.5">
+              {m.comboPutStrategies.length > 0 ? (
+                <>
+                  <span className={`${tBoardComboValueClass} ${TBOARD_COMBO_HINT_CLASS} cursor-help`} title={m.comboPutStrategies.map(s => `${s.strategy.name} (${s.qty})`).join('\n')}>{m.comboPutStrategies.reduce((sum, s) => sum + s.qty, 0)}</span>
+                  <div className={TBOARD_ACTION_STACK_CLASS}>
+                    <button type="button" className={`${getTBoardActionButtonClass('adjust')} whitespace-nowrap shrink-0`} onClick={() => openComboManageModal('put')}>调整</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <span className={tBoardComboValueClass}>0</span>
+                  <div className={TBOARD_ACTION_STACK_CLASS}>
+                    <button type="button" className={`${getTBoardActionButtonClass('adjust')} whitespace-nowrap shrink-0`} onClick={() => openComboManageModal('put')}>调整</button>
+                  </div>
+                </>
+              )}
+            </div>
+          </td>
+        );
+      case 'delta':
+        return (
+          <td key={`p-delta-${m.s}`} className={`text-center py-2 px-2 sm:px-3 w-18 sm:w-20 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] font-mono font-medium`} title={`认沽 Delta: ${formatGreek(putDelta)}`}>
+            <span>{formatGreek(putDelta)}</span>
+          </td>
+        );
+      case 'gamma':
+        return (
+          <td key={`p-gamma-${m.s}`} className={`text-center py-2 px-2 sm:px-3 w-18 sm:w-20 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] font-mono font-medium`} title={`认沽 Gamma: ${formatGreek(putGamma, 4)}`}>
+            <span>{formatGreek(putGamma, 4)}</span>
+          </td>
+        );
+      case 'theta':
+        return (
+          <td key={`p-theta-${m.s}`} className={`text-center py-2 px-2 sm:px-3 w-18 sm:w-20 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] font-mono font-medium`} title={`认沽 Theta: ${formatGreek(putTheta)}`}>
+            <span>{formatGreek(putTheta)}</span>
+          </td>
+        );
+      case 'vega':
+        return (
+          <td key={`p-vega-${m.s}`} className={`text-center py-2 px-2 sm:px-3 w-18 sm:w-20 ${borderClass} ${themes[theme].text} text-xs sm:text-[13px] font-mono font-medium`} title={`认沽 Vega: ${formatGreek(putVega)}`}>
+            <span>{formatGreek(putVega)}</span>
+          </td>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <tr
       data-strike={m.s}
@@ -5799,75 +6292,13 @@ const TBoardRow = React.memo(function TBoardRow({
             : ''
       }`}
     >
-      <td className={`align-top text-center py-2 ${themes[theme].text}`}>
-        <div className="flex flex-col items-center gap-1.5">
-          {m.comboCallStrategies.length > 0 ? (
-            <>
-              <span className={`${tBoardComboValueClass} ${TBOARD_COMBO_HINT_CLASS} cursor-help`} title={m.comboCallStrategies.map(s => `${s.strategy.name} (${s.qty})`).join('\n')}>{m.comboCallStrategies.reduce((sum, s) => sum + s.qty, 0)}</span>
-              <div className={TBOARD_ACTION_STACK_CLASS}>
-                <button type="button" className={`${getTBoardActionButtonClass('adjust')} whitespace-nowrap shrink-0`} onClick={() => openComboManageModal('call')}>调整</button>
-              </div>
-            </>
-          ) : (
-            <>
-              <span className={tBoardComboValueClass}>0</span>
-              <div className={TBOARD_ACTION_STACK_CLASS}>
-                <button type="button" className={`${getTBoardActionButtonClass('adjust')} whitespace-nowrap shrink-0`} onClick={() => openComboManageModal('call')}>调整</button>
-              </div>
-            </>
-          )}
-        </div>
-      </td>
-      <td className={`align-top text-center py-2 ${themes[theme].text}`}>
-        <div className="flex items-center justify-center gap-1">
-          <div className="flex flex-col items-center gap-1.5">
-            <span className={tBoardValueTextClass}>{displayVal('call_covered', m.s, m.callCovered)}{m.callCoveredAvail !== m.callCovered ? `（${m.callCoveredAvail}）` : ''}</span>
-            <button type="button" className={getTBoardActionButtonClass('adjust')} onClick={() => openAdjustConfirm('call_covered', m.s)}>调整</button>
-          </div>
-        </div>
-      </td>
-      <td className={`align-top text-center py-2 ${themes[theme].text}`}>
-        <div className="flex items-center justify-center gap-1">
-          <div className="flex flex-col items-center gap-1.5">
-            <span className={tBoardValueTextClass}>{displayVal('call_obligation', m.s, m.callObligation)}{m.callObligationAvail !== m.callObligation ? `（${m.callObligationAvail}）` : ''}</span>
-            <button type="button" className={getTBoardActionButtonClass('adjust')} onClick={() => openAdjustConfirm('call_obligation', m.s)}>调整</button>
-          </div>
-        </div>
-      </td>
-      <td className={`align-top text-center py-2 px-3 w-20 ${themes[theme].text}`}>
-        <div className="flex items-center justify-center gap-1">
-          <div className="flex flex-col items-center gap-1.5">
-            <span className={tBoardValueTextClass}>{displayVal('call_right', m.s, m.callRight)}{m.callRightAvail !== m.callRight ? `（${m.callRightAvail}）` : ''}</span>
-            <button type="button" className={getTBoardActionButtonClass('adjust')} onClick={() => openAdjustConfirm('call_right', m.s)}>调整</button>
-          </div>
-        </div>
-      </td>
-      <td
-        className={`text-center py-1.5 px-2 w-20 ${themes[theme].text} text-xs leading-tight transition-colors duration-150 cursor-default hover:bg-emerald-500/10 dark:hover:bg-emerald-500/15`}
-        title={`认购卖方保证金: ${callMarginText}`}
-      >
-        <AnimatedFlash value={callMarginText} className="font-mono text-xs text-gray-500" type="price" />
-      </td>
-      <td
-        className={`text-center py-1.5 px-2 w-20 ${themes[theme].text} text-xs leading-tight transition-colors duration-150 cursor-default hover:bg-emerald-500/10 dark:hover:bg-emerald-500/15`}
-        title={`认购时间价值: ${displayCallTV}`}
-      >
-        <AnimatedFlash value={displayCallTV} className="font-mono text-xs text-gray-500" />
-      </td>
-      <td
-        className={`text-center py-1.5 px-2 w-20 border-r ${themes[theme].border} ${themes[theme].text} text-xs leading-tight transition-colors duration-150 cursor-default hover:bg-emerald-500/15 dark:hover:bg-emerald-500/20`}
-        title={`认购现价: ${callPrice || '-'}`}
-      >
-        <div className="transition-transform duration-150 hover:scale-105">
-          <AnimatedFlash value={callPrice || '-'} className="font-mono text-xs font-semibold" type="price" />
-        </div>
-      </td>
+      {callColumns.map((col, idx) => renderCallCell(col.key, idx === callColumns.length - 1))}
       <td
         ref={strikeCellRef}
         data-role="strike"
         onMouseEnter={handleStrikeMouseEnter}
         onMouseLeave={handleStrikeMouseLeave}
-        className={`text-center py-1 px-2 w-20 font-bold font-mono text-[13px] transition-all duration-200 cursor-pointer select-none ${themes[theme].text} ${
+        className={`text-center py-2 px-2.5 sm:px-4 w-22 sm:w-26 font-extrabold font-mono text-sm sm:text-base transition-all duration-200 cursor-pointer select-none ${themes[theme].text} ${
           isAtmHighlighted
             ? 'bg-blue-500/25 text-blue-600 dark:text-blue-300 font-extrabold scale-110 shadow-md ring-2 ring-blue-500/60 rounded-md z-10'
             : isAtmStrike
@@ -5876,7 +6307,7 @@ const TBoardRow = React.memo(function TBoardRow({
         }`}
       >
         <div
-          className={`inline-flex items-center justify-center gap-1 px-2 py-0.5 rounded-md transition-all duration-200 ${
+          className={`inline-flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-lg text-sm sm:text-base font-extrabold transition-all duration-200 ${
             isStrikeHovered
               ? 'bg-blue-500/15 text-blue-600 dark:text-blue-300 ring-1 ring-blue-500/40 shadow-sm scale-110 -translate-y-0.5'
               : 'hover:scale-105 hover:bg-black/5 dark:hover:bg-white/10'
@@ -5888,69 +6319,7 @@ const TBoardRow = React.memo(function TBoardRow({
           )}
         </div>
       </td>
-      <td
-        className={`text-center py-1.5 px-2 w-20 border-l ${themes[theme].border} ${themes[theme].text} text-xs leading-tight transition-colors duration-150 cursor-default hover:bg-rose-500/15 dark:hover:bg-rose-500/20`}
-        title={`认沽现价: ${putPrice || '-'}`}
-      >
-        <div className="transition-transform duration-150 hover:scale-105">
-          <AnimatedFlash value={putPrice || '-'} className="font-mono text-xs font-semibold" type="price" />
-        </div>
-      </td>
-      <td
-        className={`text-center py-1.5 px-2 w-20 ${themes[theme].text} text-xs leading-tight transition-colors duration-150 cursor-default hover:bg-rose-500/10 dark:hover:bg-rose-500/15`}
-        title={`认沽时间价值: ${displayPutTV}`}
-      >
-        <AnimatedFlash value={displayPutTV} className="font-mono text-xs text-gray-500" />
-      </td>
-      <td
-        className={`text-center py-1.5 px-2 w-20 ${themes[theme].text} text-xs leading-tight transition-colors duration-150 cursor-default hover:bg-rose-500/10 dark:hover:bg-rose-500/15`}
-        title={`认沽卖方保证金: ${putMarginText}`}
-      >
-        <AnimatedFlash value={putMarginText} className="font-mono text-xs text-gray-500" type="price" />
-      </td>
-      <td className={`align-top text-center py-2 px-3 w-20 ${themes[theme].text}`}>
-        <div className="flex items-center justify-center gap-1">
-          <div className="flex flex-col items-center gap-1.5">
-            <span className={tBoardValueTextClass}>{displayVal('put_right', m.s, m.putRight)}{m.putRightAvail !== m.putRight ? `（${m.putRightAvail}）` : ''}</span>
-            <button type="button" className={getTBoardActionButtonClass('adjust')} onClick={() => openAdjustConfirm('put_right', m.s)}>调整</button>
-          </div>
-        </div>
-      </td>
-      <td className={`align-top text-center py-2 ${themes[theme].text}`}>
-        <div className="flex items-center justify-center gap-1">
-          <div className="flex flex-col items-center gap-1.5">
-            <span className={tBoardValueTextClass}>{displayVal('put_obligation', m.s, m.putObligation)}{m.putObligationAvail !== m.putObligation ? `（${m.putObligationAvail}）` : ''}</span>
-            <button type="button" className={getTBoardActionButtonClass('adjust')} onClick={() => openAdjustConfirm('put_obligation', m.s)}>调整</button>
-          </div>
-        </div>
-      </td>
-      <td className={`align-top text-center py-2 ${themes[theme].text}`}>
-        <div className="flex items-center justify-center gap-1">
-          <div className="flex flex-col items-center gap-1.5">
-            <span className={tBoardValueTextClass}>{displayVal('put_covered', m.s, m.putCovered)}{m.putCoveredAvail !== m.putCovered ? `（${m.putCoveredAvail}）` : ''}</span>
-            <button type="button" className={getTBoardActionButtonClass('adjust')} onClick={() => openAdjustConfirm('put_covered', m.s)}>调整</button>
-          </div>
-        </div>
-      </td>
-      <td className={`align-top text-center py-2 ${themes[theme].text}`}>
-        <div className="flex flex-col items-center gap-1.5">
-          {m.comboPutStrategies.length > 0 ? (
-            <>
-              <span className={`${tBoardComboValueClass} ${TBOARD_COMBO_HINT_CLASS} cursor-help`} title={m.comboPutStrategies.map(s => `${s.strategy.name} (${s.qty})`).join('\n')}>{m.comboPutStrategies.reduce((sum, s) => sum + s.qty, 0)}</span>
-              <div className={TBOARD_ACTION_STACK_CLASS}>
-                <button type="button" className={`${getTBoardActionButtonClass('adjust')} whitespace-nowrap shrink-0`} onClick={() => openComboManageModal('put')}>调整</button>
-              </div>
-            </>
-          ) : (
-            <>
-              <span className={tBoardComboValueClass}>0</span>
-              <div className={TBOARD_ACTION_STACK_CLASS}>
-                <button type="button" className={`${getTBoardActionButtonClass('adjust')} whitespace-nowrap shrink-0`} onClick={() => openComboManageModal('put')}>调整</button>
-              </div>
-            </>
-          )}
-        </div>
-      </td>
+      {putColumns.map((col, idx) => renderPutCell(col.key, idx === 0))}
       {isStrikeHovered && (
         <StrikeOptionHoverCard
           isOpen={isStrikeHovered}
@@ -5984,6 +6353,12 @@ const TBoardRow = React.memo(function TBoardRow({
   );
 }, (prevProps, nextProps) => {
   // Custom comparator: only re-render when THIS row's display data changes
+  if (prevProps.columns !== nextProps.columns) {
+    if (prevProps.columns.length !== nextProps.columns.length) return false;
+    for (let i = 0; i < prevProps.columns.length; i++) {
+      if (prevProps.columns[i] !== nextProps.columns[i]) return false;
+    }
+  }
   if (prevProps.isAtmStrike !== nextProps.isAtmStrike) return false;
   if (prevProps.isAtmHighlighted !== nextProps.isAtmHighlighted) return false;
   if (prevProps.metric !== nextProps.metric) return false;

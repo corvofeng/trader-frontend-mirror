@@ -10,6 +10,7 @@ import type { OptionsPortfolioData, OptionsPosition, OptionsStrategy, AdvisedCom
 import { computeCombosForPositions as computeCombosForStrategy } from '../utils/strategyCombos';
 import toast from 'react-hot-toast';
 import { ExpiryGroupCard } from './ExpiryGroupCard';
+import { DEFAULT_PORTFOLIO_COLUMNS } from '../types/tboard';
 import { OptionQuoteSubscription } from './OptionQuoteSubscription';
 import { useOptionPriceWebSocket } from '../hooks/useOptionPriceWebSocket';
 import { useClosePositions } from '../hooks/useClosePositions';
@@ -965,28 +966,36 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
           return (
             <>
 
-              {/* Floating Right-Side Month TOC (High z-index to never be blocked by cards) */}
+              {/* Floating Right-Side Month TOC (Pure overlay so it never requires a page margin) */}
+              {months.length > 0 && !isMonthTocCollapsed && isMobile && (
+                <div
+                  className="fixed inset-0 bg-black/25 backdrop-blur-[2px] z-[58] transition-opacity animate-fade-in"
+                  onClick={() => setIsMonthTocCollapsed(true)}
+                  aria-hidden="true"
+                />
+              )}
+
               {months.length > 0 && (
                 isMonthTocCollapsed ? (
                   <div
                     className="fixed right-0"
                     style={{
                       zIndex: 60,
-                      top: 'calc(296px + env(safe-area-inset-top, 0px))',
-                      width: 36,
-                      height: 64,
+                      top: 'calc(260px + env(safe-area-inset-top, 0px))',
+                      width: 32,
+                      height: 60,
                     }}
                   >
                     <button
                       type="button"
                       onClick={() => setIsMonthTocCollapsed(false)}
-                      className={`w-full h-full py-2.5 flex flex-col items-center justify-center gap-1 select-none btn-tactile rounded-l-xl border border-r-0 ${themes[theme].card} ${themes[theme].border} shadow-[-4px_0_16px_rgba(0,0,0,0.08)] dark:shadow-[-4px_0_20px_rgba(0,0,0,0.4)] backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/5 opacity-85 hover:opacity-100 transition-all relative overflow-hidden`}
+                      className={`w-full h-full py-2 flex flex-col items-center justify-center gap-0.5 select-none btn-tactile rounded-l-xl border border-r-0 ${themes[theme].card} ${themes[theme].border} shadow-[-4px_0_16px_rgba(0,0,0,0.08)] dark:shadow-[-4px_0_20px_rgba(0,0,0,0.4)] backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/5 opacity-80 hover:opacity-100 transition-all relative overflow-hidden`}
                       title="展开月份选择"
                     >
                       <div className="absolute inset-y-0 left-0 w-px bg-gradient-to-b from-white/40 via-white/10 to-transparent dark:from-white/10 pointer-events-none" />
                       <ChevronLeft className={`w-3.5 h-3.5 ${themes[theme].text} opacity-60`} strokeWidth={2} />
                       <span
-                        className={`text-[10px] sm:text-[11px] font-semibold ${themes[theme].text} opacity-90 leading-tight tracking-wider`}
+                        className={`text-[10px] font-semibold ${themes[theme].text} opacity-90 leading-tight tracking-wider`}
                         style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
                       >
                         月份
@@ -998,7 +1007,7 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                     className={`fixed right-2 sm:right-4 flex flex-col items-center gap-1 p-1.5 sm:p-2 rounded-2xl border ${floatingGlassBg} backdrop-blur-xl transition-all duration-200 select-none ring-1 ring-black/5 dark:ring-white/5`}
                     style={{
                       zIndex: 60,
-                      top: 'calc(296px + env(safe-area-inset-top, 0px))',
+                      top: 'calc(260px + env(safe-area-inset-top, 0px))',
                       boxShadow: theme === 'dark' ? '0 16px 48px -16px rgba(0,0,0,0.6)' : '0 12px 36px -12px rgba(15,23,42,0.2)',
                     }}
                   >
@@ -1107,6 +1116,10 @@ export function OptionsPortfolio({ theme, selectedAccountId: selectedAccountIdPr
                     onToggleTBoard={() => toggleTBoardGroup(group.expiry)}
                     onRefresh={fetchPortfolio}
                     wsRefreshNonce={wsRefreshNonce}
+                    customColumns={DEFAULT_PORTFOLIO_COLUMNS}
+                    storageKey="options_portfolio_tboard_cols"
+                    defaultPreset="portfolio"
+                    tBoardTitle="持仓T型数量看板"
                   />
                 </div>
               );
