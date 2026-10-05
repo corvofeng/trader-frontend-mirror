@@ -4,6 +4,7 @@ import { OptionQuoteSubscription } from './OptionQuoteSubscription';
 import { AnimatedFlash } from './AnimatedFlash';
 import { Theme, themes } from '../../../lib/theme';
 import { ChevronLeft, ChevronRight, Hourglass, RefreshCw, Activity } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface UnderlyingPriceMonitorProps {
   symbol: string;
@@ -170,6 +171,7 @@ export function UnderlyingPriceMonitor({ symbol, theme, refreshNonce = 0, isMobi
     if (!symbol || !isConnected) return;
     realtimeQueryPrice([symbol]);
     resetRefreshCountdown();
+    toast.success(`已触发行情数据刷新 (${symbol})`, { id: 'monitor-refresh-toast' });
   }, [isConnected, realtimeQueryPrice, resetRefreshCountdown, symbol]);
 
   const priceData = prices[symbol];

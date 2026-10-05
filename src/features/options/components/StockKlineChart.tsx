@@ -52,6 +52,37 @@ const todayUTCTimestamp = (): UTCTimestamp => {
   return Math.floor(d.getTime() / 1000) as UTCTimestamp;
 };
 
+type RangeMode = '6M' | '1Y' | 'ALL';
+
+const applyChartVisibleRange = (
+  chart: IChartApi,
+  data: KlineRecord[],
+  mode: RangeMode,
+  cone: ConePoint[],
+  coneVisible: boolean
+) => {
+  if (data.length === 0) return;
+  const ts = chart.timeScale();
+  if (mode === 'ALL') {
+    ts.fitContent();
+    return;
+  }
+  const lastTs = data[data.length - 1].time;
+  const d = new Date((lastTs as number) * 1000);
+  if (mode === '6M') {
+    d.setMonth(d.getMonth() - 6);
+  } else if (mode === '1Y') {
+    d.setFullYear(d.getFullYear() - 1);
+  }
+  const fromTs = Math.floor(d.getTime() / 1000) as UTCTimestamp;
+  let toTs = lastTs;
+  if (coneVisible && cone.length > 0) {
+    const fut = Number(cone[cone.length - 1].pointTs ?? cone[cone.length - 1].expiryTs);
+    toTs = (fut > (lastTs as number) ? (fut as unknown as UTCTimestamp) : lastTs) as UTCTimestamp;
+  }
+  ts.setVisibleRange({ from: fromTs as Time, to: toTs as Time });
+};
+
 export function StockKlineChart({ symbol, theme, optionsData, currentUnderlyingPrice }: StockKlineChartProps) {
   const { getThemedColors } = useCurrency();
   const themedColors = getThemedColors(theme);
@@ -64,14 +95,15 @@ export function StockKlineChart({ symbol, theme, optionsData, currentUnderlyingP
   const fillSeriesRef = useRef<ISeriesApi<'Area'> | null>(null);
 
   const klineDataRef = useRef<KlineRecord[]>([]);
-  const rangeModeRef = useRef<'6M' | 'ALL'>('6M');
+  const rangeModeRef = useRef<RangeMode>('1Y');
   const coneVisibleRef = useRef(true);
   const lastKlineTsRef = useRef<UTCTimestamp | null>(null);
+  const hasAppliedConeRangeRef = useRef(false);
 
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
   const [hoveredPrice, setHoveredPrice] = useState<number | null>(null);
-  const [rangeMode, setRangeMode] = useState<'6M' | 'ALL'>('6M');
+  const [rangeMode, setRangeMode] = useState<RangeMode>('1Y');
   const [coneVisible, setConeVisible] = useState(true);
   const [deltaLevel, setDeltaLevel] = useState<ConeDeltaLevel>(0.8);
   const [nowTs, setNowTs] = useState(() => Math.floor(Date.now() / 1000));
@@ -84,25 +116,8 @@ export function StockKlineChart({ symbol, theme, optionsData, currentUnderlyingP
     rangeModeRef.current = rangeMode;
     const chart = chartRef.current;
     if (!chart) return;
-    const data = klineDataRef.current;
-    if (data.length === 0) return;
     try {
-      const ts = chart.timeScale();
-      const lastTs = data[data.length - 1].time;
-      if (rangeMode === 'ALL') {
-        ts.fitContent();
-      } else {
-        const sixMonthsAgo = new Date((lastTs as number) * 1000);
-        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-        const fromTs = Math.floor(sixMonthsAgo.getTime() / 1000) as UTCTimestamp;
-        const cone = coneRef.current;
-        let toTs = lastTs;
-        if (coneVisibleRef.current && cone.length > 0) {
-          const fut = Number(cone[cone.length - 1].pointTs ?? cone[cone.length - 1].expiryTs);
-          toTs = (fut > (lastTs as number) ? (fut as unknown as UTCTimestamp) : lastTs) as UTCTimestamp;
-        }
-        ts.setVisibleRange({ from: fromTs as Time, to: toTs as Time });
-      }
+      applyChartVisibleRange(chart, klineDataRef.current, rangeMode, coneRef.current, coneVisibleRef.current);
     } catch (_) {
       /* ignore */
     }
@@ -304,7 +319,10 @@ export function StockKlineChart({ symbol, theme, optionsData, currentUnderlyingP
     try {
       const desiredOff = isMobile ? 12 : 20;
       chart.timeScale().applyOptions({ rightOffset: desiredOff });
-      if (rangeModeRef.current === 'ALL') {
+      if (!hasAppliedConeRangeRef.current && cone.length > 0) {
+        hasAppliedConeRangeRef.current = true;
+        applyChartVisibleRange(chart, klineDataRef.current, rangeModeRef.current, cone, coneVisibleRef.current);
+      } else if (rangeModeRef.current === 'ALL') {
         chart.timeScale().fitContent();
       }
     } catch (_) {
@@ -335,6 +353,7 @@ export function StockKlineChart({ symbol, theme, optionsData, currentUnderlyingP
     const container = containerRef.current;
     const ac = new AbortController();
     setLoading(true);
+    hasAppliedConeRangeRef.current = false;
 
     const isDark = theme === 'dark';
     const isBlue = theme === 'blue';
@@ -482,23 +501,8 @@ export function StockKlineChart({ symbol, theme, optionsData, currentUnderlyingP
         }
         try {
           const applyInitial = () => {
-            const ts = chart.timeScale();
-            if (candlesticks.length === 0) return;
-            const lastTs = candlesticks[candlesticks.length - 1].time;
-            if (rangeModeRef.current === 'ALL') {
-              ts.fitContent();
-            } else {
-              const sixMonthsAgo = new Date((lastTs as number) * 1000);
-              sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-              const fromTs = Math.floor(sixMonthsAgo.getTime() / 1000) as UTCTimestamp;
-              const cone = coneRef.current;
-              let toTs = lastTs;
-              if (coneVisibleRef.current && cone.length > 0) {
-                const fut = Number(cone[cone.length - 1].pointTs ?? cone[cone.length - 1].expiryTs);
-                toTs = (fut > (lastTs as number) ? (fut as unknown as UTCTimestamp) : lastTs) as UTCTimestamp;
-              }
-              ts.setVisibleRange({ from: fromTs as Time, to: toTs as Time });
-            }
+            if (!chart) return;
+            applyChartVisibleRange(chart, candlesticks, rangeModeRef.current, coneRef.current, coneVisibleRef.current);
           };
           applyInitial();
           setTimeout(applyInitial, 80);
@@ -657,7 +661,7 @@ export function StockKlineChart({ symbol, theme, optionsData, currentUnderlyingP
   const isBlue = theme === 'blue';
   const muted = isDark ? 'text-zinc-400' : isBlue ? 'text-slate-500' : 'text-slate-500';
 
-  const rangeBtn = (key: '6M' | 'ALL', label: string, title: string) => {
+  const rangeBtn = (key: RangeMode, label: string, title: string, pos: 'first' | 'middle' | 'last') => {
     const active = rangeMode === key;
     const activeCls =
       theme === 'dark'
@@ -671,14 +675,19 @@ export function StockKlineChart({ symbol, theme, optionsData, currentUnderlyingP
         : theme === 'blue'
         ? 'bg-white/60 border-blue-100/60 text-slate-600 hover:bg-blue-50 hover:text-blue-900'
         : 'bg-white/60 border-slate-200/60 text-slate-600 hover:bg-slate-100 hover:text-slate-900';
-    const firstCls = key === '6M' ? 'rounded-r-none border-r-0' : 'rounded-l-none';
+    const posCls =
+      pos === 'first'
+        ? 'rounded-l-lg rounded-r-none border-r-0'
+        : pos === 'last'
+        ? 'rounded-r-lg rounded-l-none'
+        : 'rounded-none border-r-0';
     return (
       <button
         key={key}
         type="button"
         onClick={() => setRangeMode(key)}
         title={title}
-        className={`px-2.5 py-1 text-[11px] font-semibold border transition-all duration-150 cursor-pointer select-none ${firstCls} ${
+        className={`px-2.5 py-1 text-[11px] font-semibold border transition-all duration-150 cursor-pointer select-none ${posCls} ${
           active ? activeCls : idleCls
         }`}
       >
@@ -714,8 +723,9 @@ export function StockKlineChart({ symbol, theme, optionsData, currentUnderlyingP
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="inline-flex rounded-lg overflow-hidden">
-            {rangeBtn('6M', '6 个月', '只显示最近 6 个月走势（默认）')}
-            {rangeBtn('ALL', '全部', '显示全部历史走势，同时包含未来到期日')}
+            {rangeBtn('6M', '6 个月', '显示最近 6 个月走势', 'first')}
+            {rangeBtn('1Y', '1 年', '只显示最近 1 年走势（默认）', 'middle')}
+            {rangeBtn('ALL', '全部', '显示全部历史走势，同时包含未来到期日', 'last')}
           </div>
 
           <DeltaLevelPicker theme={theme} value={deltaLevel} onChange={setDeltaLevel} />
