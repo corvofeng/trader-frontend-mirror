@@ -487,7 +487,7 @@ export function Portfolio({
           />
         </div>
       )}
-      <div className={`${themes[theme].card} rounded-lg shadow-md p-3 md:p-6`}>
+      <div className={`${themes[theme].card} rounded-lg shadow-md p-3 md:p-6 relative z-10`}>
         <div className="no-print">
           <OverviewControls
             theme={theme}
