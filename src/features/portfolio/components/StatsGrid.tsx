@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useId } from 'react';
 import { createPortal } from 'react-dom';
 import { Zap, TrendingUp, TrendingDown, HelpCircle, X, Layers, Wallet, Landmark } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
@@ -14,6 +14,82 @@ interface StatsGridProps {
   totalProfitLoss: number;
   remainingCash: number;
   hasTrendData?: boolean;
+}
+
+/**
+ * 精密物理质感 SVG 电池组件 (绝对不坍塌、不失真)
+ */
+interface SvgBatteryGaugeProps {
+  ratio: number;
+  theme: Theme;
+  config: {
+    startColor: string;
+    stopColor: string;
+    strokeColor: string;
+  };
+}
+
+function SvgBatteryGauge({ ratio, config }: SvgBatteryGaugeProps) {
+  const gradId = useId();
+  const clampedRatio = Math.min(100, Math.max(0, ratio));
+  // 电池内部电量最大可用绘制宽度为 30px (x=4.5 到 34.5)
+  const maxFillWidth = 30;
+  const fillWidth = (clampedRatio / 100) * maxFillWidth;
+
+  return (
+    <svg
+      width="40"
+      height="20"
+      viewBox="0 0 44 22"
+      className="shrink-0 overflow-visible drop-shadow-2xs"
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor={config.startColor} />
+          <stop offset="100%" stopColor={config.stopColor} />
+        </linearGradient>
+      </defs>
+
+      {/* 电池主体外壳 */}
+      <rect
+        x="1.5"
+        y="1.5"
+        width="36"
+        height="19"
+        rx="5"
+        ry="5"
+        fill="none"
+        stroke={config.strokeColor}
+        strokeWidth="2"
+      />
+
+      {/* 电池正极帽 (凸起端子) */}
+      <path
+        d="M 38.5 7.5 C 40.5 7.5, 41.5 8.5, 41.5 10 L 41.5 12 C 41.5 13.5, 40.5 14.5, 38.5 14.5 Z"
+        fill={config.strokeColor}
+      />
+
+      {/* 内部电量填充 */}
+      {fillWidth > 0 && (
+        <rect
+          x="4.5"
+          y="4.5"
+          width={Math.max(2, fillWidth)}
+          height="13"
+          rx="3"
+          ry="3"
+          fill={`url(#${gradId})`}
+          className="transition-all duration-500 ease-out"
+        />
+      )}
+
+      {/* 硬件刻度微细虚线 */}
+      <line x1="12" y1="4.5" x2="12" y2="17.5" stroke="#ffffff" strokeOpacity="0.3" strokeWidth="1" strokeDasharray="1 1" />
+      <line x1="19.5" y1="4.5" x2="19.5" y2="17.5" stroke="#ffffff" strokeOpacity="0.3" strokeWidth="1" strokeDasharray="1 1" />
+      <line x1="27" y1="4.5" x2="27" y2="17.5" stroke="#ffffff" strokeOpacity="0.3" strokeWidth="1" strokeDasharray="1 1" />
+    </svg>
+  );
 }
 
 /**
@@ -46,7 +122,7 @@ function PositionPowerGauge({
   const popoverRef = useRef<HTMLDivElement>(null);
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 监听移动端视口检测
+  // 监听移动端视口
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 640);
@@ -56,49 +132,59 @@ function PositionPowerGauge({
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // 限制进度条百分比在 0 ~ 100% 之间用于绘制电池填充，真实数值如实展示
   const clampedRatio = Math.min(100, Math.max(0, positionRatio));
   const cashRatio = Math.max(0, 100 - positionRatio);
 
-  // 根据仓位高低匹配电源色彩与状态标签
+  // 根据仓位高低匹配电源色彩、标签与渐变
   const getBatteryTheme = (ratio: number) => {
+    const isDark = theme === 'dark' || theme === 'blue';
+    const stroke = isDark ? 'rgba(255, 255, 255, 0.45)' : 'rgba(15, 23, 42, 0.45)';
+
     if (ratio >= 85) {
       return {
         label: '重仓',
-        glow: 'shadow-emerald-500/20',
-        barGradient: 'from-emerald-500 via-teal-400 to-emerald-400',
+        startColor: '#10b981',
+        stopColor: '#14b8a6',
+        strokeColor: stroke,
         textClass: 'text-emerald-500 dark:text-emerald-400',
         badgeBg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
         boltColor: 'text-emerald-500',
+        barGradient: 'from-emerald-500 via-teal-400 to-emerald-400',
       };
     }
     if (ratio >= 50) {
       return {
         label: '中高仓',
-        glow: 'shadow-blue-500/20',
-        barGradient: 'from-blue-500 via-cyan-400 to-emerald-400',
+        startColor: '#3b82f6',
+        stopColor: '#06b6d4',
+        strokeColor: stroke,
         textClass: 'text-blue-500 dark:text-blue-400',
         badgeBg: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
         boltColor: 'text-blue-500',
+        barGradient: 'from-blue-500 via-cyan-400 to-emerald-400',
       };
     }
     if (ratio >= 20) {
       return {
         label: '轻仓',
-        glow: 'shadow-sky-500/20',
-        barGradient: 'from-sky-500 to-blue-400',
+        startColor: '#0ea5e9',
+        stopColor: '#3b82f6',
+        strokeColor: stroke,
         textClass: 'text-sky-500 dark:text-sky-400',
         badgeBg: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20',
         boltColor: 'text-sky-500',
+        barGradient: 'from-sky-500 to-blue-400',
       };
     }
     return {
-      label: '轻仓/防守',
-      glow: 'shadow-amber-500/20',
-      barGradient: 'from-amber-400 to-yellow-500',
+      label: '防守',
+      startColor: '#f59e0b',
+      stopColor: '#eab308',
+      strokeColor: stroke,
       textClass: 'text-amber-500 dark:text-amber-400',
       badgeBg: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
       boltColor: 'text-amber-500',
+      barGradient: 'from-amber-400 to-yellow-500',
     };
   };
 
@@ -113,7 +199,6 @@ function PositionPowerGauge({
     const vw = window.innerWidth;
     const vh = window.innerHeight;
 
-    // 水平位置：优先让浮层右边缘对齐触发按钮的右边缘
     let left = rect.right - popoverWidth;
     if (left < 12) {
       left = Math.max(12, rect.left);
@@ -122,7 +207,6 @@ function PositionPowerGauge({
       left = vw - popoverWidth - 12;
     }
 
-    // 垂直位置：如果下方可用高度不足，自动翻转到上方弹出
     const spaceBelow = vh - rect.bottom;
     const spaceAbove = rect.top;
     const placeAbove = spaceBelow < popoverHeight + 16 && spaceAbove > spaceBelow;
@@ -150,7 +234,6 @@ function PositionPowerGauge({
     }, 200);
   };
 
-  // 当打开且处于桌面端时实时同步坐标
   useEffect(() => {
     if (isOpen && !isMobile) {
       updateCoords();
@@ -164,7 +247,6 @@ function PositionPowerGauge({
     }
   }, [isOpen, isMobile, updateCoords]);
 
-  // 点击外部自动关闭
   useEffect(() => {
     function handleClickOutside(event: MouseEvent | TouchEvent) {
       const target = event.target as Node;
@@ -185,7 +267,6 @@ function PositionPowerGauge({
     };
   }, []);
 
-  // 浮层主题色适配
   const popoverBg =
     theme === 'dark'
       ? 'bg-gray-900/98 border-gray-700 text-gray-100 shadow-2xl shadow-black/80'
@@ -208,8 +289,8 @@ function PositionPowerGauge({
       : 'border-slate-100';
 
   return (
-    <div className="relative inline-block">
-      {/* 电源样式交互胶囊按钮 (移动端与桌面端自适应紧凑尺寸) */}
+    <div className="relative inline-block shrink-0">
+      {/* 电源样式交互胶囊按钮 */}
       <button
         ref={triggerRef}
         type="button"
@@ -218,50 +299,24 @@ function PositionPowerGauge({
         onMouseLeave={handleMouseLeave}
         aria-expanded={isOpen}
         aria-label={`当前仓位比例: ${positionRatio.toFixed(2)}%，点击或悬停查看详情`}
-        className={`group flex items-center gap-2 sm:gap-3 px-2.5 py-1.5 sm:px-4 sm:py-2.5 rounded-xl sm:rounded-2xl border transition-all duration-200 text-left select-none cursor-pointer active:scale-95 ${
+        className={`group flex items-center gap-2.5 sm:gap-3 px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-2xl border transition-all duration-200 text-left select-none cursor-pointer active:scale-95 ${
           theme === 'dark'
-            ? 'bg-gray-800/50 hover:bg-gray-800/80 border-gray-700/70 hover:border-gray-600'
+            ? 'bg-gray-800/60 hover:bg-gray-800/90 border-gray-700/80 hover:border-gray-600'
             : theme === 'blue'
-            ? 'bg-blue-900/30 hover:bg-blue-900/50 border-blue-800/60 hover:border-blue-700'
-            : 'bg-slate-50/90 hover:bg-slate-100 border-slate-200 hover:border-slate-300'
+            ? 'bg-blue-900/40 hover:bg-blue-900/60 border-blue-800/70 hover:border-blue-700'
+            : 'bg-slate-50/90 hover:bg-slate-100 border-slate-200/90 hover:border-slate-300'
         } ${isOpen ? 'ring-2 ring-blue-500/30 border-blue-400/50 shadow-md' : 'shadow-2xs'}`}
       >
-        {/* 左侧：微型物理电池形态指示器 */}
-        <div className="flex items-center shrink-0">
-          {/* 电池壳体 */}
-          <div
-            className={`relative flex items-center w-8 h-4.5 sm:w-11 sm:h-6 rounded-[3.5px] sm:rounded-md border-[1.5px] sm:border-2 p-[1px] sm:p-[2px] transition-colors ${
-              theme === 'dark'
-                ? 'border-gray-400 bg-gray-950/70'
-                : theme === 'blue'
-                ? 'border-blue-300/80 bg-blue-950/70'
-                : 'border-slate-500/80 bg-white'
-            }`}
-          >
-            {/* 电池电量内部填充 */}
-            <div
-              className={`h-full rounded-[1.5px] sm:rounded-[2px] bg-gradient-to-r ${batteryConfig.barGradient} transition-all duration-500 ease-out`}
-              style={{ width: `${clampedRatio}%` }}
-            />
-
-            {/* 电池内部刻度虚线 */}
-            <div className="absolute inset-0 flex justify-between px-1 sm:px-1.5 py-0.5 pointer-events-none opacity-30">
-              <span className="w-px h-full bg-white/60" />
-              <span className="w-px h-full bg-white/60" />
-              <span className="w-px h-full bg-white/60" />
-            </div>
-          </div>
-          {/* 电池正极端子（凸起头） */}
-          <div
-            className={`w-0.5 h-2 sm:w-1 sm:h-3 rounded-r-[1px] sm:rounded-r-[2px] -ml-[1px] transition-colors ${
-              theme === 'dark'
-                ? 'bg-gray-400'
-                : theme === 'blue'
-                ? 'bg-blue-300/80'
-                : 'bg-slate-500/80'
-            }`}
-          />
-        </div>
+        {/* 左侧：精工 SVG 电池组件 */}
+        <SvgBatteryGauge
+          ratio={clampedRatio}
+          theme={theme}
+          config={{
+            startColor: batteryConfig.startColor,
+            stopColor: batteryConfig.stopColor,
+            strokeColor: batteryConfig.strokeColor,
+          }}
+        />
 
         {/* 右侧：仓位百分比数值与状态 */}
         <div className="flex flex-col min-w-0">
@@ -277,7 +332,7 @@ function PositionPowerGauge({
           </div>
           <div className="flex items-baseline gap-0.5 sm:gap-1 mt-0.5">
             <span
-              className={`text-sm sm:text-xl font-bold sm:font-extrabold tracking-tight font-mono tabular-nums ${themes[theme].text}`}
+              className={`text-base sm:text-xl font-extrabold tracking-tight font-mono tabular-nums ${themes[theme].text}`}
             >
               {positionRatio.toFixed(1)}%
             </span>
@@ -483,7 +538,7 @@ export function StatsGrid({
 
   return (
     <div
-      className={`rounded-xl sm:rounded-2xl border p-3.5 sm:p-5 md:p-6 transition-all duration-200 ${
+      className={`rounded-2xl border p-4 sm:p-5 md:p-6 transition-all duration-200 ${
         theme === 'dark'
           ? 'bg-gray-900/60 border-gray-800/80 shadow-xs'
           : theme === 'blue'
@@ -491,19 +546,19 @@ export function StatsGrid({
           : 'bg-gradient-to-br from-white to-slate-50/80 border-slate-200/80 shadow-2xs'
       }`}
     >
-      {/* 顶层主行：左侧核心金额与盈亏 + 右侧电池电量指示器并排自适应 */}
-      <div className="flex items-start sm:items-center justify-between gap-3">
+      {/* 顶层主行：左侧核心金额与盈亏 + 右侧电池电量指示器并排 */}
+      <div className="flex items-center justify-between gap-3 sm:gap-4">
         {/* 左侧区域：现有账户金额 (Hero) 与 持仓盈亏 */}
         <div className="flex flex-col min-w-0 flex-1">
           {/* 标签栏 */}
           <div className="flex items-center gap-1.5">
             <span
-              className={`text-[11px] sm:text-xs md:text-sm font-medium tracking-wide uppercase ${themes[theme].text} opacity-70`}
+              className={`text-xs sm:text-sm font-medium tracking-wide uppercase ${themes[theme].text} opacity-70`}
             >
               现有账户金额
             </span>
             <span
-              className={`inline-flex items-center px-1.5 py-0.2 rounded-full text-[9px] sm:text-[10px] font-medium border ${
+              className={`inline-flex items-center px-1.5 py-0.2 rounded-full text-[10px] font-medium border ${
                 theme === 'dark'
                   ? 'bg-gray-800/80 text-gray-300 border-gray-700'
                   : theme === 'blue'
@@ -516,9 +571,9 @@ export function StatsGrid({
           </div>
 
           {/* 核心金额数字 */}
-          <div className="mt-0.5">
+          <div className="mt-1">
             <h1
-              className={`text-xl sm:text-2xl md:text-3xl lg:text-4xl font-extrabold tracking-tight font-mono tabular-nums leading-tight ${themes[theme].text} truncate`}
+              className={`text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight font-mono tabular-nums leading-none ${themes[theme].text} truncate`}
               title={formatCurrency(latestTrendValue, currencyConfig)}
             >
               {formatCurrency(latestTrendValue, currencyConfig)}
@@ -526,9 +581,9 @@ export function StatsGrid({
           </div>
 
           {/* 持仓盈亏胶囊 Badge */}
-          <div className="flex items-center gap-2 mt-1">
+          <div className="flex items-center gap-2 mt-2">
             <div
-              className={`inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg sm:rounded-xl text-[11px] sm:text-xs md:text-sm font-semibold border ${
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs sm:text-sm font-semibold border ${
                 isProfit
                   ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
                   : 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20'
@@ -536,16 +591,16 @@ export function StatsGrid({
               title="持仓累计浮动盈亏"
             >
               {isProfit ? (
-                <TrendingUp className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+                <TrendingUp className="w-3.5 h-3.5 shrink-0" />
               ) : (
-                <TrendingDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+                <TrendingDown className="w-3.5 h-3.5 shrink-0" />
               )}
               <span>
                 {isProfit ? '+' : '-'}
                 {formatCurrency(Math.abs(totalProfitLoss), currencyConfig)}
               </span>
               {pnlPercentage !== null && (
-                <span className="opacity-75 text-[10px] sm:text-xs">
+                <span className="opacity-75 text-[11px] sm:text-xs">
                   ({isProfit ? '+' : ''}
                   {pnlPercentage.toFixed(2)}%)
                 </span>
@@ -553,26 +608,24 @@ export function StatsGrid({
             </div>
           </div>
 
-          {/* 辅助说明（在桌面端展示，手机端隐藏或精简以保持紧凑） */}
-          <p className={`hidden sm:block text-xs ${themes[theme].text} opacity-50 mt-1`}>
+          {/* 辅助说明（在桌面端展示，手机端隐藏以保持精简） */}
+          <p className={`hidden sm:block text-xs ${themes[theme].text} opacity-50 mt-1.5`}>
             {hasTrendData
               ? '基于账户最新资产趋势与市场实时数据核算'
               : '当前根据持仓市值进行估算汇总'}
           </p>
         </div>
 
-        {/* 右侧区域：电源样式的仓位百分比（在手机端与左侧金额自然并排） */}
-        <div className="shrink-0 pt-0.5 sm:pt-0">
-          <PositionPowerGauge
-            theme={theme}
-            currencyConfig={currencyConfig}
-            positionRatio={positionRatio}
-            totalHoldingsValue={totalHoldingsValue}
-            remainingCash={remainingCash}
-            latestTrendValue={latestTrendValue}
-            hasTrendData={hasTrendData}
-          />
-        </div>
+        {/* 右侧区域：精密电源电池样式的仓位指示器 */}
+        <PositionPowerGauge
+          theme={theme}
+          currencyConfig={currencyConfig}
+          positionRatio={positionRatio}
+          totalHoldingsValue={totalHoldingsValue}
+          remainingCash={remainingCash}
+          latestTrendValue={latestTrendValue}
+          hasTrendData={hasTrendData}
+        />
       </div>
     </div>
   );
