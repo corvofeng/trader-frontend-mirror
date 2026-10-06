@@ -58,7 +58,6 @@ const toTimestamp = (date: string) => {
 export function PortfolioKlineChart({ theme, klineData, source, priceMode, sseData = [] }: PortfolioKlineChartProps) {
   const viewportRef = React.useRef<HTMLDivElement | null>(null);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
-  const highlightBandRef = React.useRef<HTMLDivElement | null>(null);
   const chartRef = React.useRef<IChartApi | null>(null);
   const areaSeriesRef = React.useRef<ISeriesApi<'Area'> | null>(null);
   const seriesRef = React.useRef<ISeriesApi<'Candlestick'> | null>(null);
@@ -280,10 +279,22 @@ export function PortfolioKlineChart({ theme, klineData, source, priceMode, sseDa
 
   const formatAxisValue = React.useCallback((value: number) => {
     if (effectivePriceMode === 'nav') {
-      return isMobile ? value.toFixed(4) : value.toFixed(6);
+      return isMobile ? value.toFixed(3) : value.toFixed(4);
+    }
+    if (isMobile) {
+      const abs = Math.abs(value);
+      if (abs >= 1e8) {
+        const val = value / 1e8;
+        return `${val % 1 === 0 ? val.toFixed(0) : val.toFixed(1)}亿`;
+      }
+      if (abs >= 1e4) {
+        const val = value / 1e4;
+        return `${val % 1 === 0 ? val.toFixed(0) : val.toFixed(1)}万`;
+      }
+      return value.toFixed(0);
     }
     return formatCompactNumber(value, currencyConfig?.region);
-  }, [effectivePriceMode, currencyConfig?.region]);
+  }, [effectivePriceMode, currencyConfig?.region, isMobile]);
 
   React.useEffect(() => {
     const container = containerRef.current;
@@ -308,6 +319,7 @@ export function PortfolioKlineChart({ theme, klineData, source, priceMode, sseDa
       layout: {
         background: { type: ColorType.Solid, color: isDark ? '#18181b' : '#ffffff' },
         textColor,
+        fontSize: isMobile ? 10 : 12,
       },
       handleScroll: {
         mouseWheel: false,
@@ -351,16 +363,22 @@ export function PortfolioKlineChart({ theme, klineData, source, priceMode, sseDa
       },
       rightPriceScale: {
         borderColor,
-        minimumWidth: isMobile ? 44 : 80,
+        minimumWidth: isMobile ? 38 : 64,
       },
       timeScale: {
         borderColor,
         timeVisible: false,
         secondsVisible: false,
-        rightOffset: isMobile ? 1 : 0,
-        barSpacing: isMobile ? 8 : 10,
+        rightOffset: 0,
+        fixLeftEdge: true,
+        fixRightEdge: true,
       },
     });
+
+    const scaleMargins = {
+      top: 0.08,
+      bottom: 0.04,
+    };
 
     const areaSeries = chart.addAreaSeries({
       lineColor: 'transparent',
@@ -392,10 +410,7 @@ export function PortfolioKlineChart({ theme, klineData, source, priceMode, sseDa
       value: (point.open + point.close) / 2,
     })));
     series.priceScale().applyOptions({
-      scaleMargins: {
-        top: isMobile ? 0.22 : 0.18,
-        bottom: 0.08,
-      },
+      scaleMargins,
     });
     series.setData(preparedData);
 
@@ -413,10 +428,7 @@ export function PortfolioKlineChart({ theme, klineData, source, priceMode, sseDa
         },
       });
       maSeries.priceScale().applyOptions({
-        scaleMargins: {
-          top: isMobile ? 0.22 : 0.18,
-          bottom: 0.08,
-        },
+        scaleMargins,
       });
       maSeries.setData(movingAverages[period]);
       maSeriesRefs.current[period] = maSeries;
@@ -440,52 +452,22 @@ export function PortfolioKlineChart({ theme, klineData, source, priceMode, sseDa
           },
         });
         sseMaSeries.priceScale().applyOptions({
-          scaleMargins: {
-            top: isMobile ? 0.22 : 0.18,
-            bottom: 0.08,
-          },
+          scaleMargins,
         });
         sseMaSeries.setData(sseMA20);
       }
     }
 
     chart.timeScale().fitContent();
+    requestAnimationFrame(() => {
+      chart.timeScale().fitContent();
+    });
     setHoveredPoint(preparedData[preparedData.length - 1] ?? null);
 
     const pointMap = new Map(preparedData.map((point) => [point.time, point]));
-    const updateHighlightBand = (time: UTCTimestamp | null) => {
-      const band = highlightBandRef.current;
-      if (!band) return;
-      if (!time) {
-        band.style.opacity = '0';
-        return;
-      }
-      const coordinate = chart.timeScale().timeToCoordinate(time);
-      if (coordinate == null || !Number.isFinite(coordinate)) {
-        band.style.opacity = '0';
-        return;
-      }
-      const index = preparedData.findIndex((point) => point.time === time);
-      const previousCoordinate = index > 0 ? chart.timeScale().timeToCoordinate(preparedData[index - 1].time) : null;
-      const nextCoordinate = index >= 0 && index < preparedData.length - 1
-        ? chart.timeScale().timeToCoordinate(preparedData[index + 1].time)
-        : null;
-      const distanceToPrev = previousCoordinate != null ? Math.abs(coordinate - previousCoordinate) : null;
-      const distanceToNext = nextCoordinate != null ? Math.abs(nextCoordinate - coordinate) : null;
-      const baseSpacing = distanceToPrev && distanceToNext
-        ? Math.min(distanceToPrev, distanceToNext)
-        : distanceToPrev ?? distanceToNext ?? 24;
-      const width = Math.max(16, Math.min(36, baseSpacing * 0.96));
-      band.style.width = `${width}px`;
-      band.style.transform = `translateX(${coordinate - width / 2}px)`;
-      band.style.opacity = '1';
-    };
-
-    updateHighlightBand(preparedData[preparedData.length - 1]?.time ?? null);
     const handleCrosshairMove = (param: { time?: Time }) => {
       if (!param.time) {
         setHoveredPoint(preparedData[preparedData.length - 1] ?? null);
-        updateHighlightBand(preparedData[preparedData.length - 1]?.time ?? null);
         return;
       }
       const time = typeof param.time === 'number'
@@ -495,16 +477,12 @@ export function PortfolioKlineChart({ theme, klineData, source, priceMode, sseDa
         : (Math.floor(Date.UTC(param.time.year, param.time.month - 1, param.time.day) / 1000) as UTCTimestamp);
       const nextPoint = pointMap.get(time) ?? preparedData[preparedData.length - 1] ?? null;
       setHoveredPoint(nextPoint);
-      updateHighlightBand(nextPoint?.time ?? null);
     };
 
     chart.subscribeCrosshairMove(handleCrosshairMove);
 
     resizeObserverRef.current = new ResizeObserver(() => {
       chart.timeScale().fitContent();
-      requestAnimationFrame(() => {
-        updateHighlightBand((hoveredPoint ?? preparedData[preparedData.length - 1] ?? null)?.time ?? null);
-      });
     });
     resizeObserverRef.current.observe(viewport);
 
@@ -556,15 +534,6 @@ export function PortfolioKlineChart({ theme, klineData, source, priceMode, sseDa
       : 'bg-white/74 border border-slate-200/60 text-slate-900';
   const overlayMutedClass = theme === 'dark' ? 'text-slate-400/80' : 'text-slate-500/85';
   const overlayDate = isMobile ? referencePoint.labelDate.slice(5) : referencePoint.labelDate;
-  const highlightBandStyle = theme === 'dark'
-    ? {
-        background: 'linear-gradient(90deg, rgba(155,125,255,0.00) 0%, rgba(196,181,253,0.10) 10%, rgba(196,181,253,0.03) 22%, rgba(196,181,253,0.00) 50%, rgba(196,181,253,0.03) 78%, rgba(196,181,253,0.10) 90%, rgba(155,125,255,0.00) 100%)',
-        boxShadow: 'inset 1px 0 0 rgba(196,181,253,0.20), inset -1px 0 0 rgba(196,181,253,0.20), 0 0 12px rgba(155,125,255,0.04)',
-      }
-    : {
-        background: 'linear-gradient(90deg, rgba(148,163,184,0.00) 0%, rgba(148,163,184,0.10) 10%, rgba(148,163,184,0.03) 22%, rgba(148,163,184,0.00) 50%, rgba(148,163,184,0.03) 78%, rgba(148,163,184,0.10) 90%, rgba(148,163,184,0.00) 100%)',
-        boxShadow: 'inset 1px 0 0 rgba(148,163,184,0.18), inset -1px 0 0 rgba(148,163,184,0.18), 0 0 10px rgba(148,163,184,0.04)',
-      };
 
   const chartContent = (
     <div
@@ -635,22 +604,19 @@ export function PortfolioKlineChart({ theme, klineData, source, priceMode, sseDa
 
       <div
         ref={viewportRef}
-        className={`relative overflow-hidden rounded-2xl ${
+        className={`relative overflow-hidden ${
           isFullscreen
             ? 'flex-1 min-h-0 mt-4'
-            : 'h-[390px] sm:h-[410px] md:h-[430px]'
+            : isMobile
+              ? 'h-[300px]'
+              : 'rounded-2xl h-[350px] md:h-[380px]'
         }`}
         style={{ touchAction: 'pan-y' }}
         onPointerDownCapture={() => setIsInteractive(true)}
         role="application"
         aria-label="K线图表"
       >
-        <div
-          ref={highlightBandRef}
-          className="pointer-events-none absolute inset-y-0 z-[1] overflow-hidden rounded-full transition-opacity duration-150"
-          style={{ opacity: 0, width: '28px', transform: 'translateX(-9999px)', ...highlightBandStyle }}
-        />
-        <div ref={containerRef} className="absolute inset-0 z-0" />
+        <div ref={containerRef} className="absolute inset-0" />
       </div>
     </div>
   );

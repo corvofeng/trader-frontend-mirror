@@ -765,13 +765,15 @@ export function PortfolioTrend({ trendData, klineData, klineMetrics, theme, date
           )}
         </div>
         {viewMode === 'kline' ? (
-          <PortfolioKlineChart
-            klineData={klineData}
-            theme={theme}
-            source={klineSource}
-            priceMode={klinePriceMode}
-            sseData={showComparison ? sseData : []}
-          />
+          <div className="-mx-2 sm:mx-0">
+            <PortfolioKlineChart
+              klineData={klineData}
+              theme={theme}
+              source={klineSource}
+              priceMode={klinePriceMode}
+              sseData={showComparison ? sseData : []}
+            />
+          </div>
         ) : (
           <div className="h-[250px] md:h-[300px]">
             <Line data={lineChartData} options={lineChartOptions} />

@@ -29,8 +29,20 @@ export function AnimatedChart({ theme, lang = 'zh', user }: AnimatedChartProps) 
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
 
   const formatAxisValue = useCallback((value: number) => {
+    if (isMobile) {
+      const abs = Math.abs(value);
+      if (abs >= 1e8) {
+        const val = value / 1e8;
+        return `${val % 1 === 0 ? val.toFixed(0) : val.toFixed(1)}亿`;
+      }
+      if (abs >= 1e4) {
+        const val = value / 1e4;
+        return `${val % 1 === 0 ? val.toFixed(0) : val.toFixed(1)}万`;
+      }
+      return value.toFixed(0);
+    }
     return formatCompactNumber(value, currencyConfig?.region);
-  }, [currencyConfig?.region]);
+  }, [currencyConfig?.region, isMobile]);
 
   useEffect(() => {
     if (chartContainerRef.current) {
@@ -69,7 +81,7 @@ export function AnimatedChart({ theme, lang = 'zh', user }: AnimatedChartProps) 
         layout: {
           background: { type: ColorType.Solid, color: 'transparent' },
           textColor: isDark ? '#e5e7eb' : '#374151',
-          fontSize: 12,
+          fontSize: isMobile ? 10 : 12,
         },
         localization: {
           priceFormatter: formatAxisValue,
@@ -94,7 +106,7 @@ export function AnimatedChart({ theme, lang = 'zh', user }: AnimatedChartProps) 
           },
         },
         width: chartContainerRef.current.clientWidth,
-        height: 400,
+        height: isMobile ? 320 : 400,
         timeScale: {
           timeVisible: false,
           secondsVisible: false,
@@ -106,10 +118,10 @@ export function AnimatedChart({ theme, lang = 'zh', user }: AnimatedChartProps) 
           borderColor: isDark ? '#374151' : '#e5e7eb',
           textColor: isDark ? '#e5e7eb' : '#374151',
           autoScale: true,
-          minimumWidth: isMobile ? 44 : 80,
+          minimumWidth: isMobile ? 38 : 64,
           scaleMargins: {
-            top: 0.1,
-            bottom: 0.1,
+            top: 0.08,
+            bottom: 0.06,
           },
         },
         handleScroll: false,
