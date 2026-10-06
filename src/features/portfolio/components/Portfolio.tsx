@@ -487,48 +487,59 @@ export function Portfolio({
           />
         </div>
       )}
-      <div className={`${themes[theme].card} rounded-lg shadow-md p-3 md:p-6 relative z-10`}>
-        <div className="no-print">
-          <OverviewControls
-            theme={theme}
-            userId={userId}
-            selectedAccountId={selectedAccountId ?? null}
-            onAccountChange={onAccountChange}
-            dateRange={dateRange}
-            onDateRangeChange={onDateRangeChange}
-            isSharedView={isSharedView}
-            portfolioUuid={portfolioUuid}
-            onRefresh={refreshAll}
-            isLoggedIn={!!user}
-            onScreenshot={handleScreenshot}
-          />
-        </div>
+      {trendData.length > 0 ? (
         <FadeIn delay={100}>
-          <StatsGrid
-            theme={theme}
-            currencyConfig={currencyConfig}
-            latestTrendValue={latestTrendValue}
-            totalHoldingsValue={totalHoldingsValue}
-            positionRatio={positionRatio}
-            totalProfitLoss={totalProfitLoss}
-            remainingCash={remainingCash}
-            hasTrendData={trendData.length > 0}
-          />
-        </FadeIn>
-      </div>
-
-      {trendData.length > 0 && (
-        <FadeIn delay={200}>
-          <div className={`${themes[theme].card} rounded-lg shadow-md`}>
+          <div className={`${themes[theme].card} rounded-xl shadow-md border ${themes[theme].border} card-subtle-ring overflow-hidden relative z-10`}>
             <PortfolioTrend 
               trendData={trendData}
               klineData={klineData}
               klineMetrics={klineMetrics}
               theme={theme}
               dateRange={dateRange}
+              onDateRangeChange={onDateRangeChange}
+              latestTrendValue={latestTrendValue}
+              totalHoldingsValue={totalHoldingsValue}
+              positionRatio={positionRatio}
+              totalProfitLoss={totalProfitLoss}
+              remainingCash={remainingCash}
+              onRefresh={refreshAll}
+              onScreenshot={handleScreenshot}
+              isLoggedIn={!!user}
+              isSharedView={isSharedView}
+              portfolioUuid={portfolioUuid}
             />
           </div>
         </FadeIn>
+      ) : (
+        <div className={`${themes[theme].card} rounded-xl shadow-md p-4 sm:p-6 relative z-10 border ${themes[theme].border} card-subtle-ring`}>
+          <div className="no-print">
+            <OverviewControls
+              theme={theme}
+              userId={userId}
+              selectedAccountId={selectedAccountId ?? null}
+              onAccountChange={onAccountChange}
+              dateRange={dateRange}
+              onDateRangeChange={onDateRangeChange}
+              isSharedView={isSharedView}
+              portfolioUuid={portfolioUuid}
+              onRefresh={refreshAll}
+              isLoggedIn={!!user}
+              onScreenshot={handleScreenshot}
+            />
+          </div>
+          <FadeIn delay={100}>
+            <StatsGrid
+              theme={theme}
+              currencyConfig={currencyConfig}
+              latestTrendValue={latestTrendValue}
+              totalHoldingsValue={totalHoldingsValue}
+              positionRatio={positionRatio}
+              totalProfitLoss={totalProfitLoss}
+              remainingCash={remainingCash}
+              hasTrendData={false}
+            />
+          </FadeIn>
+        </div>
       )}
 
       <div className="mt-6">
@@ -543,9 +554,9 @@ export function Portfolio({
         )}
       </div>
 
-      <div className={`${themes[theme].card} rounded-lg shadow-md p-4 md:p-6 mt-6`}>
-        <div className="grid lg:grid-cols-2 gap-6 items-start">
-          <div className="order-1 lg:order-1 min-w-0">
+      <div className={`${themes[theme].card} rounded-xl shadow-md p-4 md:p-6 mt-6`}>
+        <div className="grid lg:grid-cols-12 gap-6 items-start">
+          <div className="order-1 lg:order-1 lg:col-span-7 xl:col-span-8 min-w-0">
             <HoldingsTable
               theme={theme}
               holdings={holdings}
@@ -562,8 +573,16 @@ export function Portfolio({
             />
           </div>
 
-          <div className="order-2 lg:order-2 min-w-0">
-            <div className="h-[180px] xs:h-[220px] sm:h-[320px] md:h-[360px] lg:h-[450px] relative mx-auto">
+          <div className="order-2 lg:order-2 lg:col-span-5 xl:col-span-4 min-w-0">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className={`text-lg sm:text-xl font-semibold ${themes[theme].text} whitespace-nowrap`}>
+                资产配置
+              </h3>
+              <span className={`text-xs ${themes[theme].text} opacity-60 font-mono`}>
+                Top {Math.min(5, holdings.length)} 证券
+              </span>
+            </div>
+            <div className="h-[220px] xs:h-[260px] sm:h-[300px] lg:h-[350px] relative mx-auto">
               <Pie data={pieChartData} options={pieChartOptions} />
             </div>
           </div>
@@ -571,7 +590,7 @@ export function Portfolio({
       </div>
 
       {recentTrades.length > 0 && (
-        <div className={`${themes[theme].card} rounded-lg shadow-sm sm:shadow-md overflow-hidden transition-colors duration-200`}>
+        <div className={`${themes[theme].card} rounded-xl shadow-md border ${themes[theme].border} card-subtle-ring overflow-hidden transition-colors duration-200 mt-6`}>
           <div className={`p-3 sm:p-6 border-b ${themes[theme].border}`}>
             <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
               <div className="flex items-center gap-3">

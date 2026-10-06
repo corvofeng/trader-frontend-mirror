@@ -41,45 +41,18 @@ export function OverviewControls({
       : 'text-slate-800 focus:text-slate-900';
 
   return (
-    <div className="flex flex-col gap-3 sm:gap-4 mb-4 sm:mb-6">
-      {/* 顶部主行：标题 + 右侧快捷操作按钮 (在手机端与桌面端均保持在顶栏整齐对齐) */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <h2 className={`text-lg sm:text-xl font-bold tracking-tight ${themes[theme].text}`}>
-            Portfolio Overview
-          </h2>
-        </div>
-
-        {/* 右侧快捷操作：刷新与分享截图 */}
-        {isLoggedIn && (!isSharedView || portfolioUuid) && (
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {onRefresh && (
-              <button
-                type="button"
-                onClick={onRefresh}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap btn-tactile ${themes[theme].secondary} hide-in-screenshot hover:opacity-90 active:scale-95 transition-all shadow-2xs`}
-                title="刷新数据"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span className="hidden xs:inline">刷新</span>
-              </button>
-            )}
-            {onScreenshot && (
-              <button
-                type="button"
-                onClick={onScreenshot}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap btn-tactile ${themes[theme].secondary} hide-in-screenshot hover:opacity-90 active:scale-95 transition-all shadow-2xs`}
-                title="生成持仓截图"
-              >
-                <Camera className="w-3.5 h-3.5" />
-                <span>分享截图</span>
-              </button>
-            )}
-          </div>
-        )}
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-5">
+      {/* 顶部主行：标题与副标题 */}
+      <div className="flex items-center gap-2.5">
+        <h2 className={`text-lg sm:text-xl font-bold tracking-tight ${themes[theme].text}`}>
+          资产概览
+        </h2>
+        <span className="hidden sm:inline-block text-xs font-mono font-medium opacity-50 px-2 py-0.5 rounded-full border border-current">
+          Portfolio Overview
+        </span>
       </div>
 
-      {/* 第二行：高质感时间范围胶囊选择器 (桌面端靠右或居中，移动端整洁呈现) */}
+      {/* 右侧操作群组：时间范围胶囊 + 刷新 + 分享截图 (桌面端单行整齐呈现，移动端自然换行) */}
       {isLoggedIn && (!isSharedView || portfolioUuid) && (
         <div className="flex items-center justify-between sm:justify-end gap-2 flex-wrap">
           {/* 紧凑优雅的时间胶囊 */}
@@ -110,6 +83,32 @@ export function OverviewControls({
               className={`bg-transparent border-0 p-0 text-xs sm:text-sm font-medium font-mono focus:ring-0 focus:outline-none cursor-pointer flex-1 sm:flex-none text-center sm:text-left ${dateInputStyle}`}
               title="结束日期"
             />
+          </div>
+
+          {/* 快捷按钮 */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {onRefresh && (
+              <button
+                type="button"
+                onClick={onRefresh}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap btn-tactile ${themes[theme].secondary} hide-in-screenshot hover:opacity-90 active:scale-95 transition-all shadow-2xs`}
+                title="刷新数据"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span className="hidden xs:inline">刷新</span>
+              </button>
+            )}
+            {onScreenshot && (
+              <button
+                type="button"
+                onClick={onScreenshot}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap btn-tactile ${themes[theme].secondary} hide-in-screenshot hover:opacity-90 active:scale-95 transition-all shadow-2xs`}
+                title="生成持仓截图"
+              >
+                <Camera className="w-3.5 h-3.5" />
+                <span>分享截图</span>
+              </button>
+            )}
           </div>
         </div>
       )}

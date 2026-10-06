@@ -341,7 +341,7 @@ export function PortfolioHeatmap({ holdings, theme }: PortfolioHeatmapProps) {
   }, [holdings.length, option]);
 
   return (
-    <div className={`${themes[theme].card} rounded-lg shadow-md`}>
+    <div className={`${themes[theme].card} rounded-xl shadow-md border ${themes[theme].border} card-subtle-ring overflow-hidden`}>
       <div className="p-4 sm:p-6">
         <div className="flex flex-col gap-4">
           <div className="flex justify-between items-center">
@@ -363,7 +363,7 @@ export function PortfolioHeatmap({ holdings, theme }: PortfolioHeatmapProps) {
         </div>
 
         <div className="mt-4 relative">
-          <div ref={chartRef} style={{ height: isMobile ? '400px' : '600px' }} />
+          <div ref={chartRef} style={{ height: isMobile ? '380px' : '440px' }} />
           {holdings.length === 0 ? (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>

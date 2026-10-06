@@ -1,7 +1,17 @@
 import React from 'react';
 import { format } from 'date-fns';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { BarChart3, RefreshCw, SlidersHorizontal, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  BarChart3,
+  RefreshCw,
+  SlidersHorizontal,
+  ChevronDown,
+  ChevronUp,
+  TrendingUp,
+  TrendingDown,
+  Calendar,
+  Camera,
+} from 'lucide-react';
 import { Line } from 'react-chartjs-2';
 import type { Theme } from '../../../lib/theme';
 import { themes } from '../../../lib/theme';
@@ -12,8 +22,9 @@ import { formatCurrency, formatCompactCurrency } from '../../../shared/utils/for
 import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { PortfolioKlineChart } from './PortfolioKlineChart';
 import { calculateBenchmarkMetrics, BenchmarkMetrics, calculateSMA, resolvePortfolioKlineRequestDates } from './portfolioUtils';
+import { SvgBatteryGauge, getBatteryTheme } from './StatsGrid';
 
-interface PortfolioTrendProps {
+export interface PortfolioTrendProps {
   trendData: TrendData[];
   klineData: PortfolioKlinePoint[];
   klineMetrics?: PortfolioKlineMetrics | null;
@@ -22,6 +33,17 @@ interface PortfolioTrendProps {
     startDate: string;
     endDate: string;
   };
+  onDateRangeChange?: (range: { startDate: string; endDate: string }) => void;
+  latestTrendValue?: number;
+  totalHoldingsValue?: number;
+  positionRatio?: number;
+  totalProfitLoss?: number;
+  remainingCash?: number;
+  onRefresh?: () => void;
+  onScreenshot?: () => void;
+  isLoggedIn?: boolean;
+  isSharedView?: boolean;
+  portfolioUuid?: string | null;
 }
 
 interface SSEPoint {
@@ -30,7 +52,24 @@ interface SSEPoint {
   returnRate: number;
 }
 
-export function PortfolioTrend({ trendData, klineData, klineMetrics, theme, dateRange }: PortfolioTrendProps) {
+export function PortfolioTrend({
+  trendData,
+  klineData,
+  klineMetrics,
+  theme,
+  dateRange,
+  onDateRangeChange,
+  latestTrendValue,
+  totalHoldingsValue,
+  positionRatio,
+  totalProfitLoss,
+  remainingCash,
+  onRefresh,
+  onScreenshot,
+  isLoggedIn = true,
+  isSharedView = false,
+  portfolioUuid,
+}: PortfolioTrendProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { currencyConfig, getThemedColors } = useCurrency();
@@ -625,39 +664,534 @@ export function PortfolioTrend({ trendData, klineData, klineMetrics, theme, date
     return allItems;
   }, [formatMetricNumber, formatPercent, formatSignedPercent, klineMetrics, computedDrawdown, sseMetrics, showAllMetrics]);
 
+  const isMergedOverview = latestTrendValue !== undefined;
+  const estimatedCost = (totalHoldingsValue ?? 0) - (totalProfitLoss ?? 0);
+  const pnlPercentage =
+    estimatedCost > 0 && totalProfitLoss !== undefined
+      ? (totalProfitLoss / estimatedCost) * 100
+      : null;
+  const clampedRatio = positionRatio !== undefined ? Math.min(100, Math.max(0, positionRatio)) : 0;
+  const cashRatio = Math.max(0, 100 - clampedRatio);
+  const batteryConfig = getBatteryTheme(clampedRatio, theme);
+
+  const dateCapsuleBg =
+    theme === 'dark'
+      ? 'bg-gray-800/70 border-gray-700/80 text-gray-200'
+      : theme === 'blue'
+      ? 'bg-blue-900/40 border-blue-800/80 text-blue-100'
+      : 'bg-slate-100/90 border-slate-200/90 text-slate-700';
+
+  const dateInputStyle =
+    theme === 'dark'
+      ? 'text-gray-100 focus:text-white'
+      : theme === 'blue'
+      ? 'text-blue-50 focus:text-white'
+      : 'text-slate-800 focus:text-slate-900';
+
   return (
     <>
       <div className="p-2 sm:p-3 md:p-6">
         <div className="relative mb-3 md:mb-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h3 className={`text-base sm:text-lg md:text-xl font-semibold ${themes[theme].text} whitespace-nowrap`}>
-                <span className="sm:hidden">{mobileTitle}</span>
-                <span className="hidden sm:inline">{title}</span>
-              </h3>
-              <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] sm:text-xs">
-                <span className={`rounded-full px-2 py-0.5 whitespace-nowrap ${themes[theme].secondary}`}>
-                  {modeSummary}
-                </span>
-                {!isCloudflareEnv && hasKlineFallback && (
-                  <span className={`${themes[theme].text} opacity-60`}>
-                    当前账户暂无 K 线接口数据，已自动回退到折线趋势视图。
-                  </span>
-                )}
+          {isMergedOverview ? (
+            <div>
+              {/* 移动端专属优雅紧凑看板 (< md) */}
+              <div className="md:hidden space-y-2">
+                {/* 第 1 行：左侧“总资产”微标签 + 右侧日期微胶囊与紧凑快捷操作 */}
+                <div className="flex items-center justify-between gap-1.5">
+                  <div className="flex items-center gap-1 min-w-0">
+                    <span className="text-xs font-semibold uppercase tracking-wider opacity-60">总资产</span>
+                    <InfoTooltip
+                      theme={theme}
+                      content="优先使用最新一条总资产趋势数据，表示组合在当前时点的总资产估值。"
+                      align="left"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    {/* 紧凑日期胶囊 */}
+                    {onDateRangeChange && isLoggedIn && (!isSharedView || portfolioUuid) && (
+                      <div
+                        className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-lg border text-[10px] shadow-2xs ${dateCapsuleBg}`}
+                      >
+                        <Calendar className="w-2.5 h-2.5 opacity-50 shrink-0" />
+                        <input
+                          type="date"
+                          value={dateRange.startDate}
+                          onChange={(e) => onDateRangeChange({ ...dateRange, startDate: e.target.value })}
+                          className={`bg-transparent border-0 p-0 text-[10px] font-medium font-mono focus:ring-0 focus:outline-none cursor-pointer w-[68px] text-center ${dateInputStyle}`}
+                          title="开始日期"
+                        />
+                        <span className="opacity-40 text-[9px] select-none">~</span>
+                        <input
+                          type="date"
+                          value={dateRange.endDate}
+                          onChange={(e) => onDateRangeChange({ ...dateRange, endDate: e.target.value })}
+                          className={`bg-transparent border-0 p-0 text-[10px] font-medium font-mono focus:ring-0 focus:outline-none cursor-pointer w-[68px] text-center ${dateInputStyle}`}
+                          title="结束日期"
+                        />
+                      </div>
+                    )}
+
+                    {/* 刷新按钮 */}
+                    {onRefresh && (
+                      <button
+                        type="button"
+                        onClick={onRefresh}
+                        className={`p-1 rounded-lg border text-xs btn-tactile ${themes[theme].secondary} border-slate-200/80 dark:border-gray-800 hover:opacity-90 active:scale-95 transition-all shadow-2xs hide-in-screenshot`}
+                        title="刷新数据"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                      </button>
+                    )}
+
+                    {/* 截图按钮 */}
+                    {onScreenshot && (
+                      <button
+                        type="button"
+                        onClick={onScreenshot}
+                        className={`p-1 rounded-lg border text-xs btn-tactile ${themes[theme].secondary} border-slate-200/80 dark:border-gray-800 hover:opacity-90 active:scale-95 transition-all shadow-2xs hide-in-screenshot`}
+                        title="分享截图"
+                      >
+                        <Camera className="w-3 h-3" />
+                      </button>
+                    )}
+
+                    {/* 图表设置抽屉按钮 */}
+                    <button
+                      ref={controlsButtonRef}
+                      type="button"
+                      onClick={() => setShowControls((value) => !value)}
+                      className={`inline-flex shrink-0 items-center justify-center rounded-lg border p-1 ${themes[theme].secondary} border-slate-200/80 dark:border-gray-800`}
+                      aria-label="图表设置"
+                      title="图表设置"
+                    >
+                      <SlidersHorizontal className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* 第 2 行：总资产大数字 + 紧随其后的浮盈胶囊 */}
+                <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+                  <div
+                    className={`text-2xl font-extrabold font-mono tracking-tight tabular-nums leading-none ${themes[theme].text}`}
+                    title={formatCurrency(latestTrendValue, currencyConfig)}
+                  >
+                    {formatCurrency(latestTrendValue, currencyConfig)}
+                  </div>
+                  {totalProfitLoss !== undefined && (
+                    <div
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold font-mono border ${
+                        totalProfitLoss >= 0
+                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                          : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
+                      }`}
+                    >
+                      {totalProfitLoss >= 0 ? (
+                        <TrendingUp className="w-3 h-3 shrink-0" />
+                      ) : (
+                        <TrendingDown className="w-3 h-3 shrink-0" />
+                      )}
+                      <span>
+                        {totalProfitLoss >= 0 ? '+' : ''}
+                        {formatCurrency(totalProfitLoss, currencyConfig)}
+                      </span>
+                      {pnlPercentage !== null && (
+                        <span>
+                          ({pnlPercentage >= 0 ? '+' : ''}
+                          {pnlPercentage.toFixed(2)}%)
+                        </span>
+                      )}
+                      <span className="text-[9px] font-normal opacity-70 ml-0.5">浮动盈亏</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* 第 3 行：精工 3 列资产微看板 (告别换行与多余管道符号) */}
+                <div className="pt-2 border-t border-dashed border-slate-200/80 dark:border-gray-800 grid grid-cols-3 gap-1.5 text-left">
+                  {/* 持仓市值 */}
+                  <div className="min-w-0 pr-1">
+                    <div className="text-[10px] text-slate-500 dark:text-gray-400 truncate">持仓市值</div>
+                    <div
+                      className={`text-xs font-bold font-mono truncate mt-0.5 ${themes[theme].text}`}
+                      title={totalHoldingsValue !== undefined ? formatCurrency(totalHoldingsValue, currencyConfig) : '--'}
+                    >
+                      {totalHoldingsValue !== undefined ? formatCurrency(totalHoldingsValue, currencyConfig) : '--'}
+                    </div>
+                    <div className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-medium">
+                      {clampedRatio.toFixed(1)}% 仓位
+                    </div>
+                  </div>
+
+                  {/* 可用现金 */}
+                  <div className="min-w-0 border-l border-slate-200/60 dark:border-gray-800 pl-1.5 pr-1">
+                    <div className="text-[10px] text-slate-500 dark:text-gray-400 truncate">可用现金</div>
+                    <div
+                      className={`text-xs font-bold font-mono truncate mt-0.5 ${themes[theme].text}`}
+                      title={remainingCash !== undefined ? formatCurrency(remainingCash, currencyConfig) : '--'}
+                    >
+                      {remainingCash !== undefined ? formatCurrency(remainingCash, currencyConfig) : '--'}
+                    </div>
+                    <div className="text-[10px] font-mono text-blue-600 dark:text-blue-400 font-medium">
+                      {cashRatio.toFixed(1)}% 现金
+                    </div>
+                  </div>
+
+                  {/* 仓位水平 */}
+                  <div className="min-w-0 border-l border-slate-200/60 dark:border-gray-800 pl-1.5">
+                    <div className="text-[10px] text-slate-500 dark:text-gray-400 truncate">仓位水平</div>
+                    <div className="flex items-center gap-1 mt-1">
+                      <SvgBatteryGauge ratio={clampedRatio} config={batteryConfig} theme={theme} />
+                      <span className={`text-[11px] font-semibold ${batteryConfig.textClass}`}>
+                        {batteryConfig.label}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 桌面端高密度金融看板 (md:block) */}
+              <div className="hidden md:block">
+                {/* 第一行：左侧总资产金额与浮动盈亏 + 右侧操作工具栏与主视图切换 */}
+                <div className="flex items-center justify-between gap-3">
+                  {/* 左侧：总资产与浮动盈亏 */}
+                  <div className="flex items-baseline flex-wrap gap-x-3 gap-y-1">
+                    <div className="flex items-center gap-1.5 mr-1">
+                      <span className="text-xs font-semibold uppercase tracking-wider opacity-60">总资产</span>
+                      <InfoTooltip
+                        theme={theme}
+                        content="优先使用最新一条总资产趋势数据，表示组合在当前时点的总资产估值。"
+                        align="left"
+                      />
+                    </div>
+                    <div
+                      className={`text-2xl lg:text-3xl font-extrabold font-mono tracking-tight tabular-nums ${themes[theme].text}`}
+                      title={formatCurrency(latestTrendValue, currencyConfig)}
+                    >
+                      {formatCurrency(latestTrendValue, currencyConfig)}
+                    </div>
+                    {totalProfitLoss !== undefined && (
+                      <div
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold font-mono border ${
+                          totalProfitLoss >= 0
+                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                            : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
+                        }`}
+                      >
+                        {totalProfitLoss >= 0 ? (
+                          <TrendingUp className="w-3.5 h-3.5 shrink-0" />
+                        ) : (
+                          <TrendingDown className="w-3.5 h-3.5 shrink-0" />
+                        )}
+                        <span>
+                          {totalProfitLoss >= 0 ? '+' : ''}
+                          {formatCurrency(totalProfitLoss, currencyConfig)}
+                        </span>
+                        {pnlPercentage !== null && (
+                          <span>
+                            ({pnlPercentage >= 0 ? '+' : ''}
+                            {pnlPercentage.toFixed(2)}%)
+                          </span>
+                        )}
+                        <span className="text-[10px] font-normal opacity-70 ml-0.5">浮动盈亏</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 右侧：视图切换、时间范围胶囊、刷新与截图 */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {/* 桌面端内联视图切换 */}
+                    <div className="flex items-center gap-1 rounded-xl border p-1 bg-black/5 dark:bg-white/5 border-slate-200/80 dark:border-gray-800">
+                      <button
+                        onClick={() => updateTrendParams({ trendView: 'kline' })}
+                        disabled={klineData.length === 0}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                          viewMode === 'kline' ? themes[theme].primary : 'opacity-70 hover:opacity-100'
+                        } ${klineData.length === 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
+                      >
+                        K 线
+                      </button>
+                      <button
+                        onClick={() => updateTrendParams({ trendView: 'absolute' })}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                          viewMode === 'absolute' ? themes[theme].primary : 'opacity-70 hover:opacity-100'
+                        }`}
+                      >
+                        绝对值
+                      </button>
+                      <button
+                        onClick={() => updateTrendParams({ trendView: 'return' })}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                          viewMode === 'return' ? themes[theme].primary : 'opacity-70 hover:opacity-100'
+                        }`}
+                      >
+                        收益率
+                      </button>
+                    </div>
+
+                    {/* 日期选择胶囊 */}
+                    {onDateRangeChange && isLoggedIn && (!isSharedView || portfolioUuid) && (
+                      <div
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border text-xs shadow-2xs ${dateCapsuleBg}`}
+                      >
+                        <Calendar className="w-3.5 h-3.5 opacity-50 shrink-0" />
+                        <input
+                          type="date"
+                          value={dateRange.startDate}
+                          onChange={(e) => onDateRangeChange({ ...dateRange, startDate: e.target.value })}
+                          className={`bg-transparent border-0 p-0 text-xs font-medium font-mono focus:ring-0 focus:outline-none cursor-pointer ${dateInputStyle}`}
+                          title="开始日期"
+                        />
+                        <span className="opacity-40 text-xs select-none">至</span>
+                        <input
+                          type="date"
+                          value={dateRange.endDate}
+                          onChange={(e) => onDateRangeChange({ ...dateRange, endDate: e.target.value })}
+                          className={`bg-transparent border-0 p-0 text-xs font-medium font-mono focus:ring-0 focus:outline-none cursor-pointer ${dateInputStyle}`}
+                          title="结束日期"
+                        />
+                      </div>
+                    )}
+
+                    {/* 操作按钮组 */}
+                    <div className="flex items-center gap-1.5">
+                      {onRefresh && (
+                        <button
+                          type="button"
+                          onClick={onRefresh}
+                          className={`p-1.5 rounded-xl border text-xs btn-tactile ${themes[theme].secondary} border-slate-200/80 dark:border-gray-800 hover:opacity-90 active:scale-95 transition-all shadow-2xs hide-in-screenshot`}
+                          title="刷新数据"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {onScreenshot && (
+                        <button
+                          type="button"
+                          onClick={onScreenshot}
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl border text-xs btn-tactile ${themes[theme].secondary} border-slate-200/80 dark:border-gray-800 hover:opacity-90 active:scale-95 transition-all shadow-2xs hide-in-screenshot`}
+                          title="分享截图"
+                        >
+                          <Camera className="w-3.5 h-3.5" />
+                          <span>截图</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 第二行：紧凑型资产构成指标条 (持仓市值 + 剩余现金 + 仓位电池 + 桌面端子选项) */}
+                <div className="mt-2.5 pt-2 border-t border-dashed border-slate-200/80 dark:border-gray-800 flex items-center justify-between gap-4 text-xs">
+                  {/* 左侧三大微指标 */}
+                  <div className="flex items-center gap-x-4">
+                    {totalHoldingsValue !== undefined && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-slate-500 dark:text-gray-400">持仓市值</span>
+                        <span className={`font-semibold font-mono ${themes[theme].text}`}>
+                          {formatCurrency(totalHoldingsValue, currencyConfig)}
+                        </span>
+                        <span className="text-[10px] px-1.5 py-0.2 rounded-md font-mono font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                          {clampedRatio.toFixed(1)}%
+                        </span>
+                      </div>
+                    )}
+
+                    {remainingCash !== undefined && (
+                      <>
+                        <span className="text-zinc-300 dark:text-zinc-700 select-none">|</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-slate-500 dark:text-gray-400">可用现金</span>
+                          <span className={`font-semibold font-mono ${themes[theme].text}`}>
+                            {formatCurrency(remainingCash, currencyConfig)}
+                          </span>
+                          <span className="text-[10px] px-1.5 py-0.2 rounded-md font-mono font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                            {cashRatio.toFixed(1)}%
+                          </span>
+                        </div>
+                      </>
+                    )}
+
+                    {positionRatio !== undefined && (
+                      <>
+                        <span className="text-zinc-300 dark:text-zinc-700 select-none">|</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-slate-500 dark:text-gray-400">仓位水平</span>
+                          <SvgBatteryGauge ratio={clampedRatio} config={batteryConfig} theme={theme} />
+                          <span className={`text-[11px] font-semibold ${batteryConfig.textClass}`}>
+                            {batteryConfig.label}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* 右侧：K线子选项 (总资产/持仓市值/复权) 或 上证对比 */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {viewMode === 'kline' && (
+                      <div className="flex items-center gap-1 rounded-xl border p-0.5 bg-black/5 dark:bg-white/5 border-slate-200/80 dark:border-gray-800 text-[11px]">
+                        <button
+                          onClick={() => updateTrendParams({ trendSource: 'asset' })}
+                          className={`px-2 py-0.5 rounded-lg font-medium transition-all ${
+                            klineSource === 'asset' ? themes[theme].primary : 'opacity-70 hover:opacity-100'
+                          }`}
+                        >
+                          总资产
+                        </button>
+                        <button
+                          onClick={() => updateTrendParams({ trendSource: 'position' })}
+                          className={`px-2 py-0.5 rounded-lg font-medium transition-all ${
+                            klineSource === 'position' ? themes[theme].primary : 'opacity-70 hover:opacity-100'
+                          }`}
+                        >
+                          持仓市值
+                        </button>
+                        {klineSource === 'asset' && (
+                          <button
+                            onClick={() => updateTrendParams({ trendAdjust: klinePriceMode === 'adjusted' ? 'raw' : 'adjusted' })}
+                            className={`px-2 py-0.5 rounded-lg font-medium transition-all ${
+                              klinePriceMode === 'adjusted' ? themes[theme].primary : 'opacity-70 hover:opacity-100'
+                            }`}
+                          >
+                            复权
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {viewMode === 'return' && !isCloudflareEnv && (
+                      <button
+                        onClick={() => updateTrendParams({ trendCompare: showComparison ? '0' : '1' })}
+                        disabled={isLoadingSSE}
+                        className={`px-2 py-0.5 rounded-lg border text-[11px] font-medium inline-flex items-center gap-1 transition-all ${
+                          showComparison ? themes[theme].primary : `${themes[theme].secondary} border-slate-200/80 dark:border-gray-800`
+                        } ${isLoadingSSE ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        {isLoadingSSE ? (
+                          <RefreshCw className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <>
+                            <BarChart3 className="w-3 h-3" />
+                            上证对比
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
+          ) : (
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className={`text-base sm:text-lg md:text-xl font-semibold ${themes[theme].text} whitespace-nowrap`}>
+                  <span className="sm:hidden">{mobileTitle}</span>
+                  <span className="hidden sm:inline">{title}</span>
+                </h3>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] sm:text-xs">
+                  <span className={`rounded-full px-2 py-0.5 whitespace-nowrap ${themes[theme].secondary}`}>
+                    {modeSummary}
+                  </span>
+                  {!isCloudflareEnv && hasKlineFallback && (
+                    <span className={`${themes[theme].text} opacity-60`}>
+                      当前账户暂无 K 线接口数据，已自动回退到折线趋势视图。
+                    </span>
+                  )}
+                </div>
+              </div>
 
-            <button
-              ref={controlsButtonRef}
-              type="button"
-              onClick={() => setShowControls((value) => !value)}
-              className={`inline-flex shrink-0 items-center justify-center rounded-full border p-2 ${themes[theme].secondary} border-transparent`}
-              aria-label="图表设置"
-              title="图表设置"
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-            </button>
-          </div>
+              {/* 桌面端内联工具栏 */}
+              <div className="hidden md:flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-1 rounded-xl border p-1 bg-black/5 dark:bg-white/5 border-slate-200/80 dark:border-gray-800">
+                  <button
+                    onClick={() => updateTrendParams({ trendView: 'kline' })}
+                    disabled={klineData.length === 0}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                      viewMode === 'kline' ? themes[theme].primary : 'opacity-70 hover:opacity-100'
+                    } ${klineData.length === 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
+                  >
+                    K 线
+                  </button>
+                  <button
+                    onClick={() => updateTrendParams({ trendView: 'absolute' })}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                      viewMode === 'absolute' ? themes[theme].primary : 'opacity-70 hover:opacity-100'
+                    }`}
+                  >
+                    绝对值
+                  </button>
+                  <button
+                    onClick={() => updateTrendParams({ trendView: 'return' })}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                      viewMode === 'return' ? themes[theme].primary : 'opacity-70 hover:opacity-100'
+                    }`}
+                  >
+                    收益率
+                  </button>
+                </div>
+
+                {viewMode === 'kline' && (
+                  <div className="flex items-center gap-1 rounded-xl border p-1 bg-black/5 dark:bg-white/5 border-slate-200/80 dark:border-gray-800">
+                    <button
+                      onClick={() => updateTrendParams({ trendSource: 'asset' })}
+                      className={`px-2 py-1 rounded-lg text-xs font-medium transition-all ${
+                        klineSource === 'asset' ? themes[theme].primary : 'opacity-70 hover:opacity-100'
+                      }`}
+                    >
+                      总资产
+                    </button>
+                    <button
+                      onClick={() => updateTrendParams({ trendSource: 'position' })}
+                      className={`px-2 py-1 rounded-lg text-xs font-medium transition-all ${
+                        klineSource === 'position' ? themes[theme].primary : 'opacity-70 hover:opacity-100'
+                      }`}
+                    >
+                      持仓市值
+                    </button>
+                    {klineSource === 'asset' && (
+                      <button
+                        onClick={() => updateTrendParams({ trendAdjust: klinePriceMode === 'adjusted' ? 'raw' : 'adjusted' })}
+                        className={`px-2 py-1 rounded-lg text-xs font-medium transition-all ${
+                          klinePriceMode === 'adjusted' ? themes[theme].primary : 'opacity-70 hover:opacity-100'
+                        }`}
+                      >
+                        复权
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {viewMode === 'return' && !isCloudflareEnv && (
+                  <button
+                    onClick={() => updateTrendParams({ trendCompare: showComparison ? '0' : '1' })}
+                    disabled={isLoadingSSE}
+                    className={`px-2.5 py-1.5 rounded-xl border text-xs font-medium inline-flex items-center gap-1 transition-all ${
+                      showComparison ? themes[theme].primary : `${themes[theme].secondary} border-slate-200/80 dark:border-gray-800`
+                    } ${isLoadingSSE ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {isLoadingSSE ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <>
+                        <BarChart3 className="w-3.5 h-3.5" />
+                        上证对比
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+
+              {/* 移动端菜单按钮 (< md) */}
+              <button
+                ref={controlsButtonRef}
+                type="button"
+                onClick={() => setShowControls((value) => !value)}
+                className={`md:hidden inline-flex shrink-0 items-center justify-center rounded-full border p-2 ${themes[theme].secondary} border-transparent`}
+                aria-label="图表设置"
+                title="图表设置"
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+              </button>
+            </div>
+          )}
 
           {showControls && (
             <div

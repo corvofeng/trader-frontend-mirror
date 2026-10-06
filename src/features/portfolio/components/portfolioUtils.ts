@@ -73,8 +73,14 @@ export function sortPortfolioHoldings(holdings: Holding[], holdingsSort: SortSta
     switch (holdingsSort.field) {
       case 'stock_code':
         return multiplier * a.stock_code.localeCompare(b.stock_code);
+      case 'quantity':
+        return multiplier * ((a.quantity ?? 0) - (b.quantity ?? 0));
+      case 'current_price':
+        return multiplier * ((a.current_price ?? 0) - (b.current_price ?? 0));
       case 'total_value':
         return multiplier * (a.total_value - b.total_value);
+      case 'profit_loss':
+        return multiplier * ((a.profit_loss ?? 0) - (b.profit_loss ?? 0));
       case 'profit_loss_percentage':
         return multiplier * (a.profit_loss_percentage - b.profit_loss_percentage);
       default:
