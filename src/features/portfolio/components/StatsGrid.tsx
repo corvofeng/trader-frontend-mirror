@@ -32,14 +32,13 @@ interface SvgBatteryGaugeProps {
 function SvgBatteryGauge({ ratio, config }: SvgBatteryGaugeProps) {
   const gradId = useId();
   const clampedRatio = Math.min(100, Math.max(0, ratio));
-  // 最大可用电量宽度 24px (x=3.5 到 x=27.5)
   const maxFillWidth = 24;
   const fillWidth = (clampedRatio / 100) * maxFillWidth;
 
   return (
     <svg
-      width="34"
-      height="17"
+      width="30"
+      height="15"
       viewBox="0 0 36 18"
       className="shrink-0 overflow-visible"
       aria-hidden="true"
@@ -84,7 +83,7 @@ function SvgBatteryGauge({ ratio, config }: SvgBatteryGaugeProps) {
         />
       )}
 
-      {/* 硬件质感微刻度线 */}
+      {/* 硬件刻度微线 */}
       <line x1="10.5" y1="3.2" x2="10.5" y2="14.8" stroke="#ffffff" strokeOpacity="0.25" strokeWidth="0.8" strokeDasharray="1 1" />
       <line x1="17" y1="3.2" x2="17" y2="14.8" stroke="#ffffff" strokeOpacity="0.25" strokeWidth="0.8" strokeDasharray="1 1" />
       <line x1="23.5" y1="3.2" x2="23.5" y2="14.8" stroke="#ffffff" strokeOpacity="0.25" strokeWidth="0.8" strokeDasharray="1 1" />
@@ -93,7 +92,7 @@ function SvgBatteryGauge({ ratio, config }: SvgBatteryGaugeProps) {
 }
 
 /**
- * 仓位电量胶囊微组件 (Position Pill)
+ * 紧凑型仓位电量胶囊微组件 (右上角对齐，填补右侧空白)
  */
 interface PositionPowerGaugeProps {
   theme: Theme;
@@ -196,7 +195,7 @@ function PositionPowerGauge({
     const vw = window.innerWidth;
     const vh = window.innerHeight;
 
-    let left = rect.left;
+    let left = rect.right - popoverWidth;
     if (left + popoverWidth > vw - 12) {
       left = vw - popoverWidth - 12;
     }
@@ -287,7 +286,7 @@ function PositionPowerGauge({
 
   return (
     <div className="relative inline-block shrink-0">
-      {/* 极简一体化仓位状态胶囊 (Pill Badge) */}
+      {/* 极简一体化仓位胶囊 (Pill Badge) */}
       <button
         ref={triggerRef}
         type="button"
@@ -296,9 +295,9 @@ function PositionPowerGauge({
         onMouseLeave={handleMouseLeave}
         aria-expanded={isOpen}
         aria-label={`当前仓位比例: ${positionRatio.toFixed(2)}%，点击或悬停查看详情`}
-        className={`group inline-flex items-center gap-2 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl border transition-all duration-150 select-none cursor-pointer whitespace-nowrap active:scale-95 ${
+        className={`group inline-flex items-center gap-1.5 px-2 py-1 sm:px-2.5 sm:py-1 rounded-xl border transition-all duration-150 select-none cursor-pointer whitespace-nowrap active:scale-95 ${
           theme === 'dark'
-            ? 'bg-gray-800/70 hover:bg-gray-800 border-gray-700/80 hover:border-gray-600'
+            ? 'bg-gray-800/80 hover:bg-gray-800 border-gray-700 hover:border-gray-600'
             : theme === 'blue'
             ? 'bg-blue-900/40 hover:bg-blue-900/60 border-blue-800/80 hover:border-blue-700'
             : 'bg-slate-100 hover:bg-slate-200/80 border-slate-200 hover:border-slate-300'
@@ -315,13 +314,13 @@ function PositionPowerGauge({
           }}
         />
 
-        {/* 仓位文案与数值 */}
-        <div className="flex items-center gap-1.5 font-mono">
-          <span className={`text-xs sm:text-sm font-bold ${themes[theme].text}`}>
+        {/* 仓位数值与微徽章 */}
+        <div className="flex items-center gap-1 font-mono">
+          <span className={`text-xs font-bold ${themes[theme].text}`}>
             {positionRatio.toFixed(1)}%
           </span>
           <span
-            className={`text-[10px] px-1.5 py-0.2 rounded-md font-medium border leading-none ${batteryConfig.badgeBg}`}
+            className={`text-[9px] px-1 py-0.2 rounded-md font-medium border leading-none ${batteryConfig.badgeBg}`}
           >
             {batteryConfig.label}
           </span>
@@ -367,12 +366,12 @@ function PositionPowerGauge({
                   : `w-80 sm:w-88 rounded-2xl border p-4 backdrop-blur-md transition-all duration-150 animate-in fade-in-0 zoom-in-95 ${popoverBg}`
               }
             >
-              {/* 移动端顶部把手小横线 */}
+              {/* 移动端顶部把手横线 */}
               {isMobile && (
                 <div className="w-10 h-1 bg-slate-300 dark:bg-gray-600 rounded-full mx-auto mb-3 opacity-60" />
               )}
 
-              {/* 浮层顶部：标题与仓位状态 */}
+              {/* 浮层顶部 */}
               <div className={`flex items-center justify-between pb-3 border-b ${popoverHeaderBorder}`}>
                 <div className="flex items-center gap-2">
                   <div className={`p-1.5 rounded-lg ${batteryConfig.badgeBg}`}>
@@ -395,7 +394,7 @@ function PositionPowerGauge({
                 </button>
               </div>
 
-              {/* 资产分布条 (双色分段对比) */}
+              {/* 资产分布条 */}
               <div className="mt-3.5">
                 <div className="flex items-center justify-between text-xs mb-1.5 font-medium">
                   <span className="flex items-center gap-1.5">
@@ -424,7 +423,6 @@ function PositionPowerGauge({
 
               {/* 详细指标清单 */}
               <div className="mt-3.5 space-y-2">
-                {/* 持仓证券市值 */}
                 <div className={`p-2.5 rounded-xl border flex items-center justify-between ${cardInnerBg}`}>
                   <div className="flex items-center gap-2">
                     <div className="p-1 rounded bg-emerald-500/10 text-emerald-500">
@@ -445,7 +443,6 @@ function PositionPowerGauge({
                   </div>
                 </div>
 
-                {/* 剩余可用现金 */}
                 <div className={`p-2.5 rounded-xl border flex items-center justify-between ${cardInnerBg}`}>
                   <div className="flex items-center gap-2">
                     <div className="p-1 rounded bg-blue-500/10 text-blue-500">
@@ -466,7 +463,6 @@ function PositionPowerGauge({
                   </div>
                 </div>
 
-                {/* 账户总资产合计 */}
                 <div className={`p-2.5 rounded-xl border flex items-center justify-between ${cardInnerBg}`}>
                   <div className="flex items-center gap-2">
                     <div className="p-1 rounded bg-indigo-500/10 text-indigo-500">
@@ -506,7 +502,7 @@ function PositionPowerGauge({
 }
 
 /**
- * 资产总成组件 (极致通透、无截断、高品质金融面板)
+ * 资产总成组件 (极度紧凑、双行饱满无死角、高品质金融面板)
  */
 export function StatsGrid({
   theme,
@@ -526,66 +522,29 @@ export function StatsGrid({
     estimatedCost > 0 ? (totalProfitLoss / estimatedCost) * 100 : null;
 
   return (
-    <div className="pt-1 pb-2">
-      {/* 顶部标签行 */}
-      <div className="flex items-center gap-1.5">
-        <span
-          className={`text-xs font-medium uppercase tracking-wider opacity-65 ${themes[theme].text}`}
-        >
-          现有账户金额
-        </span>
-        <span
-          className={`inline-flex items-center px-1.5 py-0.2 rounded-full text-[9px] font-medium border ${
-            theme === 'dark'
-              ? 'bg-gray-800/80 text-gray-300 border-gray-700'
-              : theme === 'blue'
-              ? 'bg-blue-900/40 text-blue-200 border-blue-800'
-              : 'bg-slate-100 text-slate-600 border-slate-200'
-          }`}
-        >
-          {hasTrendData ? '最新估值' : '持仓估值'}
-        </span>
-      </div>
-
-      {/* 核心大金额：全宽展示，绝对不截断，字形从容大气 */}
-      <div className="mt-1">
-        <h1
-          className={`text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight font-mono tabular-nums leading-none ${themes[theme].text}`}
-          title={formatCurrency(latestTrendValue, currencyConfig)}
-        >
-          {formatCurrency(latestTrendValue, currencyConfig)}
-        </h1>
-      </div>
-
-      {/* 辅助指标行：盈亏胶囊 + 仓位电池胶囊并排呈现，单行完整不折断 */}
-      <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-3">
-        {/* 持仓盈亏胶囊 Badge (绝不内部折行) */}
-        <div
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl text-xs sm:text-sm font-semibold border whitespace-nowrap shadow-2xs ${
-            isProfit
-              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25'
-              : 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/25'
-          }`}
-          title="持仓累计浮动盈亏"
-        >
-          {isProfit ? (
-            <TrendingUp className="w-3.5 h-3.5 shrink-0" />
-          ) : (
-            <TrendingDown className="w-3.5 h-3.5 shrink-0" />
-          )}
-          <span>
-            {isProfit ? '+' : '-'}
-            {formatCurrency(Math.abs(totalProfitLoss), currencyConfig)}
+    <div className="pt-0.5 pb-1">
+      {/* 顶栏：左侧标签 + 右侧仓位电池胶囊 (优雅并排，完美填补右侧留白) */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
+          <span
+            className={`text-xs font-medium uppercase tracking-wider opacity-65 ${themes[theme].text}`}
+          >
+            现有账户金额
           </span>
-          {pnlPercentage !== null && (
-            <span className="opacity-80 text-[11px] sm:text-xs">
-              ({isProfit ? '+' : ''}
-              {pnlPercentage.toFixed(2)}%)
-            </span>
-          )}
+          <span
+            className={`inline-flex items-center px-1.5 py-0.2 rounded-full text-[9px] font-medium border ${
+              theme === 'dark'
+                ? 'bg-gray-800/80 text-gray-300 border-gray-700'
+                : theme === 'blue'
+                ? 'bg-blue-900/40 text-blue-200 border-blue-800'
+                : 'bg-slate-100 text-slate-600 border-slate-200'
+            }`}
+          >
+            {hasTrendData ? '最新估值' : '持仓估值'}
+          </span>
         </div>
 
-        {/* 仓位电池胶囊组件 */}
+        {/* 仓位电池胶囊：置于第一行右上角，紧凑利落 */}
         <PositionPowerGauge
           theme={theme}
           currencyConfig={currencyConfig}
@@ -597,12 +556,41 @@ export function StatsGrid({
         />
       </div>
 
-      {/* 底部微型说明 */}
-      <p className={`text-[11px] ${themes[theme].text} opacity-40 mt-2`}>
-        {hasTrendData
-          ? '基于最新资产趋势与市场实时数据核算'
-          : '当前基于持仓总值进行估算汇总'}
-      </p>
+      {/* 主金额行：核心金额数字 + 盈亏徽标并排，浑然天成 */}
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1.5 mt-1">
+        <h1
+          className={`text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight font-mono tabular-nums leading-none ${themes[theme].text}`}
+          title={formatCurrency(latestTrendValue, currencyConfig)}
+        >
+          {formatCurrency(latestTrendValue, currencyConfig)}
+        </h1>
+
+        {/* 持仓盈亏胶囊 Badge */}
+        <div
+          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold border whitespace-nowrap shadow-2xs ${
+            isProfit
+              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25'
+              : 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/25'
+          }`}
+          title="持仓累计浮动盈亏"
+        >
+          {isProfit ? (
+            <TrendingUp className="w-3 h-3 shrink-0" />
+          ) : (
+            <TrendingDown className="w-3 h-3 shrink-0" />
+          )}
+          <span>
+            {isProfit ? '+' : '-'}
+            {formatCurrency(Math.abs(totalProfitLoss), currencyConfig)}
+          </span>
+          {pnlPercentage !== null && (
+            <span className="opacity-80 text-[10px] sm:text-xs">
+              ({isProfit ? '+' : ''}
+              {pnlPercentage.toFixed(2)}%)
+            </span>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
