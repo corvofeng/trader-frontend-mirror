@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback, useId } from 'react';
+import { useState, useRef, useEffect, useCallback, useId } from 'react';
 import { createPortal } from 'react-dom';
 import { Zap, TrendingUp, TrendingDown, HelpCircle, X, Layers, Wallet, Landmark } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
@@ -17,7 +17,7 @@ interface StatsGridProps {
 }
 
 /**
- * 精密物理质感 SVG 电池组件 (绝对不坍塌、不失真)
+ * 极简精工 SVG 电池指示条 (小巧灵动，绝不坍塌)
  */
 interface SvgBatteryGaugeProps {
   ratio: number;
@@ -32,16 +32,16 @@ interface SvgBatteryGaugeProps {
 function SvgBatteryGauge({ ratio, config }: SvgBatteryGaugeProps) {
   const gradId = useId();
   const clampedRatio = Math.min(100, Math.max(0, ratio));
-  // 电池内部电量最大可用绘制宽度为 30px (x=4.5 到 34.5)
-  const maxFillWidth = 30;
+  // 最大可用电量宽度 24px (x=3.5 到 x=27.5)
+  const maxFillWidth = 24;
   const fillWidth = (clampedRatio / 100) * maxFillWidth;
 
   return (
     <svg
-      width="40"
-      height="20"
-      viewBox="0 0 44 22"
-      className="shrink-0 overflow-visible drop-shadow-2xs"
+      width="34"
+      height="17"
+      viewBox="0 0 36 18"
+      className="shrink-0 overflow-visible"
       aria-hidden="true"
     >
       <defs>
@@ -51,49 +51,49 @@ function SvgBatteryGauge({ ratio, config }: SvgBatteryGaugeProps) {
         </linearGradient>
       </defs>
 
-      {/* 电池主体外壳 */}
+      {/* 电池主体边框 */}
       <rect
-        x="1.5"
-        y="1.5"
-        width="36"
-        height="19"
-        rx="5"
-        ry="5"
+        x="1.2"
+        y="1.2"
+        width="30"
+        height="15.6"
+        rx="4"
+        ry="4"
         fill="none"
         stroke={config.strokeColor}
-        strokeWidth="2"
+        strokeWidth="1.6"
       />
 
-      {/* 电池正极帽 (凸起端子) */}
+      {/* 正极凸起帽 */}
       <path
-        d="M 38.5 7.5 C 40.5 7.5, 41.5 8.5, 41.5 10 L 41.5 12 C 41.5 13.5, 40.5 14.5, 38.5 14.5 Z"
+        d="M 32.2 6 C 33.6 6, 34.2 6.8, 34.2 8 L 34.2 10 C 34.2 11.2, 33.6 12, 32.2 12 Z"
         fill={config.strokeColor}
       />
 
-      {/* 内部电量填充 */}
+      {/* 电量填充 */}
       {fillWidth > 0 && (
         <rect
-          x="4.5"
-          y="4.5"
+          x="3.2"
+          y="3.2"
           width={Math.max(2, fillWidth)}
-          height="13"
-          rx="3"
-          ry="3"
+          height="11.6"
+          rx="2.5"
+          ry="2.5"
           fill={`url(#${gradId})`}
           className="transition-all duration-500 ease-out"
         />
       )}
 
-      {/* 硬件刻度微细虚线 */}
-      <line x1="12" y1="4.5" x2="12" y2="17.5" stroke="#ffffff" strokeOpacity="0.3" strokeWidth="1" strokeDasharray="1 1" />
-      <line x1="19.5" y1="4.5" x2="19.5" y2="17.5" stroke="#ffffff" strokeOpacity="0.3" strokeWidth="1" strokeDasharray="1 1" />
-      <line x1="27" y1="4.5" x2="27" y2="17.5" stroke="#ffffff" strokeOpacity="0.3" strokeWidth="1" strokeDasharray="1 1" />
+      {/* 硬件质感微刻度线 */}
+      <line x1="10.5" y1="3.2" x2="10.5" y2="14.8" stroke="#ffffff" strokeOpacity="0.25" strokeWidth="0.8" strokeDasharray="1 1" />
+      <line x1="17" y1="3.2" x2="17" y2="14.8" stroke="#ffffff" strokeOpacity="0.25" strokeWidth="0.8" strokeDasharray="1 1" />
+      <line x1="23.5" y1="3.2" x2="23.5" y2="14.8" stroke="#ffffff" strokeOpacity="0.25" strokeWidth="0.8" strokeDasharray="1 1" />
     </svg>
   );
 }
 
 /**
- * 仓位电量指示器与详情浮层
+ * 仓位电量胶囊微组件 (Position Pill)
  */
 interface PositionPowerGaugeProps {
   theme: Theme;
@@ -122,7 +122,6 @@ function PositionPowerGauge({
   const popoverRef = useRef<HTMLDivElement>(null);
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 监听移动端视口
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 640);
@@ -135,7 +134,6 @@ function PositionPowerGauge({
   const clampedRatio = Math.min(100, Math.max(0, positionRatio));
   const cashRatio = Math.max(0, 100 - positionRatio);
 
-  // 根据仓位高低匹配电源色彩、标签与渐变
   const getBatteryTheme = (ratio: number) => {
     const isDark = theme === 'dark' || theme === 'blue';
     const stroke = isDark ? 'rgba(255, 255, 255, 0.45)' : 'rgba(15, 23, 42, 0.45)';
@@ -190,7 +188,6 @@ function PositionPowerGauge({
 
   const batteryConfig = getBatteryTheme(clampedRatio);
 
-  // 精准计算桌面端浮层在视口中的绝对定位
   const updateCoords = useCallback(() => {
     if (!triggerRef.current || typeof window === 'undefined') return;
     const rect = triggerRef.current.getBoundingClientRect();
@@ -199,12 +196,12 @@ function PositionPowerGauge({
     const vw = window.innerWidth;
     const vh = window.innerHeight;
 
-    let left = rect.right - popoverWidth;
-    if (left < 12) {
-      left = Math.max(12, rect.left);
-    }
+    let left = rect.left;
     if (left + popoverWidth > vw - 12) {
       left = vw - popoverWidth - 12;
+    }
+    if (left < 12) {
+      left = 12;
     }
 
     const spaceBelow = vh - rect.bottom;
@@ -290,7 +287,7 @@ function PositionPowerGauge({
 
   return (
     <div className="relative inline-block shrink-0">
-      {/* 电源样式交互胶囊按钮 */}
+      {/* 极简一体化仓位状态胶囊 (Pill Badge) */}
       <button
         ref={triggerRef}
         type="button"
@@ -299,15 +296,15 @@ function PositionPowerGauge({
         onMouseLeave={handleMouseLeave}
         aria-expanded={isOpen}
         aria-label={`当前仓位比例: ${positionRatio.toFixed(2)}%，点击或悬停查看详情`}
-        className={`group flex items-center gap-2.5 sm:gap-3 px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-2xl border transition-all duration-200 text-left select-none cursor-pointer active:scale-95 ${
+        className={`group inline-flex items-center gap-2 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl border transition-all duration-150 select-none cursor-pointer whitespace-nowrap active:scale-95 ${
           theme === 'dark'
-            ? 'bg-gray-800/60 hover:bg-gray-800/90 border-gray-700/80 hover:border-gray-600'
+            ? 'bg-gray-800/70 hover:bg-gray-800 border-gray-700/80 hover:border-gray-600'
             : theme === 'blue'
-            ? 'bg-blue-900/40 hover:bg-blue-900/60 border-blue-800/70 hover:border-blue-700'
-            : 'bg-slate-50/90 hover:bg-slate-100 border-slate-200/90 hover:border-slate-300'
-        } ${isOpen ? 'ring-2 ring-blue-500/30 border-blue-400/50 shadow-md' : 'shadow-2xs'}`}
+            ? 'bg-blue-900/40 hover:bg-blue-900/60 border-blue-800/80 hover:border-blue-700'
+            : 'bg-slate-100 hover:bg-slate-200/80 border-slate-200 hover:border-slate-300'
+        } ${isOpen ? 'ring-2 ring-blue-500/30 border-blue-400/60 shadow-xs' : 'shadow-2xs'}`}
       >
-        {/* 左侧：精工 SVG 电池组件 */}
+        {/* SVG 精工电池 */}
         <SvgBatteryGauge
           ratio={clampedRatio}
           theme={theme}
@@ -318,27 +315,19 @@ function PositionPowerGauge({
           }}
         />
 
-        {/* 右侧：仓位百分比数值与状态 */}
-        <div className="flex flex-col min-w-0">
-          <div className="flex items-center gap-1 leading-none">
-            <span className={`text-[10px] sm:text-xs font-medium opacity-65 ${themes[theme].text}`}>
-              仓位
-            </span>
-            <span
-              className={`text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.2 sm:py-0.5 rounded-full font-medium border leading-none ${batteryConfig.badgeBg}`}
-            >
-              {batteryConfig.label}
-            </span>
-          </div>
-          <div className="flex items-baseline gap-0.5 sm:gap-1 mt-0.5">
-            <span
-              className={`text-base sm:text-xl font-extrabold tracking-tight font-mono tabular-nums ${themes[theme].text}`}
-            >
-              {positionRatio.toFixed(1)}%
-            </span>
-            <Zap className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${batteryConfig.boltColor} shrink-0 opacity-80 group-hover:scale-110 transition-transform`} />
-          </div>
+        {/* 仓位文案与数值 */}
+        <div className="flex items-center gap-1.5 font-mono">
+          <span className={`text-xs sm:text-sm font-bold ${themes[theme].text}`}>
+            {positionRatio.toFixed(1)}%
+          </span>
+          <span
+            className={`text-[10px] px-1.5 py-0.2 rounded-md font-medium border leading-none ${batteryConfig.badgeBg}`}
+          >
+            {batteryConfig.label}
+          </span>
         </div>
+
+        <Zap className={`w-3 h-3 ${batteryConfig.boltColor} opacity-75 group-hover:scale-110 transition-transform`} />
       </button>
 
       {/* 详情浮层：移动端采用底部抽屉 (Bottom Sheet)，桌面端采用定位气泡 (Popover) */}
@@ -517,7 +506,7 @@ function PositionPowerGauge({
 }
 
 /**
- * 重新设计的资产概览总成组件 (全端自适应响应式)
+ * 资产总成组件 (极致通透、无截断、高品质金融面板)
  */
 export function StatsGrid({
   theme,
@@ -537,86 +526,66 @@ export function StatsGrid({
     estimatedCost > 0 ? (totalProfitLoss / estimatedCost) * 100 : null;
 
   return (
-    <div
-      className={`rounded-2xl border p-4 sm:p-5 md:p-6 transition-all duration-200 ${
-        theme === 'dark'
-          ? 'bg-gray-900/60 border-gray-800/80 shadow-xs'
-          : theme === 'blue'
-          ? 'bg-blue-950/40 border-blue-900/70 shadow-xs'
-          : 'bg-gradient-to-br from-white to-slate-50/80 border-slate-200/80 shadow-2xs'
-      }`}
-    >
-      {/* 顶层主行：左侧核心金额与盈亏 + 右侧电池电量指示器并排 */}
-      <div className="flex items-center justify-between gap-3 sm:gap-4">
-        {/* 左侧区域：现有账户金额 (Hero) 与 持仓盈亏 */}
-        <div className="flex flex-col min-w-0 flex-1">
-          {/* 标签栏 */}
-          <div className="flex items-center gap-1.5">
-            <span
-              className={`text-xs sm:text-sm font-medium tracking-wide uppercase ${themes[theme].text} opacity-70`}
-            >
-              现有账户金额
+    <div className="pt-1 pb-2">
+      {/* 顶部标签行 */}
+      <div className="flex items-center gap-1.5">
+        <span
+          className={`text-xs font-medium uppercase tracking-wider opacity-65 ${themes[theme].text}`}
+        >
+          现有账户金额
+        </span>
+        <span
+          className={`inline-flex items-center px-1.5 py-0.2 rounded-full text-[9px] font-medium border ${
+            theme === 'dark'
+              ? 'bg-gray-800/80 text-gray-300 border-gray-700'
+              : theme === 'blue'
+              ? 'bg-blue-900/40 text-blue-200 border-blue-800'
+              : 'bg-slate-100 text-slate-600 border-slate-200'
+          }`}
+        >
+          {hasTrendData ? '最新估值' : '持仓估值'}
+        </span>
+      </div>
+
+      {/* 核心大金额：全宽展示，绝对不截断，字形从容大气 */}
+      <div className="mt-1">
+        <h1
+          className={`text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight font-mono tabular-nums leading-none ${themes[theme].text}`}
+          title={formatCurrency(latestTrendValue, currencyConfig)}
+        >
+          {formatCurrency(latestTrendValue, currencyConfig)}
+        </h1>
+      </div>
+
+      {/* 辅助指标行：盈亏胶囊 + 仓位电池胶囊并排呈现，单行完整不折断 */}
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-3">
+        {/* 持仓盈亏胶囊 Badge (绝不内部折行) */}
+        <div
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl text-xs sm:text-sm font-semibold border whitespace-nowrap shadow-2xs ${
+            isProfit
+              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25'
+              : 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/25'
+          }`}
+          title="持仓累计浮动盈亏"
+        >
+          {isProfit ? (
+            <TrendingUp className="w-3.5 h-3.5 shrink-0" />
+          ) : (
+            <TrendingDown className="w-3.5 h-3.5 shrink-0" />
+          )}
+          <span>
+            {isProfit ? '+' : '-'}
+            {formatCurrency(Math.abs(totalProfitLoss), currencyConfig)}
+          </span>
+          {pnlPercentage !== null && (
+            <span className="opacity-80 text-[11px] sm:text-xs">
+              ({isProfit ? '+' : ''}
+              {pnlPercentage.toFixed(2)}%)
             </span>
-            <span
-              className={`inline-flex items-center px-1.5 py-0.2 rounded-full text-[10px] font-medium border ${
-                theme === 'dark'
-                  ? 'bg-gray-800/80 text-gray-300 border-gray-700'
-                  : theme === 'blue'
-                  ? 'bg-blue-900/40 text-blue-200 border-blue-800'
-                  : 'bg-slate-100 text-slate-600 border-slate-200'
-              }`}
-            >
-              {hasTrendData ? '最新估值' : '持仓估值'}
-            </span>
-          </div>
-
-          {/* 核心金额数字 */}
-          <div className="mt-1">
-            <h1
-              className={`text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight font-mono tabular-nums leading-none ${themes[theme].text} truncate`}
-              title={formatCurrency(latestTrendValue, currencyConfig)}
-            >
-              {formatCurrency(latestTrendValue, currencyConfig)}
-            </h1>
-          </div>
-
-          {/* 持仓盈亏胶囊 Badge */}
-          <div className="flex items-center gap-2 mt-2">
-            <div
-              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs sm:text-sm font-semibold border ${
-                isProfit
-                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
-                  : 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20'
-              }`}
-              title="持仓累计浮动盈亏"
-            >
-              {isProfit ? (
-                <TrendingUp className="w-3.5 h-3.5 shrink-0" />
-              ) : (
-                <TrendingDown className="w-3.5 h-3.5 shrink-0" />
-              )}
-              <span>
-                {isProfit ? '+' : '-'}
-                {formatCurrency(Math.abs(totalProfitLoss), currencyConfig)}
-              </span>
-              {pnlPercentage !== null && (
-                <span className="opacity-75 text-[11px] sm:text-xs">
-                  ({isProfit ? '+' : ''}
-                  {pnlPercentage.toFixed(2)}%)
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* 辅助说明（在桌面端展示，手机端隐藏以保持精简） */}
-          <p className={`hidden sm:block text-xs ${themes[theme].text} opacity-50 mt-1.5`}>
-            {hasTrendData
-              ? '基于账户最新资产趋势与市场实时数据核算'
-              : '当前根据持仓市值进行估算汇总'}
-          </p>
+          )}
         </div>
 
-        {/* 右侧区域：精密电源电池样式的仓位指示器 */}
+        {/* 仓位电池胶囊组件 */}
         <PositionPowerGauge
           theme={theme}
           currencyConfig={currencyConfig}
@@ -627,6 +596,13 @@ export function StatsGrid({
           hasTrendData={hasTrendData}
         />
       </div>
+
+      {/* 底部微型说明 */}
+      <p className={`text-[11px] ${themes[theme].text} opacity-40 mt-2`}>
+        {hasTrendData
+          ? '基于最新资产趋势与市场实时数据核算'
+          : '当前基于持仓总值进行估算汇总'}
+      </p>
     </div>
   );
 }
