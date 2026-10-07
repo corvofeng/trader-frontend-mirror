@@ -6,6 +6,7 @@ import { CommandPalette } from '../components/CommandPalette';
 import { Breadcrumbs } from '../shared/components';
 import { Theme, themes } from '../lib/theme';
 import type { User } from '../lib/services/types';
+import { isCloudflareEnv } from '../lib/services';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -61,6 +62,7 @@ export function MainLayout({
 
   // Global ⌘K / Ctrl+K shortcut listener for Magic Keyboard and desktop
   useEffect(() => {
+    if (isCloudflareEnv) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
@@ -86,21 +88,23 @@ export function MainLayout({
           onSignOut={onSignOut}
           onMobileMenuToggle={onMobileMenuToggle}
           onThemeDropdownToggle={onThemeDropdownToggle}
-          onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+          onOpenCommandPalette={isCloudflareEnv ? undefined : () => setCommandPaletteOpen(true)}
         />
       )}
 
-      {location.pathname !== '/' && !isTerminal && <Breadcrumbs theme={theme} />}
+      {location.pathname !== '/' && !isTerminal && !isCloudflareEnv && <Breadcrumbs theme={theme} />}
 
       {children}
 
-      <CommandPalette
-        isOpen={commandPaletteOpen}
-        onClose={() => setCommandPaletteOpen(false)}
-        user={user}
-        theme={theme}
-        onThemeChange={onThemeChange}
-      />
+      {!isCloudflareEnv && (
+        <CommandPalette
+          isOpen={commandPaletteOpen}
+          onClose={() => setCommandPaletteOpen(false)}
+          user={user}
+          theme={theme}
+          onThemeChange={onThemeChange}
+        />
+      )}
     </div>
   );
 }

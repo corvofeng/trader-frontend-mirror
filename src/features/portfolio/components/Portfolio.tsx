@@ -502,7 +502,7 @@ export function Portfolio({
               positionRatio={positionRatio}
               totalProfitLoss={totalProfitLoss}
               remainingCash={remainingCash}
-              onRefresh={refreshAll}
+              onRefresh={isCloudflareEnv ? undefined : refreshAll}
               onScreenshot={handleScreenshot}
               isLoggedIn={!!user}
               isSharedView={isSharedView}
@@ -522,7 +522,7 @@ export function Portfolio({
               onDateRangeChange={onDateRangeChange}
               isSharedView={isSharedView}
               portfolioUuid={portfolioUuid}
-              onRefresh={refreshAll}
+              onRefresh={isCloudflareEnv ? undefined : refreshAll}
               isLoggedIn={!!user}
               onScreenshot={handleScreenshot}
             />

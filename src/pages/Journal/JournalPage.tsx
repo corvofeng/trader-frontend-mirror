@@ -5,7 +5,7 @@ import { Briefcase } from 'lucide-react';
 import { format } from 'date-fns';
 
 import { Theme, themes } from '../../lib/theme';
-import { portfolioService, accountService, stockService, optionsService } from '../../lib/services';
+import { portfolioService, accountService, stockService, optionsService, isCloudflareEnv } from '../../lib/services';
 import { AccountSelector } from '../../shared/components/AccountSelector';
 import type { Account, Stock, Holding, Trade, StockOrder, User, OptionOrder } from '../../lib/services/types';
 import { TabNavigation } from './components/TabNavigation';
@@ -38,7 +38,16 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
   const navigate = useNavigate();
   const isAuthenticated = Boolean(user);
   const requestedAccountAlias = useMemo(() => getAccountAliasFromSearch(location.search) || '', [location.search]);
-  const tabs = useMemo(() => getJournalTabDefinitions({ isAuthenticated }), [isAuthenticated]);
+  const tabs = useMemo(
+    () =>
+      getJournalTabDefinitions({
+        isAuthenticated: isCloudflareEnv ? false : isAuthenticated,
+        canViewTradePlans: isCloudflareEnv ? false : undefined,
+        canViewHistory: isCloudflareEnv ? false : undefined,
+        canViewOrders: isCloudflareEnv ? false : undefined,
+      }),
+    [isAuthenticated]
+  );
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -356,22 +365,26 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                   <h1 className={`text-base sm:text-2xl font-bold tracking-tight ${themes[theme].text}`}>
-                    交易日志
+                    {isCloudflareEnv ? '投资组合' : '交易日志'}
                   </h1>
                   <span className="text-[10px] sm:text-xs font-mono font-medium px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 border border-blue-200/50 dark:border-blue-800/40">
-                    Journal
+                    {isCloudflareEnv ? 'Portfolio' : 'Journal'}
                   </span>
-                  <WebMcpBadge
-                    theme={theme}
-                    toolCount={webMcp.registeredToolCount}
-                    isSupported={webMcp.isSupported}
-                    isReady={webMcp.isReady}
-                    pageTitle="Journal 交易日志"
-                    customTools={webMcp.tools}
-                  />
+                  {!isCloudflareEnv && (
+                    <WebMcpBadge
+                      theme={theme}
+                      toolCount={webMcp.registeredToolCount}
+                      isSupported={webMcp.isSupported}
+                      isReady={webMcp.isReady}
+                      pageTitle="Journal 交易日志"
+                      customTools={webMcp.tools}
+                    />
+                  )}
                 </div>
                 <p className={`hidden sm:block text-sm ${themes[theme].text} opacity-75 mt-0.5`}>
-                  Review your portfolio, trades and performance in one place
+                  {isCloudflareEnv 
+                    ? 'Review your portfolio assets, equity curve, and positions' 
+                    : 'Review your portfolio, trades and performance in one place'}
                 </p>
               </div>
             </div>
@@ -394,12 +407,14 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
             {accountAccessError}
           </div>
         )}
-        <TabNavigation
-          tabs={tabs}
-          activeTab={activeTab}
-          theme={theme}
-          onTabChange={handleTabChange}
-        />
+        {!isCloudflareEnv && tabs.length > 1 && (
+          <TabNavigation
+            tabs={tabs}
+            activeTab={activeTab}
+            theme={theme}
+            onTabChange={handleTabChange}
+          />
+        )}
         {activeTabConfig?.renderToolbar?.({
           activeTab,
           selectedStock,

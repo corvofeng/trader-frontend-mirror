@@ -405,7 +405,7 @@ export function Navigation({
                       : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5'
                   }`}
                 >
-                  Journal
+                  {isCloudflareEnv ? 'Portfolio' : 'Journal'}
                 </button>
                 {!isCloudflareEnv && (
                   <button
@@ -455,7 +455,7 @@ export function Navigation({
                   About
                 </button>
               </div>
-              {onOpenCommandPalette && (
+              {!isCloudflareEnv && onOpenCommandPalette && (
                 <button
                   onClick={onOpenCommandPalette}
                   className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium border btn-tactile ${
@@ -472,14 +472,16 @@ export function Navigation({
                   <kbd className="font-mono text-[10px] px-1 py-0.5 rounded bg-black/10 dark:bg-white/10 font-semibold">⌘K</kbd>
                 </button>
               )}
-              <button
-                onClick={() => void handleRefreshServiceWorker()}
-                className={`inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium btn-tactile ${themes[theme].secondary}`}
-                title="刷新 Service Worker"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                刷新
-              </button>
+              {!isCloudflareEnv && (
+                <button
+                  onClick={() => void handleRefreshServiceWorker()}
+                  className={`inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium btn-tactile ${themes[theme].secondary}`}
+                  title="刷新 Service Worker"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  刷新
+                </button>
+              )}
               {!isCloudflareEnv && user && (
                 <button
                   onClick={() => setNoticesOpen(true)}
@@ -560,7 +562,7 @@ export function Navigation({
             </div>
 
             <div className="md:hidden flex items-center gap-1">
-              {onOpenCommandPalette && (
+              {!isCloudflareEnv && onOpenCommandPalette && (
                 <button
                   onClick={onOpenCommandPalette}
                   className={`p-2 rounded-lg ${themes[theme].text} btn-tactile`}
@@ -586,7 +588,7 @@ export function Navigation({
             <div className={`md:hidden ${themes[theme].card} border-t ${themes[theme].border} py-4 pb-[calc(env(safe-area-inset-bottom,0px)+16px)] absolute left-0 right-0 shadow-lg animate-fade-in`}>
               <div className="flex flex-col space-y-4 px-4">
                 <div className="flex flex-col gap-2">
-                  {onOpenCommandPalette && (
+                  {!isCloudflareEnv && onOpenCommandPalette && (
                     <button
                       onClick={() => {
                         onMobileMenuToggle();
@@ -608,7 +610,7 @@ export function Navigation({
                     }}
                     className={`w-full px-4 py-2 rounded-lg text-sm font-medium text-left btn-tactile ${themes[theme].secondary}`}
                   >
-                    Journal
+                    {isCloudflareEnv ? 'Portfolio' : 'Journal'}
                   </button>
                   {!isCloudflareEnv && (
                     <button
@@ -669,16 +671,18 @@ export function Navigation({
                       Alerts{unresolvedCount > 0 ? ` (${unresolvedCount > 99 ? '99+' : unresolvedCount})` : ''}
                     </button>
                   )}
-                  <button
-                    onClick={() => {
-                      void handleRefreshServiceWorker();
-                      onMobileMenuToggle();
-                    }}
-                    className={`w-full inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium text-left btn-tactile ${themes[theme].secondary}`}
-                  >
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    刷新 Service Worker
-                  </button>
+                  {!isCloudflareEnv && (
+                    <button
+                      onClick={() => {
+                        void handleRefreshServiceWorker();
+                        onMobileMenuToggle();
+                      }}
+                      className={`w-full inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium text-left btn-tactile ${themes[theme].secondary}`}
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      刷新 Service Worker
+                    </button>
+                  )}
                 </div>
                 <div className="flex justify-center space-x-2">
                   {Object.keys(themes).map((themeName) => (
