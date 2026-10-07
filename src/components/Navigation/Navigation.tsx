@@ -397,63 +397,96 @@ export function Navigation({
             
             <div className="hidden md:flex items-center space-x-4">
               <div className="flex items-center gap-1.5 p-1 rounded-xl fin-well border border-black/5 dark:border-white/5">
-                <button
-                  onClick={() => navigate('/journal')}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium btn-tactile select-none ${
-                    isActivePath('/journal')
-                      ? themes[theme].primary + ' shadow-sm font-semibold ring-1 ring-white/10'
-                      : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5'
-                  }`}
-                >
-                  {isCloudflareEnv ? 'Portfolio' : 'Journal'}
-                </button>
-                {!isCloudflareEnv && (
-                  <button
-                    onClick={() => navigate('/options')}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium btn-tactile select-none ${
-                      isActivePath('/options')
-                        ? themes[theme].primary + ' shadow-sm font-semibold ring-1 ring-white/10'
-                        : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5'
-                    }`}
-                  >
-                    Options
-                  </button>
+                {isCloudflareEnv ? (
+                  <>
+                    <button
+                      onClick={() => navigate('/')}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium btn-tactile select-none ${
+                        isActivePath('/')
+                          ? themes[theme].primary + ' shadow-sm font-semibold ring-1 ring-white/10'
+                          : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5'
+                      }`}
+                    >
+                      Home
+                    </button>
+                    <button
+                      onClick={() => navigate('/journal')}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium btn-tactile select-none ${
+                        isActivePath('/journal')
+                          ? themes[theme].primary + ' shadow-sm font-semibold ring-1 ring-white/10'
+                          : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5'
+                      }`}
+                    >
+                      Portfolio
+                    </button>
+                    <button
+                      onClick={() => navigate('/about')}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium btn-tactile select-none ${
+                        isActivePath('/about')
+                          ? themes[theme].primary + ' shadow-sm font-semibold ring-1 ring-white/10'
+                          : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5'
+                      }`}
+                    >
+                      About
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => navigate('/journal')}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium btn-tactile select-none ${
+                        isActivePath('/journal')
+                          ? themes[theme].primary + ' shadow-sm font-semibold ring-1 ring-white/10'
+                          : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5'
+                      }`}
+                    >
+                      Journal
+                    </button>
+                    <button
+                      onClick={() => navigate('/options')}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium btn-tactile select-none ${
+                        isActivePath('/options')
+                          ? themes[theme].primary + ' shadow-sm font-semibold ring-1 ring-white/10'
+                          : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5'
+                      }`}
+                    >
+                      Options
+                    </button>
+                    <button
+                      onClick={() => navigate('/terminal')}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium btn-tactile select-none ${
+                        isActivePath('/terminal')
+                          ? themes[theme].primary + ' shadow-sm font-semibold ring-1 ring-white/10'
+                          : 'text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50/60 dark:hover:bg-blue-950/40 font-semibold'
+                      }`}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                      <span>Terminal</span>
+                    </button>
+                    {user && (
+                      <button
+                        onClick={() => navigate('/admin')}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium btn-tactile select-none ${
+                          isActivePath('/admin')
+                            ? themes[theme].primary + ' shadow-sm font-semibold ring-1 ring-white/10'
+                            : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5'
+                        }`}
+                      >
+                        Admin
+                      </button>
+                    )}
+                    <button
+                      onClick={() => navigate('/about')}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium btn-tactile select-none ${
+                        isActivePath('/about')
+                          ? themes[theme].primary + ' shadow-sm font-semibold ring-1 ring-white/10'
+                          : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5'
+                      }`}
+                    >
+                      About
+                    </button>
+                  </>
                 )}
-                {!isCloudflareEnv && (
-                  <button
-                    onClick={() => navigate('/terminal')}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium btn-tactile select-none ${
-                      isActivePath('/terminal')
-                        ? themes[theme].primary + ' shadow-sm font-semibold ring-1 ring-white/10'
-                        : 'text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50/60 dark:hover:bg-blue-950/40 font-semibold'
-                    }`}
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                    <span>Terminal</span>
-                  </button>
-                )}
-                {!isCloudflareEnv && user && (
-                  <button
-                    onClick={() => navigate('/admin')}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium btn-tactile select-none ${
-                      isActivePath('/admin')
-                        ? themes[theme].primary + ' shadow-sm font-semibold ring-1 ring-white/10'
-                        : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5'
-                    }`}
-                  >
-                    Admin
-                  </button>
-                )}
-                <button
-                  onClick={() => navigate('/about')}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium btn-tactile select-none ${
-                    isActivePath('/about')
-                      ? themes[theme].primary + ' shadow-sm font-semibold ring-1 ring-white/10'
-                      : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5'
-                  }`}
-                >
-                  About
-                </button>
               </div>
               {!isCloudflareEnv && onOpenCommandPalette && (
                 <button
@@ -588,100 +621,140 @@ export function Navigation({
             <div className={`md:hidden ${themes[theme].card} border-t ${themes[theme].border} py-4 pb-[calc(env(safe-area-inset-bottom,0px)+16px)] absolute left-0 right-0 shadow-lg animate-fade-in`}>
               <div className="flex flex-col space-y-4 px-4">
                 <div className="flex flex-col gap-2">
-                  {!isCloudflareEnv && onOpenCommandPalette && (
-                    <button
-                      onClick={() => {
-                        onMobileMenuToggle();
-                        onOpenCommandPalette();
-                      }}
-                      className={`w-full px-4 py-2 rounded-lg text-sm font-medium text-left flex items-center justify-between btn-tactile ${themes[theme].secondary}`}
-                    >
-                      <span className="flex items-center gap-2">
-                        <Search className="w-4 h-4 text-blue-500" />
-                        搜索与快捷指令
-                      </span>
-                      <kbd className="font-mono text-xs px-1.5 py-0.5 rounded bg-black/10 dark:bg-white/10">⌘K</kbd>
-                    </button>
-                  )}
-                  <button
-                    onClick={() => {
-                      navigate('/journal');
-                      onMobileMenuToggle();
-                    }}
-                    className={`w-full px-4 py-2 rounded-lg text-sm font-medium text-left btn-tactile ${themes[theme].secondary}`}
-                  >
-                    {isCloudflareEnv ? 'Portfolio' : 'Journal'}
-                  </button>
-                  {!isCloudflareEnv && (
-                    <button
-                      onClick={() => {
-                        navigate('/options');
-                        onMobileMenuToggle();
-                      }}
-                      className={`w-full px-4 py-2 rounded-lg text-sm font-medium text-left btn-tactile ${themes[theme].secondary}`}
-                    >
-                      Options
-                    </button>
-                  )}
-                  {!isCloudflareEnv && (
-                    <button
-                      onClick={() => {
-                        navigate('/terminal');
-                        onMobileMenuToggle();
-                      }}
-                      className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold text-left btn-tactile flex items-center justify-between bg-blue-50/70 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200/50 dark:border-blue-800/40"
-                    >
-                      <span className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                        交易终端 (Terminal)
-                      </span>
-                      <span className="text-[10px] font-mono uppercase bg-blue-600 text-white px-1.5 py-0.5 rounded">
-                        Pro
-                      </span>
-                    </button>
-                  )}
-                  {!isCloudflareEnv && user && (
-                    <button
-                      onClick={() => {
-                        navigate('/admin');
-                        onMobileMenuToggle();
-                      }}
-                      className={`w-full px-4 py-2 rounded-lg text-sm font-medium text-left btn-tactile ${themes[theme].secondary}`}
-                    >
-                      Admin
-                    </button>
-                  )}
-                  <button
-                    onClick={() => {
-                      navigate('/about');
-                      onMobileMenuToggle();
-                    }}
-                    className={`w-full px-4 py-2 rounded-lg text-sm font-medium text-left btn-tactile ${themes[theme].secondary}`}
-                  >
-                    About
-                  </button>
-                  {!isCloudflareEnv && user && (
-                    <button
-                      onClick={() => {
-                        setNoticesOpen(true);
-                        onMobileMenuToggle();
-                      }}
-                      className={`w-full px-4 py-2 rounded-lg text-sm font-medium text-left btn-tactile ${themes[theme].secondary}`}
-                    >
-                      Alerts{unresolvedCount > 0 ? ` (${unresolvedCount > 99 ? '99+' : unresolvedCount})` : ''}
-                    </button>
-                  )}
-                  {!isCloudflareEnv && (
-                    <button
-                      onClick={() => {
-                        void handleRefreshServiceWorker();
-                        onMobileMenuToggle();
-                      }}
-                      className={`w-full inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium text-left btn-tactile ${themes[theme].secondary}`}
-                    >
-                      <RefreshCw className="w-4 h-4 mr-2" />
-                      刷新 Service Worker
-                    </button>
+                  {isCloudflareEnv ? (
+                    <>
+                      <button
+                        onClick={() => {
+                          navigate('/');
+                          onMobileMenuToggle();
+                        }}
+                        className={`w-full px-4 py-2 rounded-lg text-sm font-medium text-left btn-tactile ${
+                          isActivePath('/')
+                            ? `${themes[theme].primary} text-white font-semibold shadow-sm`
+                            : themes[theme].secondary
+                        }`}
+                      >
+                        Home
+                      </button>
+                      <button
+                        onClick={() => {
+                          navigate('/journal');
+                          onMobileMenuToggle();
+                        }}
+                        className={`w-full px-4 py-2 rounded-lg text-sm font-medium text-left btn-tactile ${
+                          isActivePath('/journal')
+                            ? `${themes[theme].primary} text-white font-semibold shadow-sm`
+                            : themes[theme].secondary
+                        }`}
+                      >
+                        Portfolio
+                      </button>
+                      <button
+                        onClick={() => {
+                          navigate('/about');
+                          onMobileMenuToggle();
+                        }}
+                        className={`w-full px-4 py-2 rounded-lg text-sm font-medium text-left btn-tactile ${
+                          isActivePath('/about')
+                            ? `${themes[theme].primary} text-white font-semibold shadow-sm`
+                            : themes[theme].secondary
+                        }`}
+                      >
+                        About
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {onOpenCommandPalette && (
+                        <button
+                          onClick={() => {
+                            onMobileMenuToggle();
+                            onOpenCommandPalette();
+                          }}
+                          className={`w-full px-4 py-2 rounded-lg text-sm font-medium text-left flex items-center justify-between btn-tactile ${themes[theme].secondary}`}
+                        >
+                          <span className="flex items-center gap-2">
+                            <Search className="w-4 h-4 text-blue-500" />
+                            搜索与快捷指令
+                          </span>
+                          <kbd className="font-mono text-xs px-1.5 py-0.5 rounded bg-black/10 dark:bg-white/10">⌘K</kbd>
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          navigate('/journal');
+                          onMobileMenuToggle();
+                        }}
+                        className={`w-full px-4 py-2 rounded-lg text-sm font-medium text-left btn-tactile ${themes[theme].secondary}`}
+                      >
+                        Journal
+                      </button>
+                      <button
+                        onClick={() => {
+                          navigate('/options');
+                          onMobileMenuToggle();
+                        }}
+                        className={`w-full px-4 py-2 rounded-lg text-sm font-medium text-left btn-tactile ${themes[theme].secondary}`}
+                      >
+                        Options
+                      </button>
+                      <button
+                        onClick={() => {
+                          navigate('/terminal');
+                          onMobileMenuToggle();
+                        }}
+                        className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold text-left btn-tactile flex items-center justify-between bg-blue-50/70 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200/50 dark:border-blue-800/40"
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                          交易终端 (Terminal)
+                        </span>
+                        <span className="text-[10px] font-mono uppercase bg-blue-600 text-white px-1.5 py-0.5 rounded">
+                          Pro
+                        </span>
+                      </button>
+                      {user && (
+                        <button
+                          onClick={() => {
+                            navigate('/admin');
+                            onMobileMenuToggle();
+                          }}
+                          className={`w-full px-4 py-2 rounded-lg text-sm font-medium text-left btn-tactile ${themes[theme].secondary}`}
+                        >
+                          Admin
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          navigate('/about');
+                          onMobileMenuToggle();
+                        }}
+                        className={`w-full px-4 py-2 rounded-lg text-sm font-medium text-left btn-tactile ${themes[theme].secondary}`}
+                      >
+                        About
+                      </button>
+                      {user && (
+                        <button
+                          onClick={() => {
+                            setNoticesOpen(true);
+                            onMobileMenuToggle();
+                          }}
+                          className={`w-full px-4 py-2 rounded-lg text-sm font-medium text-left btn-tactile ${themes[theme].secondary}`}
+                        >
+                          Alerts{unresolvedCount > 0 ? ` (${unresolvedCount > 99 ? '99+' : unresolvedCount})` : ''}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          void handleRefreshServiceWorker();
+                          onMobileMenuToggle();
+                        }}
+                        className={`w-full inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium text-left btn-tactile ${themes[theme].secondary}`}
+                      >
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                        刷新 Service Worker
+                      </button>
+                    </>
                   )}
                 </div>
                 <div className="flex justify-center space-x-2">

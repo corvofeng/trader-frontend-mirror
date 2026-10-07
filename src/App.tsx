@@ -204,7 +204,7 @@ function AppContent() {
         <Routes>
           <Route 
             path="/" 
-            element={isCloudflareEnv ? <Navigate to="/journal" replace /> : <Landing theme={theme} onThemeChange={handleThemeChange} user={user} />} 
+            element={<Landing theme={theme} onThemeChange={handleThemeChange} user={user} />} 
           />
           <Route
             path="/journal"
