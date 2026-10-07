@@ -2878,9 +2878,9 @@ export function ExpiryGroupCard({
             return (
               <div className="space-y-4 sm:space-y-5">
                 <div className="mt-0">
-                    <div className="flex items-center justify-between mb-2.5 gap-2">
+                    <div className="flex flex-wrap items-center justify-between mb-2.5 gap-x-2 gap-y-2">
                       <div 
-                        className="flex items-center gap-1.5 sm:gap-2 cursor-pointer select-none hover:opacity-80 transition-opacity min-w-0 shrink-0"
+                        className="flex items-center gap-1.5 sm:gap-2 cursor-pointer select-none hover:opacity-80 transition-opacity min-w-0"
                         onClick={onToggleTBoard}
                       >
                         <div className={`w-3.5 h-3.5 sm:w-4 sm:h-4 rounded shrink-0 ${theme === 'dark' ? 'bg-zinc-600' : theme === 'blue' ? 'bg-blue-400' : 'bg-slate-400'}`}></div>
@@ -2895,60 +2895,7 @@ export function ExpiryGroupCard({
                       </div>
 
                       {isTBoardExpanded && (
-                        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                          {showOpenInterestOverlay && (
-                            <div className="hidden md:flex items-center gap-2 text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-slate-100/90 dark:bg-zinc-800/90 border border-slate-200/80 dark:border-zinc-700/60 shadow-xs">
-                              {oiSummary && (
-                                <>
-                                  {oiSummary.maxCall > 0 && (
-                                    <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium" title={`全市场 Call 最大未平仓量: 行权价 ${oiSummary.maxCallStrike} (${oiSummary.maxCall.toLocaleString()} 张)`}>
-                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                      Call主力 {oiSummary.maxCallStrike} ({formatOINumber(oiSummary.maxCall)})
-                                    </span>
-                                  )}
-                                  {oiSummary.maxCall > 0 && oiSummary.maxPut > 0 && (
-                                    <span className="text-gray-300 dark:text-zinc-600">|</span>
-                                  )}
-                                  {oiSummary.maxPut > 0 && (
-                                    <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400 font-medium" title={`全市场 Put 最大未平仓量: 行权价 ${oiSummary.maxPutStrike} (${oiSummary.maxPut.toLocaleString()} 张)`}>
-                                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                                      Put主力 {oiSummary.maxPutStrike} ({formatOINumber(oiSummary.maxPut)})
-                                    </span>
-                                  )}
-                                  <span className="text-gray-300 dark:text-zinc-600">|</span>
-                                  <span className="text-gray-600 dark:text-zinc-300">
-                                    P/C比: <span className="font-bold text-slate-800 dark:text-zinc-200">{oiSummary.pcr}</span>
-                                  </span>
-                                  <span className="text-gray-300 dark:text-zinc-600">|</span>
-                                </>
-                              )}
-                              {/* 图例与时间价值虚线开关 */}
-                              <div className="flex items-center gap-2 text-[10.5px]">
-                                <span className="flex items-center gap-1 text-slate-500 dark:text-zinc-400" title="实线为未平仓量 (OI) 分布曲线">
-                                  <span className="w-2.5 h-0.5 bg-emerald-500 inline-block rounded-full" />
-                                  <span>实线OI</span>
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setShowTimeValueCurve(prev => !prev);
-                                  }}
-                                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors ${
-                                    showTimeValueCurve
-                                      ? 'text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 font-medium'
-                                      : 'text-gray-400 opacity-60 hover:opacity-100'
-                                  }`}
-                                  title="点击开启或关闭时间价值虚线对比"
-                                >
-                                  <span className="w-3 border-t-2 border-dashed border-amber-500 inline-block" />
-                                  <span>虚线时间价值</span>
-                                  <span className="text-[9px] font-mono font-semibold">{showTimeValueCurve ? 'ON' : 'OFF'}</span>
-                                </button>
-                              </div>
-                            </div>
-                          )}
-
+                        <div className="flex flex-wrap items-center justify-end gap-1.5 sm:gap-2 min-w-0 ml-auto">
                           {/* 定位平值 (桌面端快捷入口) */}
                           <button
                             type="button"
@@ -2957,7 +2904,7 @@ export function ExpiryGroupCard({
                               hasUserAdjustedTBoardRef.current = false;
                               scrollToAtm(true);
                             }}
-                            className={`hidden sm:inline-flex items-center gap-1 sm:gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all shadow-xs active:scale-95 whitespace-nowrap ${
+                            className={`hidden sm:inline-flex items-center gap-1 sm:gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all shadow-xs active:scale-95 whitespace-nowrap shrink-0 ${
                               atmHighlightActive
                                 ? 'bg-blue-600 text-white ring-2 ring-blue-400/50 shadow-blue-500/30'
                                 : 'bg-blue-500/15 text-blue-600 dark:text-blue-400 hover:bg-blue-500/25 border border-blue-500/30'
@@ -2974,7 +2921,7 @@ export function ExpiryGroupCard({
                               e.stopPropagation();
                               setShowOpenInterestOverlay(prev => !prev);
                             }}
-                            className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-full text-xs font-medium transition-all shadow-xs ${
+                            className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-full text-xs font-medium transition-all shadow-xs shrink-0 ${
                               showOpenInterestOverlay
                                 ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30'
                                 : 'bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-gray-400 border border-transparent hover:bg-gray-200 dark:hover:bg-zinc-700'
@@ -2993,7 +2940,7 @@ export function ExpiryGroupCard({
                               e.stopPropagation();
                               setShowColumnSettings(true);
                             }}
-                            className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-full text-xs font-medium transition-all shadow-xs ${
+                            className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-full text-xs font-medium transition-all shadow-xs shrink-0 ${
                               showColumnSettings
                                 ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30'
                                 : 'bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-gray-400 border border-transparent hover:bg-gray-200 dark:hover:bg-zinc-700'
@@ -3018,13 +2965,13 @@ export function ExpiryGroupCard({
                               step={5}
                               value={Math.round(mobileTBoardScale * 100)}
                               onChange={(event) => setMobileTBoardScale(Number(event.target.value) / 100)}
-                              className="w-16 accent-blue-600 h-1 cursor-pointer"
+                              className="w-14 sm:w-16 accent-blue-600 h-1 cursor-pointer"
                               aria-label="调整T型看板列表大小"
                             />
                             <button
                               type="button"
                               onClick={() => setMobileTBoardScale(1.0)}
-                              className="text-[11px] font-mono tabular-nums opacity-80 min-w-[34px] text-right font-medium hover:text-blue-600 transition-colors"
+                              className="text-[11px] font-mono tabular-nums opacity-80 min-w-[32px] text-right font-medium hover:text-blue-600 transition-colors"
                               title="点击重置为 100%"
                             >
                               {Math.round(mobileTBoardScale * 100)}%
@@ -3037,7 +2984,7 @@ export function ExpiryGroupCard({
                               e.stopPropagation();
                               enterFullscreen();
                             }}
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all shadow-xs ${
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all shadow-xs shrink-0 ${
                               theme === 'dark'
                                 ? 'bg-zinc-800 text-zinc-200 hover:bg-zinc-700 hover:text-white border border-zinc-700/80'
                                 : theme === 'blue'
@@ -3052,6 +2999,61 @@ export function ExpiryGroupCard({
                         </div>
                       )}
                     </div>
+
+                    {isTBoardExpanded && showOpenInterestOverlay && (
+                      <div className="hidden sm:flex flex-wrap items-center justify-between gap-2 mb-2.5 px-3 py-1.5 rounded-lg bg-slate-100/90 dark:bg-zinc-800/80 border border-slate-200/80 dark:border-zinc-700/60 text-[11px] font-mono shadow-xs">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {oiSummary && (
+                            <>
+                              {oiSummary.maxCall > 0 && (
+                                <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium" title={`全市场 Call 最大未平仓量: 行权价 ${oiSummary.maxCallStrike} (${oiSummary.maxCall.toLocaleString()} 张)`}>
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                  Call主力 {oiSummary.maxCallStrike} ({formatOINumber(oiSummary.maxCall)})
+                                </span>
+                              )}
+                              {oiSummary.maxCall > 0 && oiSummary.maxPut > 0 && (
+                                <span className="text-gray-300 dark:text-zinc-600">|</span>
+                              )}
+                              {oiSummary.maxPut > 0 && (
+                                <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400 font-medium" title={`全市场 Put 最大未平仓量: 行权价 ${oiSummary.maxPutStrike} (${oiSummary.maxPut.toLocaleString()} 张)`}>
+                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                  Put主力 {oiSummary.maxPutStrike} ({formatOINumber(oiSummary.maxPut)})
+                                </span>
+                              )}
+                              <span className="text-gray-300 dark:text-zinc-600">|</span>
+                              <span className="text-gray-600 dark:text-zinc-300">
+                                P/C比: <span className="font-bold text-slate-800 dark:text-zinc-200">{oiSummary.pcr}</span>
+                              </span>
+                            </>
+                          )}
+                        </div>
+
+                        {/* 图例与时间价值虚线开关 */}
+                        <div className="flex items-center gap-2 text-[10.5px] ml-auto">
+                          <span className="flex items-center gap-1 text-slate-500 dark:text-zinc-400" title="实线为未平仓量 (OI) 分布曲线">
+                            <span className="w-2.5 h-0.5 bg-emerald-500 inline-block rounded-full" />
+                            <span>实线OI</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowTimeValueCurve(prev => !prev);
+                            }}
+                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors ${
+                              showTimeValueCurve
+                                ? 'text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 font-medium'
+                                : 'text-gray-400 opacity-60 hover:opacity-100'
+                            }`}
+                            title="点击开启或关闭时间价值虚线对比"
+                          >
+                            <span className="w-3 border-t-2 border-dashed border-amber-500 inline-block" />
+                            <span>虚线时间价值</span>
+                            <span className="text-[9px] font-mono font-semibold">{showTimeValueCurve ? 'ON' : 'OFF'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     {isTBoardExpanded && (
                       <>
                         {(() => {
@@ -3093,7 +3095,7 @@ export function ExpiryGroupCard({
                                         step={5}
                                         value={Math.round(mobileTBoardScale * 100)}
                                         onChange={(event) => setMobileTBoardScale(Number(event.target.value) / 100)}
-                                        className="w-20 accent-blue-600 h-1.5 cursor-pointer"
+                                        className="w-16 sm:w-20 accent-blue-600 h-1.5 cursor-pointer"
                                         aria-label="调整T型持仓列表大小"
                                       />
                                       <button

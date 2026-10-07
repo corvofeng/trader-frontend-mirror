@@ -402,19 +402,19 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
   };
 
   const animations = `
-    @keyframes slideDown {
+    @keyframes tradeSlideDown {
       from { opacity: 0; transform: translateY(-10px); }
       to { opacity: 1; transform: translateY(0); }
     }
-    @keyframes fadeIn {
+    @keyframes tradeFadeIn {
       from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
     }
-    .animate-slide-down {
-      animation: slideDown 0.3s ease-out forwards;
+    .trade-animate-slide-down {
+      animation: tradeSlideDown 0.3s ease-out forwards;
     }
-    .animate-fade-in {
-      animation: fadeIn 0.4s ease-out forwards;
+    .trade-animate-fade-in {
+      animation: tradeFadeIn 0.4s ease-out forwards;
       opacity: 0;
     }
   `;
@@ -572,7 +572,7 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
                 return (
                   <div 
                     key={stockCode} 
-                    className={`mb-4 mx-4 rounded-lg border ${themes[theme].border} overflow-hidden shadow-sm animate-fade-in`}
+                    className={`mb-4 mx-4 rounded-lg border ${themes[theme].border} overflow-hidden shadow-sm trade-animate-fade-in`}
                     style={{ animationDelay: `${(groupIndex * 0.05) + (index * 0.05)}s` }}
                   >
                     <div 
@@ -595,7 +595,7 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
                     </div>
 
                     {isStockExpanded && (
-                      <div className={`divide-y ${themes[theme].border} border-top ${themes[theme].border} animate-slide-down`}>
+                      <div className={`divide-y ${themes[theme].border} border-top ${themes[theme].border} trade-animate-slide-down`}>
                         <div className="p-4">
                           <StockChart 
                             stockCode={stockCode} 
@@ -655,7 +655,7 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
                               </div>
 
                               {isExpanded && (
-                                <div className="mt-4 space-y-3 animate-slide-down">
+                                <div className="mt-4 space-y-3 trade-animate-slide-down">
                                   <div className={`p-3 rounded-md ${themes[theme].background}`}>
                                     {editingNoteId === trade.id ? (
                                       <div className="flex flex-col space-y-2">
@@ -727,7 +727,7 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
             return (
               <div 
                 key={stockCode} 
-                className={`mb-4 mx-4 rounded-lg border ${themes[theme].border} overflow-hidden shadow-sm animate-fade-in`}
+                className={`mb-4 mx-4 rounded-lg border ${themes[theme].border} overflow-hidden shadow-sm trade-animate-fade-in`}
                 style={{ animationDelay: `${index * 0.05}s` }}
               >
                 <div 
@@ -750,7 +750,7 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
                 </div>
 
                 {isStockExpanded && (
-                  <div className={`divide-y ${themes[theme].border} border-t ${themes[theme].border} animate-slide-down`}>
+                  <div className={`divide-y ${themes[theme].border} border-t ${themes[theme].border} trade-animate-slide-down`}>
                     <div className="p-4">
                       <StockChart 
                         stockCode={stockCode} 
@@ -810,7 +810,7 @@ export function TradeList({ selectedStockCode, theme, showCompleted = false, sel
                           </div>
 
                           {isExpanded && (
-                            <div className="mt-4 space-y-3 animate-slide-down">
+                            <div className="mt-4 space-y-3 trade-animate-slide-down">
                               <div className={`p-3 rounded-md ${themes[theme].background}`}>
                                 {editingNoteId === trade.id ? (
                                   <div className="flex flex-col space-y-2">

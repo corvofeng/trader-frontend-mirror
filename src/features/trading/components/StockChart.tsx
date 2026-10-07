@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { logger } from '../../../shared/utils/logger';
 import { createChart, ColorType, IChartApi, ISeriesApi, CrosshairMode, LineStyle, PriceScaleMode, UTCTimestamp } from 'lightweight-charts';
 import { format } from 'date-fns';
@@ -131,6 +132,20 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
     trades: Trade[];
     costBasis: CostBasisPoint[];
   }>({ candlestick: [], volume: [], trades: [], costBasis: [] });
+  const chartDataRef = useRef<{
+    candlestick: CandlestickPoint[];
+    volume: VolumePoint[];
+    trades: Trade[];
+    costBasis: CostBasisPoint[];
+  }>({ candlestick: [], volume: [], trades: [], costBasis: [] });
+  const prevStockCodeRef = useRef<string | null | undefined>(stockCode);
+
+  if (prevStockCodeRef.current !== stockCode) {
+    prevStockCodeRef.current = stockCode;
+    chartDataRef.current = { candlestick: [], volume: [], trades: [], costBasis: [] };
+  }
+
+  const isCompact = compactMode && !isFullscreen;
 
   const disposeChart = () => {
     isDisposed.current = true;
@@ -316,8 +331,8 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
           newSeries.priceScale().applyOptions({
             autoScale: autoScale,
             scaleMargins: {
-              top: compactMode ? 0.05 : 0.1,
-              bottom: showVolume ? (compactMode ? 0.12 : 0.2) : (compactMode ? 0.05 : 0.08),
+              top: isCompact ? 0.05 : 0.1,
+              bottom: showVolume ? (isCompact ? 0.12 : 0.2) : (isCompact ? 0.05 : 0.08),
             },
           });
           const sortedCandlestickData = [...chartData.candlestick].sort((a, b) => a.time - b.time);
@@ -340,7 +355,7 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
   };
 
   const addTradeMarkers = useCallback((
-    candlestickSeries: ISeriesApi<"Candlestick">,
+    candlestickSeries: ISeriesApi<any>,
     trades: Trade[],
     chartColors: { upColor: string; downColor: string }
   ) => {
@@ -465,6 +480,7 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
     const visualPalette = getChartVisualPalette(theme, chartColors);
 
     const chart = createChart(chartContainerRef.current, {
+      autoSize: true,
       layout: {
         background: { type: ColorType.Solid, color: visualPalette.background },
         textColor: visualPalette.textColor,
@@ -531,23 +547,36 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
 
     chartRef.current = chart;
 
-    const candlestickSeries = chart.addCandlestickSeries({
-      upColor: visualPalette.upColor,
-      downColor: visualPalette.downColor,
-      borderVisible: false,
-      wickUpColor: visualPalette.upColor,
-      wickDownColor: visualPalette.downColor,
-    });
+    let mainSeries: ISeriesApi<any>;
+    if (chartType === 'line') {
+      mainSeries = chart.addLineSeries({
+        color: themes[theme].chart.upColor,
+        lineWidth: 2,
+      });
+    } else if (chartType === 'bar') {
+      mainSeries = chart.addBarSeries({
+        upColor: themes[theme].chart.upColor,
+        downColor: themes[theme].chart.downColor,
+      });
+    } else {
+      mainSeries = chart.addCandlestickSeries({
+        upColor: visualPalette.upColor,
+        downColor: visualPalette.downColor,
+        borderVisible: false,
+        wickUpColor: visualPalette.upColor,
+        wickDownColor: visualPalette.downColor,
+      });
+    }
 
-    candlestickSeries.priceScale().applyOptions({
+    mainSeries.priceScale().applyOptions({
       autoScale: autoScale,
       scaleMargins: {
-        top: compactMode ? 0.05 : 0.1,
-        bottom: showVolume ? (compactMode ? 0.12 : 0.2) : (compactMode ? 0.05 : 0.08),
+        top: isCompact ? 0.05 : 0.1,
+        bottom: showVolume ? (isCompact ? 0.12 : 0.2) : (isCompact ? 0.05 : 0.08),
       },
     });
 
-    candlestickSeriesRef.current = candlestickSeries;
+    candlestickSeriesRef.current = mainSeries;
 
     const volumeSeries = chart.addHistogramSeries({
       color: chartColors.upColor,
@@ -564,7 +593,7 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
 
     volumeSeries.priceScale().applyOptions({
       scaleMargins: {
-        top: compactMode ? 0.88 : 0.8,
+        top: isCompact ? 0.88 : 0.8,
         bottom: 0,
       },
     });
@@ -579,6 +608,57 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
     });
 
     costBasisSeriesRef.current = costBasisSeries;
+
+    const applyDataToSeries = (
+      candlestickData: CandlestickPoint[],
+      volumeData: VolumePoint[],
+      costBasisPoints: CostBasisPoint[],
+      trades: Trade[]
+    ) => {
+      if (isDisposed.current || !candlestickSeriesRef.current) return;
+
+      try {
+        if (chartType === 'line') {
+          candlestickSeriesRef.current.setData(
+            candlestickData.map(item => ({ time: item.time, value: item.close }))
+          );
+        } else {
+          candlestickSeriesRef.current.setData(candlestickData);
+        }
+
+        if (volumeSeriesRef.current) {
+          volumeSeriesRef.current.setData(volumeData);
+        }
+
+        if (costBasisSeriesRef.current && costBasisPoints.length > 0 && showCostBasis) {
+          costBasisSeriesRef.current.setData(
+            costBasisPoints.map(point => ({ time: point.time, value: point.value }))
+          );
+        }
+
+        if (trades.length > 0 && candlestickSeriesRef.current) {
+          addTradeMarkers(candlestickSeriesRef.current, trades, chartColors);
+        }
+
+        if (chartRef.current) {
+          chartRef.current.timeScale().fitContent();
+          if (defaultVisibleMonths && candlestickData.length > 0) {
+            const lastTime = candlestickData[candlestickData.length - 1].time;
+            const fromMs = lastTime * 1000 - defaultVisibleMonths * 30 * 24 * 60 * 60 * 1000;
+            let fromTime = Math.floor(fromMs / 1000) as UTCTimestamp;
+            if (candlestickData[0].time > fromTime) {
+              fromTime = candlestickData[0].time;
+            }
+            chartRef.current.timeScale().setVisibleLogicalRange({
+              from: findClosestIndex(candlestickData, fromTime),
+              to: candlestickData.length - 1,
+            });
+          }
+        }
+      } catch (e) {
+        console.error('Error setting chart data:', e);
+      }
+    };
 
     const loadChartData = async () => {
       if (isDisposed.current) return;
@@ -643,60 +723,22 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
               .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
             
             if (trades.length > 0) {
-              if (candlestickSeriesRef.current && !isDisposed.current) {
-                addTradeMarkers(candlestickSeriesRef.current, trades, chartColors);
-              }
               costBasisPoints = calculateCostBasis(trades);
-              
-              if (costBasisPoints.length > 0 && showCostBasis && !isDisposed.current && costBasisSeriesRef.current) {
-                try {
-                  costBasisSeriesRef.current.setData(costBasisPoints.map(point => ({
-                    time: point.time,
-                    value: point.value,
-                  })));
-                } catch (e) {
-                  console.error('Error setting cost basis data:', e);
-                }
-              }
             }
           }
         }
 
         if (!isDisposed.current) {
           onTradesLoadedRef.current?.(trades);
-          setChartData({
+          const nextData = {
             candlestick: candlestickData,
             volume: volumeData,
             trades,
             costBasis: costBasisPoints,
-          });
-
-          try {
-            if (candlestickSeriesRef.current && !isDisposed.current) {
-              candlestickSeriesRef.current.setData(candlestickData);
-            }
-            if (volumeSeriesRef.current && !isDisposed.current) {
-              volumeSeriesRef.current.setData(volumeData);
-            }
-            if (chartRef.current && !isDisposed.current) {
-              chartRef.current.timeScale().fitContent();
-              if (defaultVisibleMonths && candlestickData.length > 0) {
-                const lastTime = candlestickData[candlestickData.length - 1].time;
-                const fromMs = lastTime * 1000 - defaultVisibleMonths * 30 * 24 * 60 * 60 * 1000;
-                let fromTime = Math.floor(fromMs / 1000) as UTCTimestamp;
-                if (candlestickData[0].time > fromTime) {
-                  fromTime = candlestickData[0].time;
-                }
-                chartRef.current.timeScale().setVisibleLogicalRange({
-                  from: findClosestIndex(candlestickData, fromTime),
-                  to: candlestickData.length - 1,
-                });
-              }
-            }
-          } catch (e) {
-            console.error('Error setting chart data:', e);
-          }
-          
+          };
+          chartDataRef.current = nextData;
+          setChartData(nextData);
+          applyDataToSeries(candlestickData, volumeData, costBasisPoints, trades);
           setIsLoading(false);
         }
 
@@ -708,7 +750,17 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
       }
     };
 
-    loadChartData();
+    if (chartDataRef.current.candlestick.length > 0) {
+      applyDataToSeries(
+        chartDataRef.current.candlestick,
+        chartDataRef.current.volume,
+        chartDataRef.current.costBasis,
+        chartDataRef.current.trades
+      );
+      setIsLoading(false);
+    } else {
+      loadChartData();
+    }
 
     // Use ResizeObserver instead of window resize event
     if (chartContainerRef.current) {
@@ -732,7 +784,7 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
       disposeChart();
       isInitializing.current = false;
     };
-  }, [stockCode, theme, currencyConfig, showCostBasis, showGrid, showVolume, isLocked, autoScale, getThemedColors, addTradeMarkers, userId, accountId, compactMode, defaultVisibleMonths]);
+  }, [stockCode, theme, currencyConfig, showCostBasis, showGrid, showVolume, isLocked, autoScale, getThemedColors, addTradeMarkers, userId, accountId, isCompact, defaultVisibleMonths, isFullscreen, chartType]);
 
   useEffect(() => {
     if (volumeSeriesRef.current && !isDisposed.current) {
@@ -749,19 +801,32 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
   const btnTextClass = 'h-7 sm:h-8 px-2.5 sm:px-3 text-xs sm:text-sm font-medium rounded-md flex items-center justify-center transition-all duration-200 hover:scale-[1.02] active:scale-[0.96] disabled:opacity-50 disabled:pointer-events-none';
   const btnIconClass = 'h-7 sm:h-8 w-7 sm:w-8 rounded-md flex items-center justify-center transition-all duration-200 hover:scale-[1.05] active:scale-[0.94] disabled:opacity-50 disabled:pointer-events-none';
 
-  return (
+  const chartContent = (
     <div 
       className={`${themes[theme].card} ${
         isFullscreen 
           ? 'fixed inset-0 z-[9999] w-full h-full flex flex-col p-4 md:p-6 bg-white dark:bg-zinc-950 overflow-hidden' 
-          : `rounded-lg shadow-md ${compactMode ? 'p-1.5' : 'p-2 sm:p-4'} ${fillContainer ? 'h-full flex flex-col' : ''} ${className || ''}`
+          : `rounded-lg shadow-md ${isCompact ? 'p-1.5' : 'p-2 sm:p-4'} ${fillContainer ? 'h-full flex flex-col' : ''} ${className || ''}`
       }`}
     >
-      {!compactMode && (
-        <div className="flex flex-col gap-2 sm:gap-4 mb-2">
-          <div className={`flex items-baseline gap-2 ${themes[theme].text}`}>
-            <h2 className="text-lg sm:text-xl font-bold">{stockInfo?.stock_code}</h2>
-            <span className="text-sm opacity-75">{stockInfo?.stock_name}</span>
+      {!isCompact && (
+        <div className="flex flex-col gap-2 sm:gap-4 mb-2 flex-none">
+          <div className={`flex items-center justify-between gap-2 ${themes[theme].text}`}>
+            <div className="flex items-baseline gap-2">
+              <h2 className="text-lg sm:text-xl font-bold">{stockInfo?.stock_code || stockCode}</h2>
+              <span className="text-sm opacity-75">{stockInfo?.stock_name}</span>
+            </div>
+
+            {isFullscreen && (
+              <button
+                onClick={toggleFullscreen}
+                className={`h-7 sm:h-8 px-2.5 sm:px-3 text-xs sm:text-sm font-medium rounded-md flex items-center gap-1.5 transition-all duration-200 hover:scale-[1.02] active:scale-[0.96] ${themes[theme].secondary}`}
+                title="退出全屏 (Esc)"
+              >
+                <Minimize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <span>退出全屏</span>
+              </button>
+            )}
           </div>
 
           <div className="flex flex-wrap justify-between items-center gap-y-2">
@@ -862,7 +927,7 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
               <button
                 onClick={toggleFullscreen}
                 className={`${btnIconClass} ${themes[theme].secondary}`}
-                title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+                title={isFullscreen ? "退出全屏" : "全屏"}
               >
                 {isFullscreen ? <Minimize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
               </button>
@@ -872,7 +937,7 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
       )}
 
       <div 
-        className={`relative ${compactMode ? '' : 'mt-2 sm:mt-4'} overflow-hidden rounded-md ${
+        className={`relative ${isCompact ? '' : 'mt-2 sm:mt-4'} overflow-hidden rounded-md ${
           isFullscreen ? 'flex-1 min-h-0' : 
           fillContainer ? 'flex-1 min-h-0' : 'h-[400px] sm:h-[500px] md:h-[600px]'
         }`} 
@@ -882,7 +947,7 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
           className="absolute inset-0 z-0"
           ref={chartContainerRef}
         />
-        {compactMode && (
+        {isCompact && (
           <div className="absolute top-2.5 right-2.5 z-10 flex items-center gap-1.5 bg-slate-100/90 dark:bg-zinc-900/90 backdrop-blur-xs p-1 rounded-md border border-slate-200/50 dark:border-zinc-800/50 shadow-sm opacity-65 hover:opacity-100 transition-opacity duration-200">
             <button
               onClick={() => setShowVolume(!showVolume)}
@@ -916,4 +981,19 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
       </div>
     </div>
   );
+
+  if (isFullscreen) {
+    return (
+      <>
+        <div 
+          className={`${themes[theme].card} rounded-lg border border-dashed ${themes[theme].border} flex items-center justify-center text-xs opacity-60 ${compactMode ? 'p-1.5' : 'p-2 sm:p-4'} ${fillContainer ? 'h-full w-full' : 'h-[400px] sm:h-[500px] md:h-[600px]'} ${className || ''}`}
+        >
+          <span>图表已全屏显示（按 Esc 键退出）</span>
+        </div>
+        {createPortal(chartContent, document.body)}
+      </>
+    );
+  }
+
+  return chartContent;
 }
