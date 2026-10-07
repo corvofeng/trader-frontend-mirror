@@ -175,9 +175,14 @@ export function AccountSelector({
     acc => acc.alias === selectedAccountId || acc.id === selectedAccountId
   );
   const isDark = theme === 'dark';
+  const isBlue = theme === 'blue';
+
   const triggerClass = isDark
-    ? 'bg-[#161b26] text-zinc-100 border border-[#263147] hover:bg-[#1e2535] shadow-xs'
-    : 'bg-white text-slate-800 border border-slate-300 hover:bg-slate-50 shadow-xs';
+    ? 'bg-[#161b26] text-zinc-100 border-[#263147] hover:bg-[#1e2535] shadow-xs'
+    : isBlue
+    ? 'bg-white text-slate-800 border-blue-200/90 hover:bg-blue-50/50 shadow-xs'
+    : 'bg-white text-slate-800 border-slate-200/90 hover:bg-slate-50 shadow-xs';
+
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window !== 'undefined') {
       return window.innerWidth < 640;
@@ -203,49 +208,57 @@ export function AccountSelector({
   }, [isOpen]);
 
   const panelClass = isDark
-    ? 'bg-[#121620] border-[#222a3d] fin-card-floating'
-    : `bg-white border-slate-200 fin-card-floating`;
-  const iconButtonClass = isDark
-    ? 'p-1 rounded-full bg-[#1e2535] hover:bg-[#273248] text-slate-100 btn-tactile border border-white/5'
-    : `p-1 rounded-full ${themes[theme].secondary} btn-tactile`;
-  const selectedRowClass = isDark
-    ? 'bg-blue-500/15 ring-1 ring-blue-500/40 border border-blue-500/30'
-    : 'bg-blue-50 border-l-4 border-blue-600';
-  const rowClass = isDark
-    ? 'hover:bg-[#181e2b] border border-transparent'
-    : 'hover:bg-gray-100';
-  const defaultBadgeClass = isDark
-    ? 'text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/25'
-    : 'text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800';
-  const setDefaultClass = isDark
-    ? 'text-xs px-2 py-1 rounded-full bg-[#1e2535] text-slate-100 hover:bg-blue-500/20 hover:text-blue-200 btn-tactile'
-    : `text-xs px-2 py-1 rounded-full btn-tactile hover:bg-blue-100 ${themes[theme].secondary}`;
+    ? 'bg-[#121620]/95 border-[#232c3f] backdrop-blur-md fin-card-floating text-zinc-100'
+    : isBlue
+    ? 'bg-white/95 border-blue-200/90 backdrop-blur-md fin-card-floating text-slate-900'
+    : 'bg-white/95 border-slate-200/90 backdrop-blur-md fin-card-floating text-slate-800';
 
   const renderPanelInner = () => (
     <>
       {/* Header */}
-      <div className={`px-4 py-3 border-b ${themes[theme].border} flex items-center justify-between shrink-0`}>
-        <div className="flex items-center gap-2">
-          <Briefcase className="w-4 h-4 text-blue-500" />
-          <h3 className={`text-sm sm:text-base font-bold ${themes[theme].text}`}>
-            选择交易账户
-          </h3>
+      <div className={`px-4 py-3 border-b ${themes[theme].border} flex items-center justify-between shrink-0 bg-transparent`}>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+            isDark ? 'bg-blue-500/15 text-blue-400' : 'bg-blue-50 text-blue-600'
+          }`}>
+            <Briefcase className="w-3.5 h-3.5" />
+          </div>
+          <div className="flex items-center gap-2 min-w-0">
+            <h3 className={`text-sm font-semibold tracking-tight ${themes[theme].text} whitespace-nowrap`}>
+              选择交易账户
+            </h3>
+            {accounts.length > 0 && (
+              <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full whitespace-nowrap ${
+                isDark ? 'bg-[#1c2333] text-slate-400 border border-white/5' : 'bg-slate-100 text-slate-500 border border-slate-200/60'
+              }`}>
+                {accounts.length}
+              </span>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-1">
+
+        <div className="flex items-center gap-1 shrink-0">
           {showCreate && resolvedMode !== 'all' && (
             <button
               type="button"
               onClick={() => setShowAddForm(!showAddForm)}
-              className={iconButtonClass}
-              title="添加新账户"
+              className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors btn-tactile ${
+                showAddForm
+                  ? isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'
+                  : isDark ? 'hover:bg-[#1e2535] text-slate-300 hover:text-white' : 'hover:bg-slate-100 text-slate-600 hover:text-slate-900'
+              }`}
+              title={showAddForm ? '取消添加' : '添加新账户'}
+              aria-label={showAddForm ? '取消添加' : '添加新账户'}
             >
-              <Plus className="w-4 h-4" />
+              <Plus className={`w-4 h-4 transition-transform duration-150 ${showAddForm ? 'rotate-45' : ''}`} />
             </button>
           )}
           <button
             type="button"
             onClick={() => setIsOpen(false)}
-            className="p-1 rounded-full text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors"
+            className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
+              isDark ? 'hover:bg-[#1e2535] text-slate-400 hover:text-white' : 'hover:bg-slate-100 text-slate-400 hover:text-slate-800'
+            }`}
             aria-label="关闭"
           >
             <X className="w-4 h-4" />
@@ -254,30 +267,46 @@ export function AccountSelector({
       </div>
 
       {/* Body */}
-      <div className="p-3 sm:p-4 overflow-y-auto max-h-[58vh] space-y-3 custom-scrollbar">
+      <div className="p-3 sm:p-3.5 overflow-y-auto max-h-[58vh] space-y-2 custom-scrollbar">
         {showCreate && resolvedMode !== 'all' && showAddForm && (
-          <div className="p-3 rounded-xl border border-blue-500/20 fin-well space-y-2.5 animate-fade-in">
+          <div className={`p-3 rounded-xl border space-y-2.5 animate-fade-in ${
+            isDark
+              ? 'bg-[#151b27] border-blue-500/30'
+              : 'bg-blue-50/50 border-blue-200/80 shadow-xs'
+          }`}>
+            <div className="flex items-center justify-between text-xs font-medium text-blue-600 dark:text-blue-400">
+              <span>新建交易账户</span>
+              <span className="text-[11px] opacity-70">按回车保存</span>
+            </div>
             <input
               type="text"
-              placeholder="账户名称"
+              placeholder="账户名称 (例如: 招商证券主账户)"
               value={newAccountName}
               onChange={(e) => setNewAccountName(e.target.value)}
-              className={`w-full px-3 py-1.5 text-xs sm:text-sm rounded-lg border ${themes[theme].input} ${themes[theme].text} ${themes[theme].border} focus:ring-2 focus:ring-blue-500`}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleCreateAccount();
+              }}
+              className={`w-full px-3 py-1.5 text-xs rounded-lg border ${themes[theme].input} ${themes[theme].border} focus:ring-2 focus:ring-blue-500/40 focus:outline-none transition-all`}
+              autoFocus
             />
             <input
               type="text"
               placeholder="描述 (可选)"
               value={newAccountDescription}
               onChange={(e) => setNewAccountDescription(e.target.value)}
-              className={`w-full px-3 py-1.5 text-xs sm:text-sm rounded-lg border ${themes[theme].input} ${themes[theme].text} ${themes[theme].border} focus:ring-2 focus:ring-blue-500`}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleCreateAccount();
+              }}
+              className={`w-full px-3 py-1.5 text-xs rounded-lg border ${themes[theme].input} ${themes[theme].border} focus:ring-2 focus:ring-blue-500/40 focus:outline-none transition-all`}
             />
-            <div className="flex gap-2 pt-1">
+            <div className="flex gap-2 pt-0.5">
               <button
                 type="button"
                 onClick={handleCreateAccount}
-                className={`flex-1 px-3 py-1.5 text-xs rounded-lg ${themes[theme].primary} text-white btn-tactile font-medium`}
+                disabled={!newAccountName.trim()}
+                className={`flex-1 px-3 py-1.5 text-xs rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium btn-tactile disabled:opacity-50 disabled:cursor-not-allowed shadow-xs`}
               >
-                创建
+                确定创建
               </button>
               <button
                 type="button"
@@ -286,7 +315,7 @@ export function AccountSelector({
                   setNewAccountName('');
                   setNewAccountDescription('');
                 }}
-                className={`flex-1 px-3 py-1.5 text-xs rounded-lg ${themes[theme].secondary} btn-tactile font-medium`}
+                className={`px-3 py-1.5 text-xs rounded-lg ${themes[theme].secondary} btn-tactile font-medium`}
               >
                 取消
               </button>
@@ -296,44 +325,100 @@ export function AccountSelector({
 
         <div className="space-y-1.5">
           {loading ? (
-            <div className={`text-center py-6 ${themes[theme].text} opacity-60 text-xs`}>
-              <div className="h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+            <div className={`text-center py-8 ${themes[theme].text} opacity-60 text-xs`}>
+              <div className="h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2.5" />
               加载账户中...
             </div>
           ) : accounts.length === 0 ? (
-            <div className={`text-center py-6 ${themes[theme].text} opacity-60 text-xs`}>
+            <div className={`text-center py-8 px-4 ${themes[theme].text} opacity-60 text-xs`}>
               暂无账户，请创建一个新账户开始使用
             </div>
           ) : (
             accounts.map((account) => {
               const isSelected = selectedAccountId === (account.alias || account.id);
+              const subText =
+                account.description ||
+                (account.broker
+                  ? `${account.broker}${account.account_no ? ` · ${account.account_no}` : ''}`
+                  : null);
+
               return (
                 <div
                   key={account.id}
-                  className={`flex items-center justify-between p-2.5 sm:p-3 rounded-xl cursor-pointer btn-tactile ${rowClass} ${
-                    isSelected ? selectedRowClass : ''
+                  className={`group relative flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-all duration-150 btn-tactile ${
+                    isSelected
+                      ? isDark
+                        ? 'bg-blue-500/15 border border-blue-500/40 shadow-xs'
+                        : 'bg-blue-50/80 border border-blue-200/90 shadow-xs ring-1 ring-blue-500/15'
+                      : isDark
+                        ? 'hover:bg-[#181f2c] border border-transparent hover:border-white/5'
+                        : 'hover:bg-slate-50 border border-transparent hover:border-slate-200/70'
                   }`}
                   onClick={() => {
                     onAccountChange(account.alias || account.id);
                     setIsOpen(false);
                   }}
                 >
-                  <div className="flex-1 min-w-0 pr-2">
-                    <div className="flex items-center gap-2">
-                      <span className={`font-semibold text-xs sm:text-sm truncate ${themes[theme].text}`}>
-                        {account.name}
-                      </span>
-                      {account.is_default && (
-                        <span className={defaultBadgeClass}>默认</span>
+                  <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
+                    {/* Account Icon Badge */}
+                    <div
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                        isSelected
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : isDark
+                            ? 'bg-[#1b2232] text-slate-400 group-hover:text-blue-400 group-hover:bg-blue-500/10'
+                            : 'bg-slate-100 text-slate-500 group-hover:text-blue-600 group-hover:bg-blue-50'
+                      }`}
+                    >
+                      <Briefcase className="w-4 h-4" />
+                    </div>
+
+                    {/* Account Details */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`font-semibold text-xs sm:text-sm truncate ${
+                            isSelected
+                              ? isDark
+                                ? 'text-white'
+                                : 'text-blue-900'
+                              : themes[theme].text
+                          }`}
+                        >
+                          {account.name}
+                        </span>
+                        {account.is_default && (
+                          <span
+                            className={`whitespace-nowrap shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium leading-none ${
+                              isDark
+                                ? 'bg-blue-500/20 text-blue-300 border border-blue-400/25'
+                                : 'bg-blue-100/80 text-blue-700 border border-blue-200'
+                            }`}
+                          >
+                            默认
+                          </span>
+                        )}
+                      </div>
+                      {subText && (
+                        <div
+                          className={`text-[11px] truncate mt-0.5 ${
+                            isSelected
+                              ? isDark
+                                ? 'text-blue-300/80'
+                                : 'text-blue-800/75'
+                              : isDark
+                                ? 'text-slate-400'
+                                : 'text-slate-500'
+                          }`}
+                        >
+                          {subText}
+                        </div>
                       )}
                     </div>
-                    {account.description && (
-                      <div className={`text-[11px] sm:text-xs ${themes[theme].text} opacity-60 truncate mt-0.5`}>
-                        {account.description}
-                      </div>
-                    )}
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+
+                  {/* Actions & Status */}
+                  <div className="flex items-center gap-1.5 shrink-0 pl-1">
                     {resolvedMode !== 'all' && !account.is_default && (
                       <button
                         type="button"
@@ -341,13 +426,25 @@ export function AccountSelector({
                           e.stopPropagation();
                           handleSetDefault(account.alias || account.id);
                         }}
-                        className={setDefaultClass}
+                        className={`whitespace-nowrap text-[11px] px-2 py-1 rounded-md font-medium transition-all ${
+                          isDark
+                            ? 'bg-[#1e2535] hover:bg-blue-500/25 text-slate-300 hover:text-blue-200 border border-[#2b364c]'
+                            : 'bg-white hover:bg-blue-50 text-slate-600 hover:text-blue-700 border border-slate-200 shadow-2xs'
+                        }`}
                       >
                         设为默认
                       </button>
                     )}
                     {isSelected && (
-                      <Check className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500 shrink-0" strokeWidth={2.5} />
+                      <div
+                        className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
+                          isDark
+                            ? 'bg-emerald-500/20 text-emerald-400'
+                            : 'bg-emerald-100 text-emerald-600'
+                        }`}
+                      >
+                        <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                      </div>
                     )}
                   </div>
                 </div>
@@ -364,7 +461,9 @@ export function AccountSelector({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium btn-tactile max-w-full min-w-0 ${triggerClass}`}
+        className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium btn-tactile max-w-full min-w-0 transition-all ${triggerClass} ${
+          isOpen ? 'ring-2 ring-blue-500/30 border-blue-400/60 shadow-xs' : ''
+        }`}
         aria-expanded={isOpen}
         aria-label="选择交易账户"
       >
@@ -409,8 +508,8 @@ export function AccountSelector({
             {/* Desktop Anchored Popover */}
             <div
               className={`absolute top-full mt-2 z-[900] ${
-                align === 'left' ? 'left-0' : 'right-0'
-              } w-84 rounded-2xl border ${panelClass} overflow-hidden flex flex-col shadow-2xl popover-spring`}
+                align === 'left' ? 'left-0 origin-top-left' : 'right-0 origin-top-right'
+              } w-[340px] sm:w-[360px] max-w-[calc(100vw-1.5rem)] rounded-2xl border ${panelClass} overflow-hidden flex flex-col shadow-2xl popover-spring`}
             >
               {renderPanelInner()}
             </div>
