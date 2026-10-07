@@ -14,7 +14,7 @@ const getDb = (): Promise<any> => {
         console.warn('VITE_STATIC_DB_BASE_URL is not set in cloudflareServices. Falling back to relative path.');
       }
       const base = staticDbBase.replace(/\/$/, '');
-      const latestRes = await fetch(`${base}/latest.json?_t=${Date.now()}`, { cache: 'no-cache' });
+      const latestRes = await fetch(`${base}/latest.json`);
       if (!latestRes.ok) throw new Error(`latest.json not found: ${latestRes.status}`);
       const { date } = await latestRes.json();
       const dbRes = await fetch(`${base}/${date}.json`);
