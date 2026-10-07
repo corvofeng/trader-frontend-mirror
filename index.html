@@ -4,11 +4,12 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" sizes="192x192" href="/icons/app-icon-192.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/icons/app-icon-180.png" />
-    <meta name="theme-color" content="#0b1220" />
+    <meta name="theme-color" id="theme-color-meta" content="#0b1220" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="YHTrader" />
+    <meta name="format-detection" content="telephone=no" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>YHTrader</title>
     <!-- Sync theme detector script before content renders -->
@@ -17,23 +18,32 @@
         try {
           var savedTheme = localStorage.getItem('theme');
           var root = document.documentElement;
+          var themeColorMeta = document.getElementById('theme-color-meta');
+          var activeTheme = 'light';
           if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
             root.classList.add('dark');
+            activeTheme = 'dark';
           } else if (savedTheme === 'blue') {
             root.classList.add('blue');
+            activeTheme = 'blue';
           } else {
             root.classList.add('light');
+            activeTheme = 'light';
+          }
+          if (themeColorMeta) {
+            var colorMap = { dark: '#09090b', blue: '#f0f5ff', light: '#f8fafc' };
+            themeColorMeta.setAttribute('content', colorMap[activeTheme] || '#09090b');
           }
         } catch (e) {}
       })();
     </script>
-    <script type="module" crossorigin src="/assets/index-C1Gmsqnf.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/vendor-react-Lc6FY1av.js">
-    <link rel="modulepreload" crossorigin href="/assets/vendor-utils-CGh1bgXR.js">
-    <link rel="modulepreload" crossorigin href="/assets/vendor-chartjs-DSbsSrlu.js">
-    <link rel="modulepreload" crossorigin href="/assets/vendor-lightweight-charts-B6c4xsIu.js">
-    <link rel="modulepreload" crossorigin href="/assets/vendor-echarts-DMJI158N.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-q8JtuyOQ.css">
+    <script type="module" crossorigin src="/assets/index-CmZCkevN.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/vendor-react-mb8W7B_K.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-utils-C5kgsThx.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-chartjs-Ds_UNOaq.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-lightweight-charts-D5k4jYPZ.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-echarts-DMqOJHWP.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-B0fBZQfy.css">
   <link rel="manifest" href="/manifest.webmanifest"></head>
   <body>
     <div id="root">
