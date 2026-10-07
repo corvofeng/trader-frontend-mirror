@@ -1,3 +1,256 @@
 {
-  "date": "2026-07-25"
+  "date": "2026-09-30",
+  "stock_configs": [
+    {
+      "category": "军工",
+      "id": 2,
+      "stock_code": "002179.SZ",
+      "stock_name": "中航光电",
+      "tags": [
+        "军工",
+        "航空航天",
+        "国防科技"
+      ]
+    },
+    {
+      "category": "石油",
+      "id": 3,
+      "stock_code": "600028.SH",
+      "stock_name": "中国石化",
+      "tags": [
+        "高分红"
+      ]
+    },
+    {
+      "category": "海外ETF",
+      "id": 4,
+      "stock_code": "513520.SH",
+      "stock_name": "日经ETF",
+      "tags": [
+        "ETF"
+      ]
+    },
+    {
+      "category": "海外ETF",
+      "id": 5,
+      "stock_code": "513100.SH",
+      "stock_name": "纳指ETF",
+      "tags": []
+    },
+    {
+      "category": "电力",
+      "id": 6,
+      "stock_code": "601985.SH",
+      "stock_name": "中国核电",
+      "tags": [
+        "高分红"
+      ]
+    },
+    {
+      "category": "金融",
+      "id": 7,
+      "stock_code": "600030.SH",
+      "stock_name": "中信证券",
+      "tags": [
+        "券商"
+      ]
+    },
+    {
+      "category": "金融",
+      "id": 8,
+      "stock_code": "601328.SH",
+      "stock_name": "交通银行",
+      "tags": [
+        "金融",
+        "银行"
+      ]
+    },
+    {
+      "category": "电力",
+      "id": 9,
+      "stock_code": "600900.SH",
+      "stock_name": "长江电力",
+      "tags": [
+        "高分红"
+      ]
+    },
+    {
+      "category": "国内ETF",
+      "id": 10,
+      "stock_code": "510880.SH",
+      "stock_name": "红利ETF",
+      "tags": [
+        "ETF",
+        "稳健"
+      ]
+    },
+    {
+      "category": "航运",
+      "id": 11,
+      "stock_code": "601919.SH",
+      "stock_name": "中远海控",
+      "tags": [
+        "NGA",
+        "稳健"
+      ]
+    },
+    {
+      "category": "航运",
+      "id": 12,
+      "stock_code": "601021.SH",
+      "stock_name": "春秋航空",
+      "tags": [
+        "稳健"
+      ]
+    },
+    {
+      "category": "海外ETF",
+      "id": 13,
+      "stock_code": "162415.SZ",
+      "stock_name": "美国消费",
+      "tags": []
+    },
+    {
+      "category": "航运",
+      "id": 14,
+      "stock_code": "000429.SZ",
+      "stock_name": "粤高速",
+      "tags": [
+        "稳健"
+      ]
+    },
+    {
+      "category": "国内ETF",
+      "id": 15,
+      "stock_code": "518880.SH",
+      "stock_name": "黄金ETF",
+      "tags": []
+    },
+    {
+      "category": "国内ETF",
+      "id": 16,
+      "stock_code": "512480.SH",
+      "stock_name": "半导体ETF",
+      "tags": []
+    },
+    {
+      "category": "金融",
+      "id": 17,
+      "stock_code": "601628.SH",
+      "stock_name": "中国人寿",
+      "tags": [
+        "保险"
+      ]
+    },
+    {
+      "category": "消费",
+      "id": 18,
+      "stock_code": "600398.SH",
+      "stock_name": "海澜之家",
+      "tags": [
+        "服装"
+      ]
+    },
+    {
+      "category": "消费",
+      "id": 19,
+      "stock_code": "603043.SH",
+      "stock_name": "广州酒家",
+      "tags": [
+        "食品"
+      ]
+    },
+    {
+      "category": "消费",
+      "id": 20,
+      "stock_code": "000895.SZ",
+      "stock_name": "双汇发展",
+      "tags": [
+        "食品"
+      ]
+    },
+    {
+      "category": "消费",
+      "id": 21,
+      "stock_code": "300866.SZ",
+      "stock_name": "安克创新",
+      "tags": [
+        "电子产品"
+      ]
+    },
+    {
+      "category": "国内ETF",
+      "id": 22,
+      "stock_code": "513050.SH",
+      "stock_name": "中概互联网ETF",
+      "tags": []
+    },
+    {
+      "category": "国内ETF",
+      "id": 23,
+      "stock_code": "588000.SH",
+      "stock_name": "科创50",
+      "tags": [
+        "ETF",
+        "期权"
+      ]
+    },
+    {
+      "category": "海外ETF",
+      "id": 24,
+      "stock_code": "513820.SH",
+      "stock_name": "港股通红利ETF",
+      "tags": [
+        "ETF"
+      ]
+    },
+    {
+      "category": "金融",
+      "id": 25,
+      "stock_code": "601988.SH",
+      "stock_name": "中国银行",
+      "tags": [
+        "金融",
+        "银行"
+      ]
+    },
+    {
+      "category": "金融",
+      "id": 26,
+      "stock_code": "600036.SH",
+      "stock_name": "招商银行",
+      "tags": [
+        "金融",
+        "银行"
+      ]
+    },
+    {
+      "category": "能源",
+      "id": 27,
+      "stock_code": "600256.SH",
+      "stock_name": "广汇能源",
+      "tags": [
+        "能源"
+      ]
+    },
+    {
+      "category": "海外ETF",
+      "id": 28,
+      "stock_code": "513130.SH",
+      "stock_name": "恒生科技ETF",
+      "tags": [
+        "ETF",
+        "科技"
+      ]
+    },
+    {
+      "category": "消费",
+      "id": 29,
+      "stock_code": "600066.SH",
+      "stock_name": "宇通客车",
+      "tags": [
+        "消费"
+      ]
+    }
+  ]
 }

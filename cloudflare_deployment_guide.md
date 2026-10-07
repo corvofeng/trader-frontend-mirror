@@ -102,3 +102,38 @@ VITE_STATIC_DB_BASE_URL="https://rawforcorvofeng.cn/stock/web"
 1. 页面载入时自动发起请求拉取 `latest.json`。
 2. 根据拉取到的日期去下载对应的数据文件（如 `2026-07-25.json`）并将其缓存在本地内存中。
 3. 拦截项目内部所有类似 `/api/accounts`、`/api/portfolio/xxx/holdings` 的调用，并自动在内存中进行切片路由，使得前端不需要对底层服务 API 做任何重构，就可以完美无缝地运行。
+---
+
+## 4. 一键同步持仓 Python 脚本
+
+项目提供了脚本 [scripts/sync-holdings.py](file:///home/corvo/GitRepo/trader-frontend/scripts/sync-holdings.py)，支持从实盘服务拉取所有持仓、净值 K 线、收益趋势、交易记录及分析报告，并一键推送到 Cloudflare R2：
+
+```bash
+# 一键拉取并上传（默认 API: https://stock.in.corvo.fun，账户: main_gjzq_qmt）
+python3 scripts/sync-holdings.py
+# 或
+npm run sync:holdings
+
+# 仅生成本地归档文件，不执行 R2 上传
+python3 scripts/sync-holdings.py --no-upload
+
+# 显式指定日期或自定义账户
+python3 scripts/sync-holdings.py --date 2026-10-07 --account main_gjzq_qmt
+
+# 直接上传现有的本地 JSON 文件
+python3 scripts/sync-holdings.py --file mock_data/2026-09-30.json
+```
+
+---
+
+## 5. GitHub Actions 自动更新 (Tag 触发)
+
+已配置工作流 [.github/workflows/deploy-cloudflare.yml](file:///home/corvo/GitRepo/trader-frontend/.github/workflows/deploy-cloudflare.yml)。
+
+只要推送以 `v` 开头的 Tag（例如 `v0.2.5`），GitHub Actions 将自动执行：
+1. 安装依赖并构建 Cloudflare 静态产物 (`npm run build:cf`)
+2. 使用 Cloudflare Wrangler 自动部署至 Worker 路由 `stock-web.corvo.fun/*`
+
+> **注**：需在 GitHub 仓库的 **Settings -> Secrets and variables -> Actions** 中配置：
+> - `CLOUDFLARE_API_TOKEN`：具备 Workers/Pages 部署权限的 Cloudflare API 令牌
+> - `CLOUDFLARE_ACCOUNT_ID`（可选）：Cloudflare 账户 ID

@@ -6,6 +6,6 @@
     "not_found_handling": "single-page-application"
   },
   "routes": [
-    { "pattern": "stock-web.corvo.fun", "custom_domain": true }
+    { "pattern": "stock-web.corvo.fun/*", "zone_name": "corvo.fun" }
   ]
 }
