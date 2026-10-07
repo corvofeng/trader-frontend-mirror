@@ -370,6 +370,12 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
                   <span className="text-[10px] sm:text-xs font-mono font-medium px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 border border-blue-200/50 dark:border-blue-800/40">
                     {isCloudflareEnv ? 'Portfolio' : 'Journal'}
                   </span>
+                  {isCloudflareEnv && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] sm:text-xs font-medium bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 shadow-2xs select-none">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      交易日盘后同步
+                    </span>
+                  )}
                   {!isCloudflareEnv && (
                     <WebMcpBadge
                       theme={theme}
@@ -383,7 +389,7 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
                 </div>
                 <p className={`hidden sm:block text-sm ${themes[theme].text} opacity-75 mt-0.5`}>
                   {isCloudflareEnv 
-                    ? 'Review your portfolio assets, equity curve, and positions' 
+                    ? '实盘资产与持仓概览 · 交易日盘后同步' 
                     : 'Review your portfolio, trades and performance in one place'}
                 </p>
               </div>

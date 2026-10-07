@@ -381,7 +381,7 @@ export function Navigation({
       <nav className={`${themes[theme].card} border-b ${themes[theme].border} backdrop-blur-md bg-opacity-95 dark:bg-opacity-95 sticky top-0 z-40 transition-colors duration-200 pt-[env(safe-area-inset-top,0px)] shadow-[0_4px_20px_-4px_rgba(15,23,42,0.07)] dark:shadow-[0_4px_24px_-4px_rgba(0,0,0,0.85)]`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
-            <div className="flex items-center">
+            <div className="flex items-center gap-3">
               <div 
                 className="flex items-center gap-2.5 cursor-pointer group"
                 onClick={() => navigate('/')}
@@ -393,6 +393,12 @@ export function Navigation({
                   Trader<span className="text-blue-500">Log</span>
                 </span>
               </div>
+              {isCloudflareEnv && (
+                <div className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 shadow-2xs select-none">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  交易日盘后同步
+                </div>
+              )}
             </div>
             
             <div className="hidden md:flex items-center space-x-4">
@@ -623,6 +629,13 @@ export function Navigation({
                 <div className="flex flex-col gap-2">
                   {isCloudflareEnv ? (
                     <>
+                      <div className="px-3 py-2 rounded-lg text-xs font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 flex items-center justify-between mb-1 select-none">
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          数据更新机制
+                        </span>
+                        <span>交易日盘后同步</span>
+                      </div>
                       <button
                         onClick={() => {
                           navigate('/');

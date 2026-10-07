@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { BookOpen, Check, Copy, Github, Globe, Mail, MessageSquare } from 'lucide-react';
 import { Theme, themes } from '../../lib/theme';
+import { isCloudflareEnv } from '../../lib/services';
 import { InternalLink } from '../../shared/components';
 
 interface AboutProps {
@@ -193,6 +194,18 @@ export function About({ theme }: AboutProps) {
               本页面内容仅用于学习交流与记录，不构成任何投资建议、投资承诺或收益保证。市场有风险，投资需谨慎。
             </div>
           </div>
+
+          {isCloudflareEnv && (
+            <div className={`${themes[theme].card} rounded-xl border ${themes[theme].border} shadow-sm p-6 lg:col-span-2`}>
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <h3 className={`text-lg font-semibold ${themes[theme].text}`}>数据更新机制</h3>
+              </div>
+              <div className={`mt-3 text-sm ${themes[theme].text} opacity-85 leading-relaxed`}>
+                本站由 Cloudflare 全球边缘网络进行静态托管，所有投资组合净值走势、持仓标的与收益率数据均于<strong>每个交易日盘后自动同步</strong>，不提供盘中实时逐笔行情推送。
+              </div>
+            </div>
+          )}
 
           <div className={`${themes[theme].card} rounded-xl border ${themes[theme].border} shadow-sm p-6 lg:col-span-2`}>
             <h3 className={`text-lg font-semibold ${themes[theme].text}`}>联系方式</h3>

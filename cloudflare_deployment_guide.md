@@ -137,3 +137,16 @@ python3 scripts/sync-holdings.py --file mock_data/2026-09-30.json
 > **注**：需在 GitHub 仓库的 **Settings -> Secrets and variables -> Actions** 中配置：
 > - `CLOUDFLARE_API_TOKEN`：具备 Workers/Pages 部署权限的 Cloudflare API 令牌
 > - `CLOUDFLARE_ACCOUNT_ID`（可选）：Cloudflare 账户 ID
+
+---
+
+## 6. 数据同步机制与前端展示（交易日盘后同步）
+
+为了让访问静态站的用户明确了解数据时效性：
+- **静态前端标识**：在 Cloudflare 环境下（`VITE_ENV=cloudflare`），页面顶部导航栏、投资组合（Portfolio）页面标题栏、概览控制区及关于页面（About）均已醒目展示 **`交易日盘后同步`** 绿色状态微徽章。
+- **盘后定时同步建议**：可在本地 crontab 或定时任务调度器中配置每个交易日收盘后（如 15:30 或 16:00）自动执行同步脚本：
+  ```bash
+  # 每个交易日（周一至周五）北京时间 15:35 自动同步实盘持仓至 R2
+  35 15 * * 1-5 cd /path/to/trader-frontend && /usr/bin/python3 scripts/sync-holdings.py >> /var/log/trader-sync.log 2>&1
+  ```
+

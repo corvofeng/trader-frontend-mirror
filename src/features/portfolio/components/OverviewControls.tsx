@@ -1,5 +1,6 @@
 import { RefreshCw, Camera, Calendar, ArrowRight } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
+import { isCloudflareEnv } from '../../../lib/services';
 
 interface OverviewControlsProps {
   theme: Theme;
@@ -97,6 +98,15 @@ export function OverviewControls({
                 <RefreshCw className="w-3.5 h-3.5" />
                 <span className="hidden xs:inline">刷新</span>
               </button>
+            )}
+            {!onRefresh && isCloudflareEnv && (
+              <span
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 shadow-2xs select-none"
+                title="数据于每个交易日盘后同步更新"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                交易日盘后同步
+              </span>
             )}
             {onScreenshot && (
               <button
