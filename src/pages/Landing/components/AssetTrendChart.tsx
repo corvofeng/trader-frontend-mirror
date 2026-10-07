@@ -226,13 +226,10 @@ export function AssetTrendChart({
     <div className="p-3.5 sm:p-4 rounded-xl bg-slate-100/60 dark:bg-zinc-800/40 border border-slate-200/40 dark:border-zinc-700/40 select-none">
       {/* Top Header: Title & View Mode Selector */}
       <div className="flex items-center justify-between text-xs mb-2.5">
-        <div className="flex items-center gap-1.5 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0 mr-2">
           <LineChart className="w-3.5 h-3.5 text-blue-500 shrink-0" />
           <span className="font-semibold truncate">
             {t.assetAndPnLTitle || t.unrealizedPnL}
-          </span>
-          <span className="text-[11px] font-mono text-slate-500 dark:text-zinc-400 font-normal ml-1 hidden sm:inline">
-            ({dateRangeDisplay})
           </span>
         </div>
 
@@ -303,11 +300,18 @@ export function AssetTrendChart({
           </div>
         ) : (
           <div className="flex items-center justify-between w-full text-[11px]">
-            <span className="text-slate-500 dark:text-zinc-400">
-              {t.netChange30D || '30日累计净收益'}
-            </span>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="text-slate-500 dark:text-zinc-400 whitespace-nowrap">
+                {t.netChange30D || '30日累计净收益'}
+              </span>
+              {dateRangeDisplay && (
+                <span className="text-[10px] font-mono text-slate-400 dark:text-zinc-500 font-normal whitespace-nowrap">
+                  ({dateRangeDisplay})
+                </span>
+              )}
+            </div>
             <span 
-              className="font-bold"
+              className="font-bold whitespace-nowrap ml-2"
               style={{ color: is30DayPositive ? upColor : downColor }}
             >
               {is30DayPositive ? '+' : ''}{currencySymbol}{thirtyDayNetPnL.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

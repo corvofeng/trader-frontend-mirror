@@ -393,12 +393,6 @@ export function Navigation({
                   Trader<span className="text-blue-500">Log</span>
                 </span>
               </div>
-              {isCloudflareEnv && (
-                <div className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 shadow-2xs select-none">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  交易日盘后同步
-                </div>
-              )}
             </div>
             
             <div className="hidden md:flex items-center space-x-4">
@@ -629,13 +623,6 @@ export function Navigation({
                 <div className="flex flex-col gap-2">
                   {isCloudflareEnv ? (
                     <>
-                      <div className="px-3 py-2 rounded-lg text-xs font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 flex items-center justify-between mb-1 select-none">
-                        <span className="flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                          数据更新机制
-                        </span>
-                        <span>交易日盘后同步</span>
-                      </div>
                       <button
                         onClick={() => {
                           navigate('/');

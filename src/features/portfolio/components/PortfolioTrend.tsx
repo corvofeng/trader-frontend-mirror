@@ -733,7 +733,7 @@ export function PortfolioTrend({
                     )}
 
                     {/* 刷新按钮 / 静态同步状态 */}
-                    {onRefresh ? (
+                    {onRefresh && (
                       <button
                         type="button"
                         onClick={onRefresh}
@@ -742,15 +742,7 @@ export function PortfolioTrend({
                       >
                         <RefreshCw className="w-3 h-3" />
                       </button>
-                    ) : isCloudflareEnv ? (
-                      <span
-                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 select-none"
-                        title="数据于每个交易日盘后同步更新"
-                      >
-                        <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
-                        交易日盘后同步
-                      </span>
-                    ) : null}
+                    )}
 
                     {/* 截图按钮 */}
                     {onScreenshot && (
@@ -962,7 +954,7 @@ export function PortfolioTrend({
 
                     {/* 操作按钮组 */}
                     <div className="flex items-center gap-1.5">
-                      {onRefresh ? (
+                      {onRefresh && (
                         <button
                           type="button"
                           onClick={onRefresh}
@@ -971,15 +963,7 @@ export function PortfolioTrend({
                         >
                           <RefreshCw className="w-3.5 h-3.5" />
                         </button>
-                      ) : isCloudflareEnv ? (
-                        <span
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 select-none shadow-2xs"
-                          title="数据于每个交易日盘后同步更新"
-                        >
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                          交易日盘后同步
-                        </span>
-                      ) : null}
+                      )}
                       {onScreenshot && (
                         <button
                           type="button"

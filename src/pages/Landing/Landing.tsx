@@ -46,12 +46,7 @@ export function Landing({ theme, onThemeChange, user }: LandingProps) {
       <div className={`${themes[theme].background} border-b ${themes[theme].border} transition-colors duration-200`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between">
           <div>
-            {isCloudflareEnv ? (
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 shadow-2xs select-none">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                交易日盘后同步
-              </div>
-            ) : (
+            {!isCloudflareEnv && (
               <WebMcpBadge
                 theme={theme}
                 toolCount={webMcp.registeredToolCount}

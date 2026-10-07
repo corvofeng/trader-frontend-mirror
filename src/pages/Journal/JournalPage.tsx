@@ -389,7 +389,7 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
                 </div>
                 <p className={`hidden sm:block text-sm ${themes[theme].text} opacity-75 mt-0.5`}>
                   {isCloudflareEnv 
-                    ? '实盘资产与持仓概览 · 交易日盘后同步' 
+                    ? '实盘资产与持仓概览' 
                     : 'Review your portfolio, trades and performance in one place'}
                 </p>
               </div>
