@@ -4,6 +4,7 @@ import { formatCurrency } from '../../../shared/utils/format';
 import { ChevronLeft, ChevronRight, TrendingUp } from 'lucide-react';
 import { ArrowUp, ArrowDown } from 'lucide-react';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
+import { useLanguage } from '../../../lib/context/LanguageContext';
 
 interface HoldingsTableProps {
   theme: Theme;
@@ -44,6 +45,7 @@ export function HoldingsTable({
   isLoading = false,
 }: HoldingsTableProps) {
   const { currencyConfig } = useCurrency();
+  const { isEn } = useLanguage();
   const totalPortfolioValue = holdings.reduce((sum, h) => sum + h.total_value, 0);
   const showSkeleton = isLoading && holdings.length === 0;
 
@@ -51,7 +53,9 @@ export function HoldingsTable({
     <div>
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center gap-2">
-          <h3 className={`text-lg sm:text-xl font-semibold ${themes[theme].text} whitespace-nowrap`}>持仓明细</h3>
+          <h3 className={`text-lg sm:text-xl font-semibold ${themes[theme].text} whitespace-nowrap`}>
+            {isEn ? 'Holdings' : '持仓明细'}
+          </h3>
           <span className={`text-xs ${themes[theme].text} opacity-60 font-mono`}>({holdings.length})</span>
         </div>
         <select
@@ -60,9 +64,9 @@ export function HoldingsTable({
           disabled={showSkeleton}
           className={`px-2 py-1 rounded-md text-sm ${themes[theme].input} ${themes[theme].text}`}
         >
-          <option value={5}>每页 5 条</option>
-          <option value={10}>每页 10 条</option>
-          <option value={20}>每页 20 条</option>
+          <option value={5}>{isEn ? '5 / page' : '每页 5 条'}</option>
+          <option value={10}>{isEn ? '10 / page' : '每页 10 条'}</option>
+          <option value={20}>{isEn ? '20 / page' : '每页 20 条'}</option>
         </select>
       </div>
 
@@ -75,7 +79,7 @@ export function HoldingsTable({
                 onClick={() => onHoldingsSort('stock_code')}
               >
                 <div className="flex items-center space-x-1">
-                  <span>股票</span>
+                  <span>{isEn ? 'Symbol' : '股票'}</span>
                   <SortIcon field="stock_code" currentSort={holdingsSort} />
                 </div>
               </th>
@@ -84,7 +88,7 @@ export function HoldingsTable({
                 onClick={() => onHoldingsSort('quantity')}
               >
                 <div className="flex items-center justify-end space-x-1">
-                  <span>持仓数</span>
+                  <span>{isEn ? 'Quantity' : '持仓数'}</span>
                   <SortIcon field="quantity" currentSort={holdingsSort} />
                 </div>
               </th>
@@ -93,7 +97,7 @@ export function HoldingsTable({
                 onClick={() => onHoldingsSort('current_price')}
               >
                 <div className="flex items-center justify-end space-x-1">
-                  <span>现价 / 成本</span>
+                  <span>{isEn ? 'Price / Cost' : '现价 / 成本'}</span>
                   <SortIcon field="current_price" currentSort={holdingsSort} />
                 </div>
               </th>
@@ -102,7 +106,7 @@ export function HoldingsTable({
                 onClick={() => onHoldingsSort('total_value')}
               >
                 <div className="flex items-center justify-end space-x-1">
-                  <span>市值 (占比)</span>
+                  <span>{isEn ? 'Value (Weight)' : '市值 (占比)'}</span>
                   <SortIcon field="total_value" currentSort={holdingsSort} />
                 </div>
               </th>
@@ -111,13 +115,13 @@ export function HoldingsTable({
                 onClick={() => onHoldingsSort('profit_loss_percentage')}
               >
                 <div className="flex items-center justify-end space-x-1">
-                  <span>浮动盈亏</span>
+                  <span>{isEn ? 'Floating PnL' : '浮动盈亏'}</span>
                   <SortIcon field="profit_loss_percentage" currentSort={holdingsSort} />
                 </div>
               </th>
               {onAnalyzeStock && (
                 <th className={`px-2 py-2 sm:px-3 sm:py-3 text-right text-xs sm:text-sm font-semibold ${themes[theme].text} opacity-75 uppercase tracking-wider`}>
-                  <span className="hidden sm:inline">分析</span>
+                  <span className="hidden sm:inline">{isEn ? 'Analysis' : '分析'}</span>
                 </th>
               )}
             </tr>
@@ -161,7 +165,7 @@ export function HoldingsTable({
                       </td>
                       <td className={`hidden sm:table-cell px-2 py-2.5 sm:px-3 sm:py-3 text-right font-mono tabular-nums ${themes[theme].text}`}>
                         <div className="text-sm sm:text-base font-medium">{holding.quantity?.toLocaleString() ?? '--'}</div>
-                        <div className="text-[11px] opacity-50">股</div>
+                        <div className="text-[11px] opacity-50">{isEn ? 'shs' : '股'}</div>
                       </td>
                       <td className={`hidden md:table-cell px-2 py-2.5 sm:px-3 sm:py-3 text-right font-mono tabular-nums ${themes[theme].text}`}>
                         <div className="text-sm sm:text-base font-medium">{holding.current_price?.toFixed(2) ?? '--'}</div>
@@ -192,10 +196,10 @@ export function HoldingsTable({
                                 onAnalyzeStock(holding.stock_code, holding.stock_name);
                               }}
                               className={`px-2 py-1 rounded-md text-xs ${themes[theme].secondary} flex items-center gap-1 btn-tactile opacity-85 hover:opacity-100 whitespace-nowrap`}
-                              title="个股分析"
+                              title={isEn ? 'Stock Analysis' : '个股分析'}
                             >
                               <TrendingUp size={14} />
-                              <span className="hidden sm:inline">分析</span>
+                              <span className="hidden sm:inline">{isEn ? 'Analyze' : '分析'}</span>
                             </button>
                           </div>
                         </td>
@@ -210,8 +214,10 @@ export function HoldingsTable({
       <div className="flex items-center justify-between mt-4">
         <div className={`text-xs sm:text-sm ${themes[theme].text} opacity-75`}>
           {showSkeleton
-            ? '正在加载持仓…'
-            : `显示 ${Math.min(holdings.length, (holdingsPage - 1) * holdingsPerPage + 1)} 到 ${Math.min(holdings.length, holdingsPage * holdingsPerPage)} 条，共 ${holdings.length} 条持仓`}
+            ? (isEn ? 'Loading holdings…' : '正在加载持仓…')
+            : (isEn
+                ? `Showing ${Math.min(holdings.length, (holdingsPage - 1) * holdingsPerPage + 1)} to ${Math.min(holdings.length, holdingsPage * holdingsPerPage)} of ${holdings.length} holdings`
+                : `显示 ${Math.min(holdings.length, (holdingsPage - 1) * holdingsPerPage + 1)} 到 ${Math.min(holdings.length, holdingsPage * holdingsPerPage)} 条，共 ${holdings.length} 条持仓`)}
         </div>
         <div className="flex gap-2">
           <button

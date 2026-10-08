@@ -5,6 +5,7 @@ import { Theme, themes } from '../../../lib/theme';
 import { InfoTooltip } from '../../../shared/components';
 import type { CurrencyConfig } from '../../../shared/types';
 import { formatCurrency } from '../../../shared/utils/format';
+import { useLanguage } from '../../../lib/context/LanguageContext';
 
 interface StatsGridProps {
   theme: Theme;
@@ -92,13 +93,13 @@ export function SvgBatteryGauge({ ratio, config }: SvgBatteryGaugeProps) {
   );
 }
 
-export function getBatteryTheme(ratio: number, theme: Theme) {
+export function getBatteryTheme(ratio: number, theme: Theme, isEn?: boolean) {
   const isDark = theme === 'dark' || theme === 'blue';
   const stroke = isDark ? 'rgba(255, 255, 255, 0.45)' : 'rgba(15, 23, 42, 0.45)';
 
   if (ratio >= 85) {
     return {
-      label: '重仓',
+      label: isEn ? 'Heavy' : '重仓',
       startColor: '#10b981',
       stopColor: '#14b8a6',
       strokeColor: stroke,
@@ -110,7 +111,7 @@ export function getBatteryTheme(ratio: number, theme: Theme) {
   }
   if (ratio >= 50) {
     return {
-      label: '中高仓',
+      label: isEn ? 'Moderate' : '中高仓',
       startColor: '#3b82f6',
       stopColor: '#06b6d4',
       strokeColor: stroke,
@@ -122,7 +123,7 @@ export function getBatteryTheme(ratio: number, theme: Theme) {
   }
   if (ratio >= 20) {
     return {
-      label: '轻仓',
+      label: isEn ? 'Light' : '轻仓',
       startColor: '#0ea5e9',
       stopColor: '#3b82f6',
       strokeColor: stroke,
@@ -133,7 +134,7 @@ export function getBatteryTheme(ratio: number, theme: Theme) {
     };
   }
   return {
-    label: '防守',
+    label: isEn ? 'Defensive' : '防守',
     startColor: '#f59e0b',
     stopColor: '#eab308',
     strokeColor: stroke,
@@ -166,6 +167,7 @@ function PositionPowerGauge({
   latestTrendValue,
   hasTrendData,
 }: PositionPowerGaugeProps) {
+  const { isEn } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const [coords, setCoords] = useState<{ top: number; left: number; placeAbove: boolean } | null>(null);
   const [isMobile, setIsMobile] = useState(false);
@@ -185,7 +187,7 @@ function PositionPowerGauge({
 
   const clampedRatio = Math.min(100, Math.max(0, positionRatio));
   const cashRatio = Math.max(0, 100 - positionRatio);
-  const batteryConfig = getBatteryTheme(clampedRatio, theme);
+  const batteryConfig = getBatteryTheme(clampedRatio, theme, isEn);
 
   const updateCoords = useCallback(() => {
     if (!triggerRef.current || typeof window === 'undefined') return;
@@ -378,8 +380,12 @@ function PositionPowerGauge({
                     <Zap className={`w-4 h-4 ${batteryConfig.boltColor}`} />
                   </div>
                   <div>
-                    <h4 className="text-sm font-semibold leading-tight">仓位与资产拆解</h4>
-                    <p className="text-[11px] opacity-60">资产利用与流动性分布</p>
+                    <h4 className="text-sm font-semibold leading-tight">
+                      {isEn ? 'Position & Asset Breakdown' : '仓位与资产拆解'}
+                    </h4>
+                    <p className="text-[11px] opacity-60">
+                      {isEn ? 'Capital utilization and liquidity distribution' : '资产利用与流动性分布'}
+                    </p>
                   </div>
                 </div>
                 <button
@@ -399,11 +405,11 @@ function PositionPowerGauge({
                 <div className="flex items-center justify-between text-xs mb-1.5 font-medium">
                   <span className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-                    持仓证券 ({positionRatio.toFixed(1)}%)
+                    {isEn ? 'Holdings' : '持仓证券'} ({positionRatio.toFixed(1)}%)
                   </span>
                   <span className="flex items-center gap-1.5 opacity-70">
                     <span className="w-2 h-2 rounded-full bg-slate-400 dark:bg-slate-500 inline-block" />
-                    剩余现金 ({cashRatio.toFixed(1)}%)
+                    {isEn ? 'Cash' : '剩余现金'} ({cashRatio.toFixed(1)}%)
                   </span>
                 </div>
 
@@ -411,12 +417,12 @@ function PositionPowerGauge({
                   <div
                     className={`h-full bg-gradient-to-r ${batteryConfig.barGradient} transition-all duration-300`}
                     style={{ width: `${clampedRatio}%` }}
-                    title={`持仓占比: ${positionRatio.toFixed(2)}%`}
+                    title={isEn ? `Holdings: ${positionRatio.toFixed(2)}%` : `持仓占比: ${positionRatio.toFixed(2)}%`}
                   />
                   <div
                     className="h-full bg-slate-400/40 dark:bg-gray-600 transition-all duration-300"
                     style={{ width: `${Math.min(100, Math.max(0, cashRatio))}%` }}
-                    title={`现金占比: ${cashRatio.toFixed(2)}%`}
+                    title={isEn ? `Cash: ${cashRatio.toFixed(2)}%` : `现金占比: ${cashRatio.toFixed(2)}%`}
                   />
                 </div>
               </div>
@@ -429,8 +435,12 @@ function PositionPowerGauge({
                       <Layers className="w-3.5 h-3.5" />
                     </div>
                     <div>
-                      <div className="text-xs font-medium opacity-80">持仓证券市值</div>
-                      <div className="text-[10px] opacity-50">所有证券当前市场估值合计</div>
+                      <div className="text-xs font-medium opacity-80">
+                        {isEn ? 'Holdings Market Value' : '持仓证券市值'}
+                      </div>
+                      <div className="text-[10px] opacity-50">
+                        {isEn ? 'Total market valuation of all held securities' : '所有证券当前市场估值合计'}
+                      </div>
                     </div>
                   </div>
                   <div className="text-right">
@@ -438,7 +448,7 @@ function PositionPowerGauge({
                       {formatCurrency(totalHoldingsValue, currencyConfig)}
                     </div>
                     <div className="text-[10px] font-medium text-emerald-500">
-                      {positionRatio.toFixed(2)}% 仓位
+                      {positionRatio.toFixed(2)}% {isEn ? 'Position' : '仓位'}
                     </div>
                   </div>
                 </div>
@@ -449,8 +459,12 @@ function PositionPowerGauge({
                       <Wallet className="w-3.5 h-3.5" />
                     </div>
                     <div>
-                      <div className="text-xs font-medium opacity-80">剩余可用现金</div>
-                      <div className="text-[10px] opacity-50">总资产扣除证券后的流动资金</div>
+                      <div className="text-xs font-medium opacity-80">
+                        {isEn ? 'Available Liquid Cash' : '剩余可用现金'}
+                      </div>
+                      <div className="text-[10px] opacity-50">
+                        {isEn ? 'Liquid funds after deducting securities' : '总资产扣除证券后的流动资金'}
+                      </div>
                     </div>
                   </div>
                   <div className="text-right">
@@ -458,7 +472,7 @@ function PositionPowerGauge({
                       {formatCurrency(remainingCash, currencyConfig)}
                     </div>
                     <div className="text-[10px] font-medium opacity-60">
-                      {cashRatio.toFixed(2)}% 现金
+                      {cashRatio.toFixed(2)}% {isEn ? 'Cash' : '现金'}
                     </div>
                   </div>
                 </div>
@@ -469,8 +483,12 @@ function PositionPowerGauge({
                       <Landmark className="w-3.5 h-3.5" />
                     </div>
                     <div>
-                      <div className="text-xs font-medium opacity-80">当前账户总资产</div>
-                      <div className="text-[10px] opacity-50">持仓市值 + 剩余现金</div>
+                      <div className="text-xs font-medium opacity-80">
+                        {isEn ? 'Total Net Assets' : '当前账户总资产'}
+                      </div>
+                      <div className="text-[10px] opacity-50">
+                        {isEn ? 'Holdings market value + available cash' : '持仓市值 + 剩余现金'}
+                      </div>
                     </div>
                   </div>
                   <div className="text-right">
@@ -489,8 +507,12 @@ function PositionPowerGauge({
                 <HelpCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                 <span>
                   {hasTrendData
-                    ? '总资产基于最新趋势数据计算，持仓比例 = 证券市值 ÷ 总资产。'
-                    : '当前基于持仓总值进行资产核算，现金部分为估算值。'}
+                    ? (isEn
+                        ? 'Total assets calculated based on latest trend data. Position ratio = Securities value ÷ Total assets.'
+                        : '总资产基于最新趋势数据计算，持仓比例 = 证券市值 ÷ 总资产。')
+                    : (isEn
+                        ? 'Asset accounting based on holdings valuation. Cash is estimated.'
+                        : '当前基于持仓总值进行资产核算，现金部分为估算值。')}
                 </span>
               </div>
             </div>
@@ -514,6 +536,7 @@ export function StatsGrid({
   remainingCash,
   hasTrendData = false,
 }: StatsGridProps) {
+  const { isEn } = useLanguage();
   const isProfit = totalProfitLoss >= 0;
 
   // 估算持仓盈亏比例（基于持仓总成本）
@@ -523,7 +546,7 @@ export function StatsGrid({
 
   const clampedRatio = Math.min(100, Math.max(0, positionRatio));
   const cashRatio = Math.max(0, 100 - positionRatio);
-  const batteryConfig = getBatteryTheme(clampedRatio, theme);
+  const batteryConfig = getBatteryTheme(clampedRatio, theme, isEn);
 
   return (
     <div>
@@ -536,11 +559,15 @@ export function StatsGrid({
           <div className="flex items-center justify-between gap-1.5">
             <div className="flex items-center gap-1.5 min-w-0">
               <span className={`text-xs font-semibold uppercase tracking-wider opacity-70 ${themes[theme].text}`}>
-                现有总资产
+                {isEn ? 'Total Net Assets' : '现有总资产'}
               </span>
               <InfoTooltip
                 theme={theme}
-                content="优先使用最新一条总资产趋势数据，表示组合在当前时点的总资产估值。"
+                content={
+                  isEn
+                    ? 'Latest total net assets valuation based on trend and holdings data.'
+                    : '优先使用最新一条总资产趋势数据，表示组合在当前时点的总资产估值。'
+                }
                 align="left"
               />
             </div>
@@ -553,7 +580,7 @@ export function StatsGrid({
                   : 'bg-slate-100 text-slate-600 border-slate-200'
               }`}
             >
-              {hasTrendData ? '最新估值' : '持仓估值'}
+              {hasTrendData ? (isEn ? 'Latest Close' : '最新估值') : (isEn ? 'Holdings Value' : '持仓估值')}
             </span>
           </div>
 
@@ -573,7 +600,7 @@ export function StatsGrid({
                   ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25'
                   : 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/25'
               }`}
-              title="持仓累计浮动盈亏"
+              title={isEn ? 'Unrealized PnL' : '持仓累计浮动盈亏'}
             >
               {isProfit ? (
                 <TrendingUp className="w-3.5 h-3.5 shrink-0" />
@@ -592,7 +619,7 @@ export function StatsGrid({
               )}
             </div>
             <span className={`text-[11px] opacity-50 truncate ${themes[theme].text}`}>
-              浮动盈亏
+              {isEn ? 'Floating PnL' : '浮动盈亏'}
             </span>
           </div>
         </div>
@@ -604,16 +631,20 @@ export function StatsGrid({
           <div className="flex items-center justify-between gap-1.5">
             <div className="flex items-center gap-1.5 min-w-0">
               <span className={`text-xs font-semibold uppercase tracking-wider opacity-70 ${themes[theme].text}`}>
-                持仓证券市值
+                {isEn ? 'Holdings Market Value' : '持仓证券市值'}
               </span>
               <InfoTooltip
                 theme={theme}
-                content="所有持仓证券当前市场估值合计，不含现金部分。"
+                content={
+                  isEn
+                    ? 'Total market value of all held securities, excluding cash balance.'
+                    : '所有持仓证券当前市场估值合计，不含现金部分。'
+                }
                 align="left"
               />
             </div>
             <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-mono font-medium border leading-none ${batteryConfig.badgeBg}`}>
-              {positionRatio.toFixed(1)}% 仓位
+              {positionRatio.toFixed(1)}% {isEn ? 'Position' : '仓位'}
             </span>
           </div>
 
@@ -627,7 +658,7 @@ export function StatsGrid({
           </div>
 
           <div className={`text-xs opacity-60 flex items-center justify-between ${themes[theme].text}`}>
-            <span>证券资产配置</span>
+            <span>{isEn ? 'Securities Allocation' : '证券资产配置'}</span>
             <span className="font-mono font-medium">{positionRatio.toFixed(1)}%</span>
           </div>
         </div>
@@ -639,11 +670,15 @@ export function StatsGrid({
           <div className="flex items-center justify-between gap-1.5">
             <div className="flex items-center gap-1.5 min-w-0">
               <span className={`text-xs font-semibold uppercase tracking-wider opacity-70 ${themes[theme].text}`}>
-                剩余可用现金
+                {isEn ? 'Available Liquid Cash' : '剩余可用现金'}
               </span>
               <InfoTooltip
                 theme={theme}
-                content="总资产扣除持仓市值后的流动现金储备。"
+                content={
+                  isEn
+                    ? 'Liquid cash reserves after deducting securities holdings from total assets.'
+                    : '总资产扣除持仓市值后的流动现金储备。'
+                }
                 align="left"
               />
             </div>
@@ -656,7 +691,7 @@ export function StatsGrid({
                   : 'bg-blue-50 text-blue-600 border-blue-200'
               }`}
             >
-              {cashRatio.toFixed(1)}% 现金
+              {cashRatio.toFixed(1)}% {isEn ? 'Cash' : '现金'}
             </span>
           </div>
 
@@ -670,7 +705,7 @@ export function StatsGrid({
           </div>
 
           <div className={`text-xs opacity-60 flex items-center justify-between ${themes[theme].text}`}>
-            <span>流动性现金储备</span>
+            <span>{isEn ? 'Liquidity Reserve' : '流动性现金储备'}</span>
             <span className="font-mono font-medium">{cashRatio.toFixed(1)}%</span>
           </div>
         </div>
@@ -682,11 +717,15 @@ export function StatsGrid({
           <div className="flex items-center justify-between gap-1.5">
             <div className="flex items-center gap-1.5 min-w-0">
               <span className={`text-xs font-semibold uppercase tracking-wider opacity-70 ${themes[theme].text}`}>
-                仓位配置水平
+                {isEn ? 'Position Exposure' : '仓位配置水平'}
               </span>
               <InfoTooltip
                 theme={theme}
-                content="持仓市值占总资产的比重，直观体现资金利用率与敞口风险。"
+                content={
+                  isEn
+                    ? 'Ratio of securities market value to total assets, indicating capital utilization and risk exposure.'
+                    : '持仓市值占总资产的比重，直观体现资金利用率与敞口风险。'
+                }
                 align="left"
               />
             </div>
@@ -711,7 +750,7 @@ export function StatsGrid({
               {positionRatio.toFixed(1)}%
             </div>
             <div className={`text-xs font-mono opacity-60 ${themes[theme].text}`}>
-              现金 {cashRatio.toFixed(1)}%
+              {isEn ? 'Cash' : '现金'} {cashRatio.toFixed(1)}%
             </div>
           </div>
 
@@ -721,12 +760,12 @@ export function StatsGrid({
               <div
                 className={`h-full bg-gradient-to-r ${batteryConfig.barGradient} transition-all duration-500`}
                 style={{ width: `${clampedRatio}%` }}
-                title={`持仓: ${positionRatio.toFixed(1)}%`}
+                title={isEn ? `Holdings: ${positionRatio.toFixed(1)}%` : `持仓: ${positionRatio.toFixed(1)}%`}
               />
               <div
                 className="h-full bg-slate-400/40 dark:bg-gray-600 transition-all duration-500"
                 style={{ width: `${Math.min(100, Math.max(0, cashRatio))}%` }}
-                title={`现金: ${cashRatio.toFixed(1)}%`}
+                title={isEn ? `Cash: ${cashRatio.toFixed(1)}%` : `现金: ${cashRatio.toFixed(1)}%`}
               />
             </div>
           </div>
@@ -741,7 +780,7 @@ export function StatsGrid({
             <span
               className={`text-xs font-medium uppercase tracking-wider opacity-65 ${themes[theme].text}`}
             >
-              现有账户金额
+              {isEn ? 'Total Net Assets' : '现有账户金额'}
             </span>
             <span
               className={`inline-flex items-center px-1.5 py-0.2 rounded-full text-[9px] font-medium border ${
@@ -752,7 +791,7 @@ export function StatsGrid({
                   : 'bg-slate-100 text-slate-600 border-slate-200'
               }`}
             >
-              {hasTrendData ? '最新估值' : '持仓估值'}
+              {hasTrendData ? (isEn ? 'Latest Close' : '最新估值') : (isEn ? 'Holdings Value' : '持仓估值')}
             </span>
           </div>
 

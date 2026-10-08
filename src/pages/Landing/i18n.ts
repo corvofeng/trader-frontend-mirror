@@ -1,4 +1,4 @@
-export type Language = 'zh' | 'en';
+export type { Language } from '../../lib/context/LanguageContext';
 
 export const landingTranslations = {
   zh: {

@@ -5,6 +5,7 @@ import { formatCurrency } from '../../../shared/utils/format';
 import { isBuyOperation } from '../../../shared/utils/trade';
 import { ChevronLeft, ChevronRight, TrendingUp } from 'lucide-react';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
+import { useLanguage } from '../../../lib/context/LanguageContext';
 
 interface TradesTableProps {
   theme: Theme;
@@ -37,19 +38,22 @@ export function TradesTable({
   onAnalyzeStock,
 }: TradesTableProps) {
   const { currencyConfig } = useCurrency();
+  const { isEn } = useLanguage();
 
   return (
     <div>
       {showHeader && (
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
-          <h3 className={`text-lg sm:text-xl font-semibold ${themes[theme].text} whitespace-nowrap`}>成交记录</h3>
+          <h3 className={`text-lg sm:text-xl font-semibold ${themes[theme].text} whitespace-nowrap`}>
+            {isEn ? 'Trade Records' : '成交记录'}
+          </h3>
           <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
             <button
               type="button"
               onClick={() => onSort('created_at')}
               className={`sm:hidden w-full inline-flex items-center justify-center px-2 py-1 rounded-md text-sm ${themes[theme].secondary} ${themes[theme].text}`}
             >
-              时间
+              {isEn ? 'Time' : '时间'}
               {sort.field === 'created_at' ? (
                 <span className="ml-1">{sort.direction === 'asc' ? '↑' : '↓'}</span>
               ) : (
@@ -61,9 +65,9 @@ export function TradesTable({
               onChange={(e) => onTradesPerPageChange(Number(e.target.value))}
               className={`w-full sm:w-auto px-2 py-1 rounded-md text-sm sm:text-base ${themes[theme].input} ${themes[theme].text}`}
             >
-              <option value={5}>每页 5 条</option>
-              <option value={10}>每页 10 条</option>
-              <option value={20}>每页 20 条</option>
+              <option value={5}>{isEn ? '5 / page' : '每页 5 条'}</option>
+              <option value={10}>{isEn ? '10 / page' : '每页 10 条'}</option>
+              <option value={20}>{isEn ? '20 / page' : '每页 20 条'}</option>
             </select>
           </div>
         </div>
@@ -76,7 +80,7 @@ export function TradesTable({
             onClick={() => onSort('created_at')}
             className={`inline-flex items-center justify-center px-2 py-1 rounded-md text-sm ${themes[theme].secondary} ${themes[theme].text}`}
           >
-            时间
+            {isEn ? 'Time' : '时间'}
             <span className="ml-1">{sort.direction === 'asc' ? '↑' : '↓'}</span>
           </button>
         </div>
@@ -91,7 +95,7 @@ export function TradesTable({
                 onClick={() => onSort('created_at')}
               >
                 <div className="flex items-center gap-1">
-                  日期
+                  {isEn ? 'Date' : '日期'}
                   {sort.field === 'created_at' && (
                     <span className="text-blue-500">
                       {sort.direction === 'asc' ? '↑' : '↓'}
@@ -102,29 +106,29 @@ export function TradesTable({
               <th 
                 className={`px-3 sm:px-6 py-2 sm:py-4 text-left text-xs sm:text-sm font-bold ${themes[theme].text} uppercase tracking-wider`}
               >
-                股票
+                {isEn ? 'Symbol' : '股票'}
               </th>
               <th 
                 className={`hidden sm:table-cell px-6 py-4 text-center text-sm font-bold ${themes[theme].text} uppercase tracking-wider`}
               >
-                方向
+                {isEn ? 'Side' : '方向'}
               </th>
               <th 
                 className={`hidden sm:table-cell px-6 py-4 text-right text-sm font-bold ${themes[theme].text} uppercase tracking-wider`}
               >
-                价格
+                {isEn ? 'Price' : '价格'}
               </th>
               <th 
                 className={`hidden sm:table-cell px-6 py-4 text-right text-sm font-bold ${themes[theme].text} uppercase tracking-wider`}
               >
-                数量
+                {isEn ? 'Qty' : '数量'}
               </th>
               <th className={`hidden sm:table-cell px-6 py-4 text-right text-sm font-bold ${themes[theme].text} uppercase tracking-wider`}>
-                金额
+                {isEn ? 'Amount' : '金额'}
               </th>
               {onAnalyzeStock && (
                 <th className={`hidden sm:table-cell px-6 py-4 text-right text-sm font-bold ${themes[theme].text} uppercase tracking-wider`}>
-                  详情
+                  {isEn ? 'Detail' : '详情'}
                 </th>
               )}
             </tr>
@@ -153,7 +157,7 @@ export function TradesTable({
                                 : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'
                             }`}
                           >
-                            {isBuyOperation(trade.operation) ? '买入' : '卖出'}
+                            {isBuyOperation(trade.operation) ? (isEn ? 'BUY' : '买入') : (isEn ? 'SELL' : '卖出')}
                           </span>
                         </div>
                         <div className={`text-xs sm:text-base ${themes[theme].text} opacity-75 truncate`}>
@@ -174,24 +178,24 @@ export function TradesTable({
                             className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium ${themes[theme].secondary} opacity-80 hover:opacity-100 transition-opacity`}
                           >
                             <TrendingUp size={12} />
-                            <span>详情</span>
+                            <span>{isEn ? 'Detail' : '详情'}</span>
                           </button>
                         )}
                       </div>
                     </div>
                     <div className="sm:hidden mt-2 grid grid-cols-3 gap-x-3 gap-y-1 text-[11px]">
                       <div className="min-w-0">
-                        <div className={`${themes[theme].text} opacity-60`}>价格</div>
+                        <div className={`${themes[theme].text} opacity-60`}>{isEn ? 'Price' : '价格'}</div>
                         <div className={`${themes[theme].text} font-mono truncate`}>
                           {formatCurrency(trade.target_price, currencyConfig)}
                         </div>
                       </div>
                       <div className="min-w-0">
-                        <div className={`${themes[theme].text} opacity-60`}>数量</div>
+                        <div className={`${themes[theme].text} opacity-60`}>{isEn ? 'Qty' : '数量'}</div>
                         <div className={`${themes[theme].text} font-mono truncate`}>{trade.quantity}</div>
                       </div>
                       <div className="min-w-0">
-                        <div className={`${themes[theme].text} opacity-60`}>金额</div>
+                        <div className={`${themes[theme].text} opacity-60`}>{isEn ? 'Amount' : '金额'}</div>
                         <div className={`${themes[theme].text} font-mono truncate`}>
                           {formatCurrency(trade.target_price * trade.quantity, currencyConfig)}
                         </div>
@@ -207,7 +211,7 @@ export function TradesTable({
                         : 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300 ring-1 ring-rose-500/20'
                     }`}
                   >
-                    {isBuyOperation(trade.operation) ? '买入' : '卖出'}
+                    {isBuyOperation(trade.operation) ? (isEn ? 'BUY' : '买入') : (isEn ? 'SELL' : '卖出')}
                   </span>
                 </td>
                 <td className={`hidden sm:table-cell px-6 py-4 text-right text-base font-mono ${themes[theme].text}`}>
@@ -229,7 +233,7 @@ export function TradesTable({
                       className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold btn-tactile ${themes[theme].secondary} opacity-80 hover:opacity-100 transition-opacity whitespace-nowrap`}
                     >
                       <TrendingUp size={14} />
-                      <span>详情</span>
+                      <span>{isEn ? 'Detail' : '详情'}</span>
                     </button>
                   </td>
                 )}
@@ -241,7 +245,9 @@ export function TradesTable({
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4">
         <div className={`text-xs sm:text-base ${themes[theme].text} whitespace-normal sm:whitespace-nowrap`}>
-          显示第 {Math.min(trades.length, (tradesPage - 1) * tradesPerPage + 1)} 到第 {Math.min(trades.length, tradesPage * tradesPerPage)} 条，共 {trades.length} 条记录
+          {isEn
+            ? `Showing ${Math.min(trades.length, (tradesPage - 1) * tradesPerPage + 1)} to ${Math.min(trades.length, tradesPage * tradesPerPage)} of ${trades.length} records`
+            : `显示第 ${Math.min(trades.length, (tradesPage - 1) * tradesPerPage + 1)} 到第 ${Math.min(trades.length, tradesPage * tradesPerPage)} 条，共 ${trades.length} 条记录`}
         </div>
         <div className="flex gap-2 self-end sm:self-auto">
           <button

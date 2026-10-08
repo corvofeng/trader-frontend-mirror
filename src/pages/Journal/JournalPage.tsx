@@ -11,6 +11,7 @@ import type { Account, Stock, Holding, Trade, StockOrder, User, OptionOrder } fr
 import { TabNavigation } from './components/TabNavigation';
 import { useJournalWebMcp } from './hooks/useJournalWebMcp';
 import { WebMcpBadge } from '../../lib/webmcp/components/WebMcpBadge';
+import { useLanguage } from '../../lib/context/LanguageContext';
 import {
   checkIsMainAccount,
   getAccountAliasFromSearch,
@@ -34,6 +35,7 @@ interface JournalProps {
 const DEMO_USER_ID = 'mock-user-id';
 
 export function Journal({ selectedStock, theme, onStockSelect, user }: JournalProps) {
+  const { isEn } = useLanguage();
   const location = useLocation();
   const navigate = useNavigate();
   const isAuthenticated = Boolean(user);
@@ -45,8 +47,9 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
         canViewTradePlans: isCloudflareEnv ? false : undefined,
         canViewHistory: isCloudflareEnv ? false : undefined,
         canViewOrders: isCloudflareEnv ? false : undefined,
+        isEn,
       }),
-    [isAuthenticated]
+    [isAuthenticated, isEn]
   );
 
   useEffect(() => {
@@ -375,7 +378,7 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                   <h1 className={`text-base sm:text-2xl font-bold tracking-tight ${themes[theme].text}`}>
-                    {isCloudflareEnv ? '投资组合' : '交易日志'}
+                    {isCloudflareEnv ? (isEn ? 'Portfolio' : '投资组合') : (isEn ? 'Journal' : '交易日志')}
                   </h1>
                   <span className="text-[10px] sm:text-xs font-mono font-medium px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 border border-blue-200/50 dark:border-blue-800/40">
                     {isCloudflareEnv ? 'Portfolio' : 'Journal'}
@@ -383,7 +386,7 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
                   {isCloudflareEnv && (
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] sm:text-xs font-medium bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 shadow-2xs select-none">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      交易日盘后同步
+                      {isEn ? 'Post-Market Synced' : '交易日盘后同步'}
                     </span>
                   )}
                   {!isCloudflareEnv && (
@@ -392,15 +395,15 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
                       toolCount={webMcp.registeredToolCount}
                       isSupported={webMcp.isSupported}
                       isReady={webMcp.isReady}
-                      pageTitle="Journal 交易日志"
+                      pageTitle={isEn ? 'Journal' : 'Journal 交易日志'}
                       customTools={webMcp.tools}
                     />
                   )}
                 </div>
                 <p className={`hidden sm:block text-sm ${themes[theme].text} opacity-75 mt-0.5`}>
                   {isCloudflareEnv 
-                    ? '实盘资产与持仓概览' 
-                    : 'Review your portfolio, trades and performance in one place'}
+                    ? (isEn ? 'Live portfolio assets and holdings overview' : '实盘资产与持仓概览') 
+                    : (isEn ? 'Review your portfolio, trades and performance in one place' : '统一查阅投资组合、成交与交易表现')}
                 </p>
               </div>
             </div>

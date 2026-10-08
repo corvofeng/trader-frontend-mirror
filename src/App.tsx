@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'r
 import { MainLayout } from './layouts/MainLayout';
 import { authService, accountService, portfolioService, stockConfigService, isCloudflareEnv } from './lib/services';
 import { CurrencyProvider } from './lib/context/CurrencyContext';
+import { LanguageProvider } from './lib/context/LanguageContext';
 import analytics from './lib/analytics';
 import type { User, Stock } from './lib/services/types';
 import { type Theme, THEME_HEX_BACKGROUNDS } from './lib/theme';
@@ -247,9 +248,11 @@ function App() {
   return (
     <Router>
       <RouteTracker />
-      <CurrencyProvider>
-        <AppContent />
-      </CurrencyProvider>
+      <LanguageProvider>
+        <CurrencyProvider>
+          <AppContent />
+        </CurrencyProvider>
+      </LanguageProvider>
     </Router>
   );
 }

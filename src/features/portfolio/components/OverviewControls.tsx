@@ -1,6 +1,7 @@
 import { RefreshCw, Camera, Calendar, ArrowRight } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { isCloudflareEnv } from '../../../lib/services';
+import { useLanguage } from '../../../lib/context/LanguageContext';
 
 interface OverviewControlsProps {
   theme: Theme;
@@ -26,6 +27,7 @@ export function OverviewControls({
   isLoggedIn = true,
   onScreenshot,
 }: OverviewControlsProps) {
+  const { isEn } = useLanguage();
   // 时间胶囊容器的适配主题样式
   const dateCapsuleBg =
     theme === 'dark'
@@ -46,7 +48,7 @@ export function OverviewControls({
       {/* 顶部主行：标题与副标题 */}
       <div className="flex items-center gap-2.5">
         <h2 className={`text-lg sm:text-xl font-bold tracking-tight ${themes[theme].text}`}>
-          资产概览
+          {isEn ? 'Portfolio Overview' : '资产概览'}
         </h2>
         <span className="hidden sm:inline-block text-xs font-mono font-medium opacity-50 px-2 py-0.5 rounded-full border border-current">
           Portfolio Overview
@@ -69,12 +71,12 @@ export function OverviewControls({
                 value={dateRange.startDate}
                 onChange={(e) => onDateRangeChange({ ...dateRange, startDate: e.target.value })}
                 className={`bg-transparent border-0 p-0 text-xs sm:text-sm font-medium font-mono focus:ring-0 focus:outline-none cursor-pointer flex-1 sm:flex-none text-center sm:text-left ${dateInputStyle}`}
-                title="开始日期"
+                title={isEn ? 'Start Date' : '开始日期'}
               />
 
               <span className="opacity-40 text-xs px-0.5 shrink-0 select-none flex items-center">
                 <ArrowRight className="w-3 h-3 opacity-60 hidden xs:inline" />
-                <span className="xs:hidden">至</span>
+                <span className="xs:hidden">{isEn ? 'to' : '至'}</span>
               </span>
 
               {/* 结束日期 */}
@@ -83,7 +85,7 @@ export function OverviewControls({
                 value={dateRange.endDate}
                 onChange={(e) => onDateRangeChange({ ...dateRange, endDate: e.target.value })}
                 className={`bg-transparent border-0 p-0 text-xs sm:text-sm font-medium font-mono focus:ring-0 focus:outline-none cursor-pointer flex-1 sm:flex-none text-center sm:text-left ${dateInputStyle}`}
-                title="结束日期"
+                title={isEn ? 'End Date' : '结束日期'}
               />
             </div>
           )}
@@ -95,10 +97,10 @@ export function OverviewControls({
                 type="button"
                 onClick={onRefresh}
                 className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap btn-tactile ${themes[theme].secondary} hide-in-screenshot hover:opacity-90 active:scale-95 transition-all shadow-2xs`}
-                title="刷新数据"
+                title={isEn ? 'Refresh Data' : '刷新数据'}
               >
                 <RefreshCw className="w-3.5 h-3.5" />
-                <span className="hidden xs:inline">刷新</span>
+                <span className="hidden xs:inline">{isEn ? 'Refresh' : '刷新'}</span>
               </button>
             )}
             {onScreenshot && (
@@ -106,10 +108,10 @@ export function OverviewControls({
                 type="button"
                 onClick={onScreenshot}
                 className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap btn-tactile ${themes[theme].secondary} hide-in-screenshot hover:opacity-90 active:scale-95 transition-all shadow-2xs`}
-                title="生成持仓截图"
+                title={isEn ? 'Share Screenshot' : '生成持仓截图'}
               >
                 <Camera className="w-3.5 h-3.5" />
-                <span>分享截图</span>
+                <span>{isEn ? 'Screenshot' : '分享截图'}</span>
               </button>
             )}
           </div>

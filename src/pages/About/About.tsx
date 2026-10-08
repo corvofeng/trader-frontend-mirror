@@ -3,6 +3,7 @@ import { BookOpen, Check, Copy, Github, Globe, Mail, MessageSquare } from 'lucid
 import { Theme, themes } from '../../lib/theme';
 import { isCloudflareEnv } from '../../lib/services';
 import { InternalLink } from '../../shared/components';
+import { useLanguage } from '../../lib/context/LanguageContext';
 
 interface AboutProps {
   theme: Theme;
@@ -32,6 +33,7 @@ type AboutApiResponse = {
 };
 
 export function About({ theme }: AboutProps) {
+  const { isEn } = useLanguage();
   const fallbackContacts = useMemo<ContactItem[]>(
     () => [
       {
@@ -179,9 +181,13 @@ export function About({ theme }: AboutProps) {
               <BookOpen className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <h2 className={`text-xl font-bold ${themes[theme].text}`}>关于我</h2>
+              <h2 className={`text-xl font-bold ${themes[theme].text}`}>
+                {isEn ? 'About' : '关于我'}
+              </h2>
               <div className={`text-sm ${themes[theme].text} opacity-75 mt-1`}>
-                这里是免责声明与联系方式。你可以把它当成一个轻量的个人主页入口。
+                {isEn
+                  ? 'Disclaimer, update mechanism, and contact information. A lightweight personal portal.'
+                  : '这里是免责声明与联系方式。你可以把它当成一个轻量的个人主页入口。'}
               </div>
             </div>
           </div>
@@ -189,9 +195,13 @@ export function About({ theme }: AboutProps) {
 
         <div className="grid gap-6 lg:grid-cols-2">
           <div className={`${themes[theme].card} rounded-xl border ${themes[theme].border} shadow-sm p-6 lg:col-span-2`}>
-            <h3 className={`text-lg font-semibold ${themes[theme].text}`}>免责声明</h3>
+            <h3 className={`text-lg font-semibold ${themes[theme].text}`}>
+              {isEn ? 'Disclaimer' : '免责声明'}
+            </h3>
             <div className={`mt-3 text-sm ${themes[theme].text} opacity-85 leading-relaxed`}>
-              本页面内容仅用于学习交流与记录，不构成任何投资建议、投资承诺或收益保证。市场有风险，投资需谨慎。
+              {isEn
+                ? 'The contents of this site are solely for personal record, learning, and technical sharing. They do not constitute any investment advice, financial endorsement, or return guarantee. Markets carry risks; invest with caution.'
+                : '本页面内容仅用于学习交流与记录，不构成任何投资建议、投资承诺或收益保证。市场有风险，投资需谨慎。'}
             </div>
           </div>
 
@@ -199,16 +209,28 @@ export function About({ theme }: AboutProps) {
             <div className={`${themes[theme].card} rounded-xl border ${themes[theme].border} shadow-sm p-6 lg:col-span-2`}>
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-slate-400 dark:bg-zinc-500" />
-                <h3 className={`text-lg font-semibold ${themes[theme].text}`}>数据更新机制</h3>
+                <h3 className={`text-lg font-semibold ${themes[theme].text}`}>
+                  {isEn ? 'Data Sync Mechanism' : '数据更新机制'}
+                </h3>
               </div>
               <div className={`mt-3 text-sm ${themes[theme].text} opacity-85 leading-relaxed`}>
-                本站由 Cloudflare 全球边缘网络进行静态托管，所有投资组合净值走势、持仓标的与收益率数据均为<strong>每日收盘后的静态快照（交易日盘后自动更新）</strong>，不提供盘中实时逐笔行情推送。
+                {isEn ? (
+                  <>
+                    Statically hosted on Cloudflare's global edge network. All portfolio equity curves, holdings, and returns are <strong>daily closing snapshots (automatically updated after trading hours)</strong> without real-time intraday tick streaming.
+                  </>
+                ) : (
+                  <>
+                    本站由 Cloudflare 全球边缘网络进行静态托管，所有投资组合净值走势、持仓标的与收益率数据均为<strong>每日收盘后的静态快照（交易日盘后自动更新）</strong>，不提供盘中实时逐笔行情推送。
+                  </>
+                )}
               </div>
             </div>
           )}
 
           <div className={`${themes[theme].card} rounded-xl border ${themes[theme].border} shadow-sm p-6 lg:col-span-2`}>
-            <h3 className={`text-lg font-semibold ${themes[theme].text}`}>联系方式</h3>
+            <h3 className={`text-lg font-semibold ${themes[theme].text}`}>
+              {isEn ? 'Contact Information' : '联系方式'}
+            </h3>
 
             <div className="mt-4 space-y-3">
               {aboutData.contacts.map((c) => {
@@ -248,10 +270,10 @@ export function About({ theme }: AboutProps) {
                         type="button"
                         onClick={() => void copyToClipboard(c.copyText || '', c.key)}
                         className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium ${themes[theme].secondary}`}
-                        title="复制"
+                        title={isEn ? 'Copy' : '复制'}
                       >
                         {isCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                        {isCopied ? '已复制' : '复制'}
+                        {isCopied ? (isEn ? 'Copied' : '已复制') : (isEn ? 'Copy' : '复制')}
                       </button>
                     ) : null}
                   </div>

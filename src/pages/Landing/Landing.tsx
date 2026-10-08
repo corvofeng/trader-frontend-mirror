@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Globe, AlertTriangle } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { HeroSection } from './components/HeroSection';
 import { MarketOverview } from './components/MarketOverview';
 import { PortfolioPreview } from './components/PortfolioPreview';
@@ -8,10 +8,11 @@ import { FeaturesGrid } from './components/FeaturesGrid';
 import { Theme, themes } from '../../lib/theme';
 import type { User } from '../../lib/services/types';
 import { isCloudflareEnv } from '../../lib/services';
-import { Language, landingTranslations } from './i18n';
+import { landingTranslations } from './i18n';
 import { useLandingWebMcp } from './hooks/useLandingWebMcp';
 import { WebMcpBadge } from '../../lib/webmcp/components/WebMcpBadge';
 import { WebMcpGuideModal } from '../../lib/webmcp/components/WebMcpGuideModal';
+import { useLanguage } from '../../lib/context/LanguageContext';
 
 interface LandingProps {
   theme: Theme;
@@ -22,15 +23,7 @@ interface LandingProps {
 export function Landing({ theme, onThemeChange, user }: LandingProps) {
   const navigate = useNavigate();
   const [isAiGuideOpen, setIsAiGuideOpen] = useState(false);
-  const [lang, setLang] = useState<Language>(() => {
-    const saved = localStorage.getItem('app_lang') as Language;
-    return saved === 'en' ? 'en' : 'zh';
-  });
-
-  const handleLanguageChange = (newLang: Language) => {
-    setLang(newLang);
-    localStorage.setItem('app_lang', newLang);
-  };
+  const { lang, setLang } = useLanguage();
 
   const webMcp = useLandingWebMcp({
     userId: user?.id,
@@ -39,53 +32,26 @@ export function Landing({ theme, onThemeChange, user }: LandingProps) {
     currentLang: lang,
     onNavigate: (path) => navigate(path),
     onThemeChange,
-    onLanguageChange: handleLanguageChange,
+    onLanguageChange: setLang,
   });
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Top Bar with WebMCP Status & Language Switcher */}
-      <div className={`${themes[theme].background} border-b ${themes[theme].border} transition-colors duration-200`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between">
-          <div>
-            {!isCloudflareEnv && (
-              <WebMcpBadge
-                theme={theme}
-                toolCount={webMcp.registeredToolCount}
-                isSupported={webMcp.isSupported}
-                isReady={webMcp.isReady}
-                pageTitle="主页 / 概览"
-                customTools={webMcp.tools}
-              />
-            )}
-          </div>
-          <div className="inline-flex items-center p-1 rounded-xl bg-slate-100/80 dark:bg-zinc-800/80 border border-slate-200/60 dark:border-zinc-700/60 text-xs font-semibold shadow-xs">
-            <Globe className="w-3.5 h-3.5 mx-1.5 opacity-60" />
-            <button
-              type="button"
-              onClick={() => handleLanguageChange('zh')}
-              className={`px-2.5 py-1 rounded-lg transition-all ${
-                lang === 'zh'
-                  ? 'bg-white dark:bg-zinc-700 text-blue-600 dark:text-blue-400 shadow-xs'
-                  : 'text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
-              }`}
-            >
-              中文
-            </button>
-            <button
-              type="button"
-              onClick={() => handleLanguageChange('en')}
-              className={`px-2.5 py-1 rounded-lg transition-all ${
-                lang === 'en'
-                  ? 'bg-white dark:bg-zinc-700 text-blue-600 dark:text-blue-400 shadow-xs'
-                  : 'text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
-              }`}
-            >
-              English
-            </button>
+      {/* Optional Top Bar for WebMCP Status in non-Cloudflare environments */}
+      {!isCloudflareEnv && (
+        <div className={`${themes[theme].background} border-b ${themes[theme].border} transition-colors duration-200`}>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between">
+            <WebMcpBadge
+              theme={theme}
+              toolCount={webMcp.registeredToolCount}
+              isSupported={webMcp.isSupported}
+              isReady={webMcp.isReady}
+              pageTitle="主页 / 概览"
+              customTools={webMcp.tools}
+            />
           </div>
         </div>
-      </div>
+      )}
 
       {/* Top Disclaimer Alert Bar */}
       <div className="bg-amber-500/10 dark:bg-amber-500/5 border-b border-amber-500/20 dark:border-amber-500/10 py-2.5 transition-colors duration-200">

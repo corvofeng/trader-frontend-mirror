@@ -20,6 +20,7 @@ import { InfoTooltip } from '../../../shared/components';
 import type { PortfolioKlineMetrics, PortfolioKlinePoint, TrendData } from '../../../lib/services/types';
 import { formatCurrency, formatCompactCurrency } from '../../../shared/utils/format';
 import { useCurrency } from '../../../lib/context/CurrencyContext';
+import { useLanguage } from '../../../lib/context/LanguageContext';
 import { PortfolioKlineChart } from './PortfolioKlineChart';
 import { calculateBenchmarkMetrics, BenchmarkMetrics, calculateSMA, resolvePortfolioKlineRequestDates } from './portfolioUtils';
 import { SvgBatteryGauge, getBatteryTheme } from './StatsGrid';
@@ -73,6 +74,7 @@ export function PortfolioTrend({
   const location = useLocation();
   const navigate = useNavigate();
   const { currencyConfig, getThemedColors } = useCurrency();
+  const { isEn } = useLanguage();
   const themedColors = getThemedColors(theme);
   const [sseData, setSseData] = React.useState<SSEPoint[]>([]);
   const [sseMetrics, setSseMetrics] = React.useState<BenchmarkMetrics | null>(null);
@@ -285,7 +287,7 @@ export function PortfolioTrend({
       
       const datasets: any[] = [
         {
-          label: '总资产收益率',
+          label: isEn ? 'Asset Return' : '总资产收益率',
           data: portfolioReturns,
           borderColor: themedColors.chart.upColor,
           backgroundColor: themedColors.chart.upColor + '33',
@@ -300,7 +302,7 @@ export function PortfolioTrend({
       if (!isCloudflareEnv && portfolioReturns.length > 0) {
         const portfolioMA20 = calculateSMA(portfolioReturns, 20);
         datasets.push({
-          label: '总资产收益率 (MA20)',
+          label: isEn ? 'Asset Return (MA20)' : '总资产收益率 (MA20)',
           data: portfolioMA20,
           borderColor: '#f59e0b', // Amber/orange
           backgroundColor: 'transparent',
@@ -322,7 +324,7 @@ export function PortfolioTrend({
         });
 
         datasets.push({
-          label: '上证指数收益率',
+          label: isEn ? 'SSE Return' : '上证指数收益率',
           data: matchedSSEReturns as Array<number | null>,
           borderColor: '#9ca3af',
           backgroundColor: '#9ca3af33',
@@ -335,7 +337,7 @@ export function PortfolioTrend({
 
         const sseMA20 = calculateSMA(matchedSSEReturns, 20);
         datasets.push({
-          label: '上证指数收益率 (MA20)',
+          label: isEn ? 'SSE Return (MA20)' : '上证指数收益率 (MA20)',
           data: sseMA20,
           borderColor: '#60a5fa', // Light blue
           backgroundColor: 'transparent',
@@ -357,7 +359,7 @@ export function PortfolioTrend({
         labels: trendData.map(point => format(new Date(point.date), 'MMM d, yyyy')),
         datasets: [
           {
-            label: '总资产',
+            label: isEn ? 'Total Assets' : '总资产',
             data: trendData.map(point => point.value),
             borderColor: themedColors.chart.upColor,
             backgroundColor: themedColors.chart.upColor + '33',
@@ -368,7 +370,7 @@ export function PortfolioTrend({
             borderWidth: 2,
           },
           {
-            label: '持仓市值',
+            label: isEn ? 'Holdings Value' : '持仓市值',
             data: trendData.map(point => point.position_value || 0),
             borderColor: themedColors.chart.downColor,
             backgroundColor: themedColors.chart.downColor + '33',
@@ -476,39 +478,45 @@ export function PortfolioTrend({
 
   const title = (() => {
     if (viewMode === 'kline') {
-      return klineSource === 'position' ? '持仓市值 K 线' : '总资产 K 线';
+      return klineSource === 'position'
+        ? (isEn ? 'Position Value K-Line' : '持仓市值 K 线')
+        : (isEn ? 'Total Asset K-Line' : '总资产 K 线');
     }
-    return viewMode === 'return' ? '收益率趋势' : '资产趋势';
+    return viewMode === 'return' ? (isEn ? 'Return Trend' : '收益率趋势') : (isEn ? 'Asset Trend' : '资产趋势');
   })();
   const mobileTitle = (() => {
     if (viewMode === 'kline') {
-      return klineSource === 'position' ? '持仓K线' : '总资产K线';
+      return klineSource === 'position' ? (isEn ? 'Pos K-Line' : '持仓K线') : (isEn ? 'Asset K-Line' : '总资产K线');
     }
-    return viewMode === 'return' ? '收益率' : '趋势';
+    return viewMode === 'return' ? (isEn ? 'Return' : '收益率') : (isEn ? 'Trend' : '趋势');
   })();
 
   const hasKlineFallback = requestedViewMode === 'kline' && klineData.length === 0;
   const toolbarPanelClass = `rounded-2xl border ${themes[theme].border} ${themes[theme].card} p-3 shadow-xl`;
   const segmentedGroupClass = `flex flex-wrap items-center gap-1 rounded-xl border ${themes[theme].border} ${themes[theme].card} p-1`;
   const toolbarLabelClass = `text-[11px] font-medium uppercase tracking-wide ${themes[theme].text} opacity-50`;
-  const toolbarContextLabel = viewMode === 'kline' ? 'K 线设置' : '当前视图';
+  const toolbarContextLabel = viewMode === 'kline'
+    ? (isEn ? 'K-Line Settings' : 'K 线设置')
+    : (isEn ? 'Current View' : '当前视图');
   const modeSummary = (() => {
     if (viewMode === 'kline') {
       if (klineSource === 'position') {
-        return '持仓市值';
+        return isEn ? 'Holdings Value' : '持仓市值';
       }
       if (klinePriceMode === 'nav') {
-        return '总资产 · NAV';
+        return isEn ? 'Total Assets · NAV' : '总资产 · NAV';
       }
       if (klinePriceMode === 'raw') {
-        return '总资产 · 原始';
+        return isEn ? 'Total Assets · Raw' : '总资产 · 原始';
       }
-      return '总资产 · 复权';
+      return isEn ? 'Total Assets · Adjusted' : '总资产 · 复权';
     }
     if (viewMode === 'return') {
-      return showComparison ? '收益率 · 上证对比' : '收益率';
+      return showComparison
+        ? (isEn ? 'Return · SSE Compare' : '收益率 · 上证对比')
+        : (isEn ? 'Return' : '收益率');
     }
-    return '总资产 / 持仓双线';
+    return isEn ? 'Total Assets / Holdings' : '总资产 / 持仓双线';
   })();
 
   const formatSignedPercent = React.useCallback((value: number, digits = 2) => {
@@ -606,44 +614,56 @@ export function PortfolioTrend({
 
     const allItems = [
       {
-        label: '年化收益',
+        label: isEn ? 'Annual Return' : '年化收益',
         value: formatSignedPercent(klineMetrics.annualizedReturn),
         valueClass: getReturnColorClass(klineMetrics.annualizedReturn),
-        tooltip: '把当前统计区间的收益按全年口径折算后的预期收益率，便于和不同周期结果横向比较。',
+        tooltip: isEn
+          ? 'Annualized expected return of the current window for horizontal comparison across different cycles.'
+          : '把当前统计区间的收益按全年口径折算后的预期收益率，便于和不同周期结果横向比较。',
         sseValue: sseMetrics ? formatSignedPercent(sseMetrics.annualizedReturn) : undefined,
         sseValueClass: sseMetrics ? getReturnColorClass(sseMetrics.annualizedReturn) : undefined,
       },
       {
-        label: '年化波动',
+        label: isEn ? 'Annual Vol' : '年化波动',
         value: formatPercent(klineMetrics.annualizedVolatility),
-        tooltip: '收益率波动幅度按全年口径折算后的结果。数值越高，代表组合净值起伏越大。',
+        tooltip: isEn
+          ? 'Annualized volatility of returns. Higher values represent larger swings in NAV.'
+          : '收益率波动幅度按全年口径折算后的结果。数值越高，代表组合净值起伏越大。',
         sseValue: sseMetrics ? formatPercent(sseMetrics.annualizedVolatility) : undefined,
       },
       {
         label: 'Sharpe',
         value: formatMetricNumber(klineMetrics.sharpeRatio),
-        tooltip: '单位波动所获得的超额收益能力。一般越高越好，表示风险调整后的收益更优。',
+        tooltip: isEn
+          ? 'Risk-adjusted return per unit of total risk. Higher is generally better.'
+          : '单位波动所获得的超额收益能力。一般越高越好，表示风险调整后的收益更优。',
         sseValue: sseMetrics ? formatMetricNumber(sseMetrics.sharpeRatio) : undefined,
       },
       {
         label: 'Calmar',
         value: formatMetricNumber(klineMetrics.calmarRatio),
-        tooltip: '年化收益与最大回撤的比值，用来衡量收益相对回撤的效率。一般越高越好。',
+        tooltip: isEn
+          ? 'Ratio of annualized return to maximum drawdown. Higher is generally better.'
+          : '年化收益与最大回撤的比值，用来衡量收益相对回撤的效率。一般越高越好。',
         sseValue: sseMetrics ? formatMetricNumber(sseMetrics.calmarRatio) : undefined,
       },
       {
-        label: '区间收益',
+        label: isEn ? 'Total Return' : '区间收益',
         value: formatSignedPercent(klineMetrics.totalReturn),
         valueClass: getReturnColorClass(klineMetrics.totalReturn),
-        tooltip: '从统计起点到终点的累计收益率，直接反映当前观察区间内整体赚亏。',
+        tooltip: isEn
+          ? 'Cumulative return from start date to end date, directly reflecting total gain or loss.'
+          : '从统计起点到终点的累计收益率，直接反映当前观察区间内整体赚亏。',
         sseValue: sseMetrics ? formatSignedPercent(sseMetrics.totalReturn) : undefined,
         sseValueClass: sseMetrics ? getReturnColorClass(sseMetrics.totalReturn) : undefined,
       },
       {
-        label: '最大回撤',
+        label: isEn ? 'Max Drawdown' : '最大回撤',
         value: formatSignedPercent(klineMetrics.maxDrawdown),
         valueClass: getReturnColorClass(klineMetrics.maxDrawdown),
-        tooltip: '区间内从阶段高点回落到随后低点的最大跌幅，用来衡量最差回撤风险。',
+        tooltip: isEn
+          ? 'Maximum peak-to-trough decline over the period, measuring downside risk.'
+          : '区间内从阶段高点回落到随后低点的最大跌幅，用来衡量最差回撤风险。',
         subtitle: computedDrawdown && computedDrawdown.maxDrawdown < 0
           ? `${computedDrawdown.peakDate} ~ ${computedDrawdown.troughDate}`
           : undefined,
@@ -651,18 +671,23 @@ export function PortfolioTrend({
         sseValueClass: sseMetrics ? getReturnColorClass(sseMetrics.maxDrawdown) : undefined,
       },
       {
-        label: '正收益日',
+        label: isEn ? 'Positive Days' : '正收益日',
         value: formatPercent(klineMetrics.positiveDayRatio, 1),
-        tooltip: '统计区间内收益为正的交易日占比，反映组合日度上涨天数的比例。',
+        tooltip: isEn
+          ? 'Percentage of trading days with positive returns in the observed period.'
+          : '统计区间内收益为正的交易日占比，反映组合日度上涨天数的比例。',
         sseValue: sseMetrics ? formatPercent(sseMetrics.positiveDayRatio, 1) : undefined,
       },
     ];
 
     if (!showAllMetrics) {
-      return allItems.filter(item => item.label === '区间收益' || item.label === '最大回撤');
+      return allItems.filter(item =>
+        item.label === (isEn ? 'Total Return' : '区间收益') ||
+        item.label === (isEn ? 'Max Drawdown' : '最大回撤')
+      );
     }
     return allItems;
-  }, [formatMetricNumber, formatPercent, formatSignedPercent, klineMetrics, computedDrawdown, sseMetrics, showAllMetrics]);
+  }, [formatMetricNumber, formatPercent, formatSignedPercent, klineMetrics, computedDrawdown, sseMetrics, showAllMetrics, isEn]);
 
   const isMergedOverview = latestTrendValue !== undefined;
   const estimatedCost = (totalHoldingsValue ?? 0) - (totalProfitLoss ?? 0);
@@ -672,7 +697,7 @@ export function PortfolioTrend({
       : null;
   const clampedRatio = positionRatio !== undefined ? Math.min(100, Math.max(0, positionRatio)) : 0;
   const cashRatio = Math.max(0, 100 - clampedRatio);
-  const batteryConfig = getBatteryTheme(clampedRatio, theme);
+  const batteryConfig = getBatteryTheme(clampedRatio, theme, isEn);
 
   const dateCapsuleBg =
     theme === 'dark'
@@ -699,10 +724,12 @@ export function PortfolioTrend({
                 {/* 第 1 行：左侧“总资产”微标签 + 右侧日期微胶囊与紧凑快捷操作 */}
                 <div className="flex items-center justify-between gap-1.5">
                   <div className="flex items-center gap-1 min-w-0">
-                    <span className="text-xs font-semibold uppercase tracking-wider opacity-60">总资产</span>
+                    <span className="text-xs font-semibold uppercase tracking-wider opacity-60">
+                      {isEn ? 'Total Assets' : '总资产'}
+                    </span>
                     <InfoTooltip
                       theme={theme}
-                      content="优先使用最新一条总资产趋势数据，表示组合在当前时点的总资产估值。"
+                      content={isEn ? 'Uses latest total asset trend point to reflect current portfolio valuation.' : '优先使用最新一条总资产趋势数据，表示组合在当前时点的总资产估值。'}
                       align="left"
                     />
                   </div>
@@ -719,15 +746,15 @@ export function PortfolioTrend({
                           value={dateRange.startDate}
                           onChange={(e) => onDateRangeChange({ ...dateRange, startDate: e.target.value })}
                           className={`bg-transparent border-0 p-0 text-[10px] font-medium font-mono focus:ring-0 focus:outline-none cursor-pointer w-[68px] text-center ${dateInputStyle}`}
-                          title="开始日期"
+                          title={isEn ? 'Start Date' : '开始日期'}
                         />
-                        <span className="opacity-40 text-[9px] select-none">~</span>
+                        <span className="opacity-40 text-[9px] select-none">{isEn ? 'to' : '~'}</span>
                         <input
                           type="date"
                           value={dateRange.endDate}
                           onChange={(e) => onDateRangeChange({ ...dateRange, endDate: e.target.value })}
                           className={`bg-transparent border-0 p-0 text-[10px] font-medium font-mono focus:ring-0 focus:outline-none cursor-pointer w-[68px] text-center ${dateInputStyle}`}
-                          title="结束日期"
+                          title={isEn ? 'End Date' : '结束日期'}
                         />
                       </div>
                     )}
@@ -738,7 +765,7 @@ export function PortfolioTrend({
                         type="button"
                         onClick={onRefresh}
                         className={`p-1 rounded-lg border text-xs btn-tactile ${themes[theme].secondary} border-slate-200/80 dark:border-gray-800 hover:opacity-90 active:scale-95 transition-all shadow-2xs hide-in-screenshot`}
-                        title="刷新数据"
+                        title={isEn ? 'Refresh Data' : '刷新数据'}
                       >
                         <RefreshCw className="w-3 h-3" />
                       </button>
@@ -750,7 +777,7 @@ export function PortfolioTrend({
                         type="button"
                         onClick={onScreenshot}
                         className={`p-1 rounded-lg border text-xs btn-tactile ${themes[theme].secondary} border-slate-200/80 dark:border-gray-800 hover:opacity-90 active:scale-95 transition-all shadow-2xs hide-in-screenshot`}
-                        title="分享截图"
+                        title={isEn ? 'Share Screenshot' : '分享截图'}
                       >
                         <Camera className="w-3 h-3" />
                       </button>
@@ -762,8 +789,8 @@ export function PortfolioTrend({
                       type="button"
                       onClick={() => setShowControls((value) => !value)}
                       className={`inline-flex shrink-0 items-center justify-center rounded-lg border p-1 ${themes[theme].secondary} border-slate-200/80 dark:border-gray-800`}
-                      aria-label="图表设置"
-                      title="图表设置"
+                      aria-label={isEn ? 'Chart Settings' : '图表设置'}
+                      title={isEn ? 'Chart Settings' : '图表设置'}
                     >
                       <SlidersHorizontal className="w-3 h-3" />
                     </button>
@@ -801,7 +828,9 @@ export function PortfolioTrend({
                           {pnlPercentage.toFixed(2)}%)
                         </span>
                       )}
-                      <span className="text-[9px] font-normal opacity-70 ml-0.5">浮动盈亏</span>
+                      <span className="text-[9px] font-normal opacity-70 ml-0.5">
+                        {isEn ? 'Floating PnL' : '浮动盈亏'}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -810,7 +839,9 @@ export function PortfolioTrend({
                 <div className="pt-2 border-t border-dashed border-slate-200/80 dark:border-gray-800 grid grid-cols-3 gap-1.5 text-left">
                   {/* 持仓市值 */}
                   <div className="min-w-0 pr-1">
-                    <div className="text-[10px] text-slate-500 dark:text-gray-400 truncate">持仓市值</div>
+                    <div className="text-[10px] text-slate-500 dark:text-gray-400 truncate">
+                      {isEn ? 'Holdings' : '持仓市值'}
+                    </div>
                     <div
                       className={`text-xs font-bold font-mono truncate mt-0.5 ${themes[theme].text}`}
                       title={totalHoldingsValue !== undefined ? formatCurrency(totalHoldingsValue, currencyConfig) : '--'}
@@ -818,13 +849,15 @@ export function PortfolioTrend({
                       {totalHoldingsValue !== undefined ? formatCurrency(totalHoldingsValue, currencyConfig) : '--'}
                     </div>
                     <div className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-medium">
-                      {clampedRatio.toFixed(1)}% 仓位
+                      {clampedRatio.toFixed(1)}% {isEn ? 'Pos' : '仓位'}
                     </div>
                   </div>
 
                   {/* 可用现金 */}
                   <div className="min-w-0 border-l border-slate-200/60 dark:border-gray-800 pl-1.5 pr-1">
-                    <div className="text-[10px] text-slate-500 dark:text-gray-400 truncate">可用现金</div>
+                    <div className="text-[10px] text-slate-500 dark:text-gray-400 truncate">
+                      {isEn ? 'Cash' : '可用现金'}
+                    </div>
                     <div
                       className={`text-xs font-bold font-mono truncate mt-0.5 ${themes[theme].text}`}
                       title={remainingCash !== undefined ? formatCurrency(remainingCash, currencyConfig) : '--'}
@@ -832,13 +865,15 @@ export function PortfolioTrend({
                       {remainingCash !== undefined ? formatCurrency(remainingCash, currencyConfig) : '--'}
                     </div>
                     <div className="text-[10px] font-mono text-blue-600 dark:text-blue-400 font-medium">
-                      {cashRatio.toFixed(1)}% 现金
+                      {cashRatio.toFixed(1)}% {isEn ? 'Cash' : '现金'}
                     </div>
                   </div>
 
                   {/* 仓位水平 */}
                   <div className="min-w-0 border-l border-slate-200/60 dark:border-gray-800 pl-1.5">
-                    <div className="text-[10px] text-slate-500 dark:text-gray-400 truncate">仓位水平</div>
+                    <div className="text-[10px] text-slate-500 dark:text-gray-400 truncate">
+                      {isEn ? 'Position' : '仓位水平'}
+                    </div>
                     <div className="flex items-center gap-1 mt-1">
                       <SvgBatteryGauge ratio={clampedRatio} config={batteryConfig} theme={theme} />
                       <span className={`text-[11px] font-semibold ${batteryConfig.textClass}`}>
@@ -856,10 +891,12 @@ export function PortfolioTrend({
                   {/* 左侧：总资产与浮动盈亏 */}
                   <div className="flex items-baseline flex-wrap gap-x-3 gap-y-1">
                     <div className="flex items-center gap-1.5 mr-1">
-                      <span className="text-xs font-semibold uppercase tracking-wider opacity-60">总资产</span>
+                      <span className="text-xs font-semibold uppercase tracking-wider opacity-60">
+                        {isEn ? 'Total Assets' : '总资产'}
+                      </span>
                       <InfoTooltip
                         theme={theme}
-                        content="优先使用最新一条总资产趋势数据，表示组合在当前时点的总资产估值。"
+                        content={isEn ? 'Uses latest total asset trend point to reflect current portfolio valuation.' : '优先使用最新一条总资产趋势数据，表示组合在当前时点的总资产估值。'}
                         align="left"
                       />
                     </div>
@@ -892,7 +929,9 @@ export function PortfolioTrend({
                             {pnlPercentage.toFixed(2)}%)
                           </span>
                         )}
-                        <span className="text-[10px] font-normal opacity-70 ml-0.5">浮动盈亏</span>
+                        <span className="text-[10px] font-normal opacity-70 ml-0.5">
+                          {isEn ? 'Floating PnL' : '浮动盈亏'}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -908,7 +947,7 @@ export function PortfolioTrend({
                           viewMode === 'kline' ? themes[theme].primary : 'opacity-70 hover:opacity-100'
                         } ${klineData.length === 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
                       >
-                        K 线
+                        {isEn ? 'K-Line' : 'K 线'}
                       </button>
                       <button
                         onClick={() => updateTrendParams({ trendView: 'absolute' })}
@@ -916,7 +955,7 @@ export function PortfolioTrend({
                           viewMode === 'absolute' ? themes[theme].primary : 'opacity-70 hover:opacity-100'
                         }`}
                       >
-                        绝对值
+                        {isEn ? 'Value' : '绝对值'}
                       </button>
                       <button
                         onClick={() => updateTrendParams({ trendView: 'return' })}
@@ -924,7 +963,7 @@ export function PortfolioTrend({
                           viewMode === 'return' ? themes[theme].primary : 'opacity-70 hover:opacity-100'
                         }`}
                       >
-                        收益率
+                        {isEn ? 'Return' : '收益率'}
                       </button>
                     </div>
 
@@ -939,15 +978,15 @@ export function PortfolioTrend({
                           value={dateRange.startDate}
                           onChange={(e) => onDateRangeChange({ ...dateRange, startDate: e.target.value })}
                           className={`bg-transparent border-0 p-0 text-xs font-medium font-mono focus:ring-0 focus:outline-none cursor-pointer ${dateInputStyle}`}
-                          title="开始日期"
+                          title={isEn ? 'Start Date' : '开始日期'}
                         />
-                        <span className="opacity-40 text-xs select-none">至</span>
+                        <span className="opacity-40 text-xs select-none">{isEn ? 'to' : '至'}</span>
                         <input
                           type="date"
                           value={dateRange.endDate}
                           onChange={(e) => onDateRangeChange({ ...dateRange, endDate: e.target.value })}
                           className={`bg-transparent border-0 p-0 text-xs font-medium font-mono focus:ring-0 focus:outline-none cursor-pointer ${dateInputStyle}`}
-                          title="结束日期"
+                          title={isEn ? 'End Date' : '结束日期'}
                         />
                       </div>
                     )}
@@ -960,7 +999,7 @@ export function PortfolioTrend({
                             type="button"
                             onClick={onRefresh}
                             className={`p-1.5 rounded-xl border text-xs btn-tactile ${themes[theme].secondary} border-slate-200/80 dark:border-gray-800 hover:opacity-90 active:scale-95 transition-all shadow-2xs hide-in-screenshot`}
-                            title="刷新数据"
+                            title={isEn ? 'Refresh Data' : '刷新数据'}
                           >
                             <RefreshCw className="w-3.5 h-3.5" />
                           </button>
@@ -970,10 +1009,10 @@ export function PortfolioTrend({
                             type="button"
                             onClick={onScreenshot}
                             className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl border text-xs btn-tactile ${themes[theme].secondary} border-slate-200/80 dark:border-gray-800 hover:opacity-90 active:scale-95 transition-all shadow-2xs hide-in-screenshot`}
-                            title="分享截图"
+                            title={isEn ? 'Share Screenshot' : '分享截图'}
                           >
                             <Camera className="w-3.5 h-3.5" />
-                            <span>截图</span>
+                            <span>{isEn ? 'Screenshot' : '截图'}</span>
                           </button>
                         )}
                       </div>
@@ -987,7 +1026,9 @@ export function PortfolioTrend({
                   <div className="flex items-center gap-x-4">
                     {totalHoldingsValue !== undefined && (
                       <div className="flex items-center gap-1.5">
-                        <span className="text-slate-500 dark:text-gray-400">持仓市值</span>
+                        <span className="text-slate-500 dark:text-gray-400">
+                          {isEn ? 'Holdings' : '持仓市值'}
+                        </span>
                         <span className={`font-semibold font-mono ${themes[theme].text}`}>
                           {formatCurrency(totalHoldingsValue, currencyConfig)}
                         </span>
@@ -1001,7 +1042,9 @@ export function PortfolioTrend({
                       <>
                         <span className="text-zinc-300 dark:text-zinc-700 select-none">|</span>
                         <div className="flex items-center gap-1.5">
-                          <span className="text-slate-500 dark:text-gray-400">可用现金</span>
+                          <span className="text-slate-500 dark:text-gray-400">
+                            {isEn ? 'Cash' : '可用现金'}
+                          </span>
                           <span className={`font-semibold font-mono ${themes[theme].text}`}>
                             {formatCurrency(remainingCash, currencyConfig)}
                           </span>
@@ -1016,7 +1059,9 @@ export function PortfolioTrend({
                       <>
                         <span className="text-zinc-300 dark:text-zinc-700 select-none">|</span>
                         <div className="flex items-center gap-1.5">
-                          <span className="text-slate-500 dark:text-gray-400">仓位水平</span>
+                          <span className="text-slate-500 dark:text-gray-400">
+                            {isEn ? 'Position' : '仓位水平'}
+                          </span>
                           <SvgBatteryGauge ratio={clampedRatio} config={batteryConfig} theme={theme} />
                           <span className={`text-[11px] font-semibold ${batteryConfig.textClass}`}>
                             {batteryConfig.label}
@@ -1036,7 +1081,7 @@ export function PortfolioTrend({
                             klineSource === 'asset' ? themes[theme].primary : 'opacity-70 hover:opacity-100'
                           }`}
                         >
-                          总资产
+                          {isEn ? 'Total Assets' : '总资产'}
                         </button>
                         <button
                           onClick={() => updateTrendParams({ trendSource: 'position' })}
@@ -1044,7 +1089,7 @@ export function PortfolioTrend({
                             klineSource === 'position' ? themes[theme].primary : 'opacity-70 hover:opacity-100'
                           }`}
                         >
-                          持仓市值
+                          {isEn ? 'Holdings' : '持仓市值'}
                         </button>
                         {klineSource === 'asset' && (
                           <button
@@ -1053,7 +1098,7 @@ export function PortfolioTrend({
                               klinePriceMode === 'adjusted' ? themes[theme].primary : 'opacity-70 hover:opacity-100'
                             }`}
                           >
-                            复权
+                            {isEn ? 'Adjusted' : '复权'}
                           </button>
                         )}
                       </div>
@@ -1072,7 +1117,7 @@ export function PortfolioTrend({
                         ) : (
                           <>
                             <BarChart3 className="w-3 h-3" />
-                            上证对比
+                            {isEn ? 'Compare SSE' : '上证对比'}
                           </>
                         )}
                       </button>
@@ -1094,7 +1139,7 @@ export function PortfolioTrend({
                   </span>
                   {!isCloudflareEnv && hasKlineFallback && (
                     <span className={`${themes[theme].text} opacity-60`}>
-                      当前账户暂无 K 线接口数据，已自动回退到折线趋势视图。
+                      {isEn ? 'No K-line API data available, fallen back to line trend view.' : '当前账户暂无 K 线接口数据，已自动回退到折线趋势视图。'}
                     </span>
                   )}
                 </div>
@@ -1110,7 +1155,7 @@ export function PortfolioTrend({
                       viewMode === 'kline' ? themes[theme].primary : 'opacity-70 hover:opacity-100'
                     } ${klineData.length === 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
                   >
-                    K 线
+                    {isEn ? 'K-Line' : 'K 线'}
                   </button>
                   <button
                     onClick={() => updateTrendParams({ trendView: 'absolute' })}
@@ -1118,7 +1163,7 @@ export function PortfolioTrend({
                       viewMode === 'absolute' ? themes[theme].primary : 'opacity-70 hover:opacity-100'
                     }`}
                   >
-                    绝对值
+                    {isEn ? 'Value' : '绝对值'}
                   </button>
                   <button
                     onClick={() => updateTrendParams({ trendView: 'return' })}
@@ -1126,7 +1171,7 @@ export function PortfolioTrend({
                       viewMode === 'return' ? themes[theme].primary : 'opacity-70 hover:opacity-100'
                     }`}
                   >
-                    收益率
+                    {isEn ? 'Return' : '收益率'}
                   </button>
                 </div>
 
@@ -1138,7 +1183,7 @@ export function PortfolioTrend({
                         klineSource === 'asset' ? themes[theme].primary : 'opacity-70 hover:opacity-100'
                       }`}
                     >
-                      总资产
+                      {isEn ? 'Total Assets' : '总资产'}
                     </button>
                     <button
                       onClick={() => updateTrendParams({ trendSource: 'position' })}
@@ -1146,7 +1191,7 @@ export function PortfolioTrend({
                         klineSource === 'position' ? themes[theme].primary : 'opacity-70 hover:opacity-100'
                       }`}
                     >
-                      持仓市值
+                      {isEn ? 'Holdings' : '持仓市值'}
                     </button>
                     {klineSource === 'asset' && (
                       <button
@@ -1155,7 +1200,7 @@ export function PortfolioTrend({
                           klinePriceMode === 'adjusted' ? themes[theme].primary : 'opacity-70 hover:opacity-100'
                         }`}
                       >
-                        复权
+                        {isEn ? 'Adjusted' : '复权'}
                       </button>
                     )}
                   </div>
@@ -1174,7 +1219,7 @@ export function PortfolioTrend({
                     ) : (
                       <>
                         <BarChart3 className="w-3.5 h-3.5" />
-                        上证对比
+                        {isEn ? 'Compare SSE' : '上证对比'}
                       </>
                     )}
                   </button>
@@ -1187,8 +1232,8 @@ export function PortfolioTrend({
                 type="button"
                 onClick={() => setShowControls((value) => !value)}
                 className={`md:hidden inline-flex shrink-0 items-center justify-center rounded-full border p-2 ${themes[theme].secondary} border-transparent`}
-                aria-label="图表设置"
-                title="图表设置"
+                aria-label={isEn ? 'Chart Settings' : '图表设置'}
+                title={isEn ? 'Chart Settings' : '图表设置'}
               >
                 <SlidersHorizontal className="h-4 w-4" />
               </button>
@@ -1203,7 +1248,7 @@ export function PortfolioTrend({
               <div className={toolbarPanelClass}>
                 <div className="space-y-3">
                   <div className="space-y-1.5">
-                    <div className={toolbarLabelClass}>图表类型</div>
+                    <div className={toolbarLabelClass}>{isEn ? 'Chart Type' : '图表类型'}</div>
                     <div className={segmentedGroupClass}>
                       <button
                         onClick={() => updateTrendParams({ trendView: 'kline' })}
@@ -1212,7 +1257,7 @@ export function PortfolioTrend({
                           viewMode === 'kline' ? themes[theme].primary : themes[theme].secondary
                         } ${klineData.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
-                        K 线
+                        {isEn ? 'K-Line' : 'K 线'}
                       </button>
                       <button
                         onClick={() => updateTrendParams({ trendView: 'absolute' })}
@@ -1220,7 +1265,7 @@ export function PortfolioTrend({
                           viewMode === 'absolute' ? themes[theme].primary : themes[theme].secondary
                         }`}
                       >
-                        绝对值
+                        {isEn ? 'Value' : '绝对值'}
                       </button>
                       <button
                         onClick={() => updateTrendParams({ trendView: 'return' })}
@@ -1228,7 +1273,7 @@ export function PortfolioTrend({
                           viewMode === 'return' ? themes[theme].primary : themes[theme].secondary
                         }`}
                       >
-                        收益率
+                        {isEn ? 'Return' : '收益率'}
                       </button>
                     </div>
                   </div>
@@ -1243,7 +1288,7 @@ export function PortfolioTrend({
                             klineSource === 'asset' ? themes[theme].primary : themes[theme].secondary
                           }`}
                         >
-                          总资产
+                          {isEn ? 'Total Assets' : '总资产'}
                         </button>
                         <button
                           onClick={() => updateTrendParams({ trendSource: 'position' })}
@@ -1251,7 +1296,7 @@ export function PortfolioTrend({
                             klineSource === 'position' ? themes[theme].primary : themes[theme].secondary
                           }`}
                         >
-                          持仓市值
+                          {isEn ? 'Holdings' : '持仓市值'}
                         </button>
                         {klineSource === 'asset' && (
                           <button
@@ -1260,7 +1305,7 @@ export function PortfolioTrend({
                               klinePriceMode === 'adjusted' ? themes[theme].primary : themes[theme].secondary
                             }`}
                           >
-                            复权
+                            {isEn ? 'Adjusted' : '复权'}
                           </button>
                         )}
                       </div>
@@ -1279,19 +1324,19 @@ export function PortfolioTrend({
                             ) : (
                               <>
                                 <BarChart3 className="w-4 h-4 mr-1" />
-                                上证对比
+                                {isEn ? 'Compare SSE' : '上证对比'}
                               </>
                             )}
                           </button>
                         </div>
                       ) : (
                         <div className={`rounded-xl border border-dashed ${themes[theme].border} px-3 py-2 text-sm ${themes[theme].text} opacity-60`}>
-                          总资产累计收益走势
+                          {isEn ? 'Total assets cumulative return trend' : '总资产累计收益走势'}
                         </div>
                       )
                     ) : (
                       <div className={`rounded-xl border border-dashed ${themes[theme].border} px-3 py-2 text-sm ${themes[theme].text} opacity-60`}>
-                        显示总资产与持仓市值双线
+                        {isEn ? 'Display dual lines of total assets and holdings' : '显示总资产与持仓市值双线'}
                       </div>
                     )}
                   </div>
@@ -1322,22 +1367,22 @@ export function PortfolioTrend({
               <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-1">
                 <div className="flex items-center gap-1.5">
                   <span className={`text-sm font-semibold ${themes[theme].text} whitespace-nowrap`}>
-                    <span className="hidden sm:inline">组合表现指标</span>
-                    <span className="inline sm:hidden">表现</span>
+                    <span className="hidden sm:inline">{isEn ? 'Portfolio Metrics' : '组合表现指标'}</span>
+                    <span className="inline sm:hidden">{isEn ? 'Metrics' : '表现'}</span>
                   </span>
                   <button
                     type="button"
                     onClick={() => setShowAllMetrics(!showAllMetrics)}
                     className="inline-flex items-center gap-0.5 text-sky-600 dark:text-sky-400 hover:underline text-[11px] sm:text-xs font-medium select-none whitespace-nowrap"
                   >
-                    <span className="hidden sm:inline">{showAllMetrics ? "收起指标" : "展开全部"}</span>
-                    <span className="inline sm:hidden">{showAllMetrics ? "收起" : "展开"}</span>
+                    <span className="hidden sm:inline">{showAllMetrics ? (isEn ? "Collapse" : "收起指标") : (isEn ? "Expand All" : "展开全部")}</span>
+                    <span className="inline sm:hidden">{showAllMetrics ? (isEn ? "Collapse" : "收起") : (isEn ? "Expand" : "展开")}</span>
                     {showAllMetrics ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                   </button>
                   <InfoTooltip
                     theme={theme}
                     align="left"
-                    content="这些指标基于当前 K 线统计窗口和有效交易日计算，用来帮助你从收益、波动和回撤几个角度评估组合表现。"
+                    content={isEn ? 'These metrics evaluate portfolio performance from return, volatility, and drawdown based on valid trading days.' : '这些指标基于当前 K 线统计窗口和有效交易日计算，用来帮助你从收益、波动和回撤几个角度评估组合表现。'}
                   />
                 </div>
                 
@@ -1345,22 +1390,22 @@ export function PortfolioTrend({
                   <>
                     <span className="text-zinc-300 dark:text-zinc-700">|</span>
                     <span className={`${themes[theme].text} opacity-70 text-[11px] sm:text-xs whitespace-nowrap`}>
-                      <span className="hidden sm:inline">区间收益 </span>
-                      <span className="inline sm:hidden">收益 </span>
+                      <span className="hidden sm:inline">{isEn ? 'Total Return ' : '区间收益 '}</span>
+                      <span className="inline sm:hidden">{isEn ? 'Return ' : '收益 '}</span>
                       <span className={`font-bold ${getReturnColorClass(klineMetrics.totalReturn)}`}>
                         {formatSignedPercent(klineMetrics.totalReturn)}
                       </span>
                     </span>
                     <span className="text-zinc-300 dark:text-zinc-700">|</span>
                     <span className={`${themes[theme].text} opacity-70 text-[11px] sm:text-xs whitespace-nowrap`}>
-                      <span className="hidden sm:inline">最大回撤 </span>
-                      <span className="inline sm:hidden">回撤 </span>
+                      <span className="hidden sm:inline">{isEn ? 'Max Drawdown ' : '最大回撤 '}</span>
+                      <span className="inline sm:hidden">{isEn ? 'Drawdown ' : '回撤 '}</span>
                       <span className={`font-bold ${getReturnColorClass(klineMetrics.maxDrawdown)}`}>
                         {formatSignedPercent(klineMetrics.maxDrawdown)}
                       </span>
                     </span>
                     <span className={`text-[10px] ${themes[theme].text} opacity-40 hidden md:inline`}>
-                      ({klineMetrics.calculationStartDate} ~ {klineMetrics.calculationEndDate} · {klineMetrics.tradingDays} 交易日)
+                      ({klineMetrics.calculationStartDate} ~ {klineMetrics.calculationEndDate} · {klineMetrics.tradingDays} {isEn ? 'trading days' : '交易日'})
                     </span>
                   </>
                 )}
@@ -1370,16 +1415,16 @@ export function PortfolioTrend({
                 <div className={`text-[11px] ${themes[theme].text} opacity-60`}>
                   {klineMetrics.calculationStartDate} ~ {klineMetrics.calculationEndDate}
                   {' · '}
-                  {klineMetrics.calculationDays} 天
+                  {klineMetrics.calculationDays} {isEn ? 'days' : '天'}
                   {' · '}
-                  {klineMetrics.tradingDays} 交易日
+                  {klineMetrics.tradingDays} {isEn ? 'trading days' : '交易日'}
                   {' · '}
-                  {klineMetrics.observations} 点
+                  {klineMetrics.observations} {isEn ? 'points' : '点'}
                   {(klineMetrics.calculationStartDate !== klineMetrics.startDate ||
                     klineMetrics.calculationEndDate !== klineMetrics.endDate) && (
                     <>
                       {' · '}
-                      有效区间 {klineMetrics.startDate} ~ {klineMetrics.endDate}
+                      {isEn ? 'Range: ' : '有效区间 '}{klineMetrics.startDate} ~ {klineMetrics.endDate}
                     </>
                   )}
                   {(klineMetrics.annualizedCalculationStartDate !== klineMetrics.calculationStartDate ||
@@ -1387,7 +1432,7 @@ export function PortfolioTrend({
                     klineMetrics.annualizedCalculationDays !== klineMetrics.calculationDays) && (
                     <>
                       {' · '}
-                      年化窗口 {klineMetrics.annualizedCalculationStartDate} ~ {klineMetrics.annualizedCalculationEndDate}
+                      {isEn ? 'Annualized: ' : '年化窗口 '}{klineMetrics.annualizedCalculationStartDate} ~ {klineMetrics.annualizedCalculationEndDate}
                     </>
                   )}
                 </div>
@@ -1412,11 +1457,11 @@ export function PortfolioTrend({
                       {item.sseValue !== undefined ? (
                         <div className="mt-2 space-y-1">
                           <div className="flex items-baseline justify-between gap-1.5">
-                            <span className={`text-[10px] ${themes[theme].text} opacity-50`}>组合</span>
+                            <span className={`text-[10px] ${themes[theme].text} opacity-50`}>{isEn ? 'Port' : '组合'}</span>
                             <span className={`break-words text-sm font-semibold ${item.valueClass || themes[theme].text}`}>{item.value}</span>
                           </div>
                           <div className="flex items-baseline justify-between gap-1.5 border-t border-dashed border-gray-500/10 pt-1">
-                            <span className={`text-[10px] ${themes[theme].text} opacity-50`}>上证</span>
+                            <span className={`text-[10px] ${themes[theme].text} opacity-50`}>{isEn ? 'SSE' : '上证'}</span>
                             <span className={`break-words text-xs font-semibold ${item.sseValueClass || themes[theme].text}`}>{item.sseValue}</span>
                           </div>
                         </div>

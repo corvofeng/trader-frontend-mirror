@@ -14,6 +14,7 @@ export type JournalTabVisibilityContext = {
   canViewTradePlans?: boolean;
   canViewHistory?: boolean;
   canViewOrders?: boolean;
+  isEn?: boolean;
 };
 
 export type JournalTab = 'portfolio' | 'trades' | 'history' | 'orders';
@@ -451,8 +452,26 @@ export const JOURNAL_TAB_DEFINITIONS: readonly JournalTabDefinition[] = [
   },
 ] as const;
 
+const getTabName = (id: JournalTab, isEn: boolean) => {
+  switch (id) {
+    case 'portfolio':
+      return isEn ? 'Portfolio' : '投资组合';
+    case 'trades':
+      return isEn ? 'Trade Plans' : '交易计划';
+    case 'history':
+      return isEn ? 'History' : '历史流水';
+    case 'orders':
+      return isEn ? 'Orders' : '当日订单';
+    default:
+      return id;
+  }
+};
+
 export const getJournalTabDefinitions = (context: JournalTabVisibilityContext) =>
-  JOURNAL_TAB_DEFINITIONS.filter((tab) => tab.isVisible(context));
+  JOURNAL_TAB_DEFINITIONS.filter((tab) => tab.isVisible(context)).map((tab) => ({
+    ...tab,
+    name: getTabName(tab.id, Boolean(context.isEn)),
+  }));
 
 export const getJournalTabIds = (context: JournalTabVisibilityContext) =>
   getJournalTabDefinitions(context).map((tab) => tab.id) as readonly JournalTab[];
