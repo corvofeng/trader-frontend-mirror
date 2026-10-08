@@ -1,6 +1,6 @@
-export const OPTIONS_TABS = ['data', 'portfolio', 'analysis', 'trading', 'management', 'whitelist', 'expiry-risk', 'risk', 'market-state'] as const;
+export const OPTIONS_TABS = ['portfolio', 'data', 'market-state', 'analysis', 'trading', 'management', 'whitelist', 'expiry-risk', 'risk'] as const;
 export type OptionsTab = (typeof OPTIONS_TABS)[number];
-export const OPTIONS_DEFAULT_TAB: OptionsTab = 'data';
+export const OPTIONS_DEFAULT_TAB: OptionsTab = 'portfolio';
 
 export const ADMIN_TABS = ['operations', 'calendar', 'analysis', 'history', 'tasks', 'notices', 'accounts', 'upload', 'cash-flows'] as const;
 export type AdminTab = (typeof ADMIN_TABS)[number];

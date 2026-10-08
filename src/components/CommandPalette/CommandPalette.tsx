@@ -131,16 +131,16 @@ export function CommandPalette({
       {
         id: 'nav-journal',
         category: '导航',
-        title: '交易日志 Journal',
+        title: '投资组合 Portfolio',
         subtitle: '账户总览、持仓、流水与分析',
         icon: <FileText className="w-4 h-4 text-emerald-500" />,
-        keywords: ['journal', 'rz', 'rizhi', '持仓', '流水', '资产'],
+        keywords: ['journal', 'portfolio', 'tz', 'touzi', '持仓', '流水', '资产'],
         action: () => {
           navigate('/journal');
           onClose();
         },
       },
-      ...(!isCloudflareEnv
+      ...(!isCloudflareEnv && user
         ? [
             {
               id: 'nav-options',

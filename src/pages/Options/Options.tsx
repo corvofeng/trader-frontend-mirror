@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { logger } from '../../shared/utils/logger';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { BarChart2, TrendingUp, Briefcase, Calculator, BookOpen, Compass } from 'lucide-react';
@@ -33,7 +33,7 @@ function OptionsInner({ theme }: OptionsProps) {
   const [activeTab, setActiveTab] = useState<OptionsTab>(() => {
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab') as OptionsTab;
-    return tab && ['data', 'portfolio', 'trading', 'management', 'analysis'].includes(tab) ? tab : 'data';
+    return tab && ['portfolio', 'data', 'trading', 'management', 'analysis', 'market-state'].includes(tab) ? tab : 'portfolio';
   });
 
   const [availableSymbols, setAvailableSymbols] = useState<string[]>([]);
@@ -170,9 +170,9 @@ function OptionsInner({ theme }: OptionsProps) {
   }, [fetchOptionsData, selectedSymbol, triggerWsNow, wsCountdownEnabled]);
 
   const tabs = [
+    { id: 'portfolio' as OptionsTab, name: 'Portfolio', icon: Briefcase },
     { id: 'data' as OptionsTab, name: 'Options Data', icon: BarChart2 },
     { id: 'market-state' as OptionsTab, name: 'Market State', icon: Compass },
-    { id: 'portfolio' as OptionsTab, name: 'Portfolio', icon: Briefcase },
     { id: 'analysis' as OptionsTab, name: 'Analysis', icon: BookOpen },
     { id: 'trading' as OptionsTab, name: 'Trade Plans', icon: TrendingUp },
     { id: 'management' as OptionsTab, name: 'Portfolio Management', icon: Calculator },

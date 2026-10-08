@@ -393,9 +393,9 @@ function OptionsContent({ theme }: OptionsProps) {
   );
 
   const tabs = [
+    { id: 'portfolio' as OptionsTab, name: 'Portfolio', icon: Briefcase },
     { id: 'data' as OptionsTab, name: 'Market', icon: BarChart2 },
     { id: 'market-state' as OptionsTab, name: '市场状态', icon: Compass },
-    { id: 'portfolio' as OptionsTab, name: 'Portfolio', icon: Briefcase },
     { id: 'analysis' as OptionsTab, name: 'Analysis', icon: BookOpen },
     { id: 'trading' as OptionsTab, name: 'Plans', icon: TrendingUp },
     { id: 'management' as OptionsTab, name: 'Manage', icon: Calculator },
