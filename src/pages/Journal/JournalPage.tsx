@@ -167,6 +167,16 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
   }, [requestedAccountAlias, selectedAccountId]);
 
   useEffect(() => {
+    if (isCloudflareEnv) {
+      const params = new URLSearchParams(location.search.startsWith('?') ? location.search.slice(1) : location.search);
+      if (params.has('tab') || params.has('account_alias')) {
+        params.delete('tab');
+        params.delete('account_alias');
+        const nextQuery = params.toString();
+        navigate(nextQuery ? `/journal?${nextQuery}` : '/journal', { replace: true });
+      }
+      return;
+    }
     if (!portfolioUuid && requestedAccountAlias && requestedAccountAlias !== selectedAccountId) {
       return;
     }
@@ -394,7 +404,7 @@ export function Journal({ selectedStock, theme, onStockSelect, user }: JournalPr
                 </p>
               </div>
             </div>
-            {!portfolioUuid && (
+            {!isCloudflareEnv && !portfolioUuid && (
               <div className="shrink-0">
                 <AccountSelector
                   userId={DEMO_USER_ID}

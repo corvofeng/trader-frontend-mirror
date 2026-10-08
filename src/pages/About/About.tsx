@@ -198,11 +198,11 @@ export function About({ theme }: AboutProps) {
           {isCloudflareEnv && (
             <div className={`${themes[theme].card} rounded-xl border ${themes[theme].border} shadow-sm p-6 lg:col-span-2`}>
               <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="w-2 h-2 rounded-full bg-slate-400 dark:bg-zinc-500" />
                 <h3 className={`text-lg font-semibold ${themes[theme].text}`}>数据更新机制</h3>
               </div>
               <div className={`mt-3 text-sm ${themes[theme].text} opacity-85 leading-relaxed`}>
-                本站由 Cloudflare 全球边缘网络进行静态托管，所有投资组合净值走势、持仓标的与收益率数据均于<strong>每个交易日盘后自动同步</strong>，不提供盘中实时逐笔行情推送。
+                本站由 Cloudflare 全球边缘网络进行静态托管，所有投资组合净值走势、持仓标的与收益率数据均为<strong>每日收盘后的静态快照（交易日盘后自动更新）</strong>，不提供盘中实时逐笔行情推送。
               </div>
             </div>
           )}

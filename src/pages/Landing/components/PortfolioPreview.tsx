@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { ArrowUpCircle, ArrowDownCircle, ArrowUpRight, TrendingUp } from 'lucide-react';
 import { InternalLink } from '../../../shared/components';
 import { Theme, themes } from '../../../lib/theme';
-import { accountService, portfolioService } from '../../../lib/services';
+import { accountService, portfolioService, isCloudflareEnv } from '../../../lib/services';
 import type { Holding, User, Account } from '../../../lib/services/types';
 import { landingTranslations, Language } from '../i18n';
 import { getCurrencySymbol } from '../../../shared/utils/format';
+import { useCurrency } from '../../../lib/context/CurrencyContext';
 
 interface PortfolioPreviewProps {
   theme: Theme;
@@ -31,6 +32,7 @@ function getDisplayStockTitle(stock: Holding): { title: string; subtitle: string
 
 export function PortfolioPreview({ theme, user, lang = 'zh' }: PortfolioPreviewProps) {
   const t = landingTranslations[lang].portfolioSnapshot;
+  const { regionalColors } = useCurrency();
   const [topHoldings, setTopHoldings] = useState<Holding[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -87,7 +89,7 @@ export function PortfolioPreview({ theme, user, lang = 'zh' }: PortfolioPreviewP
           </p>
         </div>
         <InternalLink
-          to="/journal?tab=portfolio"
+          to={isCloudflareEnv ? "/journal" : "/journal?tab=portfolio"}
           className="inline-flex items-center gap-1.5 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-500 transition-colors"
           title="Access detailed portfolio analytics and performance metrics"
         >
@@ -146,7 +148,14 @@ export function PortfolioPreview({ theme, user, lang = 'zh' }: PortfolioPreviewP
                       </p>
                     )}
                   </div>
-                  <div className={`p-2 rounded-xl shrink-0 ${isPositive ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
+                  <div 
+                    className="p-2 rounded-xl shrink-0 border"
+                    style={{
+                      backgroundColor: isPositive ? `${regionalColors.upColor}1a` : `${regionalColors.downColor}1a`,
+                      color: isPositive ? regionalColors.upColor : regionalColors.downColor,
+                      borderColor: isPositive ? `${regionalColors.upColor}33` : `${regionalColors.downColor}33`,
+                    }}
+                  >
                     {isPositive ? (
                       <ArrowUpCircle className="w-5 h-5" />
                     ) : (
@@ -168,14 +177,24 @@ export function PortfolioPreview({ theme, user, lang = 'zh' }: PortfolioPreviewP
                 </div>
 
                 <div className="flex justify-between items-baseline pt-2 border-t border-slate-200/50 dark:border-zinc-800/80">
-                  <div className={`text-sm font-mono ${themes[theme].text} opacity-80 flex items-center`}>
-                    <span className="mr-1 opacity-75 font-sans font-semibold">{currencySymbol}</span>
-                    {typeof holding.current_price === 'number' ? holding.current_price.toFixed(2) : '--'}
+                  <div className={`text-xs ${themes[theme].text} opacity-70 flex flex-col`}>
+                    <span className="text-[11px] opacity-60">
+                      {lang === 'zh' ? '收盘结算价' : 'Close Price'}
+                    </span>
+                    <span className="text-sm font-mono font-medium">
+                      {currencySymbol}{typeof holding.current_price === 'number' ? holding.current_price.toFixed(2) : '--'}
+                    </span>
                   </div>
-                  <div className={`text-base font-bold font-mono ${
-                    isPositive ? 'text-emerald-500' : 'text-rose-500'
-                  }`}>
-                    {isPositive ? '+' : ''}{pnlPct.toFixed(2)}%
+                  <div className="flex flex-col items-end">
+                    <span className="text-[10px] opacity-60">
+                      {lang === 'zh' ? '持仓浮动盈亏' : 'Unrealized PnL'}
+                    </span>
+                    <span 
+                      className="text-base font-bold font-mono"
+                      style={{ color: isPositive ? regionalColors.upColor : regionalColors.downColor }}
+                    >
+                      {isPositive ? '+' : ''}{pnlPct.toFixed(2)}%
+                    </span>
                   </div>
                 </div>
               </div>
@@ -189,7 +208,7 @@ export function PortfolioPreview({ theme, user, lang = 'zh' }: PortfolioPreviewP
             {t.emptyText}
           </p>
           <InternalLink
-            to="/journal?tab=portfolio"
+            to={isCloudflareEnv ? "/journal" : "/journal?tab=portfolio"}
             className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
           >
             {t.emptyCta}

@@ -1,5 +1,6 @@
 import { RefreshCw, Camera, Calendar, ArrowRight } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
+import { isCloudflareEnv } from '../../../lib/services';
 
 interface OverviewControlsProps {
   theme: Theme;
@@ -7,7 +8,7 @@ interface OverviewControlsProps {
   selectedAccountId?: string | null;
   onAccountChange?: (accountId: string) => void;
   dateRange: { startDate: string; endDate: string };
-  onDateRangeChange: (range: { startDate: string; endDate: string }) => void;
+  onDateRangeChange?: (range: { startDate: string; endDate: string }) => void;
   isSharedView?: boolean;
   portfolioUuid?: string | null;
   onRefresh?: () => void;
@@ -53,37 +54,39 @@ export function OverviewControls({
       </div>
 
       {/* 右侧操作群组：时间范围胶囊 + 刷新 + 分享截图 (桌面端单行整齐呈现，移动端自然换行) */}
-      {isLoggedIn && (!isSharedView || portfolioUuid) && (
+      {!isCloudflareEnv && isLoggedIn && (!isSharedView || portfolioUuid) && (
         <div className="flex items-center justify-between sm:justify-end gap-2 flex-wrap">
           {/* 紧凑优雅的时间胶囊 */}
-          <div
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border shadow-2xs transition-all w-full sm:w-auto ${dateCapsuleBg}`}
-          >
-            <Calendar className="w-3.5 h-3.5 opacity-50 shrink-0 ml-0.5" />
-            
-            {/* 开始日期 */}
-            <input
-              type="date"
-              value={dateRange.startDate}
-              onChange={(e) => onDateRangeChange({ ...dateRange, startDate: e.target.value })}
-              className={`bg-transparent border-0 p-0 text-xs sm:text-sm font-medium font-mono focus:ring-0 focus:outline-none cursor-pointer flex-1 sm:flex-none text-center sm:text-left ${dateInputStyle}`}
-              title="开始日期"
-            />
+          {onDateRangeChange && (
+            <div
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border shadow-2xs transition-all w-full sm:w-auto ${dateCapsuleBg}`}
+            >
+              <Calendar className="w-3.5 h-3.5 opacity-50 shrink-0 ml-0.5" />
+              
+              {/* 开始日期 */}
+              <input
+                type="date"
+                value={dateRange.startDate}
+                onChange={(e) => onDateRangeChange({ ...dateRange, startDate: e.target.value })}
+                className={`bg-transparent border-0 p-0 text-xs sm:text-sm font-medium font-mono focus:ring-0 focus:outline-none cursor-pointer flex-1 sm:flex-none text-center sm:text-left ${dateInputStyle}`}
+                title="开始日期"
+              />
 
-            <span className="opacity-40 text-xs px-0.5 shrink-0 select-none flex items-center">
-              <ArrowRight className="w-3 h-3 opacity-60 hidden xs:inline" />
-              <span className="xs:hidden">至</span>
-            </span>
+              <span className="opacity-40 text-xs px-0.5 shrink-0 select-none flex items-center">
+                <ArrowRight className="w-3 h-3 opacity-60 hidden xs:inline" />
+                <span className="xs:hidden">至</span>
+              </span>
 
-            {/* 结束日期 */}
-            <input
-              type="date"
-              value={dateRange.endDate}
-              onChange={(e) => onDateRangeChange({ ...dateRange, endDate: e.target.value })}
-              className={`bg-transparent border-0 p-0 text-xs sm:text-sm font-medium font-mono focus:ring-0 focus:outline-none cursor-pointer flex-1 sm:flex-none text-center sm:text-left ${dateInputStyle}`}
-              title="结束日期"
-            />
-          </div>
+              {/* 结束日期 */}
+              <input
+                type="date"
+                value={dateRange.endDate}
+                onChange={(e) => onDateRangeChange({ ...dateRange, endDate: e.target.value })}
+                className={`bg-transparent border-0 p-0 text-xs sm:text-sm font-medium font-mono focus:ring-0 focus:outline-none cursor-pointer flex-1 sm:flex-none text-center sm:text-left ${dateInputStyle}`}
+                title="结束日期"
+              />
+            </div>
+          )}
 
           {/* 快捷按钮 */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">

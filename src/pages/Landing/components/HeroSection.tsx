@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { TrendingUp, ArrowRight, ShieldCheck, Activity, Zap } from 'lucide-react';
+import { TrendingUp, ArrowRight, ShieldCheck, Activity, Zap, Bot } from 'lucide-react';
 import { Theme, themes } from '../../../lib/theme';
 import { accountService, portfolioService } from '../../../lib/services';
 import type { Holding, User, Account, PortfolioKlinePoint } from '../../../lib/services/types';
@@ -15,6 +15,7 @@ interface HeroSectionProps {
   onNavigateToJournal: () => void;
   onNavigateToAdmin?: () => void;
   onNavigateToAbout: () => void;
+  onOpenAiGuide?: () => void;
   user?: User | null;
   lang?: Language;
 }
@@ -57,6 +58,7 @@ function generateRealisticFallbackTrend(count = 25): TrendDataPoint[] {
 export function HeroSection({ 
   theme, 
   onNavigateToJournal, 
+  onOpenAiGuide,
   user,
   lang = 'zh',
 }: HeroSectionProps) {
@@ -78,6 +80,7 @@ export function HeroSection({
   const [winDays, setWinDays] = useState<number>(10);
   const [totalDays, setTotalDays] = useState<number>(15);
   const [trendData, setTrendData] = useState<TrendDataPoint[]>(() => generateRealisticFallbackTrend());
+  const [latestDate, setLatestDate] = useState<string>('');
   const [thirtyDayNetPnL, setThirtyDayNetPnL] = useState<number>(2580.00);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -128,9 +131,8 @@ export function HeroSection({
         if (accountKey) {
           const endDate = new Date().toISOString().split('T')[0];
           const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-          const [klineResponse, metricsResponse] = await Promise.all([
+          const [klineResponse] = await Promise.all([
             portfolioService.getKlineData(userId, startDate, endDate, accountKey),
-            portfolioService.getMetrics(userId, endDate, accountKey),
           ]);
           const candles: PortfolioKlinePoint[] = klineResponse.data || [];
           const hasAdjusted = candles.some(
@@ -168,12 +170,12 @@ export function HeroSection({
               const netChange = calculatedPoints.reduce((sum, p) => sum + p.dailyChange, 0);
               setThirtyDayNetPnL(netChange);
 
-              // Calculate daily win rate over the last 30 days
+              // Calculate daily win rate strictly from the displayed 30-day window
               const positiveDaysCount = calculatedPoints.filter((p) => p.dailyChange > 0).length;
               const totalDaysCount = calculatedPoints.length;
-              const calculatedWinRate = (metricsResponse?.data?.positiveDayRatio !== null && metricsResponse?.data?.positiveDayRatio !== undefined)
-                ? Number((metricsResponse.data.positiveDayRatio * 100).toFixed(1))
-                : Number(((positiveDaysCount / totalDaysCount) * 100).toFixed(1));
+              const calculatedWinRate = totalDaysCount > 0
+                ? Number(((positiveDaysCount / totalDaysCount) * 100).toFixed(1))
+                : 0;
               setWinRate(calculatedWinRate);
               setWinDays(positiveDaysCount);
               setTotalDays(totalDaysCount);
@@ -187,6 +189,7 @@ export function HeroSection({
               const todayPnLPct = prevClose > 0 ? (todayPnL / prevClose) * 100 : 0;
 
               const latestTotalValue = candles[candles.length - 1]?.close ?? lastCandle.close;
+              setLatestDate(lastCandle.date);
 
               setPortfolioSummary({
                 totalValue: latestTotalValue,
@@ -221,24 +224,24 @@ export function HeroSection({
       <div className="absolute -top-24 -left-24 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute top-1/2 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-20">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-12">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           
           {/* Left Column: Clean & Concise Hero Copy */}
           <div className="lg:col-span-7 flex flex-col items-start text-left">
-            <div className="inline-flex items-center gap-2 px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 text-xs font-semibold tracking-wide uppercase mb-4 sm:mb-5">
+            <div className="inline-flex items-center gap-2 px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 text-xs font-semibold tracking-wide uppercase mb-3 sm:mb-4">
               <Zap className="w-3.5 h-3.5 shrink-0" />
               <span className="truncate">{t.badge}</span>
             </div>
 
-            <h1 className={`text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight ${themes[theme].text} mb-4 leading-snug sm:leading-tight`}>
+            <h1 className={`text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight ${themes[theme].text} mb-3 leading-snug sm:leading-tight`}>
               <span className="inline-block">{t.titleLine1}</span>
               <span className="mt-1 sm:mt-0 sm:ml-3 inline-block whitespace-nowrap bg-gradient-to-r from-blue-600 via-indigo-500 to-cyan-500 bg-clip-text text-transparent">
                 {t.titleLine2}
               </span>
             </h1>
 
-            <p className={`text-sm sm:text-base lg:text-lg ${themes[theme].text} opacity-80 mb-6 sm:mb-8 max-w-lg leading-relaxed`}>
+            <p className={`text-sm sm:text-base lg:text-lg ${themes[theme].text} opacity-80 mb-5 sm:mb-6 max-w-lg leading-relaxed`}>
               {t.description}
             </p>
 
@@ -252,10 +255,21 @@ export function HeroSection({
                 <span>{t.openJournal}</span>
                 <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
               </button>
+
+              {onOpenAiGuide && (
+                <button
+                  type="button"
+                  onClick={onOpenAiGuide}
+                  className={`w-full sm:w-auto inline-flex items-center justify-center px-5 py-3.5 rounded-xl font-semibold text-sm transition-all duration-200 ${themes[theme].secondary} border ${themes[theme].border} active:scale-[0.98] group hover:border-indigo-500/50`}
+                >
+                  <Bot className="w-4 h-4 mr-2 text-indigo-500" />
+                  <span>{lang === 'zh' ? '用 AI 查看本站' : 'Browse with AI'}</span>
+                </button>
+              )}
             </div>
 
             {/* Micro Trust Strip */}
-            <div className="mt-6 sm:mt-8 pt-4 sm:pt-5 border-t border-slate-200/60 dark:border-zinc-800/60 flex flex-wrap items-center gap-4 sm:gap-6 text-xs opacity-70 w-full sm:w-auto">
+            <div className="mt-5 sm:mt-6 pt-4 border-t border-slate-200/60 dark:border-zinc-800/60 flex flex-wrap items-center gap-4 sm:gap-6 text-xs opacity-70 w-full sm:w-auto">
               <div className="flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
                 <span>{t.multiAccount}</span>
@@ -271,10 +285,17 @@ export function HeroSection({
           <div className="lg:col-span-5 w-full">
             <div className={`rounded-2xl p-5 sm:p-6 border ${themes[theme].border} ${themes[theme].card} shadow-xl relative overflow-hidden backdrop-blur-sm transition-all`}>
               {/* Card Header */}
-              <div className="flex items-center justify-between border-b border-slate-200/50 dark:border-zinc-800/80 pb-3.5 mb-4 sm:mb-5">
+              <div className="flex items-center justify-between border-b border-slate-200/50 dark:border-zinc-800/80 pb-3 mb-4">
                 <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-xs font-semibold tracking-wider uppercase opacity-75">{t.liveMarketMonitor}</span>
+                  <div className="w-2 h-2 rounded-full bg-slate-400 dark:bg-zinc-500" />
+                  <span className="text-xs font-semibold tracking-wider opacity-80">
+                    {lang === 'zh' 
+                      ? `收盘快照${latestDate ? ` · 截至 ${latestDate}` : ''}`
+                      : `Closing Snapshot${latestDate ? ` · As of ${latestDate}` : ''}`}
+                  </span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 border border-slate-200/60 dark:border-zinc-700/60 font-mono">
+                    {lang === 'zh' ? '盘后更新' : 'Post-Market'}
+                  </span>
                 </div>
                 <span 
                   className="text-xs font-mono px-2.5 py-1 rounded-md font-medium border"
@@ -319,7 +340,9 @@ export function HeroSection({
                     </div>
 
                     <div className="p-3 sm:p-3.5 rounded-xl bg-slate-100/60 dark:bg-zinc-800/40 border border-slate-200/40 dark:border-zinc-700/40">
-                      <div className="text-xs opacity-70 mb-1 truncate">{t.dailyPnL}</div>
+                      <div className="text-xs opacity-70 mb-1 truncate">
+                        {lang === 'zh' ? '最新收盘日盈亏' : 'Latest Close PnL'}
+                      </div>
                       <div 
                         className="text-lg sm:text-xl font-bold font-mono"
                         style={{ color: isPortfolioPositive ? regionalColors.upColor : regionalColors.downColor }}
@@ -330,7 +353,7 @@ export function HeroSection({
                         className="text-[11px] font-semibold mt-0.5 truncate"
                         style={{ color: isPortfolioPositive ? regionalColors.upColor : regionalColors.downColor }}
                       >
-                        {t.dailyPnLSub} ({isPortfolioPositive ? '+' : ''}{portfolioSummary.dailyChangePct.toFixed(2)}%)
+                        {lang === 'zh' ? '较前一交易日' : 'vs Previous Close'} ({isPortfolioPositive ? '+' : ''}{portfolioSummary.dailyChangePct.toFixed(2)}%)
                       </div>
                     </div>
                   </div>

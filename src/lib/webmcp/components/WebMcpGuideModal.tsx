@@ -18,6 +18,7 @@ import { themes, type Theme } from '../../theme';
 
 export interface WebMcpToolItem {
   name: string;
+  title?: string;
   description: string;
   inputSchema?: Record<string, unknown>;
   defaultArgs?: Record<string, unknown>;
@@ -62,36 +63,42 @@ const DEFAULT_TOOL_ARGS: Record<string, Record<string, unknown>> = {
 const FALLBACK_LANDING_TOOLS: WebMcpToolItem[] = [
   {
     name: 'landing_get_overview',
-    description: '获取交易系统主页概览、可访问的工作区模块与路由列表',
+    title: '获取主页概览与可用模块',
+    description: '获取交易系统主页概览、数据更新口径与当前可访问的功能模块',
     inputSchema: { type: 'object', properties: {} },
     defaultArgs: {},
   },
   {
     name: 'landing_navigate',
-    description: '跳转到系统指定页面（例如 /journal, /journal?tab=history, /journal?tab=orders, /options, /admin）',
-    inputSchema: { type: 'object', properties: { path: { type: 'string', description: '目标页面路径' } }, required: ['path'] },
+    title: '页面导航跳转',
+    description: '跳转到系统指定页面（白名单：/ 为首页, /journal 为投资组合与记录, /about 为关于）',
+    inputSchema: { type: 'object', properties: { path: { type: 'string', enum: ['/', '/journal', '/about'], description: '目标页面路径' } }, required: ['path'] },
     defaultArgs: { path: '/journal' },
   },
   {
     name: 'landing_list_accounts',
+    title: '查询交易账户列表',
     description: '获取交易账户列表与默认主账户',
     inputSchema: { type: 'object', properties: {} },
     defaultArgs: {},
   },
   {
     name: 'landing_get_portfolio_preview',
-    description: '获取主账户的持仓及资产预览数据',
+    title: '获取持仓与资产快照',
+    description: '获取主账户的持仓及资产预览数据（含 as_of 截至日期、币种与来源口径）',
     inputSchema: { type: 'object', properties: { account_alias: { type: 'string', description: '可选，指定账户别名' } } },
     defaultArgs: {},
   },
   {
     name: 'landing_switch_language',
+    title: '切换展示语言',
     description: '切换页面展示语言（zh: 中文, en: 英文）',
     inputSchema: { type: 'object', properties: { lang: { type: 'string', enum: ['zh', 'en'] } }, required: ['lang'] },
     defaultArgs: { lang: 'zh' },
   },
   {
     name: 'landing_switch_theme',
+    title: '切换界面主题',
     description: '切换界面主题（light: 亮色, dark: 暗色, blue: 蓝色）',
     inputSchema: { type: 'object', properties: { theme: { type: 'string', enum: ['light', 'dark', 'blue'] } }, required: ['theme'] },
     defaultArgs: { theme: 'dark' },
@@ -398,23 +405,40 @@ ${toolNamesList || 'journal_list_accounts, journal_get_portfolio, journal_get_to
     return [
       {
         id: 'prompt-landing-overview',
-        title: '平台全貌与主账户预览（推荐）',
-        badge: '常用',
-        desc: '在主页直接获取交易系统可用模块与主账户持仓概览',
-        content: `我正在访问交易系统主页：${currentUrl} (Host: ${currentHost})
-当前页面已支持 WebMCP 标准（可用工具：${toolNamesList || 'landing_get_overview, landing_list_accounts, landing_get_portfolio_preview, landing_navigate'}）。
-请帮我：
-1. 调用 landing_get_overview 了解本交易系统包含哪些主要模块与功能；
-2. 调用 landing_list_accounts 和 landing_get_portfolio_preview 预览我的主账户资产与持仓情况；
-3. 如果我想查看今日成交订单，请告诉我该进入哪个模块。`,
+        title: '介绍本站有哪些功能（功能总览）',
+        badge: '总览',
+        desc: '让 AI 调用 landing_get_overview 说明可用模块与盘后快照更新机制',
+        content: `我正在访问个人交易系统：${currentUrl}
+当前页面已支持 W3C WebMCP 标准。请调用 WebMCP 工具 landing_get_overview，向我介绍：
+1. 本站包含哪些主要功能模块与对应页面路径；
+2. 本站的数据更新机制（每日收盘快照 / 盘后自动同步说明）。`,
       },
       {
         id: 'prompt-landing-navigate',
-        title: 'AI 自动导航到交易日志',
+        title: '带我到历史成交页面（路由跳转）',
         badge: '导航',
-        desc: '让 AI 直接调用导航工具跳转至成交订单页面',
+        desc: '让 AI 调用 landing_navigate 自动跳转至投资组合与成交流水页面',
+        content: `我正在访问系统主页：${currentUrl}
+请调用 WebMCP 工具 landing_navigate 将页面跳转至投资组合与交易记录页面（path: "/journal"），并在跳转后告知我该页面展示的核心内容。`,
+      },
+      {
+        id: 'prompt-landing-portfolio',
+        title: '查看主账户持仓概览（资产快照）',
+        badge: '持仓',
+        desc: '让 AI 调用 landing_get_portfolio_preview 读取最新收盘日持仓与资产市值',
         content: `我正在访问交易系统主页：${currentUrl}
-请调用 WebMCP 工具 landing_navigate 将页面跳转至成交订单页面（/journal?tab=orders），并在跳转后告诉我在该页面可以查看哪些信息。`,
+请调用 WebMCP 工具 landing_get_portfolio_preview 获取我的主账户持仓与资产快照数据。
+请帮我汇总汇报：
+1. 账户别名与数据截至时间（as_of 最新收盘日）；
+2. 持仓股票数量与总持仓市值；
+3. 市值排名前列的标的及其最新收盘结算价与浮动盈亏。`,
+      },
+      {
+        id: 'prompt-landing-theme',
+        title: '将系统主题切换为暗黑模式',
+        badge: '设置',
+        desc: '让 AI 调用 landing_switch_theme 动态调节界面视觉模式',
+        content: `请调用当前页面的 WebMCP 工具 landing_switch_theme，将界面主题切换为暗色模式（theme: "dark"）。`,
       },
     ];
   }, [currentUrl, currentHost, pageTitle, toolNamesList]);
@@ -722,6 +746,11 @@ console.log(typeof res === 'string' ? JSON.parse(res) : res);`;
                       >
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 mb-2 border-b border-gray-100 dark:border-gray-800">
                           <div className="flex items-center gap-2 flex-wrap">
+                            {tool.title && (
+                              <span className={`text-xs font-semibold ${themes[theme].text}`}>
+                                {tool.title}
+                              </span>
+                            )}
                             <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60">
                               {tool.name}
                             </span>

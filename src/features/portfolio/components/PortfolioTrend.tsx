@@ -709,7 +709,7 @@ export function PortfolioTrend({
 
                   <div className="flex items-center gap-1 shrink-0">
                     {/* 紧凑日期胶囊 */}
-                    {onDateRangeChange && isLoggedIn && (!isSharedView || portfolioUuid) && (
+                    {!isCloudflareEnv && onDateRangeChange && isLoggedIn && (!isSharedView || portfolioUuid) && (
                       <div
                         className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-lg border text-[10px] shadow-2xs ${dateCapsuleBg}`}
                       >
@@ -733,7 +733,7 @@ export function PortfolioTrend({
                     )}
 
                     {/* 刷新按钮 / 静态同步状态 */}
-                    {onRefresh && (
+                    {!isCloudflareEnv && onRefresh && (
                       <button
                         type="button"
                         onClick={onRefresh}
@@ -745,7 +745,7 @@ export function PortfolioTrend({
                     )}
 
                     {/* 截图按钮 */}
-                    {onScreenshot && (
+                    {!isCloudflareEnv && onScreenshot && (
                       <button
                         type="button"
                         onClick={onScreenshot}
@@ -929,7 +929,7 @@ export function PortfolioTrend({
                     </div>
 
                     {/* 日期选择胶囊 */}
-                    {onDateRangeChange && isLoggedIn && (!isSharedView || portfolioUuid) && (
+                    {!isCloudflareEnv && onDateRangeChange && isLoggedIn && (!isSharedView || portfolioUuid) && (
                       <div
                         className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border text-xs shadow-2xs ${dateCapsuleBg}`}
                       >
@@ -953,29 +953,31 @@ export function PortfolioTrend({
                     )}
 
                     {/* 操作按钮组 */}
-                    <div className="flex items-center gap-1.5">
-                      {onRefresh && (
-                        <button
-                          type="button"
-                          onClick={onRefresh}
-                          className={`p-1.5 rounded-xl border text-xs btn-tactile ${themes[theme].secondary} border-slate-200/80 dark:border-gray-800 hover:opacity-90 active:scale-95 transition-all shadow-2xs hide-in-screenshot`}
-                          title="刷新数据"
-                        >
-                          <RefreshCw className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                      {onScreenshot && (
-                        <button
-                          type="button"
-                          onClick={onScreenshot}
-                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl border text-xs btn-tactile ${themes[theme].secondary} border-slate-200/80 dark:border-gray-800 hover:opacity-90 active:scale-95 transition-all shadow-2xs hide-in-screenshot`}
-                          title="分享截图"
-                        >
-                          <Camera className="w-3.5 h-3.5" />
-                          <span>截图</span>
-                        </button>
-                      )}
-                    </div>
+                    {!isCloudflareEnv && (
+                      <div className="flex items-center gap-1.5">
+                        {onRefresh && (
+                          <button
+                            type="button"
+                            onClick={onRefresh}
+                            className={`p-1.5 rounded-xl border text-xs btn-tactile ${themes[theme].secondary} border-slate-200/80 dark:border-gray-800 hover:opacity-90 active:scale-95 transition-all shadow-2xs hide-in-screenshot`}
+                            title="刷新数据"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {onScreenshot && (
+                          <button
+                            type="button"
+                            onClick={onScreenshot}
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl border text-xs btn-tactile ${themes[theme].secondary} border-slate-200/80 dark:border-gray-800 hover:opacity-90 active:scale-95 transition-all shadow-2xs hide-in-screenshot`}
+                            title="分享截图"
+                          >
+                            <Camera className="w-3.5 h-3.5" />
+                            <span>截图</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 

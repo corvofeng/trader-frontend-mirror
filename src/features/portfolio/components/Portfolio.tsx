@@ -496,14 +496,14 @@ export function Portfolio({
               klineMetrics={klineMetrics}
               theme={theme}
               dateRange={dateRange}
-              onDateRangeChange={onDateRangeChange}
+              onDateRangeChange={isCloudflareEnv ? undefined : onDateRangeChange}
               latestTrendValue={latestTrendValue}
               totalHoldingsValue={totalHoldingsValue}
               positionRatio={positionRatio}
               totalProfitLoss={totalProfitLoss}
               remainingCash={remainingCash}
               onRefresh={isCloudflareEnv ? undefined : refreshAll}
-              onScreenshot={handleScreenshot}
+              onScreenshot={isCloudflareEnv ? undefined : handleScreenshot}
               isLoggedIn={!!user}
               isSharedView={isSharedView}
               portfolioUuid={portfolioUuid}
@@ -519,12 +519,12 @@ export function Portfolio({
               selectedAccountId={selectedAccountId ?? null}
               onAccountChange={onAccountChange}
               dateRange={dateRange}
-              onDateRangeChange={onDateRangeChange}
+              onDateRangeChange={isCloudflareEnv ? undefined : onDateRangeChange}
               isSharedView={isSharedView}
               portfolioUuid={portfolioUuid}
               onRefresh={isCloudflareEnv ? undefined : refreshAll}
               isLoggedIn={!!user}
-              onScreenshot={handleScreenshot}
+              onScreenshot={isCloudflareEnv ? undefined : handleScreenshot}
             />
           </div>
           <FadeIn delay={100}>

@@ -11,6 +11,7 @@ import { isCloudflareEnv } from '../../lib/services';
 import { Language, landingTranslations } from './i18n';
 import { useLandingWebMcp } from './hooks/useLandingWebMcp';
 import { WebMcpBadge } from '../../lib/webmcp/components/WebMcpBadge';
+import { WebMcpGuideModal } from '../../lib/webmcp/components/WebMcpGuideModal';
 
 interface LandingProps {
   theme: Theme;
@@ -20,6 +21,7 @@ interface LandingProps {
 
 export function Landing({ theme, onThemeChange, user }: LandingProps) {
   const navigate = useNavigate();
+  const [isAiGuideOpen, setIsAiGuideOpen] = useState(false);
   const [lang, setLang] = useState<Language>(() => {
     const saved = localStorage.getItem('app_lang') as Language;
     return saved === 'en' ? 'en' : 'zh';
@@ -100,6 +102,7 @@ export function Landing({ theme, onThemeChange, user }: LandingProps) {
         onNavigateToJournal={() => navigate('/journal')}
         onNavigateToAdmin={user ? () => navigate('/admin') : undefined}
         onNavigateToAbout={() => navigate('/about')}
+        onOpenAiGuide={() => setIsAiGuideOpen(true)}
         user={user}
         lang={lang}
       />
@@ -116,7 +119,7 @@ export function Landing({ theme, onThemeChange, user }: LandingProps) {
           <FeaturesGrid 
             theme={theme} 
             user={user} 
-            onNavigateToJournal={(tab) => navigate(tab ? `/journal?tab=${tab}` : '/journal')}
+            onNavigateToJournal={(tab) => navigate(isCloudflareEnv || !tab ? '/journal' : `/journal?tab=${tab}`)}
             lang={lang}
           />
         </div>
@@ -135,6 +138,17 @@ export function Landing({ theme, onThemeChange, user }: LandingProps) {
           </p>
         </div>
       </footer>
+
+      {/* WebMCP AI Assistant Guidance Modal */}
+      <WebMcpGuideModal
+        isOpen={isAiGuideOpen}
+        onClose={() => setIsAiGuideOpen(false)}
+        theme={theme}
+        pageTitle="交易系统主页"
+        customTools={webMcp.tools}
+        isReady={webMcp.isReady}
+        registeredCount={webMcp.registeredToolCount}
+      />
     </div>
   );
 }

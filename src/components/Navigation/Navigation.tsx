@@ -93,6 +93,7 @@ export function Navigation({
   const navigate = useNavigate();
   const location = useLocation();
   const isActivePath = (path: string) => location.pathname === path;
+  const isEn = typeof localStorage !== 'undefined' && localStorage.getItem('app_lang') === 'en';
 
   useEffect(() => {
     if (sessionStorage.getItem('sw_refreshed') === 'true') {
@@ -407,7 +408,7 @@ export function Navigation({
                           : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5'
                       }`}
                     >
-                      Home
+                      {isEn ? 'Home' : '首页'}
                     </button>
                     <button
                       onClick={() => navigate('/journal')}
@@ -417,7 +418,7 @@ export function Navigation({
                           : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5'
                       }`}
                     >
-                      Portfolio
+                      {isEn ? 'Portfolio' : '投资组合'}
                     </button>
                     <button
                       onClick={() => navigate('/about')}
@@ -427,7 +428,7 @@ export function Navigation({
                           : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5'
                       }`}
                     >
-                      About
+                      {isEn ? 'About' : '关于'}
                     </button>
                   </>
                 ) : (
@@ -440,7 +441,7 @@ export function Navigation({
                           : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5'
                       }`}
                     >
-                      Journal
+                      {isEn ? 'Journal' : '交易记录'}
                     </button>
                     <button
                       onClick={() => navigate('/options')}
@@ -450,7 +451,7 @@ export function Navigation({
                           : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5'
                       }`}
                     >
-                      Options
+                      {isEn ? 'Options' : '期权'}
                     </button>
                     <button
                       onClick={() => navigate('/terminal')}
@@ -461,7 +462,7 @@ export function Navigation({
                       }`}
                     >
                       <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                      <span>Terminal</span>
+                      <span>{isEn ? 'Terminal' : '终端'}</span>
                     </button>
                     {user && (
                       <button
@@ -472,7 +473,7 @@ export function Navigation({
                             : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5'
                         }`}
                       >
-                        Admin
+                        {isEn ? 'Admin' : '管理'}
                       </button>
                     )}
                     <button
@@ -483,7 +484,7 @@ export function Navigation({
                           : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-black/5 dark:hover:bg-white/5'
                       }`}
                     >
-                      About
+                      {isEn ? 'About' : '关于'}
                     </button>
                   </>
                 )}
@@ -535,7 +536,7 @@ export function Navigation({
                   className={`flex items-center space-x-2 px-3 py-2 rounded-lg btn-tactile ${themes[theme].secondary}`}
                 >
                   {themeIcons[theme]}
-                  <span className={`ml-2 ${themes[theme].text}`}>Theme</span>
+                  <span className={`ml-2 ${themes[theme].text}`}>{isEn ? 'Theme' : '主题'}</span>
                 </button>
                 
                 {showThemeDropdown && (
@@ -634,7 +635,7 @@ export function Navigation({
                             : themes[theme].secondary
                         }`}
                       >
-                        Home
+                        {isEn ? 'Home' : '首页'}
                       </button>
                       <button
                         onClick={() => {
@@ -647,7 +648,7 @@ export function Navigation({
                             : themes[theme].secondary
                         }`}
                       >
-                        Portfolio
+                        {isEn ? 'Portfolio' : '投资组合'}
                       </button>
                       <button
                         onClick={() => {
@@ -660,7 +661,7 @@ export function Navigation({
                             : themes[theme].secondary
                         }`}
                       >
-                        About
+                        {isEn ? 'About' : '关于'}
                       </button>
                     </>
                   ) : (

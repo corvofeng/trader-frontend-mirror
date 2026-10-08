@@ -25,6 +25,7 @@ export function AnimatedChart({ theme, lang = 'zh', user }: AnimatedChartProps) 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [containerReady, setContainerReady] = useState(false);
+  const [isEmpty, setIsEmpty] = useState(false);
   const { getThemedColors, currencyConfig } = useCurrency();
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
 
@@ -65,7 +66,6 @@ export function AnimatedChart({ theme, lang = 'zh', user }: AnimatedChartProps) 
     }
 
     let disposed = false;
-    let animationFrame: number;
 
     async function initializeChart() {
       if (!chartContainerRef.current) {
@@ -192,40 +192,20 @@ export function AnimatedChart({ theme, lang = 'zh', user }: AnimatedChartProps) 
             .filter((item): item is { time: string; open: number; high: number; low: number; close: number } => item !== null)
             .sort((a, b) => a.time.localeCompare(b.time));
 
-          // Progressive loading animation
-          let currentIndex = 0;
-          const animateData = () => {
-            if (currentIndex < candlestickData.length && !disposed) {
-              if (candlestickSeriesRef.current && chartRef.current) {
-                const chunkSize = Math.max(1, Math.floor(candlestickData.length / 100));
-                const nextIndex = Math.min(currentIndex + chunkSize, candlestickData.length);
-                
-                try {
-                  candlestickSeriesRef.current.setData(candlestickData.slice(0, nextIndex));
-                  chartRef.current.timeScale().fitContent();
-                } catch (e) {
-                  console.error('Error during animation:', e);
-                  return;
-                }
-                
-                currentIndex = nextIndex;
-                
-                setTimeout(() => {
-                  if (!disposed) {
-                    animationFrame = requestAnimationFrame(animateData);
-                  }
-                }, 50);
-              }
-            } else {
-              if (!disposed) {
-                setIsLoading(false);
-              }
+          // Render data directly to prevent blocking loading mask during screenshots
+          if (candlestickSeriesRef.current && chartRef.current) {
+            try {
+              candlestickSeriesRef.current.setData(candlestickData);
+              chartRef.current.timeScale().fitContent();
+            } catch (e) {
+              console.error('Error rendering chart data:', e);
             }
-          };
-
-          animateData();
+          }
+          setIsLoading(false);
+          setIsEmpty(false);
         } else {
           setIsLoading(false);
+          setIsEmpty(true);
         }
       } catch (err) {
         console.error('Error loading kline data:', err);
@@ -266,9 +246,6 @@ export function AnimatedChart({ theme, lang = 'zh', user }: AnimatedChartProps) 
         chartRef.current = null;
       }
       candlestickSeriesRef.current = null;
-      if (animationFrame) {
-        cancelAnimationFrame(animationFrame);
-      }
     };
   }, [theme, containerReady, getThemedColors, user, isMobile, formatAxisValue]);
 
@@ -286,6 +263,12 @@ export function AnimatedChart({ theme, lang = 'zh', user }: AnimatedChartProps) 
             <p className="font-medium">Failed to load chart</p>
             <p className="text-sm opacity-75">{error}</p>
           </div>
+        </div>
+      )}
+
+      {!isLoading && !error && isEmpty && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white/5 backdrop-blur-sm rounded-lg z-10 text-sm opacity-60">
+          暂无历史 K 线数据
         </div>
       )}
 

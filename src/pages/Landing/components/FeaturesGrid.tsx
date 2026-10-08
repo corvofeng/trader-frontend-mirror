@@ -2,6 +2,7 @@ import { BarChart3, BookOpenCheck, ArrowRight, ShieldAlert, Sparkles } from 'luc
 import { InternalLink } from '../../../shared/components';
 import { Theme, themes } from '../../../lib/theme';
 import type { User } from '../../../lib/services/types';
+import { isCloudflareEnv } from '../../../lib/services';
 import { landingTranslations, Language } from '../i18n';
 
 interface FeaturesGridProps {
@@ -65,7 +66,7 @@ export function FeaturesGrid({ theme, user, onNavigateToJournal, lang = 'zh' }: 
               </button>
             ) : (
               <InternalLink
-                to="/journal?tab=portfolio"
+                to={isCloudflareEnv ? "/journal" : "/journal?tab=portfolio"}
                 className="w-full inline-flex items-center justify-between text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 group/btn"
               >
                 <span>{t.portfolio.cta}</span>
@@ -75,7 +76,7 @@ export function FeaturesGrid({ theme, user, onNavigateToJournal, lang = 'zh' }: 
           </div>
         </div>
 
-        {/* Card 3: Trade Journal & Plans */}
+        {/* Card 3: Trade History */}
         <div className={`${themes[theme].card} rounded-2xl p-7 border ${themes[theme].border} ${themes[theme].cardHover} transition-all duration-300 shadow-md hover:shadow-xl relative overflow-hidden group flex flex-col justify-between`}>
           <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition-all pointer-events-none" />
 
@@ -110,7 +111,7 @@ export function FeaturesGrid({ theme, user, onNavigateToJournal, lang = 'zh' }: 
               </button>
             ) : (
               <InternalLink
-                to="/journal?tab=trades"
+                to={isCloudflareEnv ? "/journal" : "/journal?tab=trades"}
                 className="w-full inline-flex items-center justify-between text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 group/btn"
               >
                 <span>{t.journal.cta}</span>
