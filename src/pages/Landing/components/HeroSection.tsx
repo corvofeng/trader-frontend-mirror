@@ -285,20 +285,24 @@ export function HeroSection({
           <div className="lg:col-span-5 w-full">
             <div className={`rounded-2xl p-5 sm:p-6 border ${themes[theme].border} ${themes[theme].card} shadow-xl relative overflow-hidden backdrop-blur-sm transition-all`}>
               {/* Card Header */}
-              <div className="flex items-center justify-between border-b border-slate-200/50 dark:border-zinc-800/80 pb-3 mb-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-slate-400 dark:bg-zinc-500" />
-                  <span className="text-xs font-semibold tracking-wider opacity-80">
-                    {lang === 'zh' 
-                      ? `收盘快照${latestDate ? ` · 截至 ${latestDate}` : ''}`
-                      : `Closing Snapshot${latestDate ? ` · As of ${latestDate}` : ''}`}
+              <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 border-b border-slate-200/50 dark:border-zinc-800/80 pb-3 mb-4">
+                <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-wrap sm:flex-nowrap">
+                  <div className="w-2 h-2 rounded-full bg-slate-400 dark:bg-zinc-500 shrink-0" />
+                  <span className="text-xs font-semibold tracking-wider opacity-80 whitespace-nowrap">
+                    {lang === 'zh' ? '收盘快照' : 'Closing Snapshot'}
+                    {latestDate && (
+                      <span className="font-normal opacity-90 whitespace-nowrap">
+                        {lang === 'zh' ? ` · 截至 ` : ` · As of `}
+                        <span className="font-mono tabular-nums whitespace-nowrap">{latestDate}</span>
+                      </span>
+                    )}
                   </span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 border border-slate-200/60 dark:border-zinc-700/60 font-mono">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 border border-slate-200/60 dark:border-zinc-700/60 font-mono whitespace-nowrap shrink-0">
                     {lang === 'zh' ? '盘后更新' : 'Post-Market'}
                   </span>
                 </div>
                 <span 
-                  className="text-xs font-mono px-2.5 py-1 rounded-md font-medium border"
+                  className="text-xs font-mono px-2.5 py-1 rounded-md font-medium border whitespace-nowrap shrink-0 tabular-nums"
                   style={{
                     backgroundColor: isPortfolioPositive ? `${regionalColors.upColor}1a` : `${regionalColors.downColor}1a`,
                     color: isPortfolioPositive ? regionalColors.upColor : regionalColors.downColor,
