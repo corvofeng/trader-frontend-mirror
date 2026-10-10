@@ -1,1 +1,1 @@
-build time: 2026-10-09T13:51:44 tag: v0.2.9
+build time: 2026-10-10T07:20:47 tag: v0.3.0
