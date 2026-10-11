@@ -129,6 +129,8 @@ function KlineBlock({
           fillContainer
           compactMode
           defaultVisibleMonths={6}
+          defaultShowMA={true}
+          defaultShowVolume={true}
         />
       </div>
     </div>

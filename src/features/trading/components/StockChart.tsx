@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { logger } from '../../../shared/utils/logger';
-import { createChart, ColorType, IChartApi, ISeriesApi, CrosshairMode, LineStyle, PriceScaleMode, UTCTimestamp } from 'lightweight-charts';
+import { createChart, ColorType, IChartApi, ISeriesApi, CrosshairMode, LineStyle, PriceScaleMode, UTCTimestamp, Time } from 'lightweight-charts';
 import { format } from 'date-fns';
 import { themes } from '../../../shared/constants/theme';
 import { stockService, authService, portfolioService } from '../../../lib/services';
@@ -11,6 +11,12 @@ import { useCurrency } from '../../../lib/context/CurrencyContext';
 import { ZoomIn, ZoomOut, Lock, Unlock, Maximize2, Minimize2, Grid, LineChart, CandlestickChart, BarChart } from 'lucide-react';
 import type { StockData, Trade, Stock } from '../../../lib/services/types';
 import type { Theme } from '../../../shared/types/ui';
+import {
+  calculateMA,
+  formatMAPrice,
+  formatVolume,
+  MA_CONFIGS,
+} from '../utils/technicalIndicators';
 
 type ChartType = 'candlestick' | 'line' | 'bar';
 
@@ -25,6 +31,8 @@ interface StockChartProps {
   fillContainer?: boolean;
   compactMode?: boolean;
   defaultVisibleMonths?: number;
+  defaultShowMA?: boolean;
+  defaultShowVolume?: boolean;
 }
 
 interface CostBasisPoint {
@@ -102,7 +110,7 @@ const getChartVisualPalette = (theme: Theme, fallback: { upColor: string; downCo
   };
 };
 
-export function StockChart({ stockCode, theme, pendingTrades, userId, accountId, onTradesLoaded, className, fillContainer = false, compactMode = false, defaultVisibleMonths }: StockChartProps) {
+export function StockChart({ stockCode, theme, pendingTrades, userId, accountId, onTradesLoaded, className, fillContainer = false, compactMode = false, defaultVisibleMonths, defaultShowMA = true, defaultShowVolume = true }: StockChartProps) {
   const chartViewportRef = useRef<HTMLDivElement>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const onTradesLoadedRef = useRef<typeof onTradesLoaded>(onTradesLoaded);
@@ -110,9 +118,13 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
   const candlestickSeriesRef = useRef<ISeriesApi<any> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const costBasisSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const maSeriesRefs = useRef<{ [period: number]: ISeriesApi<"Line"> | null }>({});
   const priceLinesRef = useRef<PriceLineHandle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCostBasis, setShowCostBasis] = useState(true);
+  const [showMA, setShowMA] = useState(defaultShowMA);
+  const [activeMAPeriods, setActiveMAPeriods] = useState<number[]>([5, 10, 20, 60]);
+  const [hoveredTime, setHoveredTime] = useState<UTCTimestamp | null>(null);
   const { currencyConfig, getThemedColors } = useCurrency();
   const [stockInfo, setStockInfo] = useState<Stock | null>(null);
   const isDisposed = useRef(false);
@@ -121,7 +133,7 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
 
   const [chartType, setChartType] = useState<ChartType>('candlestick');
   const [isLocked, setIsLocked] = useState(false);
-  const [showVolume, setShowVolume] = useState(false);
+  const [showVolume, setShowVolume] = useState(defaultShowVolume);
   const [showGrid, setShowGrid] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [autoScale, setAutoScale] = useState(true);
@@ -181,6 +193,17 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
         }
         costBasisSeriesRef.current = null;
       }
+      Object.keys(maSeriesRefs.current).forEach((key) => {
+        const series = maSeriesRefs.current[Number(key)];
+        if (series) {
+          try {
+            chartRef.current?.removeSeries(series);
+          } catch (error) {
+            logger.debug('[StockChart] Error removing MA series during dispose', { error });
+          }
+        }
+      });
+      maSeriesRefs.current = {};
       
       try {
         chartRef.current.remove();
@@ -331,8 +354,8 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
           newSeries.priceScale().applyOptions({
             autoScale: autoScale,
             scaleMargins: {
-              top: isCompact ? 0.05 : 0.1,
-              bottom: showVolume ? (isCompact ? 0.12 : 0.2) : (isCompact ? 0.05 : 0.08),
+              top: isCompact ? 0.05 : 0.08,
+              bottom: showVolume ? (isCompact ? 0.22 : 0.25) : (isCompact ? 0.05 : 0.08),
             },
           });
           const sortedCandlestickData = [...chartData.candlestick].sort((a, b) => a.time - b.time);
@@ -571,8 +594,8 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
     mainSeries.priceScale().applyOptions({
       autoScale: autoScale,
       scaleMargins: {
-        top: isCompact ? 0.05 : 0.1,
-        bottom: showVolume ? (isCompact ? 0.12 : 0.2) : (isCompact ? 0.05 : 0.08),
+        top: isCompact ? 0.05 : 0.08,
+        bottom: showVolume ? (isCompact ? 0.22 : 0.25) : (isCompact ? 0.05 : 0.08),
       },
     });
 
@@ -593,7 +616,7 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
 
     volumeSeries.priceScale().applyOptions({
       scaleMargins: {
-        top: isCompact ? 0.88 : 0.8,
+        top: isCompact ? 0.78 : 0.75,
         bottom: 0,
       },
     });
@@ -608,6 +631,44 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
     });
 
     costBasisSeriesRef.current = costBasisSeries;
+
+    maSeriesRefs.current = {};
+    MA_CONFIGS.forEach((config) => {
+      const maSeries = chart.addLineSeries({
+        color: config.color,
+        lineWidth: 1,
+        lineStyle: LineStyle.Solid,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false,
+        visible: showMA && activeMAPeriods.includes(config.period),
+      });
+
+      maSeries.priceScale().applyOptions({
+        autoScale: autoScale,
+        scaleMargins: {
+          top: isCompact ? 0.05 : 0.08,
+          bottom: showVolume ? (isCompact ? 0.22 : 0.25) : (isCompact ? 0.05 : 0.08),
+        },
+      });
+
+      maSeriesRefs.current[config.period] = maSeries;
+    });
+
+    const handleCrosshairMove = (param: { time?: Time }) => {
+      if (!param.time) {
+        setHoveredTime(null);
+        return;
+      }
+      const time = typeof param.time === 'number'
+        ? (param.time as UTCTimestamp)
+        : typeof param.time === 'string'
+          ? (Math.floor(Date.parse(`${param.time}T00:00:00`) / 1000) as UTCTimestamp)
+          : (Math.floor(Date.UTC(param.time.year, param.time.month - 1, param.time.day) / 1000) as UTCTimestamp);
+      setHoveredTime(time);
+    };
+
+    chart.subscribeCrosshairMove(handleCrosshairMove);
 
     const applyDataToSeries = (
       candlestickData: CandlestickPoint[],
@@ -635,6 +696,14 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
             costBasisPoints.map(point => ({ time: point.time, value: point.value }))
           );
         }
+
+        MA_CONFIGS.forEach((config) => {
+          const maSeries = maSeriesRefs.current[config.period];
+          if (maSeries) {
+            const maPoints = calculateMA(candlestickData, config.period);
+            maSeries.setData(maPoints);
+          }
+        });
 
         if (trades.length > 0 && candlestickSeriesRef.current) {
           addTradeMarkers(candlestickSeriesRef.current, trades, chartColors);
@@ -781,6 +850,11 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
     }
 
     return () => {
+      try {
+        chart.unsubscribeCrosshairMove(handleCrosshairMove);
+      } catch (e) {
+        logger.debug('[StockChart] Error unsubscribing crosshair', { error: e });
+      }
       disposeChart();
       isInitializing.current = false;
     };
@@ -796,7 +870,95 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
         console.error('Error updating volume visibility:', e);
       }
     }
-  }, [showVolume]);
+    if (candlestickSeriesRef.current && !isDisposed.current) {
+      try {
+        candlestickSeriesRef.current.priceScale().applyOptions({
+          scaleMargins: {
+            top: isCompact ? 0.05 : 0.08,
+            bottom: showVolume ? (isCompact ? 0.22 : 0.25) : (isCompact ? 0.05 : 0.08),
+          },
+        });
+      } catch (e) {
+        // ignore
+      }
+    }
+    MA_CONFIGS.forEach((config) => {
+      const series = maSeriesRefs.current[config.period];
+      if (series && !isDisposed.current) {
+        try {
+          series.priceScale().applyOptions({
+            scaleMargins: {
+              top: isCompact ? 0.05 : 0.08,
+              bottom: showVolume ? (isCompact ? 0.22 : 0.25) : (isCompact ? 0.05 : 0.08),
+            },
+          });
+        } catch (e) {
+          // ignore
+        }
+      }
+    });
+  }, [showVolume, isCompact]);
+
+  useEffect(() => {
+    MA_CONFIGS.forEach((config) => {
+      const series = maSeriesRefs.current[config.period];
+      if (series && !isDisposed.current) {
+        try {
+          series.applyOptions({
+            visible: showMA && activeMAPeriods.includes(config.period),
+          });
+        } catch (e) {
+          logger.debug('[StockChart] Error updating MA visibility', { error: e });
+        }
+      }
+    });
+  }, [showMA, activeMAPeriods]);
+
+  const maMap = useMemo(() => {
+    const maps: Record<number, Map<UTCTimestamp, number>> = {};
+    MA_CONFIGS.forEach((config) => {
+      const points = calculateMA(chartData.candlestick, config.period);
+      const m = new Map<UTCTimestamp, number>();
+      points.forEach((p) => m.set(p.time, p.value));
+      maps[config.period] = m;
+    });
+    return maps;
+  }, [chartData.candlestick]);
+
+  const currentMAValues = useMemo(() => {
+    const lastPoint = chartData.candlestick.length > 0
+      ? chartData.candlestick[chartData.candlestick.length - 1]
+      : null;
+    const targetTime = hoveredTime ?? lastPoint?.time ?? null;
+    if (!targetTime) return {};
+
+    const values: Record<number, number | null> = {};
+    MA_CONFIGS.forEach((config) => {
+      values[config.period] = maMap[config.period]?.get(targetTime) ?? null;
+    });
+    return values;
+  }, [hoveredTime, chartData.candlestick, maMap]);
+
+  const volumeMap = useMemo(() => {
+    const m = new Map<UTCTimestamp, number>();
+    chartData.volume.forEach((p) => m.set(p.time, p.value));
+    return m;
+  }, [chartData.volume]);
+
+  const currentVolume = useMemo(() => {
+    const lastPoint = chartData.candlestick.length > 0
+      ? chartData.candlestick[chartData.candlestick.length - 1]
+      : null;
+    const targetTime = hoveredTime ?? lastPoint?.time ?? null;
+    if (!targetTime) return null;
+    return volumeMap.get(targetTime) ?? null;
+  }, [hoveredTime, chartData.candlestick, volumeMap]);
+
+  const toggleMAPeriod = (period: number) => {
+    setActiveMAPeriods((prev) =>
+      prev.includes(period) ? prev.filter((p) => p !== period) : [...prev, period]
+    );
+  };
 
   const btnTextClass = 'h-7 sm:h-8 px-2.5 sm:px-3 text-xs sm:text-sm font-medium rounded-md flex items-center justify-center transition-all duration-200 hover:scale-[1.02] active:scale-[0.96] disabled:opacity-50 disabled:pointer-events-none';
   const btnIconClass = 'h-7 sm:h-8 w-7 sm:w-8 rounded-md flex items-center justify-center transition-all duration-200 hover:scale-[1.05] active:scale-[0.94] disabled:opacity-50 disabled:pointer-events-none';
@@ -831,6 +993,15 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
 
           <div className="flex flex-wrap justify-between items-center gap-y-2">
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowMA(!showMA)}
+                className={`${btnTextClass} ${
+                  showMA ? themes[theme].primary : themes[theme].secondary
+                }`}
+                title="切换均线显示 (MA5/10/20/60)"
+              >
+                均线 MA
+              </button>
               <button
                 onClick={() => setShowCostBasis(!showCostBasis)}
                 className={`${btnTextClass} ${
@@ -947,8 +1118,55 @@ export function StockChart({ stockCode, theme, pendingTrades, userId, accountId,
           className="absolute inset-0 z-0"
           ref={chartContainerRef}
         />
+        {(showMA || showVolume) && (
+          <div className="absolute top-2 left-2 z-10 flex flex-wrap items-center gap-1.5 sm:gap-2.5 bg-white/85 dark:bg-zinc-900/85 backdrop-blur-xs px-2 py-1 rounded-md border border-slate-200/60 dark:border-zinc-800/60 text-[10px] sm:text-[11px] font-medium shadow-xs select-none">
+            {showMA && (
+              <>
+                <span className="text-slate-500 dark:text-zinc-400 font-semibold text-[10px]">均线</span>
+                {MA_CONFIGS.map((config) => {
+                  const active = activeMAPeriods.includes(config.period);
+                  const val = currentMAValues[config.period];
+                  return (
+                    <button
+                      key={config.period}
+                      onClick={() => toggleMAPeriod(config.period)}
+                      title={`点击${active ? '隐藏' : '显示'} ${config.label}`}
+                      className={`flex items-center gap-1 transition-opacity duration-150 hover:opacity-100 ${
+                        active ? 'opacity-100' : 'opacity-40 line-through'
+                      }`}
+                      style={{ color: config.color }}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: config.color }} />
+                      <span>{config.label}</span>
+                      <span className="font-mono">
+                        {formatMAPrice(val)}
+                      </span>
+                    </button>
+                  );
+                })}
+              </>
+            )}
+            {showVolume && currentVolume !== null && (
+              <div className={`flex items-center gap-1 ${showMA ? 'border-l border-slate-200/80 dark:border-zinc-700/80 pl-1.5 sm:pl-2' : ''}`}>
+                <span className="text-slate-500 dark:text-zinc-400 font-semibold text-[10px]">量</span>
+                <span className="font-mono text-slate-700 dark:text-zinc-200">
+                  {formatVolume(currentVolume)}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
         {isCompact && (
           <div className="absolute top-2.5 right-2.5 z-10 flex items-center gap-1.5 bg-slate-100/90 dark:bg-zinc-900/90 backdrop-blur-xs p-1 rounded-md border border-slate-200/50 dark:border-zinc-800/50 shadow-sm opacity-65 hover:opacity-100 transition-opacity duration-200">
+            <button
+              onClick={() => setShowMA(!showMA)}
+              className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-all ${
+                showMA ? 'bg-amber-600 text-white dark:bg-amber-500' : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-800'
+              }`}
+              title="切换均线显示 (MA5/10/20/60)"
+            >
+              均线
+            </button>
             <button
               onClick={() => setShowVolume(!showVolume)}
               className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-all ${
