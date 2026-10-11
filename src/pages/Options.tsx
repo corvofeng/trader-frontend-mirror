@@ -16,7 +16,7 @@ import { OptionsCalculatorCard } from '../features/options/components/OptionsCal
 import { OptionMarketStatePanel } from '../features/options/components/OptionMarketStatePanel';
 import type { PayoffChartEngine } from '../features/options/components/OptionPayoffCalculatorChart';
 import { OptionsCalculatorModal } from './options/OptionsCalculatorModal';
-import { RelatedLinks, AccountSelector } from '../shared/components';
+import { AccountSelector } from '../shared/components';
 import { optionsService, authService, accountService } from '../lib/services';
 import { OptionsPortfolioManagement } from '../features/options/components/OptionsPortfolioManagement';
 import { OptionWhitelistManager } from '../features/options/components/OptionWhitelistManager';
@@ -846,73 +846,36 @@ function OptionsContent({ theme }: OptionsProps) {
                   </div>
                 </>
               )}
-
-              <RelatedLinks 
-                theme={theme}
-                currentPath="/options?tab=data" 
-                maxItems={4}
-                hideTradePlans={!isAuthenticated}
-              />
             </div>
           )}
 
           {activeTab === 'market-state' && (
             <div className="space-y-6">
               <OptionMarketStatePanel theme={theme} selectedSymbol={selectedSymbol} />
-              <RelatedLinks 
-                theme={theme} 
-                currentPath="/options?tab=market-state" 
-                maxItems={4}
-                hideTradePlans={!isAuthenticated}
-              />
             </div>
           )}
 
           {activeTab === 'portfolio' && (
             <div className="space-y-6">
                 <OptionsPortfolio theme={theme} selectedAccountId={selectedAccountId} refreshKey={refreshKey} selectedSymbol={selectedSymbol} />
-              <RelatedLinks 
-                theme={theme} 
-                currentPath="/options?tab=portfolio" 
-                maxItems={4}
-                hideTradePlans={!isAuthenticated}
-              />
             </div>
           )}
 
           {activeTab === 'analysis' && (
             <div className="space-y-6">
               <OptionsAnalysisTab theme={theme} selectedSymbol={selectedSymbol} selectedAccountId={selectedAccountId} />
-              <RelatedLinks 
-                theme={theme} 
-                currentPath="/options?tab=analysis" 
-                maxItems={4}
-                hideTradePlans={!isAuthenticated}
-              />
             </div>
           )}
 
           {activeTab === 'trading' && (
             <div className="space-y-6">
               <OptionsTradePlans theme={theme} selectedSymbol={selectedSymbol} selectedAccountId={selectedAccountId} userId={userId} />
-              <RelatedLinks 
-                theme={theme} 
-                currentPath="/options?tab=trading" 
-                maxItems={4}
-                hideTradePlans={!isAuthenticated}
-              />
             </div>
           )}
 
           {activeTab === 'management' && (
             <div className="space-y-6">
               <OptionsPortfolioManagement theme={theme} selectedSymbol={selectedSymbol} />
-              <RelatedLinks 
-                theme={theme} 
-                currentPath="/options?tab=management" 
-                maxItems={4}
-                hideTradePlans={!isAuthenticated}
-              />
             </div>
           )}
 
@@ -922,12 +885,6 @@ function OptionsContent({ theme }: OptionsProps) {
                 theme={theme} 
                 userId={effectiveUserId} 
                 accountId={selectedAccountId}
-              />
-              <RelatedLinks 
-                theme={theme} 
-                currentPath="/options?tab=whitelist" 
-                maxItems={4}
-                hideTradePlans={!isAuthenticated}
               />
             </div>
           )}
@@ -940,12 +897,6 @@ function OptionsContent({ theme }: OptionsProps) {
                 chartEngine={payoffChartEngine}
                 onChartEngineChange={handlePayoffChartEngineChange}
               />
-              <RelatedLinks
-                theme={theme}
-                currentPath="/options?tab=expiry-risk"
-                maxItems={4}
-                hideTradePlans={!isAuthenticated}
-              />
             </div>
           )}
 
@@ -955,12 +906,6 @@ function OptionsContent({ theme }: OptionsProps) {
                 theme={theme}
                 selectedAccountId={selectedAccountId}
                 selectedSymbol={selectedSymbol}
-              />
-              <RelatedLinks 
-                theme={theme} 
-                currentPath="/options?tab=risk" 
-                maxItems={4}
-                hideTradePlans={!isAuthenticated}
               />
             </div>
           )}

@@ -6,7 +6,6 @@ import { OptionsHeader } from './components/OptionsHeader';
 import { OptionsTabNavigation } from './components/OptionsTabNavigation';
 import { OptionsTabContent } from './components/OptionsTabContent';
 import { OptionsCalculatorModal } from '../options/OptionsCalculatorModal';
-// import { RelatedLinks } from '../../shared/components';
 import { optionsService } from '../../lib/services';
 import { Theme } from '../../lib/theme';
 import type { OptionsData } from '../../lib/services/types';

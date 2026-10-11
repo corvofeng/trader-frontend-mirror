@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { themes, Theme } from '../../../lib/theme';
 import type { Account, AccountPrompt } from '../../../lib/services/types';
 import { accountService, accountPromptService } from '../../../lib/services';
-import { RelatedLinks } from '../../../shared/components';
 import { renderMarkdown } from '../../../shared/utils/markdown';
 import toast from 'react-hot-toast';
 
@@ -281,13 +280,6 @@ export function AnalysisTab({
       <p className={`${themes[theme].text} opacity-70`}>
         Trading performance analysis features coming soon...
       </p>
-      <div className="mt-6">
-        <RelatedLinks 
-          theme={theme} 
-          currentPath="/journal?tab=analysis" 
-          maxItems={3}
-        />
-      </div>
     </div>
   );
 
@@ -503,13 +495,6 @@ export function AnalysisTab({
         </div>
       )}
 
-      {!isSharedView && (
-        <RelatedLinks 
-          theme={theme} 
-          currentPath="/journal?tab=analysis" 
-          maxItems={3}
-        />
-      )}
       {previewModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
           <div

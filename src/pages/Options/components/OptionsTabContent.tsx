@@ -1,4 +1,3 @@
-import React from 'react';
 import { OptionsChain } from '../../../features/options/components/OptionsChain';
 import { TimeValueChart } from '../../../features/options/components/TimeValueChart';
 import { OptionsPortfolio } from '../../../features/options/components/OptionsPortfolio';
@@ -9,7 +8,6 @@ import { HoldingsStrategyBuilder } from '../../../features/options/components/Ho
 import { VolatilitySurface } from '../../../features/options/components/VolatilitySurface';
 import { OptionsAnalysisTab } from './OptionsAnalysisTab';
 import { OptionMarketStatePanel } from '../../../features/options/components/OptionMarketStatePanel';
-import { RelatedLinks } from '../../../shared/components';
 import { Theme } from '../../../lib/theme';
 import type { OptionsData } from '../../../lib/services/types';
 
@@ -44,11 +42,6 @@ export function OptionsTabContent({
     return (
       <div className="space-y-6">
         <OptionMarketStatePanel theme={theme} selectedSymbol={selectedSymbol} />
-        <RelatedLinks 
-          theme={theme}
-          currentPath="/options?tab=market-state" 
-          maxItems={4}
-        />
       </div>
     );
   }
@@ -57,11 +50,6 @@ export function OptionsTabContent({
     return (
       <div className="space-y-6">
         <OptionsAnalysisTab theme={theme} selectedSymbol={selectedSymbol} />
-        <RelatedLinks 
-          theme={theme}
-          currentPath="/options?tab=analysis" 
-          maxItems={4}
-        />
       </div>
     );
   }
@@ -123,12 +111,6 @@ export function OptionsTabContent({
             />
           </>
         )}
-
-        <RelatedLinks 
-          theme={theme}
-          currentPath="/options?tab=data" 
-          maxItems={4}
-        />
       </div>
     );
   }
@@ -138,11 +120,6 @@ export function OptionsTabContent({
       <div className="space-y-6">
         <HoldingsStrategyBuilder theme={theme} selectedSymbol={selectedSymbol} />
         <OptionsPortfolio theme={theme} optionsData={optionsData} selectedSymbol={selectedSymbol} />
-        <RelatedLinks 
-          theme={theme}
-          currentPath="/options?tab=portfolio" 
-          maxItems={4}
-        />
       </div>
     );
   }
@@ -151,11 +128,6 @@ export function OptionsTabContent({
     return (
       <div className="space-y-6">
         <OptionsTradePlans theme={theme} selectedSymbol={selectedSymbol} />
-        <RelatedLinks 
-          theme={theme}
-          currentPath="/options?tab=trading" 
-          maxItems={4}
-        />
       </div>
     );
   }
@@ -164,11 +136,6 @@ export function OptionsTabContent({
     return (
       <div className="space-y-6">
         <OptionsPortfolioManagement theme={theme} selectedSymbol={selectedSymbol} />
-        <RelatedLinks 
-          theme={theme}
-          currentPath="/options?tab=management" 
-          maxItems={4}
-        />
       </div>
     );
   }
