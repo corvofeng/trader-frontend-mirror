@@ -132,7 +132,7 @@ python3 scripts/sync-holdings.py --file mock_data/2026-09-30.json
 
 只要推送以 `v` 开头的 Tag（例如 `v0.2.5`），GitHub Actions 将自动执行：
 1. 安装依赖并构建 Cloudflare 静态产物 (`npm run build:cf`)
-2. 使用 Cloudflare Wrangler 自动部署至 Worker 路由 `stock-web.corvo.fun/*`
+2. 使用 Cloudflare Wrangler 自动部署至 Worker 路由 `stock.corvo.fun/*`
 
 > **注**：需在 GitHub 仓库的 **Settings -> Secrets and variables -> Actions** 中配置：
 > - `CLOUDFLARE_API_TOKEN`：具备 Workers/Pages 部署权限的 Cloudflare API 令牌

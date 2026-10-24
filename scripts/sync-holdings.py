@@ -272,7 +272,7 @@ def main():
             remote_info = json.loads(resp.read().decode('utf-8'))
             print(f"🎉 验证成功！线上 latest.json 当前日期: {remote_info.get('date')}")
             if remote_info.get('date') == latest_date:
-                print(f"✨ 数据已无缝上线！访问 https://stock-web.corvo.fun 即可查看最新持仓与净值。")
+                print(f"✨ 数据已无缝上线！访问 https://stock.corvo.fun 即可查看最新持仓与净值。")
             else:
                 print(f"⚠️ 提示: 线上日期尚未显示最新 (CDN 可能有短暂缓存，通常数秒内刷新)")
     except Exception as e:
